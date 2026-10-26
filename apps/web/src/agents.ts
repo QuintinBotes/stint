@@ -68,3 +68,17 @@ export function storyClock(payload: Record<string, unknown>): string | null {
   if (typeof at !== 'number') return null;
   return `${Math.floor(at / 60_000)}:${String(Math.floor((at % 60_000) / 1000)).padStart(2, '0')}`;
 }
+
+/** The names people know agents by; anything else shows its config id. */
+export const ADAPTER_NAMES: Record<string, string> = {
+  'muse-code': 'Muse Code',
+  'stint-agent': 'Stint agent',
+  replay: 'Replay',
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+  goose: 'goose',
+  opencode: 'opencode',
+  'gemini-cli': 'Gemini CLI',
+  'gemini-acp': 'Gemini CLI, ACP',
+  aider: 'Aider',
+};

@@ -1,6 +1,11 @@
-import { countTokens, renderHandoff } from '@stint-dev/core';
+import { join } from 'node:path';
+import { SkillProposalSchema, countTokens, renderHandoff } from '@stint-dev/core';
+import { Workspace, readJsonIfExists } from '@stint-dev/core/node';
 import { startDaemon } from '@stint-dev/daemon';
 import { freshFixture } from '../demo';
+import { recordEval } from '../eval';
+import { runSkillEvalLive } from '../eval/live';
+import { buildSkillEval, resolveSkillEvalTasks } from '../eval/results';
 import { assertPreflight, type PreflightDeps } from './preflight';
 import { seedDemo } from './seed';
 
@@ -88,6 +93,8 @@ export type LiveBeatsOptions = {
   pollMs?: number;
   implementer?: string;
   continuer?: string;
+  /** Measures a proposed skill (with it and without, on fresh copies) before it is approved; returns the card line (R-049). */
+  evalSkill?: (skill: string) => Promise<string | null>;
 };
 
 export type LiveSummary = {
@@ -166,7 +173,16 @@ export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
   let learnSkipped: string | null = null;
   if (proposed) {
     skill = String(proposed.payload.id ?? '');
-    out(`The learn step proposed ${skill}. Approving it.`);
+    out(`The learn step proposed ${skill}.`);
+    if (o.evalSkill) {
+      out('Measuring it first: the same task with the skill and without, on fresh copies.');
+      const card = await o.evalSkill(skill).catch((err: unknown) => {
+        out(`The eval did not finish (${err instanceof Error ? err.message : String(err)}); approving on the evidence alone.`);
+        return null;
+      });
+      if (card) out(card);
+    }
+    out(`Approving ${skill}.`);
     await o.client.post(`/api/skills/${skill}/approve`, {});
   } else {
     learnSkipped = String(skipped?.payload.reason ?? 'no recurrence');
@@ -205,10 +221,29 @@ export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
   return summary;
 }
 
+/**
+ * The skill eval for the demo: the proposed skill on the task it came from, with it and without, on fresh fixture
+ * copies, recorded through the daemon. Two short runs; the card says what they found.
+ */
+async function measureSkill(root: string, skill: string, task: string): Promise<string | null> {
+  const ws = await Workspace.open(root);
+  const raw = await readJsonIfExists<unknown>(join(ws.cacheDir, 'proposals', `${skill}.json`));
+  const parsed = raw ? SkillProposalSchema.safeParse(raw) : null;
+  if (!parsed?.success) return null;
+  const proposal = parsed.data;
+  const { defs } = resolveSkillEvalTasks({ evidence: proposal.evidence, tags: proposal.tags, tasks: await ws.listTasks(), requested: [task] });
+  const rows = await runSkillEvalLive({ root, skillId: skill, proposal, tasks: defs, implementer: 'muse-code', outRunsDir: join(root, '.stint', 'evals', skill, 'runs') });
+  const file = buildSkillEval({ id: skill, rows, replay: false, tasks: defs.map((d) => d.id), heldOut: null });
+  await recordEval(root, ws, file, proposal.evidence);
+  return file.card;
+}
+
 export type LiveDemoOptions = {
   auto?: boolean;
   allowOnline?: boolean;
   killAfterSeconds?: number;
+  /** Skip measuring the proposed skill; the skill card then shows no eval line. */
+  noEval?: boolean;
   out?: (line: string) => void;
   preflight?: PreflightDeps;
 };
@@ -232,6 +267,7 @@ export async function runLiveDemo(o: LiveDemoOptions = {}): Promise<{ root: stri
       auto: o.auto,
       allowOnline: o.allowOnline,
       killAfterSeconds: o.killAfterSeconds,
+      ...(o.noEval ? {} : { evalSkill: (skill: string) => measureSkill(root, skill, 'T-0042') }),
     });
     out(`Live run finished at ${d.url}`);
     out(`Repo: ${root}`);

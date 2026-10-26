@@ -35,6 +35,7 @@ export const demo = defineCommand({
     auto: { type: 'boolean', description: 'Do not pause for Enter between beats (--live)' },
     'allow-online': { type: 'boolean', description: 'Let the review beat run online on the hosted chain (--live)' },
     'kill-after': { type: 'string', description: 'Seconds after the first src/ change before the kill (--live)', default: '6' },
+    'no-eval': { type: 'boolean', description: 'Approve the proposed skill without measuring it first (--live)' },
     repo: { type: 'string', description: 'Repository for seed and record (default: the git top level)' },
     out: { type: 'string', description: 'Recording file to write (record)' },
   },
@@ -77,7 +78,7 @@ export const demo = defineCommand({
     if (args.live) {
       try {
         const killAfter = Number(args['kill-after']);
-        await runLiveDemo({ auto: args.auto, allowOnline: args['allow-online'], killAfterSeconds: Number.isFinite(killAfter) ? killAfter : 6 });
+        await runLiveDemo({ auto: args.auto, allowOnline: args['allow-online'], killAfterSeconds: Number.isFinite(killAfter) ? killAfter : 6, noEval: args['no-eval'] });
         return;
       } catch (err) {
         fail(err);

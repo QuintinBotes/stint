@@ -9,7 +9,7 @@ test('The verification tab lists every run, shows the selected one, maps accepta
   await expect.poll(async () => ((await (await request.get(`/api/tasks/${id}/verification`)).json()) as unknown[]).length).toBeGreaterThan(0);
 
   await page.goto(`/t/${id}?tab=verification`);
-  await expect(page.getByTestId('verification-summary')).toContainText('1 passed, 0 failed, run by the daemon');
+  await expect(page.getByTestId('verification-summary')).toContainText('1 passed, tests unchanged, run by the daemon');
   await expect(page.getByTestId('tamper-line')).toContainText('tests unchanged');
   await expect(page.getByTestId('check-tests')).toContainText('tests');
   await expect(page.getByTestId('check-tests')).toContainText('1 passed, 0 failed');

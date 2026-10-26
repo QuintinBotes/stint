@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
-import { type CostRow, type Gardening, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
+import { ADAPTER_NAMES, ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
+import { type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
 import { Button, EmptyState, StatusChip, VendorMark, cx } from '../components/ui';
@@ -450,6 +450,31 @@ function Upkeep({ data }: { data: Gardening | null }) {
   );
 }
 
+/** The close of the demo: every harness and host this workspace knows, on and off, all fed the same packet (R-049). */
+function AnyHarness({ health }: { health: Health | null }) {
+  if (!health) return null;
+  const agents = health.adapters.filter((a) => a.id !== 'replay');
+  const hosts = [...new Set((health.models ?? []).map((m) => m.host))];
+  return (
+    <div data-testid="any-harness" className="flex flex-col gap-3 text-[13px]">
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="harness-chips">
+        <span className="text-muted w-[64px]">Harnesses</span>
+        {agents.map((a) => (
+          <StatusChip key={a.id} label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.harness && a.harness !== 'cli' ? `, ${a.harness}` : ''}`} tone={a.capability.level === 'supported' ? 'good' : 'neutral'} />
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="host-chips">
+        <span className="text-muted w-[64px]">Hosts</span>
+        {hosts.map((h) => {
+          const ready = (health.models ?? []).some((m) => m.host === h && m.ready);
+          return <StatusChip key={h} label={hostName(h)} tone={ready ? 'good' : 'neutral'} />;
+        })}
+      </div>
+      <p className="text-[12px] text-muted">Green is ready here; grey is configured and off. Every one of them starts from the same packet, so a task can move between any of them.</p>
+    </div>
+  );
+}
+
 function Panel({ title, children, className, testId }: { title: string; children: React.ReactNode; className?: string; testId?: string }) {
   return (
     <section className={cx('rounded-lg border border-line bg-raised p-4', className)} data-testid={testId}>
@@ -576,6 +601,10 @@ export function Factory() {
 
         <Panel title="Phase gates: the golden tasks and the shadow record" testId="panel-phase-gates">
           <PhaseGatePanel gates={gates} />
+        </Panel>
+
+        <Panel title="Any harness, any model, one packet" testId="panel-any-harness">
+          <AnyHarness health={health as Health | null} />
         </Panel>
 
         <div className="grid md:grid-cols-2 gap-4">

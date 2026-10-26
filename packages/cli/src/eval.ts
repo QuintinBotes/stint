@@ -6,6 +6,7 @@ import { Workspace, readJsonIfExists, slugify, writeJsonAtomic } from '@stint-de
 import { defineCommand } from 'citty';
 import { runGoldenLive, runSkillEvalLive } from './eval/live';
 import {
+  type SkillEvalFile,
   buildGoldenResults,
   buildSkillEval,
   formatGoldenSummary,
@@ -43,6 +44,27 @@ async function skillInfo(root: string, ws: Workspace, id: string) {
   throw new Error(`no skill or proposal ${id} in ${root}`);
 }
 
+/**
+ * Records a finished eval. With a daemon running it is the one writer of .stint, so the eval goes to it; with
+ * none, this process is the only writer and records it itself.
+ */
+export async function recordEval(root: string, ws: Workspace, evalFile: SkillEvalFile, evidence: string[]): Promise<void> {
+  const daemon = join(root, '.stint', 'cache', 'daemon.json');
+  if (existsSync(daemon)) {
+    const d = JSON.parse(await Bun.file(daemon).text()) as { port: number; token: string };
+    const res = await fetch(`http://127.0.0.1:${d.port}/api/skills/${evalFile.id}/evaluated`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...evalFile, evidence }) }).catch(() => null);
+    if (res?.ok) return;
+    if (res) throw new Error(`the daemon refused the eval: ${await res.text()}`);
+  }
+  await writeJsonAtomic(join(root, '.stint', 'evals', `${evalFile.id}.json`), evalFile);
+  for (const taskId of [...evidence.map((r) => r.split('/')[0] as string), ...evalFile.tasks]) {
+    if (!(await ws.readTask(taskId).then(() => true, () => false))) continue;
+    await ws.events(taskId).append({ task: taskId, vendor: 'daemon', type: 'skill.evaluated', payload: { id: evalFile.id, with: evalFile.with, without: evalFile.without, replay: evalFile.replay, card: evalFile.card }, links: [{ kind: 'skill', ref: evalFile.id }] });
+    return;
+  }
+  process.stderr.write(`skill.evaluated for ${evalFile.id} was NOT recorded: no evidence task exists in this workspace\n`);
+}
+
 async function skillEval(args: { skill: string; tasks?: string; replay: boolean; from?: string; implementer: string; repo?: string; json: boolean }): Promise<void> {
   const root = repoRoot(args.repo);
   const ws = await Workspace.open(root);
@@ -67,26 +89,7 @@ async function skillEval(args: { skill: string; tasks?: string; replay: boolean;
     });
     return buildSkillEval({ id: args.skill, rows, replay: false, tasks: defs.map((d) => d.id), heldOut });
   })();
-  await writeJsonAtomic(join(evalsDir, `${args.skill}.json`), evalFile);
-  const carrierIds = [...info.evidence.map((r) => r.split('/')[0] as string), ...evalFile.tasks];
-  let recorded = false;
-  for (const taskId of carrierIds) {
-    try {
-      await ws.readTask(taskId);
-    } catch {
-      continue;
-    }
-    await ws.events(taskId).append({
-      task: taskId,
-      vendor: 'daemon',
-      type: 'skill.evaluated',
-      payload: { id: args.skill, with: evalFile.with, without: evalFile.without, replay: evalFile.replay, card: evalFile.card },
-      links: [{ kind: 'skill', ref: args.skill }],
-    });
-    recorded = true;
-    break;
-  }
-  if (!recorded) process.stderr.write(`skill.evaluated for ${args.skill} was NOT recorded: no evidence task exists in this workspace\n`);
+  await recordEval(root, ws, evalFile, info.evidence);
   if (args.json) {
     out(JSON.stringify(evalFile));
     return;

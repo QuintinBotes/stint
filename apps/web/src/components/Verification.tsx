@@ -143,7 +143,8 @@ export function VerificationTab({ taskId, acceptance, live, onChanged }: { taskI
       <article data-testid="verification-card" className={cx('rounded-lg border p-4', v.status === 'green' ? 'border-good/50' : 'border-bad/50')}>
         <div className="flex items-center justify-between gap-3">
           <p className="text-[15px] font-semibold tabular" data-testid="verification-summary">
-            {v.passed} passed, {v.failed} failed, run by the daemon
+            {v.passed} passed{v.tamper === null ? ', tests unchanged' : ''}
+            {v.failed ? `, ${v.failed} failed` : ''}, run by the daemon
           </p>
           <StatusChip status={v.status} />
         </div>

@@ -46,3 +46,16 @@ test('The Factory says upkeep is off and how to turn it on', async ({ page }) =>
   await page.goto('/factory');
   await expect(page.getByTestId('upkeep-off')).toContainText('"schedule": "weekly"');
 });
+
+test('The demo closes on any harness, any model, one packet: every configured harness and host, ready ones marked', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('replay-close')).toContainText('Any harness, any model, one packet.');
+  await page.getByTestId('replay-close').click();
+  await expect(page).toHaveURL(/\/factory/);
+  const panel = page.getByTestId('any-harness');
+  await expect(panel.getByTestId('harness-chips')).toContainText('Muse Code');
+  await expect(panel.getByTestId('harness-chips')).toContainText('Claude Code');
+  await expect(panel.getByTestId('harness-chips')).toContainText('goose, acp');
+  await expect(panel.getByTestId('host-chips')).toContainText('Meta Model API');
+  await expect(panel.getByTestId('host-chips')).toContainText('Ollama');
+});

@@ -99,7 +99,10 @@ export function describe(e: StintEvent): ReactNode {
     case 'verification.ran':
       return (
         <>
-          Verification by the daemon: <span className="tabular">{Number(p.passed)} passed, {Number(p.failed)} failed</span>
+          Verification by the daemon:{' '}
+          <span className="tabular">
+            {Number(p.passed)} passed{p.tamper === null ? ', tests unchanged' : ''}, {Number(p.failed)} failed
+          </span>
         </>
       );
     case 'review.recorded':

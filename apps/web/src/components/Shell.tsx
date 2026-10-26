@@ -1,18 +1,12 @@
 import { Command } from 'cmdk';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { hostName, modelName } from '../agents';
+import { ADAPTER_NAMES, hostName, modelName } from '../agents';
 import { type CostRow, DaemonError, type DemoStatus, type Health, type ModelHealth, api } from '../api';
 import { toast } from 'sonner';
 import { localDate, money } from '../format';
 import { useTasks } from '../hooks';
 import { Button, Kbd, StatusChip, cx } from './ui';
-
-const ADAPTER_NAMES: Record<string, string> = {
-  'muse-code': 'Muse Code',
-  'stint-agent': 'Stint agent',
-  replay: 'Replay',
-};
 
 function startOfWeek(now = new Date()): string {
   const d = new Date(now);
@@ -144,6 +138,11 @@ export function ReplayStrip({ health }: { health: Health | null }) {
         <span className="tabular">
           {status.playing ? (status.paused ? 'paused' : 'playing') : status.done ? 'finished' : 'stopped'}, {clock(status.at)} of {clock(status.total)}
         </span>
+      ) : null}
+      {status?.done ? (
+        <Link to="/factory#any-harness" className="ml-auto text-ink hover:text-accent" data-testid="replay-close">
+          Any harness, any model, one packet.
+        </Link>
       ) : null}
     </div>
   );
