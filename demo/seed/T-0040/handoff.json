@@ -1,0 +1,79 @@
+{
+  "version": "stint.handoff/1",
+  "task": "T-0040",
+  "from": {
+    "adapter": "muse-code",
+    "vendor": "meta",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r2",
+    "endedBy": "completed",
+    "host": "local-cli"
+  },
+  "to": {
+    "adapter": "ollama",
+    "role": "reviewer"
+  },
+  "summary": "Added the tenant column to the audit CSV and filtered the export by the X-Tenant header. Two tests added; the suite is green.",
+  "done": [
+    "Audit CSV rows carry the tenant",
+    "GET /audit filters by the X-Tenant header",
+    "Tests for the tenant column and the filter"
+  ],
+  "open": [],
+  "leftOut": [
+    "Export pagination was not looked at"
+  ],
+  "refusals": [],
+  "decisions": [
+    {
+      "id": "D1",
+      "text": "The audit export filters by the X-Tenant header, not by a query parameter"
+    }
+  ],
+  "risks": [
+    "The export keeps the last 5000 rows and drops older rows without saying so"
+  ],
+  "changedFiles": [
+    {
+      "path": "src/lib/audit.ts",
+      "added": 8,
+      "removed": 5,
+      "run": "r2"
+    },
+    {
+      "path": "src/routes/audit.ts",
+      "added": 2,
+      "removed": 1,
+      "run": "r2"
+    },
+    {
+      "path": "test/audit.test.ts",
+      "added": 16,
+      "removed": 1,
+      "run": "r2"
+    }
+  ],
+  "diffRef": {
+    "base": "12e9e8be9d0669577862a53388c599835cc5e87b",
+    "head": "4094a09a6b128711075a24144d28c0c30bd9bdc9"
+  },
+  "verification": {
+    "command": "bun run test",
+    "exitCode": 0,
+    "passed": 27,
+    "failed": 0,
+    "durationMs": 1480,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "askOfNext": "Review the audit export change against the conventions in AGENTS.md.",
+  "cost": {
+    "inputTokens": 48210,
+    "cachedTokens": 31400,
+    "outputTokens": 2870,
+    "usd": 0.0401
+  },
+  "createdAt": "2026-10-26T14:09:40Z",
+  "hash": "sha256:c9c2553bb47b9a43f69e1fd5b9eecae0062bd1d8e9184ff1c6596d96b07670cf"
+}
