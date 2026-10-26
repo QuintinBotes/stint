@@ -33,6 +33,7 @@ export function renderPrompt(i: PromptInput): string {
     'Rules for this run:',
     '- Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.',
     '- When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>',
+    '- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.',
     '- Say plainly what you did not finish and what you did not look at.',
     `- After you stop, the daemon runs \`${t.testCommand}\` itself. A claim that the tests pass is not the record.`,
     '',

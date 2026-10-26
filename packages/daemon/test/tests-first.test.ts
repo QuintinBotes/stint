@@ -31,10 +31,11 @@ test('With testsFirst on and fake adapters, the steps are plan, specify, build, 
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
       const events = await until(ws, t.id, stopped);
       expect(steps(events)).toEqual(['plan', 'specify', 'verify', 'build', 'verify', 'review']);
-      const locked = events.find((e) => e.type === 'acceptance.locked')?.payload;
+      const locked = events.find((e) => e.type === 'acceptance.locked' && e.payload.scope === 'tests-first')?.payload;
       expect(locked).toMatchObject({ files: [{ path: 'test/acceptance.test.ts', sha256: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) }], failing: ['limiter > answers 429'] });
+      expect(events.filter((e) => e.type === 'acceptance.locked').map((e) => e.payload.scope)).toContain('plan');
       expect(events.find((e) => e.type === 'autopilot.stopped')?.payload.reason).toBe('Waiting for your approval.');
-      expect(events.some((e) => e.type === 'acceptance.tampered')).toBe(false);
+      expect(events.some((e) => e.type === 'verification.tampered')).toBe(false);
     });
   } finally {
     models.stop();
@@ -57,7 +58,7 @@ test('A specify run whose tests already pass stops autopilot with the "pass befo
   }
 }, 180_000);
 
-test('A build run that edits a locked test file records acceptance.tampered and stops autopilot', async () => {
+test('A build run that edits a locked test file records verification.tampered and stops autopilot', async () => {
   const models = fakeModels();
   try {
     await withFixtureRepo(async (repo) => {
@@ -65,7 +66,7 @@ test('A build run that edits a locked test file records acceptance.tampered and 
       const t = await ws.createTask(task(RED_UNTIL_BUILT));
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
       const events = await until(ws, t.id, stopped);
-      expect(events.find((e) => e.type === 'acceptance.tampered')?.payload).toMatchObject({ files: ['test/acceptance.test.ts'] });
+      expect(events.find((e) => e.type === 'verification.tampered')?.payload).toMatchObject({ files: ['test/acceptance.test.ts'] });
       expect(String(events.find((e) => e.type === 'autopilot.stopped')?.payload.reason)).toMatch(/^Needs you: muse-code r\d+ changed the acceptance tests \(test\/acceptance\.test\.ts\)\.$/);
     });
   } finally {

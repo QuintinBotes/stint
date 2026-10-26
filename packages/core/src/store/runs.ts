@@ -112,6 +112,18 @@ export class RunStore {
   }
 }
 
+/** One check of the verify suite (R-029): the tests first, then the task or config checks. */
+export const VerificationCheckSchema = z.strictObject({
+  name: z.string().min(1),
+  kind: z.enum(['test', 'typecheck', 'lint', 'custom']),
+  exitCode: z.int(),
+  passed: z.int().min(0).optional(),
+  failed: z.int().min(0).optional(),
+  durationMs: z.int().min(0),
+  status: z.enum(['green', 'red']),
+});
+export type VerificationCheck = z.infer<typeof VerificationCheckSchema>;
+
 export const VerificationRecordSchema = z.strictObject({
   run: z.string().regex(RUN_ID),
   command: z.string(),
@@ -126,6 +138,18 @@ export const VerificationRecordSchema = z.strictObject({
   timedOut: z.boolean().optional(),
   /** The commit the tests ran on; approve merges only this commit. */
   commit: z.string().regex(/^[0-9a-f]{40}$/).optional(),
+  /** Why a record is red when it is not the tests themselves: 'tampered' or 'scenarios' (R-029, R-037). */
+  reason: z.string().optional(),
+  /** The verify suite this record ran, the tests first (R-029). */
+  checks: z.array(VerificationCheckSchema).optional(),
+  /** Locked test files that changed, and the `tests:` decision that allowed them when there is one (R-029). Null: none changed. */
+  tamper: z.strictObject({ files: z.array(z.string()), allowedBy: z.string().optional() }).nullable().optional(),
+  /** Held-out scenarios run in a temporary checkout (R-037). Null: the task has none (or they could not run). */
+  scenarios: z.strictObject({ passed: z.int().min(0), failed: z.int().min(0), names: z.array(z.string()) }).nullable().optional(),
+  /** Line coverage on the base commit and on the branch, when the runner reports it (R-037). */
+  coverage: z.strictObject({ base: z.number().nullable(), branch: z.number().nullable() }).nullable().optional(),
+  /** Why there is no coverage, said plainly; the verification does not fail for it. */
+  coverageReason: z.string().optional(),
 });
 export type VerificationRecord = z.infer<typeof VerificationRecordSchema>;
 

@@ -252,6 +252,12 @@ export class Replayer {
             status: p.status === 'green' ? 'green' : 'red',
             outputRef: `verification/${line.run}.out.txt`,
             at: new Date().toISOString(),
+            ...(typeof p.reason === 'string' ? { reason: p.reason } : {}),
+            ...(Array.isArray(p.checks) ? { checks: p.checks as never } : {}),
+            ...(p.tamper !== undefined ? { tamper: (p.tamper as { files: string[]; allowedBy?: string } | null) ?? null } : {}),
+            ...(p.scenarios !== undefined ? { scenarios: (p.scenarios as { passed: number; failed: number; names: string[] } | null) ?? null } : {}),
+            ...(p.coverage !== undefined ? { coverage: (p.coverage as { base: number | null; branch: number | null } | null) ?? null } : {}),
+            ...(typeof p.coverageReason === 'string' ? { coverageReason: p.coverageReason } : {}),
           });
         }
         break;

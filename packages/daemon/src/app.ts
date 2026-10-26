@@ -87,6 +87,10 @@ const NewTaskBody = z.strictObject({
   goal: z.string().min(1).max(2000),
   acceptance: z.array(z.string().min(1).max(300)).min(1).max(12),
   testCommand: z.string().min(1).optional(),
+  checks: z
+    .array(z.strictObject({ name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/), command: z.string().min(1).max(400), kind: z.enum(['test', 'typecheck', 'lint', 'custom']) }))
+    .max(8)
+    .optional(),
   tags: z.array(z.string()).optional(),
   links: z.strictObject({ beadsId: z.string().max(80).nullable().optional(), issueUrl: z.url().nullable().optional() }).optional(),
 });

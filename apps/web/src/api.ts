@@ -64,7 +64,25 @@ export type RunSummary = {
   handoffFrom: string | null;
 };
 
-export type Verification = { run: string; command: string; exitCode: number; passed: number; failed: number; durationMs: number; runBy: 'daemon'; status: 'green' | 'red'; at: string };
+export type VerificationCheck = { name: string; kind: 'test' | 'typecheck' | 'lint' | 'custom'; exitCode: number; passed?: number; failed?: number; durationMs: number; status: 'green' | 'red' };
+export type Verification = {
+  run: string;
+  command: string;
+  exitCode: number;
+  passed: number;
+  failed: number;
+  durationMs: number;
+  runBy: 'daemon';
+  status: 'green' | 'red';
+  at: string;
+  commit?: string;
+  reason?: string;
+  checks?: VerificationCheck[];
+  tamper?: { files: string[]; allowedBy?: string } | null;
+  scenarios?: { passed: number; failed: number; names: string[] } | null;
+  coverage?: { base: number | null; branch: number | null } | null;
+  coverageReason?: string;
+};
 export type MergeRecord = { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> };
 export type OutcomeRecord = {
   kind: 'reverted' | 'followup' | 'ci' | 'incident';

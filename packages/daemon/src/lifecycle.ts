@@ -3,6 +3,7 @@ import { rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { type Cost, type Role, type Task, countTokens, priceUsage } from '@stint-dev/core';
 import { runsFromEvents, writeJsonAtomic } from '@stint-dev/core/node';
+import { lockPlanTests } from './acceptance';
 import type { Adapter, RunResult } from './adapter';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
@@ -134,6 +135,8 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   const fromDirs = Number((await ws.runs(taskId).nextRunId()).slice(1));
   const fromLog = runsFromEvents(await ws.events(taskId).read()).reduce((m, r) => Math.max(m, Number(r.run.slice(1)) + 1), 1);
   const run = `r${Math.max(fromDirs, fromLog)}`;
+  // with no plan there was no plan time: the first assign locks the tests as they are now (R-029)
+  await lockPlanTests(ctx, taskId);
   const wt = await ctx.worktrees.create(task, run);
   // a sandbox that is configured but cannot run refuses the run before anything is recorded
   const sandbox = await prepareRun(ctx, taskId, run, wt.path, adapter).catch(async (err: unknown) => {

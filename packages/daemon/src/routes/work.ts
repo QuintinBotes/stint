@@ -7,6 +7,7 @@ import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
 import { git, gitOk } from '../git';
+import { listScenarioFiles, scenariosDir, storeScenario } from '../scenarios';
 import { installDependencies, worktreePath } from '../worktree';
 
 /** The worktree to verify: the named run's, else the newest run whose worktree still exists. */
@@ -69,6 +70,22 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
     const id = c.req.param('id');
     await ctx.ws.readTask(id);
     return c.json(await ctx.ws.decisions(id).validAt());
+  });
+
+  // held-out scenarios: stored by the daemon outside every worktree; the list names files, never their source
+  app.post('/api/tasks/:id/scenarios', async (c) => {
+    const id = c.req.param('id');
+    const body = z
+      .strictObject({ name: z.string().min(1).max(300), content: z.string().max(200_000) })
+      .parse(await c.req.json());
+    const name = await storeScenario(ctx.ws, id, body.name, body.content);
+    return c.json({ name }, 201);
+  });
+
+  app.get('/api/tasks/:id/scenarios', async (c) => {
+    const id = c.req.param('id');
+    await ctx.ws.readTask(id);
+    return c.json({ names: await listScenarioFiles(scenariosDir(ctx.ws, id)) });
   });
 
   app.get('/api/tasks/:id/verification', async (c) => {

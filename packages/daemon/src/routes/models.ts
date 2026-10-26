@@ -14,6 +14,8 @@ import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
+import { namedFiles } from '../paths';
+import { lockPlanTests } from '../acceptance';
 import { ChainExhaustedError, walkChain } from '../route';
 import { skillsFor } from '../skills';
 
@@ -80,18 +82,6 @@ async function modelRun<T>(
 }
 
 /** Plans a task with the planner chain: a run on the timeline, plan.json and plan.md, and the plan's decisions recorded. */
-/** Paths a task names before it has touched any: its context files and the paths written in its goal and acceptance. */
-export function namedFiles(task: { goal: string; acceptance: string[] }, context: unknown): string[] {
-  const out = new Set<string>();
-  const files = (context as { files?: Array<{ path?: unknown }> } | null)?.files;
-  if (Array.isArray(files)) for (const f of files) if (typeof f.path === 'string') out.add(f.path);
-  for (const m of `${task.goal}\n${task.acceptance.join('\n')}`.matchAll(/(?:^|[\s`'"(])((?:[\w.-]+\/)*[\w.-]+\.[a-z]{1,5})(?=$|[\s`'"),.:;])/gim)) {
-    const path = m[1] as string;
-    if (path.includes('/') || /\.(ts|tsx|js|json|md|py|go|rs|sql|yml|yaml|toml)$/.test(path)) out.add(path);
-  }
-  return [...out];
-}
-
 /**
  * What the memory says about a task before it is planned (R-036): the three most similar tasks with why, and
  * the decisions and open findings on the files it names or that its similar tasks touched.
@@ -141,6 +131,8 @@ export async function planTask(ctx: DaemonContext, id: string, host?: string): P
     createdAt: new Date().toISOString(),
   });
   if ((plan.subtasks?.length ?? 0) >= 2) await decompose(ctx, id, plan, r.run);
+  // the tests the plan will be judged by are locked now, before any builder can touch them (R-029)
+  await lockPlanTests(ctx, id, { run: r.run, plan });
   await writeFile(join(await ctx.ws.taskDir(id), 'plan.md'), renderPlanMarkdown(plan));
   // a decision the plan states is recorded like any other, with the planner run as provenance
   for (const d of plan.decisions ?? []) {

@@ -21,6 +21,29 @@ export function testsFrom(output: string): TestLine[] {
 const STOP = new Set(['the', 'and', 'with', 'when', 'that', 'this', 'from', 'over', 'into', 'are', 'for', 'not', 'other', 'gets', 'stays']);
 const words = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9-]+/).filter((w) => w.length >= 3 && !STOP.has(w)));
 
+/** The tamper guard line (R-029): unchanged, changed and allowed by its decision, or changed unexplained. */
+export function tamperText(v: Verification): string | null {
+  if (v.tamper === undefined) return null;
+  if (v.tamper === null) return 'tests unchanged';
+  const files = v.tamper.files.join(', ');
+  return v.tamper.allowedBy ? `Tests changed (${files}), allowed by decision ${v.tamper.allowedBy}` : `Tests changed without a tests: decision: ${files}`;
+}
+
+/** Held-out scenarios (R-037): counts on the card; the names are listed under it, the source never leaves the daemon. */
+export function scenariosText(v: Verification): string | null {
+  if (!v.scenarios) return null;
+  return `Held-out scenarios: ${v.scenarios.passed} passed, ${v.scenarios.failed} failed`;
+}
+
+/** The coverage delta (R-037), or why there is none; never shown when coverage is simply off. */
+export function coverageText(v: Verification): string | null {
+  if (v.coverage) {
+    const pct = (n: number | null) => (n === null ? 'not given' : `${n}%`);
+    return `Coverage ${pct(v.coverage.base)} on the base, ${pct(v.coverage.branch)} on the branch`;
+  }
+  return v.coverageReason ? `No coverage: ${v.coverageReason}` : null;
+}
+
 /** Each acceptance criterion with the tests whose names share its key words. A match by name, said as such. */
 export function mapCriteria(criteria: string[], tests: TestLine[]): Array<{ text: string; tests: TestLine[] }> {
   return criteria.map((text) => {
@@ -135,15 +158,69 @@ export function VerificationTab({ taskId, acceptance, live, onChanged }: { taskI
           <dd>
             {v.run}, at {localTime(v.at)}
           </dd>
-          {(v as Verification & { commit?: string }).commit ? (
+          {v.commit ? (
             <>
               <dt className="text-muted">Commit</dt>
               <dd className="font-mono" title="Approve merges only this commit">
-                {(v as Verification & { commit?: string }).commit?.slice(0, 12)}
+                {v.commit.slice(0, 12)}
+              </dd>
+            </>
+          ) : null}
+          {tamperText(v) ? (
+            <>
+              <dt className="text-muted">Locked tests</dt>
+              <dd data-testid="tamper-line" className={cx(v.tamper && !v.tamper.allowedBy && 'text-bad')}>
+                {tamperText(v)}
+              </dd>
+            </>
+          ) : null}
+          {scenariosText(v) ? (
+            <>
+              <dt className="text-muted">Scenarios</dt>
+              <dd data-testid="scenarios-line" className={cx((v.scenarios?.failed ?? 0) > 0 && 'text-bad')}>
+                {scenariosText(v)}
+              </dd>
+            </>
+          ) : null}
+          {coverageText(v) ? (
+            <>
+              <dt className="text-muted">Coverage</dt>
+              <dd data-testid="coverage-line" className="tabular">
+                {coverageText(v)}
               </dd>
             </>
           ) : null}
         </dl>
+        {v.checks?.length ? (
+          <div className="mt-3">
+            <p className="text-[12px] text-muted mb-1">Checks</p>
+            <ul className="flex flex-col gap-1" data-testid="verify-checks">
+              {v.checks.map((check) => (
+                <li key={check.name} data-testid={`check-${check.name}`} className="flex items-center gap-2 text-[12px]">
+                  <StatusChip status={check.status} />
+                  <span className="font-mono">{check.name}</span>
+                  <span className="text-faint">{check.kind}</span>
+                  <span className="tabular text-muted">
+                    exit {check.exitCode}
+                    {check.passed !== undefined ? `, ${check.passed} passed, ${check.failed ?? 0} failed` : ''}, {(check.durationMs / 1000).toFixed(1)} s
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {v.scenarios?.names.length ? (
+          <div className="mt-3">
+            <p className="text-[12px] text-muted mb-1">Scenario names</p>
+            <ul className="flex flex-col gap-1" data-testid="scenario-names">
+              {v.scenarios.names.map((name) => (
+                <li key={name} className="font-mono text-[12px] text-muted">
+                  {name}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {failing.length ? (
           <div className="mt-3">
             <p className="text-[12px] text-muted mb-1">Failing</p>

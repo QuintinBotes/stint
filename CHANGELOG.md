@@ -14,6 +14,7 @@ The first release. Everything here was built during the event; `PROGRESS.md` rec
 
 
 ### The factory (added on 26 October from the factory review)
+- **Verification the agent cannot fake:** the daemon runs a suite of checks. The test files a task names are locked at plan time, and an unexplained change to one fails the run. Held-out scenarios run in a checkout the agent never sees.
 - **After merge:** the daemon watches reverts, follow-up work, CI on the base branch and incidents, and links each one to the task that caused it. Approve can open a pull request and follow its checks.
 - **Learning that is measured:** a skill starts on probation and earns its place on tasks it helped. A skill that hurts is proposed for retirement. Golden tasks report pass@1 and pass^3.
 - **Any agent, any model:** an agent is a config entry. Claude Code and Codex have native adapters. Both are off by default.

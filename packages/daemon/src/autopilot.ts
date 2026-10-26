@@ -174,17 +174,20 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   const split = events.find((e) => e.type === 'task.decomposed');
   if (split) return { kind: 'children', children: (split.payload.children as string[]) ?? [] };
 
+  // an unexplained change to locked tests stops autopilot whichever lock it broke (R-029)
+  const tampered = tail.find((e) => (e.type === 'verification.tampered' || e.type === 'acceptance.tampered') && !e.payload.allowedBy);
+  if (tampered) {
+    const by = runsFromEvents(tail).find((r) => r.run === tampered.run);
+    return { kind: 'stop', reason: `Needs you: ${by?.adapter ?? 'an agent'} ${tampered.run} changed the acceptance tests (${(tampered.payload.files as string[]).join(', ')}).`, needsYou: true };
+  }
+
   // tests first (R-027): failing acceptance tests are written and locked before anything is built
   let fromLock = tail;
   if (s.testsFirst) {
-    const lockAt = tail.findIndex((e) => e.type === 'acceptance.locked');
+    // the plan-time lock is not the tests-first lock: only its own scope ends the specify leg (R-029)
+    const lockAt = tail.findIndex((e) => e.type === 'acceptance.locked' && e.payload.scope !== 'plan');
     if (lockAt < 0) return specifyStep(tail);
     fromLock = tail.slice(lockAt);
-    const tampered = fromLock.find((e) => e.type === 'acceptance.tampered');
-    if (tampered) {
-      const by = runsFromEvents(tail).find((r) => r.run === tampered.run);
-      return { kind: 'stop', reason: `Needs you: ${by?.adapter ?? 'an agent'} ${tampered.run} changed the acceptance tests (${(tampered.payload.files as string[]).join(', ')}).`, needsYou: true };
-    }
   }
 
   const impl = runsFromEvents(fromLock).filter((r) => r.role === 'implementer');
@@ -245,6 +248,36 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
 /** Drives tasks on autopilot: one serialized tick per task, at most `parallel` tasks holding a slot. */
 export class Autopilot {
   private readonly ticks = new Map<string, Promise<void>>();
+  /** Tasks that took a slot and may not have written their first step yet; claiming is one step at a time. */
+  private readonly claimed = new Set<string>();
+  private claiming: Promise<unknown> = Promise.resolve();
+
+  /**
+   * Takes a slot for a task, or says who holds them all. Two tasks started together must not both see a free
+   * slot before either has written a step, so the check and the claim run one task at a time.
+   */
+  private claimSlot(id: string): Promise<string[] | null> {
+    const turn = this.claiming.then(async () => {
+      const holders: string[] = [];
+      for (const t of await this.ctx.ws.listTasks()) {
+        if (t.id === id) continue;
+        const other = autopilotTail(await this.ctx.ws.events(t.id).read());
+        if (!other) {
+          this.claimed.delete(t.id);
+          continue;
+        }
+        // a split task or one waiting on its candidates gave its slot to them
+        const released = other.some((e) => e.type === 'autopilot.step' && e.payload.split) || (other.some((e) => e.type === 'bestofn.started') && !other.some((e) => e.type === 'bestofn.picked'));
+        if (released) this.claimed.delete(t.id);
+        else if (holdsSlot(other) || this.claimed.has(t.id)) holders.push(t.id);
+      }
+      if (holders.length >= this.settings.parallel) return holders;
+      this.claimed.add(id);
+      return null;
+    });
+    this.claiming = turn.catch(() => undefined);
+    return turn;
+  }
   /** The randomness learned routing draws on; tests seed it. */
   rng: () => number = Math.random;
 
@@ -261,6 +294,7 @@ export class Autopilot {
   }
 
   async stop(id: string, reason: string, needsYou = false): Promise<void> {
+    this.claimed.delete(id);
     if (!autopilotTail(await this.ctx.ws.events(id).read())) return;
     await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.stopped', payload: { reason, needsYou } });
     // a slot may have opened
@@ -348,13 +382,9 @@ export class Autopilot {
       }
 
       // a parent waiting on its candidates or subtasks takes no slot: they hold them
-      if (s.kind !== 'bestof-wait' && s.kind !== 'children' && !holdsSlot(tail)) {
-        const holders: string[] = [];
-        for (const t of await ws.listTasks()) {
-          const other = t.id === id ? null : autopilotTail(await ws.events(t.id).read());
-          if (other && holdsSlot(other)) holders.push(t.id);
-        }
-        if (holders.length >= this.settings.parallel) {
+      if (s.kind !== 'bestof-wait' && s.kind !== 'children' && !holdsSlot(tail) && !this.claimed.has(id)) {
+        const holders = await this.claimSlot(id);
+        if (holders) {
           const last = tail.at(-1) as StintEvent;
           if (!(last.type === 'autopilot.step' && last.payload.queued)) await this.step(id, 'wait', `Queued behind ${holders.join(', ')}`, { queued: true });
           return;

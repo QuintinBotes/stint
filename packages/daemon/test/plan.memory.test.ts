@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { namedFiles, planTask } from '../src/routes/models';
+import { namedFiles } from '../src/paths';
+import { planTask } from '../src/routes/models';
 import { daemonContext } from '../src/app';
 import { makeApp, withFixtureRepo } from './helpers';
 import { plan, planner, writeConfig } from './plan.fixtures';

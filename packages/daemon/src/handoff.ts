@@ -127,11 +127,17 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     ...(verified ? [`Verification by the daemon: ${Number(verified.payload.passed)} passed, ${Number(verified.payload.failed)} failed`] : []),
   ]);
   const inFlight = endedBy === 'killed' ? str(finished?.payload.inFlight) || (toolCalls.length && !own.some((e) => e.type === 'agent.tool_result' && e.payload.callId === toolCalls.at(-1)?.payload.callId) ? str(toolCalls.at(-1)?.payload.tool) : '') : '';
+  const scenarioFailing = Array.isArray(verified?.payload.scenarioFailing) ? (verified.payload.scenarioFailing as string[]) : [];
+  const tamperFiles = (verified?.payload.tamper as { files?: string[] } | null | undefined)?.files ?? [];
   const open = list([
     ...notReached.map((s) => s.text),
-    ...(verified && !green
-      ? [`Make the failing tests pass (${Number(verified.payload.failed)} failed${Array.isArray(verified.payload.failing) && verified.payload.failing.length ? `: ${(verified.payload.failing as string[]).slice(0, 3).join('; ')}` : ''})`]
-      : []),
+    ...(verified && !green && verified.payload.reason === 'tampered'
+      ? [`Locked test files changed without a tests: decision: ${tamperFiles.join(', ')}. Restore them, or say on a decision: line why they had to change.`]
+      : verified && !green && verified.payload.reason === 'scenarios'
+        ? [`Held-out scenarios failed${scenarioFailing.length ? `: ${scenarioFailing.slice(0, 3).join('; ')}` : ''}. Their source is held out; the names are all you get.`]
+        : verified && !green
+          ? [`Make the failing tests pass (${Number(verified.payload.failed)} failed${Array.isArray(verified.payload.failing) && verified.payload.failing.length ? `: ${(verified.payload.failing as string[]).slice(0, 3).join('; ')}` : ''})`]
+          : []),
   ]);
   const leftOut = list([
     ...(inFlight ? [`In-flight step unknown: ${inFlight}`] : []),

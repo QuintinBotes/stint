@@ -154,8 +154,12 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
       const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
       if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
       const log = await ctx.ws.events(id).read();
-      const lockAt = log.map((e) => e.type).lastIndexOf('acceptance.locked');
-      const tampered = lockAt >= 0 ? log.slice(lockAt).find((e) => e.type === 'acceptance.tampered') : undefined;
+      const lockAt = log.findIndex((e) => e.type === 'acceptance.locked');
+      // a tamper the escape hatch allowed (a `tests:` decision naming every file) does not stand in the way
+      const tampered =
+        lockAt >= 0
+          ? log.slice(lockAt).find((e) => (e.type === 'verification.tampered' || e.type === 'acceptance.tampered') && !e.payload.allowedBy)
+          : undefined;
       if (tampered) throw new DaemonError('review_blocked', 'an agent changed the locked acceptance tests', { files: tampered.payload.files });
 
       if (ctx.ws.config.release?.mode === 'pr') {

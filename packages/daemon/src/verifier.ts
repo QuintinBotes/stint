@@ -1,8 +1,13 @@
 import { spawn } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import type { Task } from '@stint-dev/core';
-import type { VerificationRecord, Workspace } from '@stint-dev/core/node';
+import type { VerificationCheck, VerificationRecord, Workspace } from '@stint-dev/core/node';
+import { checkTamperAtRef, tamperMode, type TamperResult } from './acceptance';
 import { runEnv } from './env';
-import { git } from './git';
+import { git, gitOk } from './git';
+import { listScenarioFiles, scenariosDir } from './scenarios';
+import { installDependencies } from './worktree';
 
 export interface Verifier {
   verify(task: Task, run: string, worktree: string): Promise<VerificationRecord>;
@@ -40,6 +45,26 @@ export function loadError(output: string): string | null {
   return m ? m[0].trim().slice(0, 200) : null;
 }
 
+/** The line-coverage percentage of a runner's summary: istanbul's `Lines : N%`, or the Lines column of the `All files` row. */
+export function parseCoverage(output: string): number | null {
+  const text = output.replace(ANSI, '');
+  const lines = /^\s*Lines\s*:\s*([\d.]+)\s*%/m.exec(text);
+  if (lines?.[1]) return Number(lines[1]);
+  const rows = text.split('\n');
+  const all = rows.find((l) => /^\s*All files\b/.test(l));
+  if (!all) return null;
+  const numbers = [...all.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+  if (numbers.length === 0) return null;
+  const header = rows.find((l) => l.includes('%') && /Lines/.test(l));
+  if (header) {
+    const columns = header.split('|').map((c) => c.trim());
+    const percentColumns = columns.filter((c) => c.startsWith('%'));
+    const at = percentColumns.findIndex((c) => /Lines/.test(c));
+    if (at >= 0 && numbers[at] !== undefined) return numbers[at] as number;
+  }
+  return numbers.at(-1) ?? null;
+}
+
 type Exec = { exitCode: number; output: string; durationMs: number; timedOut: boolean };
 
 /** Runs a shell command in its own process group so a cap kills the whole tree. */
@@ -66,6 +91,25 @@ export function execInGroup(command: string, cwd: string, env: Record<string, st
   });
 }
 
+const RUNNER = /(^|\s)(bun\s+test|bun\s+run\s+test|bunx\s+vitest|npx\s+vitest|vitest|npm\s+(run\s+)?test|yarn\s+test|pnpm\s+(run\s+)?test)(\s|$)/;
+const SHELL_OPS = /[;&|`]|\$\(|>/;
+const quote = (p: string) => `'${p.replaceAll("'", `'\\''`)}'`;
+
+/** The test command asking for coverage, when the runner is bun or Vitest (R-037); null when it is neither. */
+export function coverageCommand(testCommand: string): string | null {
+  if (testCommand.includes('--coverage')) return testCommand;
+  if (!RUNNER.test(testCommand) || SHELL_OPS.test(testCommand)) return null;
+  return `${testCommand} --coverage`;
+}
+
+type ScenarioOutcome = {
+  record: { passed: number; failed: number; names: string[] } | null;
+  failing: string[];
+  error?: string;
+};
+
+type CoverageOutcome = { coverage: { base: number | null; branch: number | null } | null; reason?: string };
+
 /** The daemon runs the tests itself; an agent saying "tests pass" is a claim, this record is the fact. */
 export class DaemonVerifier implements Verifier {
   /** The egress proxy URL for a run, when egress is on (R-040). */
@@ -78,26 +122,76 @@ export class DaemonVerifier implements Verifier {
 
   async verify(task: Task, run: string, worktree: string): Promise<VerificationRecord> {
     const env = { ...runEnv(task.id, run, worktree, { proxy: (await this.proxyUrl?.(task.id, run)) ?? null }), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
-    const r = await execInGroup(task.testCommand, worktree, env, this.capMs);
-    const parsed = parseTestSummary(r.output);
-    const ok = r.exitCode === 0 && !r.timedOut;
-    const counts = parsed ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 };
+    const defs = [
+      { name: 'tests', command: task.testCommand, kind: 'test' as const },
+      ...(task.checks ?? this.ws.config.verify?.checks ?? []),
+    ];
+    const checks: VerificationCheck[] = [];
+    const outputs: string[] = [];
+    let tests: Exec | null = null;
+    let testsParsed: { passed: number; failed: number } | null = null;
+    let testsTimedOut = false;
+    for (const def of defs) {
+      const r = await execInGroup(def.command, worktree, env, this.capMs);
+      outputs.push(r.output);
+      const isTests = def.name === 'tests' && def.command === task.testCommand && tests === null;
+      if (isTests) {
+        tests = r;
+        testsTimedOut = r.timedOut;
+      }
+      const parsed = def.kind === 'test' ? parseTestSummary(r.output) : null;
+      if (isTests) testsParsed = parsed;
+      const ok = r.exitCode === 0 && !r.timedOut;
+      const counts = def.kind === 'test' ? (parsed ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 }) : null;
+      checks.push({
+        name: def.name,
+        kind: def.kind,
+        exitCode: r.timedOut ? 124 : r.exitCode,
+        ...(counts ? { passed: counts.passed, failed: counts.failed } : {}),
+        durationMs: r.durationMs,
+        status: ok && (counts === null || counts.failed === 0) ? 'green' : 'red',
+      });
+    }
+    const testsCheck = checks[0] as VerificationCheck;
+    const counts = { passed: testsCheck.passed ?? 0, failed: testsCheck.failed ?? 0 };
+    const testsOutput = outputs[0] ?? '';
+
+    const tamper = await this.tamper(task, run, worktree);
+    const tamperRed = tamper !== null && !tamper.allowedBy && tamperMode(this.ws) === 'fail';
+    const scenarios = await this.runScenarios(task, run, worktree);
+    const scenariosRed = scenarios.record !== null && scenarios.record.failed > 0;
+    const coverage = await this.coverage(task, run, worktree);
+
+    const green = checks.every((c) => c.status === 'green') && !tamperRed && !scenariosRed;
+    const reason = tamperRed ? 'tampered' : scenariosRed ? 'scenarios' : undefined;
     const store = this.ws.verification(task.id);
-    const outputRef = await store.writeOutput(run, r.output);
+    const extra = defs.slice(1).map((d, i) => `\n=== check: ${d.name} (${d.kind}): ${d.command} ===\n${outputs[i + 1] ?? ''}`);
+    const scenarioLine = scenarios.record
+      ? `\n=== held-out scenarios: ${scenarios.record.passed} passed, ${scenarios.record.failed} failed (${scenarios.record.names.join(', ')}) ===\n`
+      : scenarios.error
+        ? `\n=== held-out scenarios were NOT run: ${scenarios.error} ===\n`
+        : '';
+    const outputRef = await store.writeOutput(run, testsOutput + extra.join('') + scenarioLine);
     const head = (await git(worktree, ['rev-parse', 'HEAD'])).stdout.trim();
     const record = await store.write({
       run,
       command: task.testCommand,
-      exitCode: r.timedOut ? 124 : r.exitCode,
+      exitCode: testsCheck.exitCode,
       passed: counts.passed,
       failed: counts.failed,
-      durationMs: r.durationMs,
+      durationMs: checks.reduce((sum, c) => sum + c.durationMs, 0),
       runBy: 'daemon',
-      status: ok && counts.failed === 0 ? 'green' : 'red',
+      status: green ? 'green' : 'red',
       outputRef,
       at: new Date().toISOString(),
-      ...(r.timedOut ? { timedOut: true } : {}),
+      ...(testsTimedOut ? { timedOut: true } : {}),
       ...(/^[0-9a-f]{40}$/.test(head) ? { commit: head } : {}),
+      ...(reason ? { reason } : {}),
+      checks,
+      tamper,
+      scenarios: scenarios.record,
+      coverage: coverage.coverage,
+      ...(coverage.reason ? { coverageReason: coverage.reason } : {}),
     });
     await this.ws.events(task.id).append({
       task: task.id,
@@ -112,12 +206,112 @@ export class DaemonVerifier implements Verifier {
         durationMs: record.durationMs,
         status: record.status,
         runBy: 'daemon',
-        parsed: parsed !== null,
-        failing: failingTests(r.output),
-        ...(loadError(r.output) ? { loadError: loadError(r.output) } : {}),
-        ...(r.timedOut ? { timedOut: true } : {}),
+        parsed: testsParsed !== null,
+        failing: failingTests(testsOutput),
+        checks: record.checks,
+        tamper: record.tamper,
+        scenarios: record.scenarios,
+        coverage: record.coverage,
+        ...(record.reason ? { reason: record.reason } : {}),
+        ...(coverage.reason ? { coverageReason: coverage.reason } : {}),
+        ...(scenarios.failing.length ? { scenarioFailing: scenarios.failing } : {}),
+        ...(scenarios.error ? { scenariosError: scenarios.error } : {}),
+        ...(loadError(testsOutput) ? { loadError: loadError(testsOutput) } : {}),
+        ...(testsTimedOut ? { timedOut: true } : {}),
       },
     });
     return record;
+  }
+
+  /** Locked test files that changed on the branch this worktree has checked out (R-029). */
+  private async tamper(task: Task, run: string, worktree: string): Promise<TamperResult | null> {
+    if ((await git(worktree, ['rev-parse', '--verify', '-q', 'HEAD'])).code === 0) {
+      return checkTamperAtRef(this.ws, task.id, run, worktree, 'HEAD');
+    }
+    if ((await git(this.ws.root, ['rev-parse', '--verify', '-q', `refs/heads/${task.branch}`])).code === 0) {
+      return checkTamperAtRef(this.ws, task.id, run, this.ws.root, task.branch);
+    }
+    return null;
+  }
+
+  /**
+   * Held-out scenarios (R-037): copied into a temporary checkout of the task branch, never the agent's
+   * worktree. Only counts and names come back; the scenario output and source are never written anywhere.
+   */
+  private async runScenarios(task: Task, run: string, worktree: string): Promise<ScenarioOutcome> {
+    const dir = scenariosDir(this.ws, task.id);
+    const files = await listScenarioFiles(dir);
+    if (files.length === 0) return { record: null, failing: [] };
+    const head =
+      (await git(this.ws.root, ['rev-parse', '--verify', '-q', `refs/heads/${task.branch}`])).stdout.trim() ||
+      (await git(worktree, ['rev-parse', 'HEAD'])).stdout.trim();
+    const path = join(this.ws.cacheDir, 'verify', `${task.id}-${Date.now()}-scenarios`);
+    try {
+      if (!head) throw new Error(`${task.branch} does not exist`);
+      await mkdir(join(this.ws.cacheDir, 'verify'), { recursive: true });
+      await gitOk(this.ws.root, ['worktree', 'add', '-q', '--detach', path, head]);
+      try {
+        await installDependencies(path);
+        for (const file of files) {
+          const target = join(path, file);
+          await mkdir(dirname(target), { recursive: true });
+          await writeFile(target, await readFile(join(dir, file)));
+        }
+        const configured = this.ws.config.scenarios?.command;
+        const command = configured
+          ? configured.includes('{files}')
+            ? configured.replaceAll('{files}', files.map(quote).join(' '))
+            : configured
+          : RUNNER.test(task.testCommand) && !SHELL_OPS.test(task.testCommand)
+            ? `${task.testCommand} ${files.map(quote).join(' ')}`
+            : task.testCommand;
+        const env = { ...runEnv(task.id, run, path, { proxy: (await this.proxyUrl?.(task.id, run)) ?? null }), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+        const r = await execInGroup(command, path, env, this.capMs);
+        const ok = r.exitCode === 0 && !r.timedOut;
+        const counts = parseTestSummary(r.output) ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 };
+        const failing = failingTests(r.output);
+        const record = { passed: counts.passed, failed: counts.failed, names: [...new Set([...files, ...failing])] };
+        await this.ws.events(task.id).append({ task: task.id, run, vendor: 'daemon', type: 'scenario.ran', payload: { run, ...record, failing } });
+        return { record, failing };
+      } finally {
+        await git(this.ws.root, ['worktree', 'remove', '--force', path]);
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `held-out scenarios for ${task.id} were NOT run: ${error}` })}\n`);
+      await this.ws.events(task.id).append({ task: task.id, run, vendor: 'daemon', type: 'scenario.ran', payload: { run, passed: 0, failed: 0, names: files, error } }).catch(() => undefined);
+      return { record: null, failing: [], error };
+    }
+  }
+
+  /** The coverage delta (R-037): the same command with --coverage on the branch worktree and on a checkout of the base. */
+  private async coverage(task: Task, run: string, worktree: string): Promise<CoverageOutcome> {
+    if (!this.ws.config.verify?.coverage) return { coverage: null };
+    const command = coverageCommand(task.testCommand);
+    if (!command) return { coverage: null, reason: 'the test command is not a bun or Vitest run, so no coverage was run' };
+    try {
+      const inWorktree = async (dir: string) => {
+        const env = { ...runEnv(task.id, run, dir, { proxy: (await this.proxyUrl?.(task.id, run)) ?? null }), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+        return parseCoverage((await execInGroup(command, dir, env, this.capMs)).output);
+      };
+      const branch = await inWorktree(worktree);
+      let base: number | null = null;
+      const path = join(this.ws.cacheDir, 'verify', `${task.id}-${Date.now()}-coverage-base`);
+      await mkdir(join(this.ws.cacheDir, 'verify'), { recursive: true });
+      await gitOk(this.ws.root, ['worktree', 'add', '-q', '--detach', path, task.baseCommit]);
+      try {
+        await installDependencies(path);
+        base = await inWorktree(path);
+      } finally {
+        await git(this.ws.root, ['worktree', 'remove', '--force', path]);
+      }
+      if (base === null && branch === null) return { coverage: null, reason: 'the runner gave no coverage summary' };
+      const missing = base === null ? 'the base commit' : branch === null ? 'the branch' : null;
+      return { coverage: { base, branch }, ...(missing ? { reason: `the runner gave no coverage summary on ${missing}` } : {}) };
+    } catch (err) {
+      const reason = `coverage could not run: ${err instanceof Error ? err.message : String(err)}`;
+      process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `coverage for ${task.id} was NOT run: ${reason}` })}\n`);
+      return { coverage: null, reason };
+    }
   }
 }

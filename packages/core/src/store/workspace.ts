@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { type Config, ConfigSchema, DEFAULT_CONFIG } from '../schemas/config';
 import { type Plan, PlanSchema } from '../schemas/plan';
 import { type Review, ReviewSchema } from '../schemas/review';
-import { type Budgets, type Task, TaskSchema } from '../schemas/task';
+import { type Budgets, type Check, type Task, TaskSchema } from '../schemas/task';
 import { DecisionLedger } from './decisions';
 import { EventLog } from './eventlog';
 import { readJsonIfExists, writeJsonAtomic, type AtomicHooks } from './files';
@@ -27,6 +27,7 @@ export type NewTask = {
   goal: string;
   acceptance: string[];
   testCommand?: string;
+  checks?: Check[];
   tags?: string[];
   baseCommit?: string;
   budgets?: Partial<Budgets>;
@@ -99,6 +100,7 @@ export class Workspace {
       status: 'planned',
       assignee: null,
       testCommand: i.testCommand ?? this.config.testCommand,
+      ...(i.checks ? { checks: i.checks } : {}),
       budgets: { ...this.config.budgets, ...i.budgets },
       links: i.links ?? { beadsId: null, issueUrl: null },
       pendingAsk: null,

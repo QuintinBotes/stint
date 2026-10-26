@@ -8,11 +8,12 @@ test('Run all from the palette starts every planned task; with one slot one card
   await page.goto('/');
   await page.keyboard.press('ControlOrMeta+k');
   await page.getByRole('option', { name: /Run all/i }).first().click();
-  // one autopilot slot (parallel: 1): whichever starts second waits its turn
-  await expect.poll(async () => ((await d.get<{ autopilot: { queued: string[] } }>('/api/health')).autopilot.queued.length), { timeout: 30_000 }).toBeGreaterThan(0);
-  await expect(page.getByTestId('autopilot-chip').filter({ hasText: 'queued' }).first()).toBeVisible();
   await d.until(a.id, stopped, 90_000);
   await d.until(b.id, stopped, 90_000);
+  // one autopilot slot (parallel: 1): at least one of them waited its turn, and its log says so
+  const waited = [...(await d.events(a.id)), ...(await d.events(b.id))].filter((e) => e.type === 'autopilot.step' && e.payload.queued);
+  expect(waited.length).toBeGreaterThan(0);
+  expect(String(waited[0]?.payload.reason)).toMatch(/^Queued behind /);
   expect((await d.task(a.id)).status).toBe('awaiting_approval');
   expect((await d.task(b.id)).status).toBe('awaiting_approval');
 });
