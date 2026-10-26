@@ -1,4 +1,5 @@
 import { defineCommand, runMain } from 'citty';
+import { bench } from './bench';
 import { costs } from './costs';
 import { demo } from './demo';
 import { graph } from './graph';
@@ -18,7 +19,7 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
 
 export const main = defineCommand({
   meta: { name: 'stint', version: '0.1.0', description: 'The task outlives the agent.' },
-  subCommands: { up, init: initCommand, new: newTask, assign: assignTask, run: runTask, demo, costs, packet, hand, approve, reject, show, export: exportTask, graph, skills, hook },
+  subCommands: { up, init: initCommand, new: newTask, assign: assignTask, run: runTask, demo, costs, packet, hand, approve, reject, show, export: exportTask, graph, skills, hook, bench },
 });
 
 if (import.meta.main) await runMain(main);

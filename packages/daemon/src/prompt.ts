@@ -7,6 +7,8 @@ export type PromptInput = {
   task: Task;
   plan: Plan | null;
   handoff?: Handoff | null;
+  /** The previous run rendered as text, for the bench transcript mode; replaces the packet section. */
+  transcript?: string;
   /** Lines carried from earlier hops under "Where it got to" (the multi-hop rule, R-012). */
   before?: string[];
   skills: MountedSkill[];
@@ -53,12 +55,21 @@ export function renderPrompt(i: PromptInput): string {
     '',
   ];
   const changing = [
-    ...(i.handoff ? ['## Packet from the previous run', renderHandoff(i.handoff, { before: i.before ?? [] }).trimEnd(), ''] : []),
+    ...(i.transcript
+      ? ['## Transcript of the previous run', i.transcript.trimEnd(), '']
+      : i.handoff
+        ? ['## Packet from the previous run', renderHandoff(i.handoff, { before: i.before ?? [] }).trimEnd(), '']
+        : []),
     '## Changes on the task branch so far',
     i.diff.length ? i.diff.map((d) => `- ${d.path} +${d.added} -${d.removed}`).join('\n') : 'None yet.',
     '',
     '## Ask',
-    i.ask?.trim() || (i.handoff ? 'Continue from the packet: start with its ask of next.' : 'Implement the goal. Follow the plan where there is one.'),
+    i.ask?.trim() ||
+      (i.transcript
+        ? 'Continue from the transcript: finish what it started.'
+        : i.handoff
+          ? 'Continue from the packet: start with its ask of next.'
+          : 'Implement the goal. Follow the plan where there is one.'),
     '',
   ];
   return [...stable, ...changing].join('\n');
@@ -66,6 +77,8 @@ export function renderPrompt(i: PromptInput): string {
 
 /** The byte length of the part every turn of a task shares. */
 export function stablePrefixLength(prompt: string): number {
-  const at = prompt.indexOf('\n## Packet from the previous run');
-  return at >= 0 ? at : prompt.indexOf('\n## Changes on the task branch so far');
+  const packet = prompt.indexOf('\n## Packet from the previous run');
+  const transcript = prompt.indexOf('\n## Transcript of the previous run');
+  const at = [packet, transcript].filter((n) => n >= 0).sort((a, b) => a - b)[0];
+  return at ?? prompt.indexOf('\n## Changes on the task branch so far');
 }

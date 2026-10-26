@@ -13,7 +13,17 @@ import { renderPrompt } from './prompt';
 import { skillsFor } from './skills';
 import { worktreePath } from './worktree';
 
-export type AssignInput = { adapter: string; role: Role; model?: string; instruction?: string; handoffFrom?: string };
+export type AssignInput = {
+  adapter: string;
+  role: Role;
+  model?: string;
+  instruction?: string;
+  handoffFrom?: string;
+  /** Caps this run at this many model steps, replacing the adapter default (the bench first run). */
+  steps?: number;
+  /** Continues from a rendered transcript instead of a packet (the bench transcript mode). */
+  resume?: { kind: 'transcript'; text: string };
+};
 export type Assigned = { run: string; worktree: string; done: Promise<void> };
 
 /** The price key of a run: Muse Code bills the Meta Model API; other agents bill the host that answered. */
@@ -80,6 +90,9 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   if (!adapter.roles.includes(input.role)) {
     throw new DaemonError('capability_mismatch', `${adapter.id} cannot take the ${input.role} role`, `its roles: ${adapter.roles.join(', ')}`);
   }
+  if (input.steps !== undefined && (!Number.isInteger(input.steps) || input.steps < 1)) {
+    throw new DaemonError('invalid', `steps must be a positive whole number, not ${input.steps}`);
+  }
   if (ctx.runs.get(taskId)) throw new DaemonError('run_active', `${taskId} already has a live run`, 'stop it or wait for it to end');
   const budget = task.budgets[input.role];
   const spent = await spentByRole(ctx, taskId, input.role);
@@ -93,13 +106,15 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     if (head && head !== task.baseCommit) task = await ws.writeTask(taskId, { baseCommit: head }, undefined, { emit: false });
   }
   const skills = skillsFor(ws.root, input.role, task.tags ?? []);
-  const packetName = input.handoffFrom ?? (await ws.handoffs(taskId).names()).at(-1) ?? null;
+  const transcript = input.resume?.kind === 'transcript' ? input.resume.text : undefined;
+  const packetName = transcript !== undefined ? null : (input.handoffFrom ?? (await ws.handoffs(taskId).names()).at(-1) ?? null);
   const handoff = packetName ? await ws.handoffs(taskId).read(packetName) : null;
-  if (input.handoffFrom && !handoff) throw new DaemonError('not_found', `${taskId} has no packet ${input.handoffFrom}`);
+  if (transcript === undefined && input.handoffFrom && !handoff) throw new DaemonError('not_found', `${taskId} has no packet ${input.handoffFrom}`);
   const prompt = renderPrompt({
     task,
     plan: await ws.readPlan(taskId),
     handoff,
+    ...(transcript !== undefined ? { transcript } : {}),
     before: handoff ? await earlierHops(ctx, taskId, handoff.from.run) : [],
     skills,
     diff: (await ctx.worktrees.diff(task, 'json')) as never,
@@ -155,7 +170,12 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
         promptPath,
         skills,
         ...(model ? { model } : {}),
-        budget: { tokens: budget - spent, steps: Number(ws.config.adapters[adapter.id]?.maxModelSteps ?? 60), timeoutMs: Number(ws.config.adapters[adapter.id]?.timeoutMs ?? 900_000) },
+        budget: {
+          tokens: budget - spent,
+          steps: input.steps ?? Number(ws.config.adapters[adapter.id]?.maxModelSteps ?? 60),
+          ...(input.steps !== undefined ? { maxTurns: input.steps } : {}),
+          timeoutMs: Number(ws.config.adapters[adapter.id]?.timeoutMs ?? 900_000),
+        },
         env: runEnv(taskId, run, wt.path),
         signal: abort.signal,
         onSpawn: (pid) => {

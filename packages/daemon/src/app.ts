@@ -19,6 +19,7 @@ import { Autopilot, autopilotCard } from './autopilot';
 import { modelHealth } from './hosts';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
+import { benchRoutes } from './routes/bench';
 import { demoRoutes } from './routes/demo';
 import { approveRoutes } from './routes/approve';
 import { graphRoutes } from './routes/graph';
@@ -350,4 +351,5 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   graphRoutes(app, ctx);
   skillRoutes(app, ctx);
   ptyRoutes(app, ctx);
+  benchRoutes(app, ctx);
 }

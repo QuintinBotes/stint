@@ -1,0 +1,69 @@
+{
+  "tasks": [
+    {
+      "id": "bench-01-rate-limit",
+      "title": "Rate-limit incoming webhooks per tenant",
+      "goal": "POST /webhooks answers 429 with a Retry-After header when one tenant sends more webhooks than the configured limit in the configured window. Put the limiter in src/lib/limiter.ts, wire it into src/routes/webhooks.ts (and src/app.ts if it needs shared state), and read the limit and the window through loadConfig() in src/config.ts with defaults. Add tests in test/webhooks.test.ts or a new test file.",
+      "acceptance": [
+        "A tenant over the limit gets 429 with a Retry-After header",
+        "Other tenants are not affected",
+        "The limit and the window come from config, not constants in a route",
+        "The suite stays green with new tests for the 429 path"
+      ],
+      "testCommand": "bun run test",
+      "killAfterSteps": 8
+    },
+    {
+      "id": "bench-02-get-event",
+      "title": "Get one stored event by id",
+      "goal": "Add GET /events/:id in src/routes/events.ts: it returns the stored event as JSON when the X-Tenant header names the tenant that owns it, 400 when the header is missing, and 404 when the event does not exist or belongs to another tenant. Use the existing EventStore. Add tests in test/events.test.ts.",
+      "acceptance": [
+        "GET /events/:id returns the event for its owning tenant",
+        "Another tenant asking for the same id gets 404",
+        "A missing X-Tenant header gets 400",
+        "The suite stays green with new tests for all three cases"
+      ],
+      "testCommand": "bun run test",
+      "killAfterSteps": 6
+    },
+    {
+      "id": "bench-03-delete-tenant",
+      "title": "Delete a tenant through the admin routes",
+      "goal": "Add DELETE /admin/tenants/:id: add a remove method to TenantRegistry in src/lib/tenants.ts, call it from src/routes/admin.ts, answer 404 for an unknown tenant, and write an audit entry for the deletion like the other admin writes. A deleted tenant must no longer be accepted by POST /webhooks. Add tests in test/admin.test.ts.",
+      "acceptance": [
+        "DELETE /admin/tenants/:id removes a known tenant and answers 404 for an unknown one",
+        "The deletion writes an audit entry with the tenant",
+        "POST /webhooks answers 404 for the deleted tenant",
+        "The suite stays green with new tests for the delete path"
+      ],
+      "testCommand": "bun run test",
+      "killAfterSteps": 7
+    },
+    {
+      "id": "bench-04-audit-limit-config",
+      "title": "Read the audit export limit from config",
+      "goal": "Move the hard-coded audit export limit in src/lib/audit.ts into configuration: add auditExportLimit to loadConfig() in src/config.ts, read from the environment with the current value as the default, and pass it to AuditLog when createDeps builds it in src/app.ts. Add tests in test/config.test.ts and test/audit.test.ts.",
+      "acceptance": [
+        "The export limit comes from config with today's value as the default",
+        "A small configured limit makes the CSV export keep only that many rows",
+        "No limit constant is left in a route or in the audit library",
+        "The suite stays green with new tests for the config value and the cap"
+      ],
+      "testCommand": "bun run test",
+      "killAfterSteps": 8
+    },
+    {
+      "id": "bench-05-audit-json",
+      "title": "Serve the audit log as JSON on request",
+      "goal": "Let GET /audit answer JSON when the query says format=json: add a JSON view of the entries (the existing list in src/lib/audit.ts) and branch on the query in src/routes/audit.ts, keeping CSV as the default and keeping the X-Tenant filter in both formats. Add tests in test/audit.test.ts.",
+      "acceptance": [
+        "GET /audit?format=json returns the audit entries as JSON",
+        "GET /audit without the query still returns CSV",
+        "The X-Tenant header filters both formats",
+        "The suite stays green with new tests for both formats"
+      ],
+      "testCommand": "bun run test",
+      "killAfterSteps": 7
+    }
+  ]
+}
