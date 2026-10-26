@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
 import { git, gitOk, identityArgs } from '../git';
+import { triggerLearn } from '../learn';
 import { releaseWorktrees } from '../lifecycle';
 
 const ApproveBody = z.strictObject({ squash: z.boolean().optional(), by: z.string().min(1).max(80).optional() });
@@ -85,8 +86,10 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
     // the branch stays (branchRetentionDays); only the worktrees go, and never with --force
     await releaseWorktrees(ctx, await ctx.ws.readTask(id));
-    await events.append({ task: id, vendor: 'daemon', type: 'learn.skipped', payload: { reason: 'the learn step (R-020) is not built yet' } });
-    return c.json({ commit, into: base, trailers });
+    const result = { commit, into: base, trailers };
+    // learn runs after the response is computed and cannot delay or fail it
+    triggerLearn(ctx, id);
+    return c.json(result);
   });
 
   app.post('/api/tasks/:id/reject', async (c) => {
@@ -97,7 +100,9 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by }, links: [{ kind: 'decision', ref: d.id }] });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason, decision: d.id } });
     await ctx.ws.writeTask(id, { status: 'building', pendingAsk: reason });
-    return c.json({ status: 'building', decision: d.id });
+    const result = { status: 'building', decision: d.id };
+    triggerLearn(ctx, id);
+    return c.json(result);
   });
 
   app.post('/api/tasks/:id/request-changes', async (c) => {

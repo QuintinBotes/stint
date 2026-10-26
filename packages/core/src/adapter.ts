@@ -26,6 +26,8 @@ export type RunContext = {
   worktree: string;
   prompt: string;
   promptPath: string;
+  /** Skills mounted for this run, already listed in the prompt; an adapter may also name them in its own system prompt. */
+  skills?: Array<{ name: string; description: string }>;
   model?: string;
   budget: { tokens: number; steps?: number; maxTurns?: number; timeoutMs?: number };
   env: Record<string, string>;

@@ -92,7 +92,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     const head = (await git(ws.root, ['rev-parse', '--verify', '-q', 'HEAD'])).stdout.trim();
     if (head && head !== task.baseCommit) task = await ws.writeTask(taskId, { baseCommit: head }, undefined, { emit: false });
   }
-  const skills = skillsFor(ws.root, input.role);
+  const skills = skillsFor(ws.root, input.role, task.tags ?? []);
   const packetName = input.handoffFrom ?? (await ws.handoffs(taskId).names()).at(-1) ?? null;
   const handoff = packetName ? await ws.handoffs(taskId).read(packetName) : null;
   if (input.handoffFrom && !handoff) throw new DaemonError('not_found', `${taskId} has no packet ${input.handoffFrom}`);
@@ -153,6 +153,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
         worktree: wt.path,
         prompt,
         promptPath,
+        skills,
         ...(model ? { model } : {}),
         budget: { tokens: budget - spent, steps: Number(ws.config.adapters[adapter.id]?.maxModelSteps ?? 60), timeoutMs: Number(ws.config.adapters[adapter.id]?.timeoutMs ?? 900_000) },
         env: runEnv(taskId, run, wt.path),

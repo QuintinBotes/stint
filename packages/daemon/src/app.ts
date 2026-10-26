@@ -24,6 +24,7 @@ import { graphRoutes } from './routes/graph';
 import { modelRoutes } from './routes/models';
 import { afterRunPacket, handoffRoutes } from './routes/handoff';
 import { runRoutes } from './routes/runs';
+import { skillRoutes } from './routes/skills';
 import { ptyRoutes } from './routes/pty';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
@@ -345,5 +346,6 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   approveRoutes(app, ctx);
   demoRoutes(app, ctx);
   graphRoutes(app, ctx);
+  skillRoutes(app, ctx);
   ptyRoutes(app, ctx);
 }

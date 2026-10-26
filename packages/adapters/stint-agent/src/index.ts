@@ -14,6 +14,12 @@ Do not push, switch branches or rewrite history: the person merges through Stint
 When a decision should not be silently reversed, write it on its own line as: decision: <the decision>
 When you are done, reply without a tool call: say what you did, what you did not finish and what you did not look at.`;
 
+/** The system prompt for one run: the tool contract plus the skills mounted for the run, when any are. */
+export function systemPromptFor(skills: Array<{ name: string; description: string }> = []): string {
+  if (skills.length === 0) return SYSTEM_PROMPT;
+  return `${SYSTEM_PROMPT}\nSkills mounted for this run (their files are under .agents/skills/; read one when its description fits the work):\n${skills.map((s) => `- ${s.name}: ${s.description}`).join('\n')}`;
+}
+
 const DEFAULT_CHAIN = ['meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'];
 const CALL_TIMEOUT_MS = 120_000;
 
@@ -73,7 +79,7 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
     }
     const usage = { inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
     const messages: ChatCompletionMessageParam[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPromptFor(ctx.skills ?? []) },
       { role: 'user', content: ctx.prompt },
     ];
     const state: { answered: HostCall | null } = { answered: null };
