@@ -27,6 +27,10 @@ export function agentOf(adapter: string | null | undefined, host?: string | null
   if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: !model || isMeta(model) ? 'meta' : 'alt', letter: 'M' };
   if (adapter === 'claude-code') return { name: 'Claude Code', mark: 'alt', letter: 'C' };
   if (adapter === 'codex') return { name: 'Codex', mark: 'alt', letter: 'X' };
+  if (adapter === 'goose') return { name: 'Goose', mark: 'alt', letter: 'G' };
+  if (adapter === 'opencode') return { name: 'OpenCode', mark: 'alt', letter: 'O' };
+  if (adapter === 'gemini-cli') return { name: 'Gemini CLI', mark: 'alt', letter: 'G' };
+  if (adapter === 'aider') return { name: 'Aider', mark: 'alt', letter: 'A' };
   if (adapter === 'replay') return { name: 'Replay', mark: 'local', letter: 'R' };
   return { name: adapter ?? 'daemon', mark: 'local', letter: (adapter ?? 'd').slice(0, 1).toUpperCase() };
 }

@@ -3,7 +3,9 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
 import { createBunWebSocket } from 'hono/bun';
-import { cliAgents } from '@stint-dev/adapter-cli-agent';
+import { cliAgent } from '@stint-dev/adapter-cli-agent';
+import { claudeCode } from '@stint-dev/adapter-claude-code';
+import { codex } from '@stint-dev/adapter-codex';
 import { museCodeAdapter } from '@stint-dev/adapter-muse-code';
 import { createStintAgent } from '@stint-dev/adapter-stint-agent';
 import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
@@ -14,7 +16,16 @@ import { killAllPtys } from './pty';
 
 /** Every adapter that has landed; health reports each one honestly, available or not. */
 export function defaultAdapters(config?: Config): Adapter[] {
-  return [replayAdapter, museCodeAdapter, createStintAgent(config), ...cliAgents(config ?? DEFAULT_CONFIG)];
+  const cfg = config ?? DEFAULT_CONFIG;
+  const agents: Adapter[] = [];
+  for (const [name, def] of Object.entries(cfg.agents ?? {})) {
+    if (!def.enabled) continue;
+    const harness = def.harness ?? 'cli';
+    if (harness === 'claude-code') agents.push(claudeCode(name, def));
+    else if (harness === 'codex') agents.push(codex(name, def));
+    else agents.push(cliAgent(name, def));
+  }
+  return [replayAdapter, museCodeAdapter, createStintAgent(config), ...agents];
 }
 
 export type DaemonInfo = { port: number; token: string; pid: number; startedAt: string; version: string };

@@ -21,6 +21,30 @@ export type HostConfig = z.infer<typeof HostConfigSchema>;
 export const PriceSchema = z.strictObject({ input: z.number().min(0), cached: z.number().min(0), output: z.number().min(0) });
 export type Price = z.infer<typeof PriceSchema>;
 
+/** How a configured agent prints its work, as dotted paths into each JSON line (R-032). */
+export const AgentEventsSchema = z.strictObject({
+  format: z.literal('jsonl'),
+  /** Dotted path of the field that says what kind of line this is, such as `type`. */
+  type: z.string().min(1),
+  text: z.string().min(1).optional(),
+  tool: z.string().min(1).optional(),
+  args: z.string().min(1).optional(),
+  callId: z.string().min(1).optional(),
+  result: z.string().min(1).optional(),
+  session: z.string().min(1).optional(),
+  usage: z
+    .strictObject({ input: z.string().min(1), output: z.string().min(1), cached: z.string().min(1).optional() })
+    .optional(),
+  /** The values of the `type` field that mean each Stint event; any other value is kept unclassified. */
+  kinds: z.strictObject({
+    message: z.array(z.string().min(1)).default([]),
+    tool_call: z.array(z.string().min(1)).default([]),
+    tool_result: z.array(z.string().min(1)).default([]),
+    usage: z.array(z.string().min(1)).default([]),
+  }),
+});
+export type AgentEvents = z.infer<typeof AgentEventsSchema>;
+
 /** Any coding agent with a command line (R-026): `{prompt}` and `{model}` in `command` are substituted. */
 export const AgentDefSchema = z.strictObject({
   command: z.array(z.string().min(1)).min(1),
@@ -29,6 +53,21 @@ export const AgentDefSchema = z.strictObject({
   vendor: z.enum(['meta', 'openai', 'anthropic', 'local', 'other']),
   model: z.string().optional(),
   enabled: z.boolean().default(false),
+  /** Which harness runs this agent; `cli` is the generic command line adapter (R-032, R-034). */
+  harness: z.enum(['cli', 'claude-code', 'codex']).default('cli'),
+  /** A configured host this agent talks to, when it has one; it must be named in `hosts`. */
+  host: z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/).optional(),
+  events: AgentEventsSchema.optional(),
+  resume: z.strictObject({ flag: z.string().min(1) }).optional(),
+  permissions: z.strictObject({ flags: z.array(z.string().min(1)).max(20) }).optional(),
+  capabilities: z
+    .strictObject({
+      resume: z.boolean().optional(),
+      schemaOutput: z.boolean().optional(),
+      sandbox: z.boolean().optional(),
+      costReporting: z.boolean().optional(),
+    })
+    .optional(),
   /** Credential variables this agent needs passed through, such as its API key. */
   env: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)).max(20).optional(),
 });
@@ -138,6 +177,23 @@ export const ConfigSchema = z.strictObject({
   agents: z.record(z.string().regex(/^[a-z0-9-]+$/), AgentDefSchema).optional(),
   allowDirectEvents: z.boolean().optional(),
   branchRetentionDays: z.int().min(0).optional(),
+}).superRefine((cfg, ctx) => {
+  // A host named in a route or a manifest must be configured (R-032); say so in plain words at load.
+  const known = Object.keys(cfg.hosts).sort();
+  const list = known.length ? known.join(', ') : 'none';
+  for (const [role, chain] of Object.entries(cfg.routes)) {
+    for (const entry of chain ?? []) {
+      const host = entry.split('/')[0] as string;
+      if (!cfg.hosts[host]) {
+        ctx.addIssue({ code: 'custom', path: ['routes', role], message: `route ${role} names host "${host}" which is not in hosts (configured hosts: ${list})` });
+      }
+    }
+  }
+  for (const [name, def] of Object.entries(cfg.agents ?? {})) {
+    if (def.host && !cfg.hosts[def.host]) {
+      ctx.addIssue({ code: 'custom', path: ['agents', name, 'host'], message: `agent "${name}" names host "${def.host}" which is not in hosts (configured hosts: ${list})` });
+    }
+  }
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -214,10 +270,73 @@ export const DEFAULT_CONFIG: Config = {
   },
   credits: { baseten: 100, fireworks: 25, modal: 100, 'meta-api': 150 },
   autopilot: { implementers: ['muse-code', 'stint-agent'], maxHops: 3, parallel: 2 },
-  // Meta's models are the default; these are here so a person can bring the agent they already use
+  // Meta's models are the default; these are here so a person can bring the agent they already use.
+  // No preset bypasses approvals or turns off a sandbox (D-028); a person adds any further permission flags.
   agents: {
-    'claude-code': { command: ['claude', '-p', '--permission-mode', 'acceptEdits'], prompt: 'stdin', roles: ['implementer', 'reviewer'], vendor: 'anthropic', enabled: false },
-    codex: { command: ['codex', 'exec', '--full-auto', '-'], prompt: 'stdin', roles: ['implementer', 'reviewer'], vendor: 'openai', enabled: false },
+    // Native harness (R-034): https://code.claude.com/docs/en/headless
+    'claude-code': {
+      command: ['claude', '-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits'],
+      prompt: 'stdin',
+      roles: ['implementer', 'reviewer'],
+      vendor: 'anthropic',
+      enabled: false,
+      harness: 'claude-code',
+      env: ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY'],
+      resume: { flag: '--resume' },
+      capabilities: { resume: true, schemaOutput: true, sandbox: false, costReporting: true },
+    },
+    // Native harness (R-034): https://developers.openai.com/codex/noninteractive
+    codex: {
+      command: ['codex', 'exec', '--json', '--sandbox', 'workspace-write', '-'],
+      prompt: 'stdin',
+      roles: ['implementer', 'reviewer'],
+      vendor: 'openai',
+      enabled: false,
+      harness: 'codex',
+      env: ['OPENAI_API_KEY', 'OPENAI_BASE_URL'],
+      resume: { flag: 'resume' },
+      capabilities: { resume: true, schemaOutput: true, sandbox: true, costReporting: true },
+    },
+    // goose headless run with an instructions file: https://block.github.io/goose/docs/tutorials/headless-goose
+    goose: {
+      command: ['goose', 'run', '--instructions', '{prompt}'],
+      prompt: 'file',
+      roles: ['implementer', 'reviewer'],
+      vendor: 'other',
+      enabled: false,
+      harness: 'cli',
+      capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
+    },
+    // OpenCode one-shot run: https://opencode.ai/docs/cli/
+    opencode: {
+      command: ['opencode', 'run', '--model={model}', '{prompt}'],
+      prompt: 'arg',
+      roles: ['implementer', 'reviewer'],
+      vendor: 'other',
+      enabled: false,
+      harness: 'cli',
+      capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
+    },
+    // Gemini CLI headless prompt with the default approval mode: https://geminicli.com/docs/cli/tutorials/automation/
+    'gemini-cli': {
+      command: ['gemini', '-p', '{prompt}', '--output-format', 'json', '--approval-mode', 'default'],
+      prompt: 'arg',
+      roles: ['implementer', 'reviewer'],
+      vendor: 'other',
+      enabled: false,
+      harness: 'cli',
+      capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
+    },
+    // Aider one message from a file, leaving commits to Stint: https://aider.chat/docs/config/options.html
+    aider: {
+      command: ['aider', '--message-file', '{prompt}', '--no-auto-commits'],
+      prompt: 'file',
+      roles: ['implementer', 'reviewer'],
+      vendor: 'other',
+      enabled: false,
+      harness: 'cli',
+      capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
+    },
   },
   branchRetentionDays: 7,
 };

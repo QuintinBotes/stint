@@ -26,9 +26,10 @@ export type AssignInput = {
 };
 export type Assigned = { run: string; worktree: string; done: Promise<void> };
 
-/** The price key of a run: Muse Code bills the Meta Model API; other agents bill the host that answered. */
+/** The price key of a run: Muse Code bills the Meta Model API; a local CLI agent bills under <agent>/<model> (R-032); other agents bill the host that answered. */
 export function priceKey(adapter: string, host: string | undefined, model: string | undefined): string {
-  if (adapter === 'muse-code' || host === 'local-cli' || !host) return `meta-api/${model ?? 'muse-spark-1.3'}`;
+  if (adapter === 'muse-code') return `meta-api/${model ?? 'muse-spark-1.3'}`;
+  if (!host || host === 'local-cli') return `${adapter}/${model ?? ''}`;
   return `${host}/${model ?? ''}`;
 }
 
@@ -86,7 +87,10 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   const ws = ctx.ws;
   let task = await ws.readTask(taskId);
   const adapter: Adapter | undefined = ctx.adapters.find((a) => a.id === input.adapter);
-  if (!adapter) throw new DaemonError('adapter_unavailable', `no adapter ${input.adapter} is configured`, ctx.adapters.map((a) => a.id).join(', '));
+  if (!adapter) {
+    const ids = ctx.adapters.map((a) => a.id);
+    throw new DaemonError('adapter_unavailable', `no adapter ${input.adapter} is configured (configured adapters: ${ids.join(', ') || 'none'})`, ids.join(', '));
+  }
   if (!adapter.roles.includes(input.role)) {
     throw new DaemonError('capability_mismatch', `${adapter.id} cannot take the ${input.role} role`, `its roles: ${adapter.roles.join(', ')}`);
   }

@@ -1,0 +1,111 @@
+import { spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
+import type { Adapter, AgentDef, Availability, EndedBy, RunContext, RunResult } from '@stint-dev/core';
+import { ClaudeMapper } from './mapper';
+
+export { ClaudeMapper } from './mapper';
+export type { ClaudeRecord } from './mapper';
+
+/** The headless command line (R-034); approvals stay at acceptEdits, never a bypass mode. */
+export function claudeArgs(o: { model?: string; sessionId?: string; bin?: string }): string[] {
+  return [
+    o.bin ?? 'claude',
+    '-p',
+    '--output-format',
+    'stream-json',
+    '--verbose',
+    '--permission-mode',
+    'acceptEdits',
+    ...(o.model ? ['--model', o.model] : []),
+    ...(o.sessionId ? ['--resume', o.sessionId] : []),
+  ];
+}
+
+export function claudeEndedBy(o: { failed: boolean; aborted: boolean; signal: NodeJS.Signals | null; exitCode: number | null }): EndedBy {
+  if (o.aborted || o.signal === 'SIGKILL' || o.signal === 'SIGTERM') return 'killed';
+  if (o.failed || o.exitCode !== 0) return 'failed';
+  return 'completed';
+}
+
+/** Claude Code driven headless in the worktree, observed by Stint and verified by the daemon after (R-034). */
+export function claudeCode(name: string, def: AgentDef): Adapter {
+  const bin = (def.command[0] as string) || 'claude';
+
+  async function exec(ctx: RunContext, extra: { sessionId?: string; prompt?: string } = {}): Promise<RunResult> {
+    const model = ctx.model ?? def.model;
+    const argv = claudeArgs({ bin, ...(model ? { model } : {}), ...(extra.sessionId ? { sessionId: extra.sessionId } : {}) });
+    const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
+    const child = spawn(cmd, args, { cwd: ctx.worktree, env: ctx.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    if (child.pid) ctx.onSpawn?.(child.pid);
+    let aborted = false;
+    const kill = () => {
+      aborted = true;
+      try {
+        if (child.pid) process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
+    };
+    if (ctx.signal.aborted) kill();
+    ctx.signal.addEventListener('abort', kill, { once: true });
+    const timer = ctx.budget.timeoutMs ? setTimeout(kill, ctx.budget.timeoutMs) : null;
+    child.stdin.on('error', () => undefined);
+    child.stdin.end(extra.prompt ?? ctx.prompt);
+    const mapper = new ClaudeMapper();
+    let stderr = '';
+    child.stderr.on('data', (b: Buffer) => {
+      stderr = (stderr + b.toString()).slice(-4000);
+    });
+    const lines = createInterface({ input: child.stdout });
+    let chain = Promise.resolve();
+    lines.on('line', (line) => {
+      chain = chain.then(async () => {
+        const raw = await ctx.transcript(line);
+        for (const e of mapper.map(line)) {
+          await ctx.emit({ ...e, raw: { kind: 'transcript', pointer: raw.pointer, byteLen: raw.byteLen, redacted: false } });
+        }
+      });
+    });
+    const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => child.on('close', (code, signal) => resolve({ code, signal })));
+    await chain;
+    if (timer) clearTimeout(timer);
+    ctx.signal.removeEventListener('abort', kill);
+    const ended = claudeEndedBy({ failed: mapper.failed, aborted, signal: exit.signal, exitCode: exit.code });
+    if (ended === 'failed' && stderr.trim()) {
+      await ctx.emit({ type: 'agent.message', payload: { text: `Claude Code stopped: ${stderr.trim().split('\n').at(-1)}`, stderr: true } });
+    }
+    const u = mapper.usage ?? { inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
+    return {
+      endedBy: ended,
+      cost: { ...u, usd: mapper.totalCostUsd, ...(mapper.usage || mapper.totalCostUsd !== null ? {} : { estimated: true }) },
+      host: def.host ?? 'local-cli',
+      ...(model ? { model } : {}),
+      inFlight: ended === 'killed' ? mapper.inFlight() : null,
+      lastMessage: mapper.lastMessage,
+      ...(mapper.sessionId ? { sessionId: mapper.sessionId } : {}),
+    };
+  }
+
+  return {
+    id: name,
+    vendor: def.vendor,
+    roles: def.roles,
+    ...(def.env ? { needsEnv: def.env } : {}),
+    capabilities: {
+      editsFiles: true,
+      runsCommands: true,
+      resumable: def.capabilities?.resume ?? true,
+      structuredOutput: def.capabilities?.schemaOutput ?? true,
+      offline: def.vendor === 'local' || def.host === 'ollama',
+    },
+    async available(): Promise<Availability> {
+      return Bun.which(bin) ? { ok: true, version: bin } : { ok: false, reason: `${bin} is not on PATH` };
+    },
+    // Stint classifies Claude Code tool calls but cannot stop one: the gate is observed.
+    gate: () => 'observed',
+    run: (ctx) => exec(ctx),
+    resume: (ctx) => exec(ctx, { sessionId: ctx.sessionId, prompt: ctx.instruction }),
+  };
+}
+
+export const createClaudeCode = claudeCode;

@@ -1,0 +1,10 @@
+{"type":"thread.started","thread_id":"thread-synthetic-0001"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"bun test","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"bun test","aggregated_output":"27 pass, 0 fail","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_2","type":"file_change","changes":[{"path":"src/lib/limiter.ts","kind":"update"}],"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"file_change","changes":[{"path":"src/lib/limiter.ts","kind":"update"}],"status":"completed"}}
+{"type":"item.started","item":{"id":"item_3","type":"mcp_tool_call","server":"stint","tool":"task","arguments":{"id":"T-0042"},"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"mcp_tool_call","server":"stint","tool":"task","arguments":{"id":"T-0042"},"result":{"id":"T-0042"},"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_4","type":"agent_message","text":"The limiter constant is in place."}}
+{"type":"turn.completed","usage":{"input_tokens":3000,"cached_input_tokens":1000,"output_tokens":500}}

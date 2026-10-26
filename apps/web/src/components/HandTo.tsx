@@ -11,19 +11,20 @@ const GATE: Record<string, string> = {
   none: 'no gate',
 };
 
-/** Hand the task to the next agent from this packet: a different agent than the one leaving, when one is ready. */
+/** Hand the task to the next agent from this packet: enabled agents can be picked, disabled ones are marked. */
 export function HandTo({ taskId, packet, live }: { taskId: string; packet: Handoff | null; live: boolean }) {
   const { data: health } = useHealth();
   const leaving = packet?.from.adapter ?? null;
-  const ready = (health?.adapters ?? []).filter((a) => a.id !== 'replay' && a.roles.includes('implementer') && a.capability.level === 'supported');
+  const all = (health?.adapters ?? []).filter((a) => a.id !== 'replay' && a.roles.includes('implementer'));
+  const ready = all.filter((a) => a.enabled !== false && a.capability.level === 'supported');
   const recommended = ready.find((a) => a.id !== leaving) ?? ready[0] ?? null;
   const [picked, setPicked] = useState<string | null>(null);
   const [ask, setAsk] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
-  const choice = picked ?? recommended?.id ?? null;
-  if (!packet || ready.length === 0) return null;
+  const choice = picked && ready.some((a) => a.id === picked) ? picked : (recommended?.id ?? null);
+  if (!packet || all.length === 0) return null;
   const hand = () => {
     if (!choice) return;
     setBusy(true);
@@ -43,17 +44,26 @@ export function HandTo({ taskId, packet, live }: { taskId: string; packet: Hando
         </p>
       ) : null}
       <ul className="mt-3 flex flex-col gap-1.5" role="radiogroup" aria-label="Next agent">
-        {ready.map((a) => (
-          <li key={a.id}>
-            <label className={cx('flex items-center gap-3 rounded-md border px-3 py-2 text-[13px] cursor-pointer', choice === a.id ? 'border-accent' : 'border-line')}>
-              <input type="radio" name="hand-to" value={a.id} checked={choice === a.id} onChange={() => setPicked(a.id)} className="accent-[var(--accent)]" />
-              <VendorMark agent={agentOf(a.id)} />
-              <span className="text-[12px] text-muted truncate">{GATE[a.gate] ?? a.gate}</span>
-              {a.id === recommended?.id ? <StatusChip label="recommended" tone="active" /> : null}
-              {a.id === leaving ? <StatusChip label="leaving" tone="neutral" /> : null}
-            </label>
-          </li>
-        ))}
+        {all.map((a) => {
+          const disabled = a.enabled === false;
+          const selectable = ready.some((r) => r.id === a.id);
+          return (
+            <li key={a.id}>
+              <label
+                className={cx('flex items-center gap-3 rounded-md border px-3 py-2 text-[13px]', selectable ? 'cursor-pointer' : 'opacity-60', choice === a.id ? 'border-accent' : 'border-line')}
+                data-testid={disabled ? 'hand-disabled' : undefined}
+              >
+                <input type="radio" name="hand-to" value={a.id} checked={choice === a.id} disabled={!selectable} onChange={() => setPicked(a.id)} className="accent-[var(--accent)]" />
+                <VendorMark agent={agentOf(a.id)} />
+                <span className="text-[12px] text-muted truncate">{disabled ? 'Turned off in config' : (GATE[a.gate] ?? a.gate)}</span>
+                {a.id === recommended?.id ? <StatusChip label="recommended" tone="active" /> : null}
+                {a.id === leaving ? <StatusChip label="leaving" tone="neutral" /> : null}
+                {disabled ? <StatusChip label="disabled" tone="neutral" /> : null}
+                {!disabled && !selectable ? <StatusChip label="unavailable" tone="neutral" /> : null}
+              </label>
+            </li>
+          );
+        })}
       </ul>
       <label className="block mt-3 text-[12px] text-muted" htmlFor="hand-ask">
         Anything to add to the packet's ask (optional)

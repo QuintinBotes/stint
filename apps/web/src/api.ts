@@ -2,7 +2,21 @@
 import { type Cost, EVENT_TYPES, type Handoff, type Plan, type Review, type StintEvent, type Task } from '@stint-dev/core';
 
 export type CapabilityLevel = { level: 'supported' | 'partial' | 'unsupported' | 'unknown'; reason?: string; note?: string };
-export type AdapterHealth = { id: string; vendor: string; roles: string[]; capability: CapabilityLevel; gate: 'enforced' | 'observed' | 'none'; version?: string; reason?: string };
+export type AdapterHealth = {
+  id: string;
+  vendor: string;
+  roles: string[];
+  capability: CapabilityLevel;
+  gate: 'enforced' | 'observed' | 'none';
+  version?: string;
+  reason?: string;
+  harness?: string;
+  host?: string | null;
+  model?: string | null;
+  enabled?: boolean;
+  available?: boolean;
+  capabilities?: { resume?: boolean; schemaOutput?: boolean; sandbox?: boolean; costReporting?: boolean };
+};
 export type Health = {
   ok: boolean;
   version: string;

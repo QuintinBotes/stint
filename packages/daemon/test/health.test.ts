@@ -11,8 +11,9 @@ test('/api/health with no adapters configured lists each as capability.level uns
       adapters: Array<{ id: string; capability: { level: string; reason?: string }; gate: string }>;
     };
     expect(health.ok).toBe(true);
-    expect(health.adapters.map((a) => a.id).sort()).toEqual(KNOWN_ADAPTERS.map((k) => k.id).sort());
-    for (const a of health.adapters) {
+    // Health also lists every configured agent (R-032); the known adapters are all there.
+    for (const k of KNOWN_ADAPTERS) expect(health.adapters.map((a) => a.id)).toContain(k.id);
+    for (const a of health.adapters.filter((x) => KNOWN_ADAPTERS.some((k) => k.id === x.id))) {
       expect(a.capability.level).toBe('unsupported');
       expect(a.capability.reason?.length).toBeGreaterThan(0);
     }

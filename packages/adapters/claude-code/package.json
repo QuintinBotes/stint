@@ -1,0 +1,16 @@
+{
+  "name": "@stint-dev/adapter-claude-code",
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {},
+  "dependencies": {
+    "@stint-dev/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@stint-dev/daemon": "workspace:*"
+  }
+}

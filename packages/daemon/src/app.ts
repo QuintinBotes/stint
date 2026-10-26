@@ -180,7 +180,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       mode: 'live',
       startedAt: opts.startedAt,
       pid: process.pid,
-      adapters: await adapterHealth(adapters),
+      adapters: await adapterHealth(adapters, ws.config),
       pty: ptyHealth(),
       autopilot: await ctx.autopilot.status(),
       models: await modelHealth(ws.config),
