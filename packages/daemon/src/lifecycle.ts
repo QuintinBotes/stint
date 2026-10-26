@@ -7,6 +7,7 @@ import type { DaemonContext } from './app';
 import { runEnv } from './env';
 import { DaemonError } from './errors';
 import { git } from './git';
+import { earlierHops } from './handoff';
 import { renderPrompt } from './prompt';
 import { skillsFor } from './skills';
 import { worktreePath } from './worktree';
@@ -69,6 +70,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     task,
     plan: await ws.readPlan(taskId),
     handoff,
+    before: handoff ? await earlierHops(ctx, taskId, handoff.from.run) : [],
     skills,
     diff: (await ctx.worktrees.diff(task, 'json')) as never,
     ask: input.instruction ?? task.pendingAsk ?? null,
@@ -78,7 +80,10 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   if (spent + promptTokens > budget) {
     throw new DaemonError('budget_exceeded', `the ${input.role} budget on ${taskId} would be exceeded`, { spent, prompt: promptTokens, cap: budget });
   }
-  const run = await ws.runs(taskId).nextRunId();
+  // the next run id is above every run the log or the run folders know
+  const fromDirs = Number((await ws.runs(taskId).nextRunId()).slice(1));
+  const fromLog = runsFromEvents(await ws.events(taskId).read()).reduce((m, r) => Math.max(m, Number(r.run.slice(1)) + 1), 1);
+  const run = `r${Math.max(fromDirs, fromLog)}`;
   const wt = await ctx.worktrees.create(task, run);
   const startedAt = new Date().toISOString();
   const model = input.model ?? (adapter.id === 'muse-code' ? (ws.config.adapters['muse-code']?.model as string | undefined) : undefined);
@@ -155,6 +160,8 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   });
   live.done = done;
   ctx.runs.add(live);
+  ctx.pending.add(done);
+  void done.finally(() => ctx.pending.delete(done));
   return { run, worktree: relative(ws.root, wt.path), done };
 }
 

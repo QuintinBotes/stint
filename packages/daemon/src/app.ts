@@ -18,6 +18,7 @@ import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
+import { afterRunPacket, handoffRoutes } from './routes/handoff';
 import { runRoutes } from './routes/runs';
 import { ptyRoutes } from './routes/pty';
 import { workRoutes } from './routes/work';
@@ -55,6 +56,8 @@ export type DaemonContext = {
   replayer: Replayer;
   /** Runs after a run is verified; the packet builder (R-012) hooks in here. */
   afterRun?: (task: string, run: string, result: RunResult) => Promise<void>;
+  /** Run endings still writing (commit, verify, packet); a stop waits for them. */
+  pending: Set<Promise<unknown>>;
 };
 
 const NewTaskBody = z.strictObject({
@@ -72,6 +75,15 @@ function tokenMatches(header: string | undefined, token: string): boolean {
   const a = Buffer.from(given);
   const b = Buffer.from(token);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+const contexts = new WeakMap<Hono, DaemonContext>();
+
+/** The context behind an app, for tests and in-process callers. */
+export function daemonContext(app: Hono): DaemonContext {
+  const ctx = contexts.get(app);
+  if (!ctx) throw new Error('not a Stint app');
+  return ctx;
 }
 
 export function createApp(ws: Workspace, adapters: Adapter[], options: AppOptions): Hono {
@@ -95,8 +107,11 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     verifier: verifier ?? new DaemonVerifier(ws),
     snapshotMs: snapshotMs ?? 5_000,
     replayer: new Replayer(ws),
+    pending: new Set(),
   };
+  ctx.afterRun = (task, run, result) => afterRunPacket(ctx, task, run, result);
   const app = new Hono();
+  contexts.set(app, ctx);
 
   app.onError((err, c) => errorResponse(c, err));
 
@@ -313,6 +328,7 @@ function replayHealth(ctx: DaemonContext): Record<string, unknown> {
 function registerRoutes(app: Hono, ctx: DaemonContext): void {
   workRoutes(app, ctx);
   runRoutes(app, ctx);
+  handoffRoutes(app, ctx);
   demoRoutes(app, ctx);
   ptyRoutes(app, ctx);
 }

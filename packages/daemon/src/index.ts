@@ -13,3 +13,4 @@ export { DEFAULT_RECORDING } from './routes/demo';
 export * from './lifecycle';
 export * from './prompt';
 export * from './skills';
+export * from './handoff';

@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
-import { assign, stop } from '../lifecycle';
+import { assign } from '../lifecycle';
 
 const AssignBody = z.strictObject({
   adapter: z.string().min(1),
@@ -17,6 +17,4 @@ export function runRoutes(app: Hono, ctx: DaemonContext): void {
     const r = await assign(ctx, c.req.param('id'), body);
     return c.json({ run: r.run, worktree: r.worktree }, 202);
   });
-
-  app.post('/api/tasks/:id/runs/:run/stop', async (c) => c.json(await stop(ctx, c.req.param('id'), c.req.param('run')), 202));
 }

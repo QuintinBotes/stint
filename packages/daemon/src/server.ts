@@ -5,7 +5,7 @@ import { Workspace } from '@stint-dev/core/node';
 import { createBunWebSocket } from 'hono/bun';
 import { museCodeAdapter } from '@stint-dev/adapter-muse-code';
 import { type Adapter, replayAdapter } from './adapter';
-import { type AppOptions, DAEMON_VERSION, createApp } from './app';
+import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
 import { killAllPtys } from './pty';
 
 /** Every adapter that has landed; health reports each one honestly, available or not. */
@@ -60,6 +60,10 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     if (stopped) return;
     stopped = true;
     killAllPtys();
+    // let run endings finish their commit, verification and packet (at most 10 s)
+    const ctx = daemonContext(app);
+    for (const r of ctx.runs.list()) r.abort.abort();
+    await Promise.race([Promise.allSettled([...ctx.pending]), Bun.sleep(10_000)]);
     rmSync(infoPath, { force: true });
     await server.stop(true);
   };

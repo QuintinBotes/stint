@@ -129,7 +129,7 @@ export class Replayer {
     this.continue();
   }
 
-  async play(o: { speed?: number; from?: number } = {}): Promise<ReplayStatus> {
+  async play(o: { speed?: number; from?: number; until?: number } = {}): Promise<ReplayStatus> {
     const rec = this.rec;
     if (!rec) throw new DaemonError('invalid', 'no recording is loaded');
     if (this.status.playing) throw new DaemonError('run_active', 'the replay is already playing');
@@ -145,7 +145,7 @@ export class Replayer {
     const t0 = Date.now();
     try {
       for (const line of rec.lines) {
-        if (this.stopped) break;
+        if (this.stopped || (o.until !== undefined && line.at > o.until)) break;
         const silent = line.at < from;
         if (!silent && speed > 0) {
           const due = t0 + (line.at - from) / speed;
@@ -164,7 +164,7 @@ export class Replayer {
         this.status.at = line.at;
         for (const l of this.listeners) l({ line, event, silent });
       }
-      this.status.done = !this.stopped;
+      this.status.done = !this.stopped && (o.until === undefined || (rec.lines.at(-1)?.at ?? 0) <= o.until);
     } finally {
       this.status.playing = false;
     }
