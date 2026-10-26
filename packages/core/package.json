@@ -11,7 +11,8 @@
     "build:schemas": "bun run scripts/build-schemas.ts"
   },
   "dependencies": {
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "ulid": "3.0.2"
   },
   "devDependencies": {
     "ajv": "8.20.0",

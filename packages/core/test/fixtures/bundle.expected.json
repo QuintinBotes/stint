@@ -1,0 +1,257 @@
+{
+  "task": {
+    "acceptance": [
+      "A tenant over the limit gets 429 with Retry-After",
+      "The limit comes from config"
+    ],
+    "assignee": null,
+    "baseCommit": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "branch": "stint/T-0042",
+    "budgets": {
+      "implementer": 150000,
+      "learn": 20000,
+      "planner": 40000,
+      "reviewer": 30000
+    },
+    "createdAt": "<time>",
+    "goal": "POST /webhooks answers 429 with Retry-After when a tenant is over the limit.",
+    "id": "T-0042",
+    "links": {
+      "beadsId": null,
+      "issueUrl": null
+    },
+    "pendingAsk": null,
+    "slug": "rate-limit-incoming-webhooks-per-tenant",
+    "status": "planned",
+    "testCommand": "bun run test",
+    "title": "Rate-limit incoming webhooks per tenant",
+    "updatedAt": "<time>",
+    "version": "stint.task/1"
+  },
+  "plan": {
+    "createdAt": "<time>",
+    "decisions": [
+      {
+        "text": "Count per tenant, not per source IP",
+        "why": "the tenant is the unit of fairness in this service"
+      }
+    ],
+    "filesToTouch": [
+      "src/lib/limiter.ts",
+      "src/routes/webhooks.ts",
+      "src/config.ts"
+    ],
+    "model": "meta-api/muse-wonder-1.0",
+    "offline": false,
+    "risks": [
+      {
+        "id": "R1",
+        "text": "Limiter state is in memory and resets on restart"
+      }
+    ],
+    "similarTasks": [
+      "T-0040"
+    ],
+    "steps": [
+      {
+        "files": [
+          "src/lib/limiter.ts"
+        ],
+        "id": 1,
+        "test": "test/limiter.test.ts",
+        "text": "Add a per-tenant sliding window limiter"
+      },
+      {
+        "files": [
+          "src/routes/webhooks.ts"
+        ],
+        "id": 2,
+        "test": "test/ratelimit.test.ts",
+        "text": "Check the limiter in POST /webhooks before reading the body; answer 429 with Retry-After"
+      },
+      {
+        "files": [
+          "src/config.ts"
+        ],
+        "id": 3,
+        "text": "Read the limit and the window from config with defaults"
+      }
+    ],
+    "version": "stint.plan/1"
+  },
+  "handoff": {
+    "askOfNext": "Check the unknown step first: test/ratelimit.test.ts may be half written. Then test the 429 response and Retry-After, and read the limit from config.",
+    "changedFiles": [
+      {
+        "added": 41,
+        "path": "src/lib/limiter.ts",
+        "removed": 0,
+        "run": "r2"
+      },
+      {
+        "added": 9,
+        "path": "src/routes/webhooks.ts",
+        "removed": 1,
+        "run": "r2"
+      },
+      {
+        "added": 38,
+        "path": "test/limiter.test.ts",
+        "removed": 0,
+        "run": "r2"
+      }
+    ],
+    "cost": {
+      "cachedTokens": 11200,
+      "inputTokens": 18420,
+      "outputTokens": 3910,
+      "usd": 0.0303
+    },
+    "createdAt": "<time>",
+    "decisions": [
+      {
+        "id": "D3",
+        "text": "Sliding window over fixed window, so a burst at a window edge cannot double the limit"
+      }
+    ],
+    "diffRef": {
+      "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+      "head": "7c41e0a9d2b5f3c8e6a1d4b7f0c3e9a2d5b8f1c4"
+    },
+    "done": [
+      "Sliding window limiter in src/lib/limiter.ts",
+      "Limiter wired into POST /webhooks before the body is read",
+      "Three limiter unit tests pass"
+    ],
+    "from": {
+      "adapter": "muse-code",
+      "endedBy": "killed",
+      "host": "local-cli",
+      "model": "muse-spark-1.3",
+      "role": "implementer",
+      "run": "r2",
+      "sessionId": "01a1787f-4d06-7ca1-8d41-34127655ceb9",
+      "vendor": "meta"
+    },
+    "hash": "sha256:a8781652d9107f790d9c32685abb26aa3943abd45666bf45ce4cd3ee2e380ae8",
+    "leftOut": [
+      "In-flight step unknown: write_file test/ratelimit.test.ts",
+      "src/config.ts was planned but not touched"
+    ],
+    "open": [
+      "Tests for the 429 response and the Retry-After header",
+      "Read the limit and the window from config"
+    ],
+    "refusals": [],
+    "risks": [
+      "Limiter state is in memory and resets on restart",
+      "The limit of 60 per minute is hard-coded in the limiter"
+    ],
+    "summary": "Added a per-tenant sliding window limiter and wired it into POST /webhooks before the body is read. The run was killed while it was writing the tests for the 429 response.",
+    "task": "T-0042",
+    "to": {
+      "adapter": "claude-code",
+      "role": "implementer"
+    },
+    "verification": {
+      "command": "bun run test",
+      "durationMs": 1630,
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 30,
+      "runBy": "daemon",
+      "status": "green"
+    },
+    "version": "stint.handoff/1"
+  },
+  "review": {
+    "blockers": [],
+    "cost": {
+      "cachedTokens": 0,
+      "inputTokens": 3120,
+      "outputTokens": 410,
+      "usd": 0
+    },
+    "createdAt": "<time>",
+    "findings": [
+      {
+        "file": "src/lib/limiter.ts",
+        "id": "F1",
+        "line": 4,
+        "linksTo": "R1",
+        "severity": "major",
+        "text": "The limit of 60 per minute is hard-coded; read it from config like the other limits."
+      },
+      {
+        "contradictsDecision": "D3",
+        "file": "src/lib/limiter.ts",
+        "id": "F2",
+        "line": 18,
+        "severity": "minor",
+        "text": "A fixed window counter would use less memory per tenant than the sliding window log."
+      }
+    ],
+    "model": "ollama/muse-glimmer:30b-mlx",
+    "offline": true,
+    "run": "r4",
+    "summary": "The limit is a constant in the limiter; one finding proposes reversing D3.",
+    "verdict": "request_changes",
+    "version": "stint.review/1"
+  },
+  "verification": {
+    "at": "<time>",
+    "command": "bun run test",
+    "durationMs": 1630,
+    "exitCode": 0,
+    "failed": 0,
+    "outputRef": "verification/r2.out.txt",
+    "passed": 30,
+    "run": "r2",
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "runs": [
+    {
+      "run": "r1",
+      "adapter": "openai-compatible",
+      "vendor": "meta",
+      "role": "planner",
+      "model": "muse-wonder-1.0",
+      "host": "meta-api",
+      "startedAt": "<time>",
+      "endedAt": "<time>",
+      "endedBy": "completed",
+      "cost": {
+        "inputTokens": 5200,
+        "cachedTokens": 0,
+        "outputTokens": 900,
+        "usd": 0.0388
+      },
+      "handoffFrom": null
+    },
+    {
+      "run": "r2",
+      "adapter": "muse-code",
+      "vendor": "meta",
+      "role": "implementer",
+      "model": "muse-spark-1.3",
+      "host": "local-cli",
+      "startedAt": "<time>",
+      "endedAt": "<time>",
+      "endedBy": "killed",
+      "cost": {
+        "inputTokens": 18420,
+        "cachedTokens": 11200,
+        "outputTokens": 3910,
+        "usd": 0.0303
+      },
+      "handoffFrom": null
+    }
+  ],
+  "cost": {
+    "inputTokens": 23620,
+    "cachedTokens": 11200,
+    "outputTokens": 4810,
+    "usd": 0.0691
+  }
+}
