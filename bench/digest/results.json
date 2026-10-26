@@ -1,0 +1,95 @@
+{
+  "version": "stint.bench/1",
+  "replay": false,
+  "commit": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+  "startedAt": "2026-10-26T18:17:58.141Z",
+  "finishedAt": "2026-10-26T18:22:35.217Z",
+  "implementer": "muse-code",
+  "continuer": "stint-agent",
+  "models": {
+    "muse-code": "muse-spark-1.3",
+    "stint-agent": "muse-spark-1.3"
+  },
+  "rows": [
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "packet",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 37044,
+      "cachedTokens": 22965,
+      "outputTokens": 3912,
+      "usd": 0.0406,
+      "wallMs": 17684,
+      "verified": true,
+      "promptTokens": 899,
+      "repeat": 1
+    },
+    {
+      "task": "bench-02-get-event",
+      "mode": "packet",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 31143,
+      "cachedTokens": 13493,
+      "outputTokens": 2761,
+      "usd": 0.0379,
+      "wallMs": 15737,
+      "verified": true,
+      "promptTokens": 759,
+      "repeat": 1
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "packet",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 66077,
+      "cachedTokens": 36857,
+      "outputTokens": 5913,
+      "usd": 0.0716,
+      "wallMs": 26295,
+      "verified": true,
+      "promptTokens": 672,
+      "repeat": 1
+    },
+    {
+      "task": "bench-04-audit-limit-config",
+      "mode": "packet",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 87900,
+      "cachedTokens": 57578,
+      "outputTokens": 7625,
+      "usd": 0.0847,
+      "wallMs": 33830,
+      "verified": true,
+      "promptTokens": 866,
+      "repeat": 1
+    },
+    {
+      "task": "bench-05-audit-json",
+      "mode": "packet",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 20949,
+      "cachedTokens": 7492,
+      "outputTokens": 2943,
+      "usd": 0.0327,
+      "wallMs": 18942,
+      "verified": true,
+      "promptTokens": 789,
+      "repeat": 1
+    }
+  ],
+  "byMode": {
+    "packet": {
+      "runs": 5,
+      "meanInputTokens": 48622.6,
+      "meanPromptTokens": 797,
+      "meanUsd": 0.0535,
+      "passRate": 1
+    }
+  },
+  "ratio": null
+}
