@@ -16,7 +16,9 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, adapterHealth } from './adapter';
 import { DaemonError, errorResponse } from './errors';
+import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
+import { ptyRoutes } from './routes/pty';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
@@ -129,6 +131,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       startedAt: opts.startedAt,
       pid: process.pid,
       adapters: await adapterHealth(adapters),
+      pty: ptyHealth(),
       ...replayHealth(ctx),
       ...Object.assign({}, ...extra),
     });
@@ -296,4 +299,5 @@ function replayHealth(ctx: DaemonContext): Record<string, unknown> {
 function registerRoutes(app: Hono, ctx: DaemonContext): void {
   workRoutes(app, ctx);
   demoRoutes(app, ctx);
+  ptyRoutes(app, ctx);
 }

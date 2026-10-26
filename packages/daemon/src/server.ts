@@ -2,8 +2,10 @@ import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
+import { createBunWebSocket } from 'hono/bun';
 import { type Adapter, replayAdapter } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp } from './app';
+import { killAllPtys } from './pty';
 
 export type DaemonInfo = { port: number; token: string; pid: number; startedAt: string; version: string };
 
@@ -32,10 +34,12 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     ...(o.heartbeatMs ? { heartbeatMs: o.heartbeatMs } : {}),
     ...(o.health ? { health: o.health } : {}),
   });
+  const { websocket } = createBunWebSocket();
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: o.port ?? ws.config.port ?? 0,
     fetch: app.fetch,
+    websocket,
     idleTimeout: 0,
   });
   const port = server.port as number;
@@ -49,6 +53,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   const stop = async () => {
     if (stopped) return;
     stopped = true;
+    killAllPtys();
     rmSync(infoPath, { force: true });
     await server.stop(true);
   };
