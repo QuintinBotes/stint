@@ -1,0 +1,15 @@
+{
+  "version": "stint.review/1",
+  "verdict": "request_changes",
+  "summary": "The limit is a constant in the limiter; one finding proposes reversing D3.",
+  "findings": [
+    { "id": "F1", "severity": "major", "file": "src/lib/limiter.ts", "line": 4, "text": "The limit of 60 per minute is hard-coded; read it from config like the other limits.", "linksTo": "R1" },
+    { "id": "F2", "severity": "minor", "file": "src/lib/limiter.ts", "line": 18, "text": "A fixed window counter would use less memory per tenant than the sliding window log.", "contradictsDecision": "D3" }
+  ],
+  "blockers": [],
+  "model": "ollama/muse-glimmer:30b-mlx",
+  "offline": true,
+  "cost": { "inputTokens": 3120, "cachedTokens": 0, "outputTokens": 410, "usd": 0 },
+  "run": "r4",
+  "createdAt": "2026-11-02T14:43:30Z"
+}

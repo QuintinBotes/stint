@@ -1,0 +1,14 @@
+{
+  "version": "stint.skillProposal/1",
+  "id": "limiter-config-via-env",
+  "name": "Limits come from config",
+  "description": "Use when adding a limit, threshold, window or cap: read it through loadConfig() with a default, never as a constant.",
+  "roles": ["implementer", "reviewer"],
+  "tags": ["limits", "config"],
+  "rule": "Every limit, threshold, window and cap is read through loadConfig() from an env var with a default. Add a config test for the default and one for the override.",
+  "examples": [{ "task": "T-0042", "run": "r3", "diff": "src/config.ts@HEAD" }],
+  "evidence": ["T-0042/r4#F1", "T-0040/r3#F2"],
+  "confidence": 0.82,
+  "model": "baseten/muse-spark-open",
+  "createdAt": "2026-11-02T14:46:10Z"
+}

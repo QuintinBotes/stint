@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/skill/1",
+  "title": "SKILL.md frontmatter (Stint superset)",
+  "description": "The YAML frontmatter of .agents/skills/<id>/SKILL.md. name and description are what Muse Code, Claude Code and Codex read; roles, origin, evidence and status are Stint's additions. A file with only name and description is valid.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "description"],
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "description": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "roles": { "type": "array", "items": { "type": "string", "enum": ["planner", "implementer", "reviewer"] } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "version": { "type": "string" },
+    "origin": { "type": "string", "enum": ["human", "learn-loop"], "default": "human" },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "status": { "type": "string", "enum": ["active", "proposed", "retired"], "default": "active" }
+  }
+}

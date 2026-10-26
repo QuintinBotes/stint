@@ -8,7 +8,7 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 |---|---|---|---|---|---|---|---|
 | F-001 | Demo repo fixture: webhook service with 27 passing tests | none | done | claude-code/claude-opus-5.5 | 1 | 2026-10-26 | Hono webhook service, 27 Vitest tests in 6 files (0.6 s), 14 commits incl. T-0040 merged --no-ff with 4 trailers; shipped as `demo/repo.bundle` + `scripts/fixture.sh`; seed packet in `demo/seed/T-0040/handoff.json` (hash matches the trailer). Left out: nothing. Verify: F-001 block, all exit 0 |
 | R-001 | Repo and bootstrap | F-001 | done | claude-code/claude-opus-5.5 | 1 | 2026-10-26 | Workspace, 7 packages with smoke tests, bootstrap (`--check-only`), fixture script, identity guard + test, CI matrix, .env.example. Left out: CI has not run yet because no remote exists (acceptance 2 waits on the first push, a human decision). Verify: R-001 block, all exit 0 |
-| R-002 | Core schemas | R-001 | todo | | 0 | | |
+| R-002 | Core schemas | R-001 | done | claude-code/claude-opus-5.5 | 1 | 2026-10-26 | zod mirrors of all 7 kit schemas + capability + config (with DEFAULT_CONFIG), renderHandoff/parseHandoffPrompt, countTokens (chars/3.6), canonical hash in `@stint-dev/core/node`, 3 handoff examples (killed renders to 412 tokens, 1483 bytes) plus examples for every schema, docs/packet.md, parseSkillFrontmatter. Left out: zod-to-JSON emission (see Deviation; the kit files are published as is and a mutation test proves zod and Ajv agree). Verify: R-002 block, all exit 0 |
 | R-003 | File store and event log | R-002 | todo | | 0 | | |
 | R-004 | Daemon routes and SSE | R-003 | todo | | 0 | | |
 | R-005 | Worktree manager and verifier | R-003 | todo | | 0 | | |
@@ -58,6 +58,8 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 | D-011 | 2026-10-26 | claude-code | Commits use the repo-local identity `QuintinBotes <id+QuintinBotes@users.noreply.github.com>` | the global git email is a real address; non-negotiable 9 |
 | D-012 | 2026-10-26 | claude-code | Cost semantics: `inputTokens` counts every prompt token including cached ones, `cachedTokens` is that cached subset, price = (input minus cached) x input rate + cached x cached rate + output x output rate | it is what Muse Code `run.usage` (input 91544, cached 60648) and OpenAI-style `prompt_tokens` report |
 | D-013 | 2026-10-26 | claude-code | Run ids: r1 planner, r2 Muse Code implementer (killed), r3 Claude Code continue, r4 Glimmer review | R-002, R-006, R-012, R-017 and R-022 agree on this; R-015's "r1 Muse, r2 Claude" labels are loose |
+| D-014 | 2026-10-26 | claude-code | Dependencies outside the pin table: `ajv` 8.20.0 and `ajv-formats` 3.0.1 (core dev, the contract tests), `@vitejs/plugin-react` 5.2.0 and `@types/react(-dom)` 19.3.0 (web build) | Ajv is how the kit schemas are checked; the React plugin and types are what Vite 7 and React 19 need |
+| D-015 | 2026-10-26 | claude-code | `@stint-dev/core` has two entries: `.` (browser-safe schemas, render, tokens) and `./node` (hashing, and from R-003 the file store) | the web UI imports core; Vite cannot bundle `node:crypto` or `node:fs` |
 
 ## Deviations (a spec line not followed, with the reason; the human decides whether the spec changes)
 
@@ -66,6 +68,9 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 | R-001 | Req 1, `"workspaces": ["packages/*", "apps/*"]` | added `packages/adapters/*` | see D-008 | pending |
 | R-001 | Req 4, email allowlist | also allow `@users.noreply.github.com`; the email rule skips `specs/` and the guard's own test | GitHub noreply addresses are the handle-only identity; `specs/R-001` and its test quote the guard test's sample gmail address | pending |
 | F-001 | Context, nested repo | git bundle instead of a tarball | see D-007 | pending |
+| R-002 | Req 6, emit the JSON Schemas from zod and deep-equal the kit | `build:schemas` publishes the kit files into `packages/core/schemas`; `test/schemas.agree.test.ts` proves zod and Ajv agree on every example and on roughly 1,800 field mutations | zod 4 output differs in shape (`type` beside `const`, `anyOf` for null, a datetime `pattern`) and cannot express the kit's `if/then`; LOOP says `schemas/` wins on conflict | pending |
+| R-002 | `schemas/handoff.schema.json` `from.host` enum | added `modal` | D-010; R-002 owns the schemas | pending |
+| R-002 | Kit refs `handoff.schema.json#/$defs/cost` in event and review | tests register the handoff schema at the two URLs those refs resolve to | the relative ref resolves against `.../event/1`, not `.../handoff/1`; the schema files are unchanged | pending |
 
 ## Reviews
 

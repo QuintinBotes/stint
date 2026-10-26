@@ -1,0 +1,56 @@
+import { z } from 'zod';
+import { RUN_ID, RoleSchema, TASK_ID } from './handoff';
+
+export const TaskStatusSchema = z.enum([
+  'planned',
+  'building',
+  'verifying',
+  'reviewing',
+  'awaiting_approval',
+  'approved',
+  'rejected',
+  'done',
+  'abandoned',
+]);
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+
+export const BudgetsSchema = z.strictObject({
+  planner: z.int().min(0),
+  implementer: z.int().min(0),
+  reviewer: z.int().min(0),
+  learn: z.int().min(0).optional(),
+  usdCap: z.number().min(0).optional(),
+});
+export type Budgets = z.infer<typeof BudgetsSchema>;
+
+export const TaskSchema = z.strictObject({
+  version: z.literal('stint.task/1'),
+  id: z.string().regex(TASK_ID),
+  slug: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
+  title: z.string().min(1).max(120),
+  goal: z.string().min(1).max(2000),
+  acceptance: z.array(z.string().min(1).max(300)).min(1).max(12),
+  tags: z.array(z.string()).optional(),
+  baseCommit: z.string().min(7),
+  branch: z.string().regex(/^stint\/T-[0-9]{4,}$/),
+  status: TaskStatusSchema,
+  assignee: z
+    .strictObject({
+      adapter: z.string(),
+      model: z.string().optional(),
+      role: RoleSchema,
+      run: z.string().regex(RUN_ID),
+    })
+    .nullable()
+    .optional(),
+  testCommand: z.string().min(1),
+  budgets: BudgetsSchema,
+  links: z.strictObject({
+    beadsId: z.string().nullable().optional(),
+    issueUrl: z.url().nullable().optional(),
+  }),
+  pendingAsk: z.string().max(400).nullable().optional(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type Task = z.infer<typeof TaskSchema>;

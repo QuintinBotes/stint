@@ -1,0 +1,19 @@
+{
+  "id": "01KAB3XQ7Z8M4N2P6R9S0T1V3W",
+  "seq": 57,
+  "ts": "2026-11-02T14:41:05Z",
+  "task": "T-0042",
+  "run": "r2",
+  "adapter": "muse-code",
+  "vendor": "meta",
+  "type": "run.finished",
+  "payload": {
+    "endedBy": "killed",
+    "cost": { "inputTokens": 18420, "cachedTokens": 11200, "outputTokens": 3910, "usd": 0.0303 },
+    "sessionId": "01a1787f-4d06-7ca1-8d41-34127655ceb9",
+    "inFlight": "write_file test/ratelimit.test.ts"
+  },
+  "links": [{ "kind": "run", "ref": "T-0042/r2" }],
+  "prev": "3b1f0c2d4e5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "hash": "9a8b7c6d5e4f30211203f4e5d6c7b8a99a8b7c6d5e4f30211203f4e5d6c7b8a9"
+}

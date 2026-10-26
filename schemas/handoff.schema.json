@@ -21,7 +21,7 @@
         "run": { "type": "string", "pattern": "^r[0-9]+$" },
         "endedBy": { "type": "string", "enum": ["completed", "capped", "killed", "failed", "handed"] },
         "sessionId": { "type": "string" },
-        "host": { "type": "string", "enum": ["meta-api", "baseten", "fireworks", "ollama", "local-cli"], "description": "Which host served the model: the Meta Model API, a hosting partner for Muse Spark Open, Ollama, or a local CLI (Muse Code, Claude Code)." }
+        "host": { "type": "string", "enum": ["meta-api", "baseten", "fireworks", "modal", "ollama", "local-cli"], "description": "Which host served the model: the Meta Model API, a hosting partner for Muse Spark Open (Baseten, Fireworks, Modal), Ollama, or a local CLI (Muse Code, Claude Code)." }
       }
     },
     "to": {

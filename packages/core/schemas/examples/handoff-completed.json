@@ -1,0 +1,81 @@
+{
+  "version": "stint.handoff/1",
+  "task": "T-0042",
+  "from": {
+    "adapter": "muse-code",
+    "vendor": "meta",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r2",
+    "endedBy": "completed",
+    "sessionId": "01a1787f-4d06-7ca1-8d41-34127655ceb0",
+    "host": "local-cli"
+  },
+  "to": {
+    "adapter": "ollama",
+    "role": "reviewer"
+  },
+  "summary": "Rate-limited POST /webhooks per tenant with a sliding window and a 429 response with Retry-After. Four tests added; the suite is green.",
+  "done": [
+    "Sliding window limiter in src/lib/limiter.ts",
+    "POST /webhooks answers 429 with Retry-After when a tenant is over the limit",
+    "Four tests for the limiter and the 429 response"
+  ],
+  "open": [],
+  "leftOut": [
+    "src/config.ts was not changed: the limit is still a constant"
+  ],
+  "refusals": [],
+  "decisions": [
+    {
+      "id": "D3",
+      "text": "Sliding window over fixed window, so a burst at a window edge cannot double the limit"
+    }
+  ],
+  "risks": [
+    "Limiter state is in memory and resets on restart",
+    "The limit of 60 per minute is hard-coded in the limiter"
+  ],
+  "changedFiles": [
+    {
+      "path": "src/lib/limiter.ts",
+      "added": 44,
+      "removed": 0,
+      "run": "r2"
+    },
+    {
+      "path": "src/routes/webhooks.ts",
+      "added": 11,
+      "removed": 1,
+      "run": "r2"
+    },
+    {
+      "path": "test/limiter.test.ts",
+      "added": 52,
+      "removed": 0,
+      "run": "r2"
+    }
+  ],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "3f9a2c7e1b4d8f6a0c5e9b2d7f1a4c8e3b6d0f9a"
+  },
+  "verification": {
+    "command": "bun run test",
+    "exitCode": 0,
+    "passed": 31,
+    "failed": 0,
+    "durationMs": 1710,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "askOfNext": "Review the limiter against the decisions and AGENTS.md; check that limits come from config.",
+  "cost": {
+    "inputTokens": 26180,
+    "cachedTokens": 17900,
+    "outputTokens": 5120,
+    "usd": 0.0386
+  },
+  "createdAt": "2026-11-02T14:41:07Z",
+  "hash": "sha256:3a477de61517466aa1a5cf536718c4fcd5c23211c21386ca7f22fdac976c41bf"
+}

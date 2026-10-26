@@ -1,0 +1,85 @@
+{
+  "version": "stint.handoff/1",
+  "task": "T-0042",
+  "from": {
+    "adapter": "muse-code",
+    "vendor": "meta",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r2",
+    "endedBy": "killed",
+    "sessionId": "01a1787f-4d06-7ca1-8d41-34127655ceb9",
+    "host": "local-cli"
+  },
+  "to": {
+    "adapter": "claude-code",
+    "role": "implementer"
+  },
+  "summary": "Added a per-tenant sliding window limiter and wired it into POST /webhooks before the body is read. The run was killed while it was writing the tests for the 429 response.",
+  "done": [
+    "Sliding window limiter in src/lib/limiter.ts",
+    "Limiter wired into POST /webhooks before the body is read",
+    "Three limiter unit tests pass"
+  ],
+  "open": [
+    "Tests for the 429 response and the Retry-After header",
+    "Read the limit and the window from config"
+  ],
+  "leftOut": [
+    "In-flight step unknown: write_file test/ratelimit.test.ts",
+    "src/config.ts was planned but not touched"
+  ],
+  "refusals": [],
+  "decisions": [
+    {
+      "id": "D3",
+      "text": "Sliding window over fixed window, so a burst at a window edge cannot double the limit"
+    }
+  ],
+  "risks": [
+    "Limiter state is in memory and resets on restart",
+    "The limit of 60 per minute is hard-coded in the limiter"
+  ],
+  "changedFiles": [
+    {
+      "path": "src/lib/limiter.ts",
+      "added": 41,
+      "removed": 0,
+      "run": "r2"
+    },
+    {
+      "path": "src/routes/webhooks.ts",
+      "added": 9,
+      "removed": 1,
+      "run": "r2"
+    },
+    {
+      "path": "test/limiter.test.ts",
+      "added": 38,
+      "removed": 0,
+      "run": "r2"
+    }
+  ],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "7c41e0a9d2b5f3c8e6a1d4b7f0c3e9a2d5b8f1c4"
+  },
+  "verification": {
+    "command": "bun run test",
+    "exitCode": 0,
+    "passed": 30,
+    "failed": 0,
+    "durationMs": 1630,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "askOfNext": "Check the unknown step first: test/ratelimit.test.ts may be half written. Then test the 429 response and Retry-After, and read the limit from config.",
+  "cost": {
+    "inputTokens": 18420,
+    "cachedTokens": 11200,
+    "outputTokens": 3910,
+    "usd": 0.0303
+  },
+  "createdAt": "2026-11-02T14:41:07Z",
+  "hash": "sha256:a8781652d9107f790d9c32685abb26aa3943abd45666bf45ce4cd3ee2e380ae8"
+}

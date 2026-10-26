@@ -1,0 +1,15 @@
+{
+  "version": "stint.plan/1",
+  "steps": [
+    { "id": 1, "text": "Add a per-tenant sliding window limiter", "files": ["src/lib/limiter.ts"], "test": "test/limiter.test.ts" },
+    { "id": 2, "text": "Check the limiter in POST /webhooks before reading the body; answer 429 with Retry-After", "files": ["src/routes/webhooks.ts"], "test": "test/ratelimit.test.ts" },
+    { "id": 3, "text": "Read the limit and the window from config with defaults", "files": ["src/config.ts"] }
+  ],
+  "filesToTouch": ["src/lib/limiter.ts", "src/routes/webhooks.ts", "src/config.ts"],
+  "risks": [{ "id": "R1", "text": "Limiter state is in memory and resets on restart" }],
+  "decisions": [{ "text": "Count per tenant, not per source IP", "why": "the tenant is the unit of fairness in this service" }],
+  "similarTasks": ["T-0040"],
+  "model": "meta-api/muse-wonder-1.0",
+  "offline": false,
+  "createdAt": "2026-11-02T14:36:40Z"
+}

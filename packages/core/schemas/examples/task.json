@@ -1,0 +1,23 @@
+{
+  "version": "stint.task/1",
+  "id": "T-0042",
+  "slug": "rate-limit-webhooks",
+  "title": "Rate-limit incoming webhooks per tenant",
+  "goal": "POST /webhooks answers 429 with Retry-After when a tenant sends more than the configured number of webhooks in a window.",
+  "acceptance": [
+    "A tenant over the limit gets 429 with a Retry-After header",
+    "Other tenants are not affected",
+    "The limit and the window come from config"
+  ],
+  "tags": ["webhooks", "limits"],
+  "baseCommit": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+  "branch": "stint/T-0042",
+  "status": "building",
+  "assignee": { "adapter": "muse-code", "model": "muse-spark-1.3", "role": "implementer", "run": "r2" },
+  "testCommand": "bun run test",
+  "budgets": { "planner": 40000, "implementer": 150000, "reviewer": 30000, "learn": 20000 },
+  "links": { "beadsId": null, "issueUrl": null },
+  "pendingAsk": null,
+  "createdAt": "2026-11-02T14:36:00Z",
+  "updatedAt": "2026-11-02T14:38:12Z"
+}
