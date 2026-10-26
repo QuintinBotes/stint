@@ -34,6 +34,8 @@ export type LiveBenchOptions = {
   outDir: string;
   /** Marks rows synthetic; set only for fixture artefacts made with fake adapters. */
   synthetic?: boolean;
+  /** Build packets as `stint up` does, with a digest of the diff for a run that cannot be asked. */
+  digest?: boolean;
   /** Fresh adapters per bench run; the live command leaves this out and uses the daemon defaults. */
   adapters?: () => Adapter[];
   makeFixture?: () => string;
@@ -55,6 +57,7 @@ async function runUnit(opts: LiveBenchOptions, unit: Unit): Promise<BenchRowFile
       quiet: true,
       webDist: null,
       snapshotMs: 1000,
+      digest: opts.digest ?? false,
     });
     const ctx = daemonContext(app);
     const task = await ws.createTask({

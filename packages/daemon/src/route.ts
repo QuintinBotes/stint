@@ -36,7 +36,7 @@ export type WalkChainResult<T> = { value: T; host: string; model: string; cost: 
 
 export type HostsById = Record<string, Host> | Map<string, Host> | Host[];
 
-const ROLE_TIMEOUTS: Record<string, number> = { planner: 60_000, reviewer: 120_000 };
+const ROLE_TIMEOUTS: Record<string, number> = { planner: 60_000, reviewer: 120_000, summary: 25_000 };
 const ZERO_COST: Cost = { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null };
 
 function hostById(hosts: HostsById, id: string): Host | undefined {

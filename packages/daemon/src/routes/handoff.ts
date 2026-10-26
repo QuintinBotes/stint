@@ -22,7 +22,7 @@ async function enrichFrom(ctx: DaemonContext, taskId: string, run: string, adapt
   return Promise.race([ask, Bun.sleep(ENRICH_CAP_MS).then(() => ({}))]);
 }
 
-const DIGEST_CAP_MS = 60_000;
+const DIGEST_CAP_MS = 75_000;
 const Digest = z.strictObject({ summary: z.string().min(1).max(400) });
 
 /**

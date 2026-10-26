@@ -34,6 +34,7 @@ export const bench = defineCommand({
     continuer: { type: 'string', description: 'Adapter that continues the capped run', default: 'stint-agent' },
     repeat: { type: 'string', description: 'Repeats per task and mode', default: '1' },
     concurrency: { type: 'string', description: 'Bench runs at once', default: '1' },
+    'no-digest': { type: 'boolean', description: 'Build packets without the diff digest that stint up adds' },
     replay: { type: 'boolean', description: 'Rebuild results from recorded runs; no model call' },
     from: { type: 'string', description: 'Recorded runs directory for --replay (default: bench/runs)' },
     out: { type: 'string', description: 'Where results and runs go (default: bench/ in the repository)' },
@@ -57,6 +58,7 @@ export const bench = defineCommand({
             repeat: positiveInt(args.repeat, 'repeat'),
             concurrency: positiveInt(args.concurrency, 'concurrency'),
             outDir,
+            digest: !args['no-digest'],
             log: (line) => process.stderr.write(`${line}\n`),
           });
       await writeBenchOutputs(outDir, results);
