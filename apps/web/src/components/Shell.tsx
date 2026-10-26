@@ -86,10 +86,10 @@ export function TopBar({ health, onPalette }: { health: Health | null; onPalette
         <Kbd>⌘K</Kbd>
       </button>
       <div className="ml-auto flex items-center gap-2 min-w-0">
-        <span className="hidden sm:inline text-[12px] text-muted tabular" title="Spend this week, Monday to Sunday, as metered by the daemon">
+        <span className="hidden sm:inline text-[12px] text-muted tabular whitespace-nowrap" title="Spend this week, Monday to Sunday, as metered by the daemon">
           This week {week === null ? 'not known yet' : money({ usd: week })}
         </span>
-        <div className="hidden lg:flex items-center gap-1.5" data-testid="health-chips">
+        <div className="hidden lg:flex items-center gap-1.5 min-w-0 overflow-hidden" data-testid="health-chips">
           {health && health.adapters.filter((a) => a.id !== 'replay').every((a) => a.capability.level !== 'supported') ? (
             <>
               {health.mode === 'replay' ? <StatusChip label="Replay" tone="good" /> : null}
@@ -97,11 +97,22 @@ export function TopBar({ health, onPalette }: { health: Health | null; onPalette
             </>
           ) : health ? (
             <>
-              {health.adapters.map((a) => (
-                <span key={a.id} title={a.capability.level === 'supported' ? `${a.version ?? ''}${a.gate === 'none' ? '' : `; Stint's gate is ${a.gate}`}` : (a.reason ?? 'unavailable')}>
-                  <StatusChip label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.capability.level === 'supported' ? '' : ', unavailable'}`} tone={a.capability.level === 'supported' ? 'good' : 'neutral'} />
-                </span>
-              ))}
+              {health.adapters
+                .filter((a) => a.capability.level === 'supported')
+                .map((a) => (
+                  <span key={a.id} className="shrink-0" title={`${a.version ?? ''}${a.gate === 'none' ? '' : `; Stint's gate is ${a.gate}`}`}>
+                    <StatusChip label={ADAPTER_NAMES[a.id] ?? a.id} tone="good" />
+                  </span>
+                ))}
+              {/* agents that are off or not installed stay out of the way: one chip, named in its tooltip */}
+              {(() => {
+                const off = health.adapters.filter((a) => a.capability.level !== 'supported');
+                return off.length ? (
+                  <span className="shrink-0" data-testid="agents-off" title={off.map((a) => `${ADAPTER_NAMES[a.id] ?? a.id}: ${a.reason ?? 'unavailable'}`).join('\n')}>
+                    <StatusChip label={`${off.length} agent${off.length === 1 ? '' : 's'} off`} tone="neutral" />
+                  </span>
+                ) : null;
+              })()}
               <ModelChips models={health.models ?? []} />
             </>
           ) : (

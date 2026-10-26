@@ -10,3 +10,14 @@ test('bun run build:web succeeds and the daemon serves / with the shell', async 
   await expect(page.getByText('Run all planned tasks on autopilot')).toBeVisible();
   await expect(page.getByText(/arrives in/)).toHaveCount(0);
 });
+
+test('The top bar fits a 1440 px window: live agents as chips, the ones that are off folded into one', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const chips = page.getByTestId('health-chips');
+  await expect(chips).toContainText('Muse Code');
+  await expect(chips).not.toContainText('unavailable');
+  await expect(page.getByTestId('agents-off')).toContainText('agents off');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBe(0);
+});
