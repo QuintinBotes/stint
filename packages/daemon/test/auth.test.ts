@@ -28,3 +28,11 @@ test('errors are { error: { code, message, hint } } and a bad body is invalid wi
     expect(((await missing.json()) as { error: { code: string } }).error.code).toBe('not_found');
   });
 });
+
+test('a request with a Host other than localhost is refused, so DNS rebinding cannot reach the daemon', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { app } = await makeApp(repo);
+    expect((await app.request('/api/health', { headers: { Host: 'evil.example.com' } })).status).toBe(401);
+    expect((await app.request('/api/health', { headers: { Host: '127.0.0.1:4319' } })).status).toBe(200);
+  });
+});

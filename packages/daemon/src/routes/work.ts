@@ -30,6 +30,22 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json(await ctx.verifier.verify(task, wt.run, wt.path));
   });
 
+  app.get('/api/tasks/:id/handoffs', async (c) => {
+    const id = c.req.param('id');
+    await ctx.ws.readTask(id);
+    return c.json({ names: await ctx.ws.handoffs(id).names() });
+  });
+
+  app.get('/api/tasks/:id/handoffs/:name', async (c) => {
+    const id = c.req.param('id');
+    await ctx.ws.readTask(id);
+    const name = c.req.param('name');
+    if (!/^h[0-9]+$/.test(name)) throw new DaemonError('invalid', `bad packet name ${name}`);
+    const packet = await ctx.ws.handoffs(id).read(name);
+    if (!packet) throw new DaemonError('not_found', `${id} has no packet ${name}`);
+    return c.json({ name, packet, meta: await ctx.ws.handoffs(id).readMeta(name) });
+  });
+
   app.get('/api/tasks/:id/diff', async (c) => {
     const task = await ctx.ws.readTask(c.req.param('id'));
     const format = c.req.query('format') === 'json' ? 'json' : 'unified';

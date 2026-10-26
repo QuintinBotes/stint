@@ -24,6 +24,7 @@ export const demo = defineCommand({
     from: { type: 'string', description: 'Start at mm:ss (earlier events are applied silently)', default: '0:00' },
     path: { type: 'string', description: 'Recording file (default demo/recording.jsonl)' },
     keep: { type: 'boolean', description: 'Keep the daemon running for the UI after the replay ends' },
+    open: { type: 'boolean', description: 'Open the UI in the browser' },
     json: { type: 'boolean', description: 'One JSON line per event, then a summary line' },
   },
   async run({ args }) {
@@ -38,6 +39,11 @@ export const demo = defineCommand({
 
     const root = freshFixture();
     const d = await startDaemon({ root, quiet: true, handleSignals: Boolean(args.keep) });
+    if (!args.json) out(`Watch it at ${d.url}`);
+    if (args.open) {
+      const opener = process.platform === 'darwin' ? 'open' : Bun.which('xdg-open') ? 'xdg-open' : null;
+      if (opener) Bun.spawn([opener, d.url], { stdout: 'ignore', stderr: 'ignore' });
+    }
     const stream = new AbortController();
     let printed = 0;
     let lastAt = 0;

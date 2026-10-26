@@ -1,0 +1,89 @@
+@import 'tailwindcss';
+@import '@fontsource/geist-sans/400.css';
+@import '@fontsource/geist-sans/500.css';
+@import '@fontsource/geist-sans/600.css';
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
+@import './tokens.css';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-sunken: var(--surface-sunken);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--ink-muted);
+  --color-faint: var(--ink-faint);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-tint: var(--accent-tint);
+  --color-good: var(--status-good);
+  --color-good-tint: var(--status-good-tint);
+  --color-warn: var(--status-warn);
+  --color-warn-tint: var(--status-warn-tint);
+  --color-bad: var(--status-bad);
+  --color-bad-tint: var(--status-bad-tint);
+  --color-meta: var(--vendor-meta);
+  --color-anthropic: var(--vendor-anthropic);
+  --color-local: var(--vendor-local);
+  --color-on-mark: var(--on-mark);
+  --color-added: var(--diff-added);
+  --color-removed: var(--diff-removed);
+  --color-term: var(--terminal-ground);
+  --color-term-ink: var(--terminal-ink);
+  --font-sans: 'Geist Sans', 'Geist', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: 'Geist Sans', 'Geist', system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The live run segment breathes so the eye finds it; still when the person asks for less motion. */
+@keyframes stint-pulse {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}
+.live-spine {
+  animation: stint-pulse 1.2s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-spine {
+    animation: none;
+  }
+}
+
+[data-panel-resize-handle-id] {
+  background: var(--border);
+}
+[data-panel-resize-handle-id]:hover,
+[data-panel-resize-handle-id][data-resize-handle-active] {
+  background: var(--accent);
+}

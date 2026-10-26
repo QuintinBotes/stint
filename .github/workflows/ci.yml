@@ -24,6 +24,11 @@ jobs:
       - run: bun test
       - run: bun run build:web
       - run: node scripts/guard-identity.mjs
+      - name: UI tests against the replay
+        if: runner.os == 'Linux'
+        run: |
+          cd apps/web && bunx playwright install --with-deps chromium && cd ../..
+          bun run test:ui
       - name: Muse Code sandbox dependency
         if: runner.os == 'Linux'
         run: sudo apt-get install -y bubblewrap

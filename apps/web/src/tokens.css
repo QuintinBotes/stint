@@ -1,0 +1,56 @@
+/* Stint tokens, copied from design/tokens.css (generated from tokens.json). Dark is the default theme. Fonts are bundled, not fetched, so the UI works offline. */
+[data-theme="light"] {
+  --surface: #ffffff; --surface-raised: #fafafa; --surface-sunken: #f4f4f5;
+  --border: #e4e4e7; --border-strong: #d4d4d8;
+  --ink: #18181b; --ink-muted: #52525b; --ink-faint: #71717a;
+  --accent: #2563eb; --on-accent: #ffffff; --accent-tint: #eff6ff;
+  --status-good: #15803d; --status-good-tint: #ecfdf5;
+  --status-warn: #b45309; --status-warn-tint: #fffbeb;
+  --status-bad: #b91c1c; --status-bad-tint: #fef2f2;
+  --vendor-meta: #a16207; --vendor-anthropic: #475569; --vendor-openai: #15803d; --vendor-local: #52525b; --on-mark: #ffffff;
+  --focus: #2563eb; --diff-added: #dcfce7; --diff-removed: #fee2e2;
+  --terminal-ground: #18181b; --terminal-ink: #e4e4e7;
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+:root, [data-theme="dark"] {
+  --surface: #0b0b0d; --surface-raised: #141417; --surface-sunken: #1c1c21;
+  --border: #27272a; --border-strong: #3f3f46;
+  --ink: #f4f4f5; --ink-muted: #a1a1aa; --ink-faint: #8b8b94;
+  --accent: #60a5fa; --on-accent: #0b0b0d; --accent-tint: #172554;
+  --status-good: #4ade80; --status-good-tint: #052e16;
+  --status-warn: #fbbf24; --status-warn-tint: #451a03;
+  --status-bad: #f87171; --status-bad-tint: #450a0a;
+  --vendor-meta: #facc15; --vendor-anthropic: #94a3b8; --vendor-openai: #4ade80; --vendor-local: #a1a1aa; --on-mark: #0b0b0d;
+  --focus: #60a5fa; --diff-added: #14532d; --diff-removed: #7f1d1d;
+  --terminal-ground: #09090b; --terminal-ink: #e4e4e7;
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+[data-theme="stage"] {
+  --surface: #ffffff; --surface-raised: #ffffff; --surface-sunken: #f4f4f5;
+  --border: #52525b; --border-strong: #27272a;
+  --ink: #000000; --ink-muted: #27272a; --ink-faint: #3f3f46;
+  --accent: #1d4ed8; --on-accent: #ffffff; --accent-tint: #eff6ff;
+  --status-good: #166534; --status-good-tint: #ecfdf5;
+  --status-warn: #92400e; --status-warn-tint: #fffbeb;
+  --status-bad: #991b1b; --status-bad-tint: #fef2f2;
+  --vendor-meta: #854d0e; --vendor-anthropic: #334155; --vendor-openai: #166534; --vendor-local: #3f3f46; --on-mark: #ffffff;
+  --focus: #1d4ed8; --diff-added: #bbf7d0; --diff-removed: #fecaca;
+  --terminal-ground: #000000; --terminal-ink: #ffffff;
+  --shadow-overlay: 0 0 0 2px #000000;
+}
+:root {
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-full: 999px;
+  --font-sans: "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+.display { font-family: var(--font-sans); font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
+.heading { font-family: var(--font-sans); font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.01em; }
+.title { font-family: var(--font-sans); font-size: 15px; line-height: 20px; font-weight: 600; }
+.body { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 400; }
+.body-strong { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 600; }
+.small { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.micro { font-family: var(--font-sans); font-size: 11px; line-height: 14px; font-weight: 500; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; line-height: 18px; font-weight: 400; }
+.mono-small { font-family: var(--font-mono); font-size: 11.5px; line-height: 16px; font-weight: 400; }
+.kbd { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 500; }

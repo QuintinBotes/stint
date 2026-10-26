@@ -104,6 +104,15 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     }
   });
 
+  // The daemon answers only to localhost names, so a page served elsewhere cannot rebind DNS onto it.
+  app.use('*', async (c, next) => {
+    const host = (c.req.header('Host') ?? 'localhost').replace(/:\d+$/, '');
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(host)) {
+      throw new DaemonError('unauthorized', `the daemon only answers to localhost, not ${host}`);
+    }
+    await next();
+  });
+
   app.use('/api/*', async (c, next) => {
     if (MUTATING.has(c.req.method) && !tokenMatches(c.req.header('Authorization'), opts.token)) {
       throw new DaemonError('unauthorized', 'this call changes state and needs the daemon token', 'send Authorization: Bearer <token from .stint/cache/daemon.json>');
@@ -267,8 +276,10 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     }
     const rel = normalize(decodeURIComponent(c.req.path)).replace(/^(\.\.(\/|\\|$))+/, '');
     const file = join(dist, rel);
-    if (file.startsWith(dist) && existsSync(file) && statSync(file).isFile()) return new Response(Bun.file(file));
-    return new Response(Bun.file(join(dist, 'index.html')), { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    if (file !== join(dist, 'index.html') && file.startsWith(dist) && existsSync(file) && statSync(file).isFile()) return new Response(Bun.file(file));
+    // The UI needs the token for state changes; it is only ever served to localhost, and other origins cannot read it.
+    const html = (await Bun.file(join(dist, 'index.html')).text()).replace('</head>', `<meta name="stint-token" content="${opts.token}" /></head>`);
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
   });
 
   return app;
