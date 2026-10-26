@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { ROLE_NAMES, hostName, modelName } from '../agents';
 import { type CostRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
+import { Relay } from '../components/Relay';
 import { EmptyState, cx } from '../components/ui';
 import { money, tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
@@ -291,6 +292,10 @@ export function Factory() {
           <Figure label="Input from cache" value={input ? `${Math.round((cached / input) * 100)}%` : 'none'} detail={`${tokens(cached)} of ${tokens(input)} tokens`} />
           <Figure label="Skills learned" value={String(learned)} detail="each approved by you" />
         </div>
+
+        <Panel title="The relay: who carried each task, and what they handed on" testId="panel-relay">
+          <Relay />
+        </Panel>
 
         <Panel title="Meta models at work" testId="panel-models">
           <ModelsAtWork rows={byModel ?? []} />

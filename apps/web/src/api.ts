@@ -136,6 +136,7 @@ export const api = {
   skills: () => request<SkillRecord[]>('/api/skills'),
   approveSkill: (id: string) => post<unknown>(`/api/skills/${id}/approve`),
   rejectSkill: (id: string, reason: string) => post<unknown>(`/api/skills/${id}/reject`, { reason }),
+  relay: () => request<import('./components/Relay').RelayData>('/api/relay'),
   hand: (id: string, adapter: string, ask?: string) => post<{ run: string; packet: string }>(`/api/tasks/${id}/hand`, { adapter, ...(ask ? { ask } : {}) }),
   quiz: (id: string, name: string) => post<QuizResult>(`/api/tasks/${id}/handoffs/${name}/quiz`),
   stopRun: (id: string, run: string) => post<unknown>(`/api/tasks/${id}/runs/${run}/stop`),
