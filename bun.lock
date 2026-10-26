@@ -39,6 +39,16 @@
         "vite": "7.3.7",
       },
     },
+    "packages/adapters/cli-agent": {
+      "name": "@stint-dev/adapter-cli-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@stint-dev/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@stint-dev/daemon": "workspace:*",
+      },
+    },
     "packages/adapters/muse-code": {
       "name": "@stint-dev/adapter-muse-code",
       "version": "0.0.0",
@@ -94,6 +104,7 @@
       "name": "@stint-dev/daemon",
       "version": "0.0.0",
       "dependencies": {
+        "@stint-dev/adapter-cli-agent": "workspace:*",
         "@stint-dev/adapter-muse-code": "workspace:*",
         "@stint-dev/adapter-openai-compatible": "workspace:*",
         "@stint-dev/adapter-stint-agent": "workspace:*",
@@ -310,6 +321,8 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.65.1", "", { "os": "win32", "cpu": "x64" }, "sha512-+KN8HIr88vN59JNxlrM2fMimzY43Y0lQB7+0xdVsFbvFCAA74CLKCdfzIHzzvndJryBc94Pm+MvwtukKjaS2ug=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.65.1", "", { "os": "win32", "cpu": "x64" }, "sha512-+Y1Sd49cSDq60UOl8/U2HI0ebUvnSl/hDhMHQn+ouw17yb8fYwMWIazzJ4JFpSkjPE7sj5NTNSX9IoyEqcFfyQ=="],
+
+    "@stint-dev/adapter-cli-agent": ["@stint-dev/adapter-cli-agent@workspace:packages/adapters/cli-agent"],
 
     "@stint-dev/adapter-muse-code": ["@stint-dev/adapter-muse-code@workspace:packages/adapters/muse-code"],
 

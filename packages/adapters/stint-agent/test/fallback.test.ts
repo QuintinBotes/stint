@@ -29,3 +29,22 @@ test('A fake first host answering 429 moves the run to the next host and emits p
     fireworks.stop();
   }
 }, 60_000);
+
+test('a run naming host/model uses exactly that model; an unknown short name fails instead of using another model', async () => {
+  const other = fakeHost([{ body: say('done with an open model') }]);
+  try {
+    const config = configFor({ fireworks: other.url });
+    config.hosts.fireworks = { ...(config.hosts.fireworks as NonNullable<typeof config.hosts.fireworks>), models: {} };
+    const agent = createStintAgent(config, { FIREWORKS_API_KEY: 'k' });
+    const events: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    const base = { task: {} as never, run: 'r1', role: 'implementer' as const, worktree: '/tmp', prompt: 'p', promptPath: '/tmp/p', budget: { tokens: 1e6 }, env: {}, signal: new AbortController().signal, emit: async (e: { type: string; payload: Record<string, unknown> }) => void events.push(e), transcript: async () => ({ pointer: 'x', byteLen: 0 }) };
+    const r = await agent.run({ ...base, model: 'fireworks/accounts/fireworks/models/an-open-model' });
+    expect(r).toMatchObject({ endedBy: 'completed', host: 'fireworks', model: 'accounts/fireworks/models/an-open-model' });
+    expect((other.seen[0] as unknown as { model: string }).model).toBe('accounts/fireworks/models/an-open-model');
+    const unknown = await agent.run({ ...base, model: 'not-in-the-chain' });
+    expect(unknown.endedBy).toBe('failed');
+    expect(String(events.at(-1)?.payload.text)).toContain('name it as host/model');
+  } finally {
+    other.stop();
+  }
+});

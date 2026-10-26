@@ -15,6 +15,7 @@
     "hono": "4.13.14",
     "zod": "4.6.7",
     "ulid": "3.0.2",
+    "@stint-dev/adapter-cli-agent": "workspace:*",
     "@stint-dev/adapter-muse-code": "workspace:*",
     "@stint-dev/adapter-stint-agent": "workspace:*"
   }

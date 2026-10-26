@@ -55,16 +55,22 @@ const short = (args: Record<string, unknown>) => String(args.path ?? args.comman
 
 let gateFired = false;
 
-/** Stint's own agent: a tool-calling loop on a Meta model, with every call checked by Stint before it runs. */
+/** Stint's own agent: a tool-calling loop on a Meta model by default (any configured host/model on request), with every call checked by Stint before it runs. */
 export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<string, string | undefined> = process.env): Adapter {
   const chain = (config.routes as { agent?: string[] }).agent ?? DEFAULT_CHAIN;
   const settings = (config.adapters['stint-agent'] ?? {}) as Record<string, unknown>;
 
   async function run(ctx: RunContext): Promise<RunResult> {
     const maxTurns = ctx.budget.maxTurns ?? Number(settings.maxTurns ?? 40);
-    // start at the entry for the requested model when one is named, else at the top of the chain
-    const wanted = ctx.model ? chain.findIndex((e) => e.endsWith(`/${ctx.model}`)) : 0;
-    let at = Math.max(0, wanted);
+    // `host/model` runs exactly that model (any model on any configured host); a short name starts at its
+    // entry in the chain; a name that is in neither is refused rather than swapped for another model
+    const explicit = ctx.model?.includes('/') && config.hosts[ctx.model.split('/')[0] as string] ? [ctx.model] : null;
+    const entries = explicit ?? chain;
+    let at = explicit || !ctx.model ? 0 : entries.findIndex((e) => e.endsWith(`/${ctx.model}`));
+    if (at < 0) {
+      await ctx.emit({ type: 'agent.message', payload: { text: `The Stint agent has no host for ${ctx.model}; name it as host/model, for example fireworks/${ctx.model}.`, stderr: true } });
+      return { endedBy: 'failed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0 }, host: 'none', model: ctx.model ?? 'none', inFlight: null };
+    }
     const usage = { inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
     const messages: ChatCompletionMessageParam[] = [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -76,17 +82,17 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
     const done = (endedBy: RunResult['endedBy']): RunResult => ({
       endedBy,
       cost: { ...usage, usd: null } as Cost,
-      host: state.answered?.host ?? chain[at]?.split('/')[0] ?? 'meta-api',
-      model: state.answered?.model ?? ctx.model ?? 'muse-spark-1.3',
+      host: state.answered?.host ?? entries[at]?.split('/')[0] ?? 'meta-api',
+      model: state.answered?.model ?? entries[at]?.split('/').slice(1).join('/') ?? 'muse-spark-1.3',
       inFlight: endedBy === 'killed' ? inFlight : null,
       lastMessage: lastText,
     });
 
     const complete = async (): Promise<ChatCompletion> => {
-      for (; at < chain.length; at++) {
-        const entry = chain[at] as string;
+      for (; at < entries.length; at++) {
+        const entry = entries[at] as string;
         const call = hostCall(entry, config, env);
-        const next = chain[at + 1] ?? null;
+        const next = entries[at + 1] ?? null;
         if ('unavailable' in call) {
           if (next) await ctx.emit({ type: 'provider.fallback', payload: { role: 'implementer', from: entry, to: next, reason: call.unavailable } });
           continue;

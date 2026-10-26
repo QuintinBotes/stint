@@ -1,4 +1,4 @@
-/** Every model Stint calls is a Meta model; what differs between runs is the agent that drove it. */
+/** Stint's defaults run Meta's models; a person can also bring another agent or model, shown with the plain mark. */
 export type Mark = 'meta' | 'alt' | 'local';
 
 const MODEL_NAMES: Record<string, string> = {
@@ -17,12 +17,16 @@ export function modelName(model: string | null | undefined): string {
 
 export type Agent = { name: string; mark: Mark; letter: string };
 
+const isMeta = (model: string) => /(^|\/)(muse-|llama)/i.test(model);
+
 /** Coding agents are named by their harness; plan and review calls are named by the model that answered. */
 export function agentOf(adapter: string | null | undefined, host?: string | null, model?: string | null): Agent {
   if (adapter === 'muse-code') return { name: 'Muse Code', mark: 'meta', letter: 'M' };
   if (adapter === 'stint-agent') return { name: 'Stint agent', mark: 'alt', letter: 'S' };
   if (adapter === 'openai-compatible' && host === 'ollama') return { name: model ? `${modelName(model)}, local` : 'Local model', mark: 'local', letter: 'L' };
-  if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: 'meta', letter: 'M' };
+  if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: !model || isMeta(model) ? 'meta' : 'alt', letter: 'M' };
+  if (adapter === 'claude-code') return { name: 'Claude Code', mark: 'alt', letter: 'C' };
+  if (adapter === 'codex') return { name: 'Codex', mark: 'alt', letter: 'X' };
   if (adapter === 'replay') return { name: 'Replay', mark: 'local', letter: 'R' };
   return { name: adapter ?? 'daemon', mark: 'local', letter: (adapter ?? 'd').slice(0, 1).toUpperCase() };
 }

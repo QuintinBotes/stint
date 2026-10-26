@@ -3,16 +3,17 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
 import { createBunWebSocket } from 'hono/bun';
+import { cliAgents } from '@stint-dev/adapter-cli-agent';
 import { museCodeAdapter } from '@stint-dev/adapter-muse-code';
 import { createStintAgent } from '@stint-dev/adapter-stint-agent';
-import type { Config } from '@stint-dev/core';
+import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
 import { type Adapter, replayAdapter } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
 import { killAllPtys } from './pty';
 
 /** Every adapter that has landed; health reports each one honestly, available or not. */
 export function defaultAdapters(config?: Config): Adapter[] {
-  return [replayAdapter, museCodeAdapter, createStintAgent(config)];
+  return [replayAdapter, museCodeAdapter, createStintAgent(config), ...cliAgents(config ?? DEFAULT_CONFIG)];
 }
 
 export type DaemonInfo = { port: number; token: string; pid: number; startedAt: string; version: string };

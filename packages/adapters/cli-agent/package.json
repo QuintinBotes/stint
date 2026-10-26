@@ -1,0 +1,15 @@
+{
+  "name": "@stint-dev/adapter-cli-agent",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {},
+  "dependencies": {
+    "@stint-dev/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@stint-dev/daemon": "workspace:*"
+  }
+}

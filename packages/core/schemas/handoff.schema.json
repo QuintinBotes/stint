@@ -15,7 +15,7 @@
       "required": ["adapter", "vendor", "model", "role", "run", "endedBy"],
       "properties": {
         "adapter": { "type": "string", "minLength": 1 },
-        "vendor": { "type": "string", "enum": ["meta", "openai", "local"] },
+        "vendor": { "type": "string", "enum": ["meta", "openai", "anthropic", "local", "other"] },
         "model": { "type": "string", "minLength": 1 },
         "role": { "type": "string", "enum": ["planner", "implementer", "reviewer"] },
         "run": { "type": "string", "pattern": "^r[0-9]+$" },

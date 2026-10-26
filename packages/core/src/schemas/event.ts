@@ -34,7 +34,7 @@ export const EVENT_TYPES = [
 export const EventTypeSchema = z.enum(EVENT_TYPES);
 export type EventType = z.infer<typeof EventTypeSchema>;
 
-export const EventVendorSchema = z.enum(['meta', 'openai', 'local', 'human', 'daemon']);
+export const EventVendorSchema = z.enum(['meta', 'openai', 'anthropic', 'local', 'other', 'human', 'daemon']);
 export type EventVendor = z.infer<typeof EventVendorSchema>;
 
 export const RawPointerSchema = z.strictObject({

@@ -20,6 +20,17 @@ export type HostConfig = z.infer<typeof HostConfigSchema>;
 export const PriceSchema = z.strictObject({ input: z.number().min(0), cached: z.number().min(0), output: z.number().min(0) });
 export type Price = z.infer<typeof PriceSchema>;
 
+/** Any coding agent with a command line (R-026): `{prompt}` and `{model}` in `command` are substituted. */
+export const AgentDefSchema = z.strictObject({
+  command: z.array(z.string().min(1)).min(1),
+  prompt: z.enum(['file', 'stdin', 'arg']),
+  roles: z.array(z.enum(['planner', 'implementer', 'reviewer'])).min(1),
+  vendor: z.enum(['meta', 'openai', 'anthropic', 'local', 'other']),
+  model: z.string().optional(),
+  enabled: z.boolean().default(false),
+});
+export type AgentDef = z.infer<typeof AgentDefSchema>;
+
 export const ConfigSchema = z.strictObject({
   version: z.literal('stint.config/1'),
   port: z.int().min(0).max(65535),
@@ -45,6 +56,8 @@ export const ConfigSchema = z.strictObject({
   prices: z.record(z.string(), PriceSchema),
   /** Partner and hackathon balances the human enters; metered spend is subtracted from them. */
   credits: z.record(z.string(), z.number().min(0)),
+  /** Other coding agents a person can hand a task to; off until enabled (R-026). */
+  agents: z.record(z.string().regex(/^[a-z0-9-]+$/), AgentDefSchema).optional(),
   allowDirectEvents: z.boolean().optional(),
   branchRetentionDays: z.int().min(0).optional(),
 });
@@ -120,5 +133,10 @@ export const DEFAULT_CONFIG: Config = {
     'ollama/muse-glimmer:30b-mlx': { input: 0, cached: 0, output: 0 },
   },
   credits: { baseten: 100, fireworks: 25, modal: 100, 'meta-api': 150 },
+  // Meta's models are the default; these are here so a person can bring the agent they already use
+  agents: {
+    'claude-code': { command: ['claude', '-p', '--permission-mode', 'acceptEdits'], prompt: 'stdin', roles: ['implementer', 'reviewer'], vendor: 'anthropic', enabled: false },
+    codex: { command: ['codex', 'exec', '--full-auto', '-'], prompt: 'stdin', roles: ['implementer', 'reviewer'], vendor: 'openai', enabled: false },
+  },
   branchRetentionDays: 7,
 };
