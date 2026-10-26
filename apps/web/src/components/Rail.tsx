@@ -143,6 +143,24 @@ export function describe(e: StintEvent): ReactNode {
       return <>Fell back from {str(p.from)} to {str(p.to)} ({str(p.reason)})</>;
     case 'runtime.unclassified':
       return <span className="text-faint">Unclassified output ({str(p.originalType)})</span>;
+    case 'escalation.triggered':
+      return p.unavailable ? (
+        <>
+          {str(p.failures)} failed runs; nothing to escalate to was available, so it went to {str(p.to)}
+        </>
+      ) : (
+        <>
+          {str(p.failures)} failed runs, so {str(p.from)} escalated to {str(p.to)}
+        </>
+      );
+    case 'bestofn.started':
+      return <>Building {str(p.n)} candidates at once: {(p.candidates as string[] | undefined)?.join(', ')}</>;
+    case 'bestofn.picked':
+      return (
+        <>
+          Picked {str(p.pick)}: {str(p.reason)}
+        </>
+      );
     default:
       return <span className="text-faint">{e.type}</span>;
   }

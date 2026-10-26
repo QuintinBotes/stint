@@ -1,10 +1,15 @@
+import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
 import type { Config, StintEvent, Task } from '@stint-dev/core';
 import { runsFromEvents } from '@stint-dev/core/node';
+import { z } from 'zod';
+import { lockAcceptance } from './acceptance';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
-import { lockAcceptance } from './acceptance';
+import { git, gitOk } from './git';
 import { assign } from './lifecycle';
+import { walkChain } from './route';
 import { planTask, reviewTask } from './routes/models';
+import { verifyBranch } from './routes/work';
 
 export type AutopilotSettings = NonNullable<Config['autopilot']>;
 export const AUTOPILOT_DEFAULTS: AutopilotSettings = { implementers: ['muse-code', 'stint-agent'], maxHops: 3, parallel: 2 };
@@ -17,6 +22,10 @@ export type Step =
   | { kind: 'lock'; run: string; failing: string[] }
   | { kind: 'build'; adapter?: string; ask?: string; reason: string }
   | { kind: 'hand'; after: string; handoffFrom: string | null; reason: string }
+  | { kind: 'escalate'; after: string; handoffFrom: string | null; failures: number; reason: string }
+  | { kind: 'bestof'; n: number }
+  | { kind: 'bestof-wait'; candidates: string[] }
+  | { kind: 'adopt'; candidate: string }
   | { kind: 'review'; verified: string }
   | { kind: 'stop'; reason: string; needsYou: boolean };
 
@@ -57,8 +66,64 @@ function specifyStep(tail: StintEvent[]): Step {
   return { kind: 'lock', run: run.run, failing };
 }
 
+/**
+ * The pick among green candidates: one green candidate wins outright; several are judged by the reviewer chain
+ * on their diffs, and if no reviewer can answer, the smaller change wins.
+ */
+export async function pickCandidate(ctx: DaemonContext, parent: string, green: Array<{ id: string; branch: string }>): Promise<{ pick: string; reason: string }> {
+  if (green.length === 1) return { pick: (green[0] as { id: string }).id, reason: 'the only candidate whose tests were green' };
+  const task = await ctx.ws.readTask(parent);
+  const diffs: Array<{ id: string; diff: string; lines: number }> = [];
+  for (const g of green) {
+    const diff = (await git(ctx.ws.root, ['diff', `${task.baseCommit}..${g.branch}`])).stdout;
+    diffs.push({ id: g.id, diff: diff.slice(0, 6000), lines: diff.split('\n').filter((l) => /^[+-][^+-]/.test(l)).length });
+  }
+  const smallest = [...diffs].sort((a, b) => a.lines - b.lines)[0] as (typeof diffs)[number];
+  try {
+    const prompt = `Several agents built the same task and all of their tests pass. Pick the one a careful reviewer would merge: correct, simplest, consistent with the codebase. Answer with its id and one sentence why.\n\nTask: ${task.title}. ${task.goal}\n\n${diffs.map((d) => `### ${d.id}\n${d.diff}`).join('\n\n')}`;
+    const r = await walkChain<{ value: { pick: string; reason: string } }>({
+      role: 'reviewer',
+      chain: ctx.ws.config.routes.reviewer,
+      hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>,
+      call: (h, model, c) => h.complete(PickSchema, prompt, { model, timeoutMs: c.timeoutMs, emit: c.emit }),
+    });
+    const v = ((r.value as { value?: { pick: string; reason: string } }).value ?? r.value) as { pick: string; reason: string };
+    if (diffs.some((d) => d.id === v.pick)) return { pick: v.pick, reason: `${v.reason} (${r.host}/${r.model})` };
+  } catch {
+    // no reviewer could answer: the smaller change is the safer pick
+  }
+  return { pick: smallest.id, reason: `no reviewer could pick, so the smaller change (${smallest.lines} changed lines) was taken` };
+}
+
+/**
+ * The parent takes over the picked candidate's work: its branch already points at the candidate's, so the
+ * daemon records an implementer run in the parent's log that names the candidate and verifies the branch again.
+ */
+export async function adoptCandidate(ctx: DaemonContext, parent: string, candidate: string): Promise<void> {
+  const ws = ctx.ws;
+  const from = runsFromEvents(await ws.events(candidate).read()).filter((r) => r.role === 'implementer').at(-1);
+  if (!from) throw new DaemonError('not_found', `${candidate} has no implementer run to adopt`);
+  const fromDirs = Number((await ws.runs(parent).nextRunId()).slice(1));
+  const fromLog = runsFromEvents(await ws.events(parent).read()).reduce((m, r) => Math.max(m, Number(r.run.slice(1)) + 1), 1);
+  const run = `r${Math.max(fromDirs, fromLog)}`;
+  const adapter = from.adapter ?? 'stint-agent';
+  const vendor = (ctx.adapters.find((a) => a.id === adapter)?.vendor ?? 'other') as 'meta';
+  const at = new Date().toISOString();
+  const zero = { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0, estimated: false };
+  await ws.runs(parent).create({ run, adapter, vendor, role: 'implementer', ...(from.model ? { model: from.model } : {}), host: from.host ?? 'local-cli', startedAt: at });
+  const base = { task: parent, run, adapter, vendor } as const;
+  await ws.events(parent).append({ ...base, type: 'run.started', payload: { role: 'implementer', model: from.model ?? null, host: from.host ?? 'local-cli', adoptedFrom: `${candidate} ${from.run}` } });
+  // the candidate's own runs carry its cost; this run only moves its work onto the parent
+  await ws.runs(parent).updateMeta(run, { endedAt: at, endedBy: 'completed', cost: zero });
+  await ws.events(parent).append({ ...base, type: 'run.finished', payload: { endedBy: 'completed', cost: zero, adoptedFrom: `${candidate} ${from.run}` } });
+  await verifyBranch(ctx, await ws.readTask(parent), run);
+}
+
+const PickSchema = z.strictObject({ pick: z.string().regex(/^T-\d+$/), reason: z.string().min(1).max(300) });
+
 /** A task holds a slot once it has taken a step that is not waiting in the queue. */
 export function holdsSlot(tail: StintEvent[]): boolean {
+  if (tail.some((e) => e.type === 'bestofn.started') && !tail.some((e) => e.type === 'bestofn.picked')) return false;
   return tail.some((e) => e.type === 'autopilot.step' && !e.payload.queued);
 }
 
@@ -97,7 +162,9 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   if (!tail) return { kind: 'idle' };
   if (live) return { kind: 'wait', reason: 'a run is live' };
   if (task.status === 'done') return { kind: 'stop', reason: 'The task is merged.', needsYou: false };
-  const planned = events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
+  // a best-of-n candidate builds from its parent's plan, and stops once its tests are green for the pick
+  const candidate = !!task.parent && (task.tags ?? []).includes('candidate');
+  const planned = candidate || events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
   if (!planned) return { kind: 'plan' };
 
   // tests first (R-027): failing acceptance tests are written and locked before anything is built
@@ -115,7 +182,18 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
 
   const impl = runsFromEvents(fromLock).filter((r) => r.role === 'implementer');
   const last = impl.at(-1);
-  if (!last) return { kind: 'build', reason: s.testsFirst ? 'The acceptance tests are locked and fail.' : 'Nothing is built yet.' };
+  if (!last) {
+    // best of n (R-035): candidates build in parallel; the parent adopts the one the pick chose
+    if ((s.bestOf ?? 1) > 1 && !candidate) {
+      const started = tail.find((e) => e.type === 'bestofn.started');
+      const picked = tail.find((e) => e.type === 'bestofn.picked');
+      if (!started) return { kind: 'bestof', n: s.bestOf as number };
+      if (!picked) return { kind: 'bestof-wait', candidates: (started.payload.candidates as string[]) ?? [] };
+      return { kind: 'adopt', candidate: String(picked.payload.pick) };
+    }
+    const preferred = candidate ? (tail[0]?.payload.implementer as string | undefined) : undefined;
+    return { kind: 'build', ...(preferred ? { adapter: preferred } : {}), reason: s.testsFirst ? 'The acceptance tests are locked and fail.' : 'Nothing is built yet.' };
+  }
   if (!last.endedBy) return { kind: 'wait', reason: `${last.run} has not finished` };
 
   const verification = tail.filter((e) => e.type === 'verification.ran' && e.run === last.run).at(-1);
@@ -124,11 +202,19 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
     const hops = tail.filter((e) => e.type === 'autopilot.step' && e.payload.step === 'hand').length;
     const reason = `${last.adapter} ${last.run} ${why(last.endedBy, status)}`;
     if (hops >= s.maxHops) return { kind: 'stop', reason: `Needs you: ${reason}, after ${hops} handoffs.`, needsYou: true };
+    const packetOf = (run: string) => (tail.filter((e) => e.type === 'handoff.created' && e.run === run).at(-1)?.payload.name as string | undefined) ?? null;
+    // the smart friend: after repeated failures the next hop goes to a stronger agent or model, once
+    const failures = impl.filter((r) => r.endedBy !== 'killed' && (r.endedBy !== 'completed' || tail.filter((e) => e.type === 'verification.ran' && e.run === r.run).at(-1)?.payload.status !== 'green')).length;
+    if (s.escalate?.length && failures >= (s.escalateAfter ?? 2) && !tail.some((e) => e.type === 'escalation.triggered')) {
+      return { kind: 'escalate', after: last.adapter ?? '', handoffFrom: packetOf(last.run), failures, reason };
+    }
     const stuck = noProgress(tail, impl);
     if (stuck) return { kind: 'stop', reason: `Needs you: two agents in a row got no further. ${stuck}`, needsYou: true };
     const packet = tail.filter((e) => e.type === 'handoff.created' && e.run === last.run).at(-1);
     return { kind: 'hand', after: last.adapter ?? '', handoffFrom: (packet?.payload.name as string | undefined) ?? null, reason };
   }
+
+  if (candidate) return { kind: 'stop', reason: 'Candidate ready: its tests are green, waiting for the pick.', needsYou: false };
 
   // the reviews of this build: those recorded after its verification
   const after = tail.slice(tail.indexOf(verification as StintEvent));
@@ -159,9 +245,9 @@ export class Autopilot {
     return this.ctx.ws.config.autopilot ?? AUTOPILOT_DEFAULTS;
   }
 
-  async start(id: string): Promise<void> {
+  async start(id: string, opts: { implementer?: string } = {}): Promise<void> {
     const events = await this.ctx.ws.events(id).read();
-    if (!autopilotTail(events)) await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.started', payload: { settings: this.settings } });
+    if (!autopilotTail(events)) await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.started', payload: { settings: this.settings, ...(opts.implementer ? { implementer: opts.implementer } : {}) } });
     this.kick(id);
   }
 
@@ -225,7 +311,8 @@ export class Autopilot {
       if (s.kind === 'idle' || s.kind === 'wait' || !tail) return;
       if (s.kind === 'stop') return this.stop(id, s.reason, s.needsYou);
 
-      if (!holdsSlot(tail)) {
+      // a parent waiting on its candidates takes no slot: the candidates hold them
+      if (s.kind !== 'bestof-wait' && !holdsSlot(tail)) {
         const holders: string[] = [];
         for (const t of await ws.listTasks()) {
           const other = t.id === id ? null : autopilotTail(await ws.events(t.id).read());
@@ -271,6 +358,64 @@ export class Autopilot {
           await this.step(id, 'build', `${s.reason} ${adapter} builds it.`, { adapter, ...(s.ask ? { changes: true } : {}) });
           await assign(this.ctx, id, { adapter, role: 'implementer', ...(s.ask ? { instruction: s.ask } : {}) });
           return;
+        }
+        if (s.kind === 'escalate') {
+          for (const entry of this.settings.escalate ?? []) {
+            const [agent, model] = entry.split('@') as [string, string | undefined];
+            const adapter = this.ctx.adapters.find((a) => a.id === agent);
+            if (!adapter || !(await adapter.available()).ok) continue;
+            await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'escalation.triggered', payload: { from: s.after, to: entry, failures: s.failures, handoffFrom: s.handoffFrom } });
+            await this.step(id, 'hand', `${s.reason}; ${s.failures} failures, so escalating to ${entry}.`, { from: s.after, to: agent, escalate: true, handoffFrom: s.handoffFrom });
+            await assign(this.ctx, id, { adapter: agent, role: 'implementer', ...(model ? { model } : {}), ...(s.handoffFrom ? { handoffFrom: s.handoffFrom } : {}) });
+            return;
+          }
+          // nothing to escalate to is available: carry on as a plain hand-off
+          const next = await this.firstAvailable(s.after);
+          if (!next) return this.stop(id, `Needs you: ${s.reason}, and no agent to escalate or hand to is available.`, true);
+          await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'escalation.triggered', payload: { from: s.after, to: next, failures: s.failures, handoffFrom: s.handoffFrom, unavailable: this.settings.escalate } });
+          await this.step(id, 'hand', `${s.reason}; no escalation target is available, handing to ${next}.`, { from: s.after, to: next, handoffFrom: s.handoffFrom });
+          await assign(this.ctx, id, { adapter: next, role: 'implementer', ...(s.handoffFrom ? { handoffFrom: s.handoffFrom } : {}) });
+          return;
+        }
+        if (s.kind === 'bestof') {
+          const task = await ws.readTask(id);
+          const plan = await ws.readPlan(id);
+          const chain = this.settings.implementers.filter((a) => this.ctx.adapters.some((x) => x.id === a));
+          const candidates: string[] = [];
+          for (let k = 1; k <= s.n; k++) {
+            const c = await ws.createTask({ title: `${task.title} (candidate ${k} of ${s.n})`.slice(0, 120), goal: task.goal, acceptance: task.acceptance, testCommand: task.testCommand, tags: [...(task.tags ?? []).filter((t) => t !== 'candidate'), 'candidate'] });
+            await ws.writeTask(c.id, { parent: id, baseCommit: task.baseCommit });
+            if (plan) await ws.writePlan(c.id, plan);
+            candidates.push(c.id);
+          }
+          await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'bestofn.started', payload: { n: s.n, candidates } });
+          await this.step(id, 'build', `Best of ${s.n}: ${candidates.join(', ')} build in parallel; the best green one is adopted.`, { candidates });
+          // each candidate takes the next implementer in the chain, so the attempts differ
+          for (const [k, c] of candidates.entries()) await this.start(c, { implementer: chain.length ? chain[k % chain.length] : undefined });
+          return;
+        }
+        if (s.kind === 'bestof-wait') {
+          const states = [];
+          for (const c of s.candidates) {
+            const evs = await ws.events(c).read();
+            const v = await ws.verification(c).latest();
+            states.push({ id: c, done: !autopilotTail(evs), green: v?.status === 'green', branch: (await ws.readTask(c)).branch });
+          }
+          if (states.some((x) => !x.done)) return;
+          const green = states.filter((x) => x.green);
+          if (green.length === 0) return this.stop(id, `Needs you: no candidate of ${s.candidates.join(', ')} went green.`, true);
+          const { pick, reason } = await pickCandidate(this.ctx, id, green);
+          for (const x of states) await ws.writeTask(x.id, { status: 'abandoned' });
+          const picked = states.find((x) => x.id === pick) as (typeof states)[number];
+          const parent = await ws.readTask(id);
+          await gitOk(ws.root, ['branch', '-f', parent.branch, picked.branch]);
+          await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'bestofn.picked', payload: { pick, reason, candidates: states.map((x) => ({ id: x.id, green: x.green })) } });
+          continue;
+        }
+        if (s.kind === 'adopt') {
+          await this.step(id, 'build', `Adopting ${s.candidate}: the daemon verifies the chosen work again on this task's branch, then it is reviewed.`, { adopt: s.candidate });
+          await adoptCandidate(this.ctx, id, s.candidate);
+          continue;
         }
         if (s.kind === 'hand') {
           const next = await this.firstAvailable(s.after);

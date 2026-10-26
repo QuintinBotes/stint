@@ -1,5 +1,5 @@
 // Typed client for the daemon. The daemon is the only writer of .stint/; the UI only reads and asks.
-import type { Cost, Handoff, Plan, Review, StintEvent, Task } from '@stint-dev/core';
+import { type Cost, EVENT_TYPES, type Handoff, type Plan, type Review, type StintEvent, type Task } from '@stint-dev/core';
 
 export type CapabilityLevel = { level: 'supported' | 'partial' | 'unsupported' | 'unknown'; reason?: string; note?: string };
 export type AdapterHealth = { id: string; vendor: string; roles: string[]; capability: CapabilityLevel; gate: 'enforced' | 'observed' | 'none'; version?: string; reason?: string };
@@ -164,14 +164,7 @@ export function subscribe(path: string, onEvent: (e: StintEvent) => void, onFall
     }
   };
   // every event type arrives as its own SSE event name
-  const types = [
-    'task.created', 'task.status', 'run.started', 'run.finished', 'run.refused', 'agent.message', 'agent.tool_call', 'agent.tool_result',
-    'human.command', 'file.changed', 'decision.recorded', 'verification.ran', 'review.recorded', 'handoff.created', 'approval.requested',
-    'approval.granted', 'approval.rejected', 'rule.blocked', 'skill.applied', 'skill.proposed', 'skill.approved', 'skill.rejected',
-    'merge.completed', 'learn.skipped', 'provider.fallback', 'cost.unpriced', 'runtime.unclassified', 'autopilot.started', 'autopilot.step',
-    'autopilot.stopped', 'handoff.quizzed', 'acceptance.locked', 'acceptance.tampered',
-  ];
-  for (const t of types) es.addEventListener(t, handler as EventListener);
+  for (const t of EVENT_TYPES) es.addEventListener(t, handler as EventListener);
   es.onerror = () => {
     if (es.readyState === EventSource.CLOSED && onFallback && !poll) poll = setInterval(onFallback, 1000);
   };

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { runsFromEvents } from '@stint-dev/core/node';
+import { type Task, type VerificationRecord, runsFromEvents } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
@@ -24,6 +24,22 @@ export async function currentWorktree(ctx: DaemonContext, taskId: string, run?: 
   throw new DaemonError('not_found', `${taskId} has no worktree to verify`, 'assign a run first');
 }
 
+/** Runs the tests on the task branch head in a checkout of its own, for a task whose worktree is gone (merged, replayed, adopted). */
+export async function verifyBranch(ctx: DaemonContext, task: Task, run: string): Promise<VerificationRecord> {
+  const head = (await git(ctx.ws.root, ['rev-parse', '--verify', '-q', `refs/heads/${task.branch}`])).stdout.trim();
+  if (!head) throw new DaemonError('not_found', `${task.id} has nothing to verify`, 'a run creates the task branch');
+  const path = join(ctx.ws.cacheDir, 'verify', `${task.id}-${Date.now()}`);
+  await mkdir(join(ctx.ws.cacheDir, 'verify'), { recursive: true });
+  await gitOk(ctx.ws.root, ['worktree', 'add', '-q', '--detach', path, head]);
+  try {
+    await installDependencies(path);
+    return await ctx.verifier.verify(task, run, path);
+  } finally {
+    // this checkout holds no work, only the branch head and the test run's leftovers, so it is removed even if dirty
+    await git(ctx.ws.root, ['worktree', 'remove', '--force', path]);
+  }
+}
+
 export function workRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/verify', async (c) => {
     const id = c.req.param('id');
@@ -32,20 +48,9 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
     if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'verification runs when the run ends');
     const wt = await currentWorktree(ctx, id, body.run).catch(() => null);
     if (wt) return c.json(await ctx.verifier.verify(task, wt.run, wt.path));
-    // no worktree (merged, or replayed): check the task branch out on its own and run the tests there
-    const head = (await git(ctx.ws.root, ['rev-parse', '--verify', '-q', `refs/heads/${task.branch}`])).stdout.trim();
     const last = runsFromEvents(await ctx.ws.events(id).read()).filter((r) => r.role === 'implementer').at(-1);
-    if (!head || !last) throw new DaemonError('not_found', `${id} has nothing to verify`, 'a run creates the task branch');
-    const path = join(ctx.ws.cacheDir, 'verify', `${id}-${Date.now()}`);
-    await mkdir(join(ctx.ws.cacheDir, 'verify'), { recursive: true });
-    await gitOk(ctx.ws.root, ['worktree', 'add', '-q', '--detach', path, head]);
-    try {
-      await installDependencies(path);
-      return c.json(await ctx.verifier.verify(task, last.run, path));
-    } finally {
-      // this checkout holds no work, only the branch head and the test run's leftovers, so it is removed even if dirty
-      await git(ctx.ws.root, ['worktree', 'remove', '--force', path]);
-    }
+    if (!last) throw new DaemonError('not_found', `${id} has nothing to verify`, 'a run creates the task branch');
+    return c.json(await verifyBranch(ctx, task, last.run));
   });
 
   // an agent or a person records a decision; a reversal names what it supersedes and never edits it

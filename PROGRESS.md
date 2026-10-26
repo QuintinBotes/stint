@@ -31,7 +31,7 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 | R-032 | An open registry of agents, hosts and roles | R-026 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-033 | Agent Client Protocol adapter | R-032 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-034 | Native Claude Code and Codex adapters | R-032 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
-| R-035 | Escalation, best-of-n and the cross-vendor review rule | R-025 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
+| R-035 | Escalation, best-of-n and the cross-vendor review rule | R-025 | done | escalate.test.ts, bestofn.test.ts, review.crossvendor.test.ts | 7 | | built by the author; D-042, D-043 |
 | R-036 | The planner reads the memory, and splits work into a graph | R-010, R-018, R-025 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-037 | Held-out scenarios and coverage | R-029 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-038 | Review lenses and best-of-n reviews | R-010, R-035 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
@@ -111,6 +111,8 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 | D-039 | 2026-10-26 | author | Second live run of the packet side with the diff digest (bench/digest): mean input 48,623 tokens (64,863 without the digest, 60,816 from the transcript), prompt 797 tokens, $0.054, 5 of 5 green; the digest did not arrive for one task. Reported with the sample-size caveat | the fix the quiz pointed to, measured |
 | D-040 | 2026-10-26 | author | A packet over 600 tokens is trimmed in steps (fewer list items, shorter items, the largest file changes only, a shorter summary) with a note saying what was left out, and is refused only if the tightest step still does not fit | the first live rehearsal: a killed run with a six-step Wonder plan (1,056 characters of open steps, 771 of risks) rendered 1,039 tokens, the builder refused, and the run never closed; a run that leaves no packet breaks the core promise |
 | D-041 | 2026-10-26 | author | A recording stores the diff of each commit only, never format-patch's mail header | the first live recording carried the commit author's real name and address in its patches; the identity guard caught it before commit |
+| D-042 | 2026-10-26 | author | A reviewer is "the same" as the implementer when it is Stint's reviewer on the model the Stint agent built with; another coding agent on that model may be reviewed by it | Stint's reviewer is Stint's prompt on a chain model, the same harness as the Stint agent, so that pair is an agent marking its own work; Muse Code on Muse Spark has its own harness and context, and refusing it would leave the default chain with no reviewer |
+| D-043 | 2026-10-26 | author | Best of n builds candidates as child tasks with their own branches, and the parent adopts the pick with a zero-cost run that names it, then verifies the branch again | one task has one live run, so parallel attempts need their own tasks; the adopted run keeps the parent's log readable and approve still merges only a commit the daemon verified on the parent |
 
 ## Deviations (a spec line not followed, with the reason; the human decides whether the spec changes)
 

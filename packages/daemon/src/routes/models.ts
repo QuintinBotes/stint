@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { relayFromEvents } from '@stint-dev/core/node';
 import { join } from 'node:path';
+import { relayFromEvents, runsFromEvents } from '@stint-dev/core/node';
 import {
   type Host,
   buildPlanPrompt,
@@ -9,7 +9,7 @@ import {
   hostsFromConfig,
   renderPlanMarkdown,
 } from '@stint-dev/adapter-openai-compatible';
-import { type Plan, PlanSchema, type Review, ReviewSchema, renderHandoff } from '@stint-dev/core';
+import { type Plan, PlanSchema, type Review, ReviewSchema, type StintEvent, renderHandoff } from '@stint-dev/core';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
@@ -39,14 +39,24 @@ async function nextRun(ctx: DaemonContext, task: string): Promise<string> {
 }
 
 /** A plan or review call is a run on the timeline like any other: started, finished, priced, with the host that answered. */
-async function modelRun<T>(ctx: DaemonContext, taskId: string, role: 'planner' | 'reviewer', host: string | undefined, schemaFile: string, zodSchema: z.ZodType<T>, prompt: string): Promise<{ value: T; run: string; host: string; model: string }> {
+async function modelRun<T>(
+  ctx: DaemonContext,
+  taskId: string,
+  role: 'planner' | 'reviewer',
+  host: string | undefined,
+  schemaFile: string,
+  zodSchema: z.ZodType<T>,
+  prompt: string,
+  skip: string[] = [],
+): Promise<{ value: T; run: string; host: string; model: string }> {
+  const chain = chainFor(ctx, role, host).filter((e) => !skip.includes(e));
+  if (chain.length === 0) throw new DaemonError('review_blocked', `every ${role} entry is the model that built this change (${skip.join(', ')})`, 'add a reviewer on another model to routes.reviewer, or set review.crossVendor to false');
   const run = await nextRun(ctx, taskId);
   const events = ctx.ws.events(taskId);
-  const chain = chainFor(ctx, role, host);
   const first = chain[0] as string;
   const base = { task: taskId, run, adapter: 'openai-compatible', vendor: 'meta' as const };
   await ctx.ws.runs(taskId).create({ run, adapter: 'openai-compatible', vendor: 'meta', role, model: first.split('/').slice(1).join('/'), host: first.split('/')[0] as string, startedAt: new Date().toISOString() });
-  await events.append({ ...base, type: 'run.started', payload: { role, model: first.split('/').slice(1).join('/'), host: first.split('/')[0], chain, offline: first.startsWith('ollama/') } });
+  await events.append({ ...base, type: 'run.started', payload: { role, model: first.split('/').slice(1).join('/'), host: first.split('/')[0], chain, offline: first.startsWith('ollama/'), ...(skip.length ? { skipped: skip } : {}) } });
   const jsonSchema = JSON.parse(await Bun.file(join(ROOT_SCHEMAS, schemaFile)).text());
   try {
     const r = await walkChain<{ value: T }>({
@@ -88,6 +98,18 @@ export async function planTask(ctx: DaemonContext, id: string, host?: string): P
 }
 
 /** Reviews a task's change with the reviewer chain once its verification is green; contradictions go to the queue. */
+/**
+ * The reviewer entries that would be the same harness and model as the last implementer (R-035, D-042).
+ * Stint's reviewer is Stint's own prompt on a chain model, so it is the same harness as the Stint agent;
+ * any other coding agent is a different harness and may be reviewed by its own model.
+ */
+export function ownReviewers(ctx: DaemonContext, events: StintEvent[]): string[] {
+  const impl = runsFromEvents(events).filter((r) => r.role === 'implementer').at(-1);
+  if (!impl || impl.adapter !== 'stint-agent') return [];
+  const model = (impl.model?.includes('/') ? impl.model.split('/').slice(1).join('/') : impl.model) ?? ctx.ws.config.routes.agent?.[0]?.split('/').slice(1).join('/');
+  return model ? ctx.ws.config.routes.reviewer.filter((e) => e.split('/').slice(1).join('/') === model) : [];
+}
+
 export async function reviewTask(ctx: DaemonContext, id: string, host?: string): Promise<Review> {
   const task = await ctx.ws.readTask(id);
   if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'review runs after the run ends');
@@ -101,7 +123,7 @@ export async function reviewTask(ctx: DaemonContext, id: string, host?: string):
     decisions,
     skills: skillsFor(ctx.ws.root, 'reviewer'),
   });
-  const r = await modelRun<Review>(ctx, id, 'reviewer', host, 'review.schema.json', ReviewSchema, prompt);
+  const r = await modelRun<Review>(ctx, id, 'reviewer', host, 'review.schema.json', ReviewSchema, prompt, ctx.ws.config.review?.crossVendor === false ? [] : ownReviewers(ctx, await ctx.ws.events(id).read()));
   const review = await ctx.ws.writeReview(id, { ...r.value, run: r.run, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString() });
   // a finding that would reverse a decision is routed to the queue, never applied (non-negotiable 7)
   const contradicting = findContradictions(review, decisions);
