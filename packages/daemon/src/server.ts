@@ -83,6 +83,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     for (const r of ctx.runs.list()) r.abort.abort();
     await Promise.race([Promise.allSettled([...ctx.pending]), Bun.sleep(10_000)]);
     rmSync(infoPath, { force: true });
+    await ctx.otel.stop();
     await server.stop(true);
   };
   if (o.handleSignals) {

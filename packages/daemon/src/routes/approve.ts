@@ -171,6 +171,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
       const events = ctx.ws.events(id);
       await events.append({ task: id, vendor: 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
       await events.append({ task: id, vendor: 'daemon', type: 'merge.completed', payload: { branch: task.branch, into: base, commit, squash: body.squash ?? false, trailers } });
+      void ctx.otel.task(id).catch(() => undefined);
       await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), { by, at, verificationHash: `sha256:${sha256Hex(canonicalJSON(v))}`, commit });
       await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
       // the merge has landed; a worktree that will not go away is reported, not turned into a failed approve
@@ -196,6 +197,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     const d = await ctx.ws.decisions(id).append({ text: `Rejected: ${reason}`.slice(0, 200), by: 'you' });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by }, links: [{ kind: 'decision', ref: d.id }] });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason, decision: d.id } });
+    void ctx.otel.task(id).catch(() => undefined);
     await ctx.ws.writeTask(id, { status: 'building', pendingAsk: reason });
     const result = { status: 'building', decision: d.id };
     triggerLearn(ctx, id);

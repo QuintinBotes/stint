@@ -33,6 +33,7 @@ import { ptyRoutes } from './routes/pty';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
+import { OtelExporter } from './otel';
 import { workspaceRecords } from './routing';
 import { egressProxy, sandboxHealth } from './sandbox';
 import type { EgressProxy } from './egress';
@@ -73,6 +74,8 @@ export type DaemonContext = {
   /** Run endings still writing (commit, verify, packet); a stop waits for them. */
   pending: Set<Promise<unknown>>;
   autopilot: Autopilot;
+  /** Sends finished runs to an OpenTelemetry collector when `otel.endpoint` is set (R-043). */
+  otel: OtelExporter;
   /** The egress proxy, once a run with `sandbox.egress.mode: proxy` has started it (R-040). */
   egress?: Promise<EgressProxy>;
 };
@@ -127,13 +130,15 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     snapshotMs: snapshotMs ?? 5_000,
     replayer: new Replayer(ws),
     pending: new Set(),
-  } as Omit<DaemonContext, 'autopilot'> as DaemonContext;
+  } as Omit<DaemonContext, 'autopilot' | 'otel'> as DaemonContext;
   ctx.autopilot = new Autopilot(ctx);
+  ctx.otel = new OtelExporter(ctx);
   // the daemon's own test runs reach the network through the same proxy as the agents
   if (ctx.verifier instanceof DaemonVerifier) ctx.verifier.proxyUrl = async (t, r) => (ws.config.sandbox?.egress.mode === 'proxy' ? (await egressProxy(ctx)).url(t, r) : null);
   ctx.afterRun = async (task, run, result) => {
     await checkAcceptanceLock(ctx, task, run);
     await afterRunPacket(ctx, task, run, result);
+    void ctx.otel.run(task, run).catch(() => undefined);
     ctx.autopilot.kick(task);
   };
   const app = new Hono();

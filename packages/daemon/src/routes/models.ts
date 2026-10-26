@@ -69,10 +69,12 @@ async function modelRun<T>(
     const value = ((r.value as { value?: T }).value ?? r.value) as T;
     await ctx.ws.runs(taskId).updateMeta(run, { endedAt: new Date().toISOString(), endedBy: 'completed', cost: r.cost, host: r.host, model: r.model });
     await events.append({ ...base, type: 'run.finished', payload: { endedBy: 'completed', cost: r.cost, host: r.host, model: r.model, offline: r.host === 'ollama', ...(role === 'planner' ? { plan: value } : {}) } });
+    void ctx.otel.run(taskId, run).catch(() => undefined);
     return { value, run, host: r.host, model: r.model };
   } catch (err) {
     const message = err instanceof ChainExhaustedError ? err.message : err instanceof Error ? err.message : String(err);
     await events.append({ ...base, type: 'run.finished', payload: { endedBy: 'failed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true }, reason: message } });
+    void ctx.otel.run(taskId, run).catch(() => undefined);
     throw new DaemonError('adapter_unavailable', `no ${role} host could answer`, message);
   }
 }

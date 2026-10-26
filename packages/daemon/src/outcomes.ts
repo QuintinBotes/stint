@@ -258,6 +258,7 @@ export async function refreshRelease(ctx: DaemonContext, id: string): Promise<Re
         type: 'merge.completed',
         payload: { branch: task.branch, into: base, commit, pr: number, ...(str(opened.payload.url) ? { url: str(opened.payload.url) } : {}), trailers },
       });
+      void ctx.otel.task(id).catch(() => undefined);
       const v = await ctx.ws.verification(id).latest();
       const granted = events.filter((e) => e.type === 'approval.granted').at(-1);
       await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), {
