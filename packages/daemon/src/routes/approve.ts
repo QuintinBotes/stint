@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalJSON, runsFromEvents, sha256Hex, writeJsonAtomic } from '@stint-dev/core/node';
@@ -22,12 +23,15 @@ export function parseTrailers(body: string): Partial<Trailers> {
   return out as Partial<Trailers>;
 }
 
+/** One line: a newline in a title or summary could otherwise start a trailer block of its own. */
+const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+
 /**
- * Approval is a real merge into the branch checked out in the main tree. The merge is computed with
- * `git merge-tree` first, so a conflict leaves every tree as it was; the main tree only moves by a
- * fast-forward to the finished merge commit, and only when it has no uncommitted tracked changes.
+ * Approval is a real merge into the branch checked out in the main tree, of exactly the commit the daemon
+ * verified. The merge is computed with `git merge-tree` first, so a conflict leaves every tree as it was; the
+ * main tree only moves by a fast-forward to the finished merge commit, and only when nothing in it is in the way.
  */
-async function merge(ctx: DaemonContext, id: string, squash: boolean): Promise<{ commit: string; base: string; trailers: Trailers }> {
+async function merge(ctx: DaemonContext, id: string, squash: boolean, verifiedCommit: string | undefined): Promise<{ commit: string; base: string; trailers: Trailers }> {
   const root = ctx.ws.root;
   const task = await ctx.ws.readTask(id);
   const base = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
@@ -35,13 +39,29 @@ async function merge(ctx: DaemonContext, id: string, squash: boolean): Promise<{
   const dirty = await gitOk(root, ['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).stint']);
   if (dirty.trim()) throw new DaemonError('dirty_tree', 'the main tree has uncommitted changes to tracked files', 'commit or stash them; approve merges into the checked-out branch');
 
-  const mt = await git(root, ['merge-tree', '--write-tree', '--name-only', '--no-messages', base, task.branch]);
+  const branchHead = (await git(root, ['rev-parse', '--verify', '-q', `refs/heads/${task.branch}`])).stdout.trim();
+  if (!branchHead) throw new DaemonError('not_found', `the task branch ${task.branch} does not exist`);
+  // only the commit the tests ran on is merged; a run that committed after them has not been verified
+  if (verifiedCommit && verifiedCommit !== branchHead) {
+    throw new DaemonError('verification_red', `${task.branch} moved after the last verification`, `verified ${verifiedCommit.slice(0, 10)}, the branch is at ${branchHead.slice(0, 10)}; run the tests again`);
+  }
+  if ((await git(root, ['merge-base', '--is-ancestor', branchHead, 'HEAD'])).code === 0) {
+    throw new DaemonError('invalid', `${task.branch} is already merged into ${base}`, 'nothing to merge');
+  }
+  const baseSha = (await gitOk(root, ['rev-parse', '--verify', `refs/heads/${base}^{commit}`])).trim();
+
+  const mt = await git(root, ['merge-tree', '--write-tree', '--name-only', '--no-messages', baseSha, branchHead]);
   if (mt.code === 1) {
     const files = mt.stdout.trim().split('\n').slice(1).filter(Boolean);
     throw new DaemonError('merge_conflict', `${task.branch} conflicts with ${base}`, { files });
   }
   if (mt.code !== 0) throw new Error(`git merge-tree failed: ${mt.stderr.trim()}`);
   const tree = mt.stdout.trim().split('\n')[0] as string;
+
+  // a file the merge adds that already exists here (ignored or untracked) would be overwritten by the fast-forward
+  const added = (await gitOk(root, ['diff', '--name-only', '-z', '--no-renames', '--diff-filter=A', baseSha, tree])).split('\0').filter(Boolean);
+  const inTheWay = added.filter((p) => existsSync(join(root, p)));
+  if (inTheWay.length) throw new DaemonError('dirty_tree', 'the merge would overwrite files in your tree that git does not track', { files: inTheWay });
 
   const events = await ctx.ws.events(id).read();
   const runs = runsFromEvents(events).map((r) => r.run);
@@ -51,45 +71,67 @@ async function merge(ctx: DaemonContext, id: string, squash: boolean): Promise<{
     'Stint-Task': id,
     'Stint-Runs': runs.join(','),
     'Stint-Handoff': packet?.hash ?? 'none',
-    'Stint-Verified': v ? `${v.command} ${v.passed}/${v.passed + v.failed}` : 'none',
+    'Stint-Verified': v ? `${oneLine(v.command)} ${v.passed}/${v.passed + v.failed}` : 'none',
   };
-  const message = `${task.title} (${id})\n\n${packet?.summary ?? task.goal}\n\n${Object.entries(trailers).map(([k, val]) => `${k}: ${val}`).join('\n')}\n`;
+  const message = `${oneLine(task.title)} (${id})\n\n${oneLine(packet?.summary ?? task.goal)}\n\n${Object.entries(trailers).map(([k, val]) => `${k}: ${val}`).join('\n')}\n`;
   const msgFile = join(ctx.ws.cacheDir, `merge-${id}.txt`);
   await mkdir(ctx.ws.cacheDir, { recursive: true });
   await writeFile(msgFile, message);
-  const baseSha = (await gitOk(root, ['rev-parse', base])).trim();
-  const parents = squash ? ['-p', baseSha] : ['-p', baseSha, '-p', task.branch];
+  const parents = squash ? ['-p', baseSha] : ['-p', baseSha, '-p', branchHead];
   const commit = (await gitOk(root, [...(await identityArgs(root)), 'commit-tree', tree, ...parents, '-F', msgFile])).trim();
   await rm(msgFile, { force: true });
+  // the person may have switched branches while the merge was computed; never move a different branch
+  const now = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
+  if (now !== base) throw new DaemonError('invalid', `the checked-out branch changed from ${base} to ${now || 'a detached HEAD'} during approve`, 'approve again');
   await gitOk(root, ['merge', '--ff-only', '-q', commit]);
   return { commit, base, trailers };
 }
+
+const approving = new Set<string>();
 
 export function approveRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/approve', async (c) => {
     const id = c.req.param('id');
     const body = ApproveBody.parse(await c.req.json().catch(() => ({})));
-    const task = await ctx.ws.readTask(id);
-    if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'stop it or let it finish first');
-    const v = await ctx.ws.verification(id).latest();
-    if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'approve needs a green verification by the daemon', v ? `${v.failed} failed` : 'nothing verified yet');
-    const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
-    if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
+    const key = `${ctx.ws.root}:${id}`;
+    // a double click or a retry must never merge twice
+    if (approving.has(key)) throw new DaemonError('run_active', `${id} is already being approved`);
+    approving.add(key);
+    try {
+      const task = await ctx.ws.readTask(id);
+      if (task.status === 'done') throw new DaemonError('invalid', `${id} is already approved and merged`);
+      if (ctx.runs.get(id) || task.status === 'verifying') throw new DaemonError('run_active', `${id} has a run that is still running or being verified`, 'wait for the daemon to finish');
+      const v = await ctx.ws.verification(id).latest();
+      if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'approve needs a green verification by the daemon', v ? `${v.failed} failed` : 'nothing verified yet');
+      const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
+      if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
+      const log = await ctx.ws.events(id).read();
+      const lockAt = log.map((e) => e.type).lastIndexOf('acceptance.locked');
+      const tampered = lockAt >= 0 ? log.slice(lockAt).find((e) => e.type === 'acceptance.tampered') : undefined;
+      if (tampered) throw new DaemonError('review_blocked', 'an agent changed the locked acceptance tests', { files: tampered.payload.files });
 
-    const { commit, base, trailers } = await merge(ctx, id, body.squash ?? false);
-    const by = body.by ?? 'you';
-    const at = new Date().toISOString();
-    const events = ctx.ws.events(id);
-    await events.append({ task: id, vendor: 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
-    await events.append({ task: id, vendor: 'daemon', type: 'merge.completed', payload: { branch: task.branch, into: base, commit, squash: body.squash ?? false, trailers } });
-    await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), { by, at, verificationHash: `sha256:${sha256Hex(canonicalJSON(v))}`, commit });
-    await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
-    // the branch stays (branchRetentionDays); only the worktrees go, and never with --force
-    await releaseWorktrees(ctx, await ctx.ws.readTask(id));
-    const result = { commit, into: base, trailers };
-    // learn runs after the response is computed and cannot delay or fail it
-    triggerLearn(ctx, id);
-    return c.json(result);
+      const { commit, base, trailers } = await merge(ctx, id, body.squash ?? false, v.commit);
+      const by = body.by ?? 'you';
+      const at = new Date().toISOString();
+      const events = ctx.ws.events(id);
+      await events.append({ task: id, vendor: 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
+      await events.append({ task: id, vendor: 'daemon', type: 'merge.completed', payload: { branch: task.branch, into: base, commit, squash: body.squash ?? false, trailers } });
+      await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), { by, at, verificationHash: `sha256:${sha256Hex(canonicalJSON(v))}`, commit });
+      await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
+      // the merge has landed; a worktree that will not go away is reported, not turned into a failed approve
+      let cleanup: string | null = null;
+      try {
+        await releaseWorktrees(ctx, await ctx.ws.readTask(id));
+      } catch (err) {
+        cleanup = err instanceof Error ? err.message : String(err);
+      }
+      const result = { commit, into: base, trailers, ...(cleanup ? { cleanup } : {}) };
+      // learn runs after the response is computed and cannot delay or fail it
+      triggerLearn(ctx, id);
+      return c.json(result);
+    } finally {
+      approving.delete(key);
+    }
   });
 
   app.post('/api/tasks/:id/reject', async (c) => {

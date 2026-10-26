@@ -21,3 +21,33 @@ describe('the Stint agent refusal set', () => {
     }
   });
 });
+
+test('the Stint agent runs its shell without keys, so an env call cannot print one', async () => {
+  const { fakeHost, callTool, say, configFor } = await import('./fake');
+  const { createStintAgent } = await import('../src/index');
+  const host = fakeHost([{ body: callTool('bash', { command: 'env' }) }, { body: say('done') }]);
+  try {
+    const agent = createStintAgent(configFor({ 'meta-api': host.url }), { META_API_KEY: 'k' });
+    const results: string[] = [];
+    await agent.run({
+      task: {} as never,
+      run: 'r1',
+      role: 'implementer',
+      worktree: process.cwd(),
+      prompt: 'p',
+      promptPath: '/tmp/p',
+      budget: { tokens: 1e6 },
+      env: { PATH: process.env.PATH ?? '', META_API_KEY: 'sk-secret-value', GITHUB_TOKEN: 'ghp-secret' },
+      signal: new AbortController().signal,
+      emit: async () => undefined,
+      transcript: async () => ({ pointer: 'x', byteLen: 0 }),
+    });
+    const second = host.seen[1] as unknown as { messages: Array<{ role: string; content: string }> };
+    for (const m of second.messages.filter((m) => m.role === 'tool')) results.push(m.content);
+    expect(results.join('\n')).not.toContain('sk-secret-value');
+    expect(results.join('\n')).not.toContain('ghp-secret');
+    expect(results.join('\n')).toContain('PATH=');
+  } finally {
+    host.stop();
+  }
+});

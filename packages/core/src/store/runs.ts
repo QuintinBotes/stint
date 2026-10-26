@@ -124,6 +124,8 @@ export const VerificationRecordSchema = z.strictObject({
   outputRef: z.string(),
   at: z.iso.datetime({ offset: true }),
   timedOut: z.boolean().optional(),
+  /** The commit the tests ran on; approve merges only this commit. */
+  commit: z.string().regex(/^[0-9a-f]{40}$/).optional(),
 });
 export type VerificationRecord = z.infer<typeof VerificationRecordSchema>;
 

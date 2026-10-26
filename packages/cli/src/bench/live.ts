@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { homedir, tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { countTokens } from '@stint-dev/core';
 import { Workspace, runsFromEvents } from '@stint-dev/core/node';
@@ -12,15 +12,32 @@ import { renderTranscript } from './transcript';
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Artefacts are published: the fixture's temporary folder and the home directory become placeholders. */
+/** Values that must never be published: anything in the environment named like a key, token, secret or password. */
+function secretValues(): string[] {
+  return Object.entries(process.env)
+    .filter(([k, v]) => /(KEY|TOKEN|SECRET|PASSWORD)/i.test(k) && typeof v === 'string' && v.length >= 8)
+    .map(([, v]) => v as string);
+}
+
+/** Artefacts are published: the fixture's temporary folder, the home directory, the user name and any secret become placeholders. */
 export function scrubPaths(text: string): string {
-  return text
+  const home = homedir();
+  const user = userInfo().username;
+  let out = text
     .replace(/(\/private)?\/var\/folders\/[^/\s"']+\/[^/\s"']+\/T\/stint-[a-z]+-[A-Za-z0-9]+/g, '<fixture>')
     .replace(new RegExp(`${escape(tmpdir())}/stint-[a-z]+-[A-Za-z0-9]+`, 'g'), '<fixture>')
-    .replace(new RegExp(escape(homedir()), 'g'), '~')
+    .replace(new RegExp(escape(home), 'g'), '~')
+    // the same home path written JSON-escaped or URL-encoded
+    .replace(new RegExp(escape(home.replaceAll('/', '\\/')), 'g'), '~')
+    .replace(new RegExp(escape(encodeURIComponent(home)), 'gi'), '~')
     // a path a tool output cut short still names the machine's temp folder
     .replace(/(\/private)?\/var\/folders\/[^\s"'\\]*/g, '<tmp>')
-    .replace(/\/private\/var\/[^\s"'\\]*/g, '<tmp>');
+    .replace(/\/private\/var\/[^\s"'\\]*/g, '<tmp>')
+    .replace(/\b([A-Z][A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)=\S+/g, '$1=[redacted]');
+  for (const v of secretValues()) out = out.split(v).join('[redacted]');
+  // the bare user name, as `whoami` or `ls -l` print it
+  if (user.length >= 3) out = out.replace(new RegExp(`\\b${escape(user)}\\b`, 'g'), 'user');
+  return out;
 }
 
 export type LiveBenchOptions = {

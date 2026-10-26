@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import type { Task } from '@stint-dev/core';
 import type { VerificationRecord, Workspace } from '@stint-dev/core/node';
 import { runEnv } from './env';
+import { git } from './git';
 
 export interface Verifier {
   verify(task: Task, run: string, worktree: string): Promise<VerificationRecord>;
@@ -80,6 +81,7 @@ export class DaemonVerifier implements Verifier {
     const counts = parsed ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 };
     const store = this.ws.verification(task.id);
     const outputRef = await store.writeOutput(run, r.output);
+    const head = (await git(worktree, ['rev-parse', 'HEAD'])).stdout.trim();
     const record = await store.write({
       run,
       command: task.testCommand,
@@ -92,6 +94,7 @@ export class DaemonVerifier implements Verifier {
       outputRef,
       at: new Date().toISOString(),
       ...(r.timedOut ? { timedOut: true } : {}),
+      ...(/^[0-9a-f]{40}$/.test(head) ? { commit: head } : {}),
     });
     await this.ws.events(task.id).append({
       task: task.id,

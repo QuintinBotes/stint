@@ -254,8 +254,8 @@ export async function approveSkill(ws: Workspace, id: string, by = 'you'): Promi
     const record = (await listSkills(ws)).find((s) => s.id === id) as SkillRecord;
     return { ...record, committed: false, commit: null, path: rel };
   }
-  if (existsSync(join(skillsDir(root), id, 'SKILL.md'))) {
-    throw new DaemonError('invalid', `.agents/skills/${id}/SKILL.md already exists`, 'retire or rename the existing skill first');
+  for (const name of ['SKILL.md', 'examples.md']) {
+    if (existsSync(join(skillsDir(root), id, name))) throw new DaemonError('invalid', `.agents/skills/${id}/${name} already exists`, 'retire or rename the existing skill first');
   }
   const dir = join(skillsDir(root), id);
   const skillMd = renderSkillMarkdown(proposal);
@@ -277,6 +277,8 @@ export async function approveSkill(ws: Workspace, id: string, by = 'you'): Promi
       commit = (await gitOk(root, ['rev-parse', 'HEAD'])).trim();
       committed = true;
     } catch (err) {
+      // unstage, so the skill files do not ride along in the person's next commit
+      await git(root, ['reset', '-q', '--', rel, `.agents/skills/${id}/examples.md`]);
       process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `skill ${id} was written but NOT committed: ${err instanceof Error ? err.message : String(err)}` })}\n`);
     } finally {
       await rm(msgFile, { force: true });

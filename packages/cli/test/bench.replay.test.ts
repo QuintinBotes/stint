@@ -141,3 +141,20 @@ test('published bench artefacts carry no local paths: the fixture folder, the ho
   const text = `cd /private/var/folders/vm/abc123/T/stint-demo-Xy12/.stint/worktrees/T-0001-r1 && cat ${homedir()}/.local/share/muse/sessions/x.jsonl; see [file](/private/var/f`;
   expect(scrubPaths(text)).toBe('cd <fixture>/.stint/worktrees/T-0001-r1 && cat ~/.local/share/muse/sessions/x.jsonl; see [file](<tmp>');
 });
+
+test('the scrub also removes the user name, JSON-escaped and URL-encoded home paths, and secret values from the environment', async () => {
+  const { homedir, userInfo } = await import('node:os');
+  const { scrubPaths } = await import('../src/bench/live');
+  process.env.STINT_TEST_API_KEY = 'sk-test-0123456789';
+  try {
+    const home = homedir();
+    const text = `owner ${userInfo().username} staff; {"cwd":"${home.replaceAll('/', '\\/')}/x"}; open ${encodeURIComponent(home)}%2Fy; key sk-test-0123456789; META_API_KEY=abc123def`;
+    const out = scrubPaths(text);
+    expect(out).not.toContain(userInfo().username);
+    expect(out).not.toContain('sk-test-0123456789');
+    expect(out).toContain('owner user staff');
+    expect(out).toContain('META_API_KEY=[redacted]');
+  } finally {
+    delete process.env.STINT_TEST_API_KEY;
+  }
+});

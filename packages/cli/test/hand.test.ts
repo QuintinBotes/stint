@@ -41,7 +41,8 @@ test('stint packet prints the packet and its token count', async () => {
     try {
       const t = await d.ws.createTask(newTask);
       await fetch(`${d.url}/api/tasks/${t.id}/assign`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ adapter: 'muse-code', role: 'implementer' }) });
-      for (let i = 0; i < 600 && (await d.ws.handoffs(t.id).names()).length === 0; i++) await Bun.sleep(50);
+      // handoff.created is appended after every packet file is written; h1.json alone comes first
+      for (let i = 0; i < 600 && !(await d.ws.events(t.id).read()).some((e) => e.type === 'handoff.created'); i++) await Bun.sleep(50);
       const cli = Bun.spawnSync(['bun', join(import.meta.dir, '..', 'bin', 'stint'), 'packet', t.id, '--repo', repo], { stdout: 'pipe', stderr: 'pipe' });
       expect(cli.exitCode).toBe(0);
       expect(cli.stdout.toString()).toContain('## Ask of next');

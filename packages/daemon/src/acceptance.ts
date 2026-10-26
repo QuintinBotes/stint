@@ -17,7 +17,11 @@ async function hashAtBranch(ctx: DaemonContext, branch: string, path: string): P
 export async function lockAcceptance(ctx: DaemonContext, taskId: string, run: string): Promise<Locked[]> {
   const task = await ctx.ws.readTask(taskId);
   const events = await ctx.ws.events(taskId).read();
-  const paths = [...new Set(events.filter((e) => e.type === 'file.changed' && e.run === run).map((e) => String(e.payload.path)).filter(isTestPath))];
+  // git's own names for the files the run's commit touched: numstat's display form quotes some names and folds renames
+  const commit = events.find((e) => e.type === 'run.finished' && e.run === run)?.payload.commit;
+  const listed = typeof commit === 'string' ? (await git(ctx.ws.root, ['diff-tree', '--no-commit-id', '--name-only', '-z', '-r', '--no-renames', '--root', commit])).stdout.split('\0') : [];
+  const fromEvents = events.filter((e) => e.type === 'file.changed' && e.run === run).map((e) => String(e.payload.path));
+  const paths = [...new Set((listed.some(Boolean) ? listed : fromEvents).filter(Boolean).filter(isTestPath))];
   const files: Locked[] = [];
   for (const path of paths) files.push({ path, sha256: await hashAtBranch(ctx, task.branch, path) });
   const failing = (events.filter((e) => e.type === 'verification.ran' && e.run === run).at(-1)?.payload.failing as string[] | undefined) ?? [];

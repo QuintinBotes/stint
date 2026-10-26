@@ -83,6 +83,8 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
       { role: 'user', content: ctx.prompt },
     ];
     const state: { answered: HostCall | null } = { answered: null };
+    // the model drives this shell: keys stay out of it, so an `env` cannot put one in a transcript
+    const shellEnv = Object.fromEntries(Object.entries(ctx.env).filter(([k]) => !/(KEY|TOKEN|SECRET|PASSWORD)/i.test(k)));
     let inFlight: string | null = null;
     let lastText = '';
     const done = (endedBy: RunResult['endedBy']): RunResult => ({
@@ -148,7 +150,7 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
           const tool = call.function.name;
           await ctx.emit({ type: 'agent.tool_call', payload: { tool, args, callId: call.id } });
           inFlight = `${tool} ${short(args)}`.trim();
-          const out = await runTool(tool, args, ctx.worktree, ctx.env, ctx.signal);
+          const out = await runTool(tool, args, ctx.worktree, shellEnv, ctx.signal);
           if (ctx.signal.aborted) return done('killed');
           inFlight = null;
           if (out.refused) {

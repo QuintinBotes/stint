@@ -38,6 +38,9 @@ export class Worktrees implements WorktreeManager {
     if ((await git(root, ['rev-parse', '--verify', '-q', 'HEAD'])).code !== 0) {
       return this.refuse(task, run, 'no_commits', 'the repository has no commits', 'commit once, then assign again');
     }
+    if ((await git(root, ['symbolic-ref', '-q', 'HEAD'])).code !== 0) {
+      return this.refuse(task, run, 'dirty_tree', 'the main tree is on a detached HEAD', 'check out a branch first; a rebase in progress would rewrite the commit the task starts from');
+    }
     const status = await gitOk(root, ['status', '--porcelain', '--untracked-files=no', '--', '.', ':(exclude).stint']);
     if (status.trim().length > 0) {
       return this.refuse(task, run, 'dirty_tree', 'the main tree has uncommitted changes to tracked files', 'commit or stash them; Stint never runs on top of your uncommitted work');
