@@ -14,4 +14,4 @@ export { countTokens } from './tokens';
 export { priceUsage } from './cost';
 export type { Usage } from './cost';
 export { formatIssues } from './issues';
-export type { Adapter, AdapterCapabilities, AdapterEvent, Availability, Enrichment, RunContext, RunResult } from './adapter';
+export type { Adapter, AdapterCapabilities, AdapterEvent, Availability, Enrichment, PermissionOption, PermissionRequest, RunContext, RunResult } from './adapter';

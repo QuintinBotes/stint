@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Adapter, type Config, DEFAULT_CONFIG, type RunContext, type RunResult } from '@stint-dev/core';
 import { seedDemo } from '../../../../packages/cli/src/demo/seed';
+import { acpAgent } from '../../../../packages/adapters/acp/src/index';
 import { replayAdapter, startDaemon } from '@stint-dev/daemon';
 
 const PLAN = {
@@ -113,7 +114,7 @@ mkdirSync(join(root, '.stint'), { recursive: true });
 writeFileSync(join(root, '.stint', 'config.json'), JSON.stringify(config, null, 2));
 await seedDemo(root);
 
-const d = await startDaemon({ root, port: Number(process.env.STINT_E2E_FLOWS_PORT ?? 4320), quiet: true, adapters: [replayAdapter, writer('muse-code'), writer('stint-agent'), sleeper] });
+const d = await startDaemon({ root, port: Number(process.env.STINT_E2E_FLOWS_PORT ?? 4320), quiet: true, adapters: [replayAdapter, writer('muse-code'), writer('stint-agent'), sleeper, acpAgent('fake-acp', { command: ['bun', join(import.meta.dir, '..', '..', '..', '..', 'packages', 'adapters', 'acp', 'test', 'fixtures', 'fake-agent.ts')], prompt: 'stdin', roles: ['implementer'], vendor: 'other', enabled: true, harness: 'acp' })] });
 process.stdout.write(`ready ${d.url} ${root}\n`);
 const stop = () => {
   void d.stop().then(() => {

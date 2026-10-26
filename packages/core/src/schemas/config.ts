@@ -53,8 +53,10 @@ export const AgentDefSchema = z.strictObject({
   vendor: z.enum(['meta', 'openai', 'anthropic', 'local', 'other']),
   model: z.string().optional(),
   enabled: z.boolean().default(false),
-  /** Which harness runs this agent; `cli` is the generic command line adapter (R-032, R-034). */
-  harness: z.enum(['cli', 'claude-code', 'codex']).default('cli'),
+  /** Which harness runs this agent; `cli` is the generic command line adapter (R-032, R-033, R-034). */
+  harness: z.enum(['cli', 'claude-code', 'codex', 'acp']).default('cli'),
+  /** Shorthand for `harness: 'acp'` (R-033); the ACP adapter runs the agent when this is true. */
+  acp: z.boolean().optional(),
   /** A configured host this agent talks to, when it has one; it must be named in `hosts`. */
   host: z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/).optional(),
   events: AgentEventsSchema.optional(),
@@ -299,24 +301,34 @@ export const DEFAULT_CONFIG: Config = {
       resume: { flag: 'resume' },
       capabilities: { resume: true, schemaOutput: true, sandbox: true, costReporting: true },
     },
-    // goose headless run with an instructions file: https://block.github.io/goose/docs/tutorials/headless-goose
+    // goose as an ACP server: https://block.github.io/goose/docs/guides/acp-clients
     goose: {
-      command: ['goose', 'run', '--instructions', '{prompt}'],
-      prompt: 'file',
+      command: ['goose', 'acp'],
+      prompt: 'stdin',
       roles: ['implementer', 'reviewer'],
       vendor: 'other',
       enabled: false,
-      harness: 'cli',
+      harness: 'acp',
       capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
     },
-    // OpenCode one-shot run: https://opencode.ai/docs/cli/
+    // OpenCode as an ACP server: https://opencode.ai/docs/acp/
     opencode: {
-      command: ['opencode', 'run', '--model={model}', '{prompt}'],
-      prompt: 'arg',
+      command: ['opencode', 'acp'],
+      prompt: 'stdin',
       roles: ['implementer', 'reviewer'],
       vendor: 'other',
       enabled: false,
-      harness: 'cli',
+      harness: 'acp',
+      capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
+    },
+    // Gemini CLI as an ACP server: https://geminicli.com/docs/cli/acp-mode/
+    'gemini-acp': {
+      command: ['gemini', '--experimental-acp'],
+      prompt: 'stdin',
+      roles: ['implementer', 'reviewer'],
+      vendor: 'other',
+      enabled: false,
+      harness: 'acp',
       capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
     },
     // Gemini CLI headless prompt with the default approval mode: https://geminicli.com/docs/cli/tutorials/automation/

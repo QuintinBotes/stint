@@ -122,6 +122,8 @@ export type PendingItem = {
   finding: { id: string; text: string; file?: string };
   at: string;
 };
+export type PermissionOptionData = { optionId: string; name: string; kind: string };
+export type PendingPermission = { task: string; run: string; requestId: string; tool: string; title: string; options: PermissionOptionData[] };
 export type CostRow = Cost & { key: string; runs: number; roles?: string[] };
 export type DemoStatus = { playing: boolean; paused: boolean; at: number; total: number; title: string | null; live: boolean | null; recordedAt: string | null; done: boolean };
 export type ApiError = { code: string; message: string; hint: unknown };
@@ -201,6 +203,8 @@ export const api = {
   graph: (id: string) => request<GraphData>(`/api/tasks/${id}/graph`),
   graphQuery: <T>(params: Record<string, string>) => request<T[]>(`/api/graph/query?${new URLSearchParams(params)}`),
   pending: () => request<PendingItem[]>('/api/graph/pending'),
+  permissions: () => request<PendingPermission[]>('/api/permissions'),
+  decidePermission: (id: string, run: string, requestId: string, optionId: string) => post<unknown>(`/api/tasks/${id}/runs/${run}/permission`, { requestId, optionId }),
   settle: (name: string, action: 'keep' | 'supersede') => post<unknown>(`/api/graph/pending/${name}`, { action }),
   skills: () => request<SkillRecord[]>('/api/skills'),
   approveSkill: (id: string) => post<unknown>(`/api/skills/${id}/approve`),

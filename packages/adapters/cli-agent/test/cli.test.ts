@@ -35,7 +35,7 @@ test('A config entry running a shell script that edits a file and prints two lin
 
 test('A disabled preset is not registered; an enabled entry whose command is missing shows unavailable with the reason', async () => {
   expect(cliAgents(DEFAULT_CONFIG).map((a) => a.id)).toEqual([]);
-  expect(Object.keys(DEFAULT_CONFIG.agents ?? {}).sort()).toEqual(['aider', 'claude-code', 'codex', 'gemini-cli', 'goose', 'opencode']);
+  expect(Object.keys(DEFAULT_CONFIG.agents ?? {}).sort()).toEqual(['aider', 'claude-code', 'codex', 'gemini-acp', 'gemini-cli', 'goose', 'opencode']);
   const missing = cliAgents({ agents: { ghost: { command: ['stint-no-such-agent-cli'], prompt: 'arg', roles: ['implementer'], vendor: 'other', enabled: true, harness: 'cli' } } });
   expect(missing.map((a) => a.id)).toEqual(['ghost']);
   expect(await missing[0]?.available()).toEqual({ ok: false, reason: 'stint-no-such-agent-cli is not on PATH' });

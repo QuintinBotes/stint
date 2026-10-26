@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { modelName } from '../agents';
-import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, api } from '../api';
+import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, api } from '../api';
+import { PermissionRows } from './Permissions';
 import type { LayoutIn, LayoutOut } from '../graph.worker';
 import { useTasks } from '../hooks';
 import { Button, EmptyState, cx } from './ui';
@@ -227,15 +228,24 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
 /** Contradictions wait here for a person: a reviewer may not reverse a decision on its own. */
 export function Queue({ only, onSettled }: { only?: string; onSettled?: () => void }) {
   const [items, setItems] = useState<PendingItem[] | null>(null);
+  const [permissions, setPermissions] = useState<PendingPermission[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(() => {
     api
       .pending()
       .then((p) => setItems(only ? p.filter((x) => x.task === only) : p))
       .catch(() => setItems([]));
+    api
+      .permissions()
+      .then((p) => setPermissions(only ? p.filter((x) => x.task === only) : p))
+      .catch(() => setPermissions([]));
   }, [only]);
-  useEffect(load, [load]);
-  if (!items || items.length === 0) return null;
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, [load]);
+  if ((!items || items.length === 0) && permissions.length === 0) return null;
   const settle = (name: string, action: 'keep' | 'supersede') => {
     setBusy(name);
     api
@@ -250,7 +260,8 @@ export function Queue({ only, onSettled }: { only?: string; onSettled?: () => vo
     <section className="mb-4" aria-label="Waiting for you" data-testid="queue">
       <h3 className="text-[12px] font-semibold text-warn mb-2">Waiting for you</h3>
       <ul className="flex flex-col gap-2">
-        {items.map((p) => (
+        <PermissionRows permissions={permissions} onDecided={load} />
+        {(items ?? []).map((p) => (
           <li key={p.id} className="rounded-md border border-warn/40 bg-warn-tint p-3 text-[12px]" data-testid="queue-row">
             <p className="text-muted mb-2">
               {modelName(p.agent)}'s review of {p.task} would reverse {p.decision?.id ?? 'a decision'}. It is not applied until you decide.

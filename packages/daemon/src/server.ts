@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
 import { createBunWebSocket } from 'hono/bun';
+import { acpAgent } from '@stint-dev/adapter-acp';
 import { cliAgent } from '@stint-dev/adapter-cli-agent';
 import { claudeCode } from '@stint-dev/adapter-claude-code';
 import { codex } from '@stint-dev/adapter-codex';
@@ -20,9 +21,10 @@ export function defaultAdapters(config?: Config): Adapter[] {
   const agents: Adapter[] = [];
   for (const [name, def] of Object.entries(cfg.agents ?? {})) {
     if (!def.enabled) continue;
-    const harness = def.harness ?? 'cli';
+    const harness = def.acp ? 'acp' : (def.harness ?? 'cli');
     if (harness === 'claude-code') agents.push(claudeCode(name, def));
     else if (harness === 'codex') agents.push(codex(name, def));
+    else if (harness === 'acp') agents.push(acpAgent(name, def));
     else agents.push(cliAgent(name, def));
   }
   return [replayAdapter, museCodeAdapter, createStintAgent(config), ...agents];

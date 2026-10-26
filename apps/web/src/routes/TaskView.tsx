@@ -9,6 +9,7 @@ import { DiffView } from '../components/DiffView';
 import { HandTo } from '../components/HandTo';
 import { MemoryPanel } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
+import { PermissionBanner } from '../components/Permissions';
 import { QuizPanel } from '../components/Quiz';
 import { Terminal } from '../components/Terminal';
 import { FilesTab } from '../components/Files';
@@ -93,6 +94,25 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     if (!last) return { on: false, text: null as string | null };
     return { on: last.type !== 'autopilot.stopped', text: typeof last.payload.reason === 'string' ? last.payload.reason : last.type === 'autopilot.started' ? 'Starting.' : null };
   }, [events]);
+  const pendingPermissions = useMemo(() => {
+    const waiting = new Map<string, { task: string; run: string; requestId: string; tool: string; title: string; options: Array<{ optionId: string; name: string; kind: string }> }>();
+    for (const e of events) {
+      const requestId = typeof e.payload.requestId === 'string' ? e.payload.requestId : '';
+      if (!requestId) continue;
+      if (e.type === 'permission.requested') {
+        const options = Array.isArray(e.payload.options)
+          ? e.payload.options.map((o) => {
+              const r = (o ?? {}) as Record<string, unknown>;
+              return { optionId: String(r.optionId ?? ''), name: String(r.name ?? r.optionId ?? ''), kind: String(r.kind ?? 'allow_once') };
+            })
+          : [];
+        waiting.set(requestId, { task: e.task, run: e.run ?? '', requestId, tool: String(e.payload.tool ?? 'tool'), title: String(e.payload.title ?? ''), options });
+      } else if (e.type === 'permission.decided') {
+        waiting.delete(requestId);
+      }
+    }
+    return [...waiting.values()];
+  }, [events]);
   const [autoBusy, setAutoBusy] = useState(false);
   const toggleAutopilot = () => {
     setAutoBusy(true);
@@ -142,6 +162,9 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
             {autopilot.text}
           </p>
         ) : null}
+        <div className="mt-2">
+          <PermissionBanner permissions={pendingPermissions.filter((p) => p.run === (bundle.runs.find((r) => !r.endedAt)?.run ?? p.run))} />
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         <Rail events={events} runs={bundle.runs} showAll={showAll} selected={selected} onSelect={(s) => setParam('ev', String(s))} onOpenPacket={(name) => {

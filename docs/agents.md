@@ -6,9 +6,9 @@ Stint's defaults run Meta's models: Muse Code builds, the Stint agent continues 
 
 Any agent with a command line can take a task. It gets the same worktree, `prompt.md` with the packet, the daemon's own test run, and a packet when it ends. Agents live under `agents` in the config. Each entry is a manifest: the command to run, how the prompt reaches it, the roles it can take (`planner`, `implementer`, `reviewer`, `tester`, `learn`), the vendor, an optional model and host, and whether it is on. `host` must name a host in `hosts`, and every host in `routes` must be in `hosts` too. The daemon says so in plain words when it loads the config if one is missing.
 
-`harness` picks the adapter. `cli` is the generic command line adapter. `claude-code` and `codex` are the native adapters described below. It defaults to `cli`.
+`harness` picks the adapter. `cli` is the generic command line adapter. `claude-code` and `codex` are the native adapters described below. `acp` is the Agent Client Protocol adapter described below; `acp: true` in a manifest means the same thing. It defaults to `cli`.
 
-Six presets ship turned off: `claude-code`, `codex`, `goose`, `opencode`, `gemini-cli` and `aider`. Set `enabled` to `true` and restart `stint up`. Then hand a task over with `stint hand T-0042 claude-code`. `/api/health` lists every configured agent, turned off ones as disabled, and the Hand to picker marks them the same way.
+Seven presets ship turned off: `claude-code`, `codex`, `goose`, `opencode`, `gemini-acp`, `gemini-cli` and `aider`. Set `enabled` to `true` and restart `stint up`. Then hand a task over with `stint hand T-0042 claude-code`. `/api/health` lists every configured agent, turned off ones as disabled, and the Hand to picker marks them the same way.
 
 No preset carries a flag that bypasses approvals or turns off a sandbox. Some agents ask before they act unless such a flag is given, so the presets use the safest flags that still run without a person at the keyboard. You choose any further permission flags for your own machine, in `command` or in `permissions.flags`, which Stint adds to the command line.
 
@@ -70,6 +70,20 @@ The two variable names in `env` are what let the daemon pass them into the run; 
 The `codex` preset uses the native harness: `codex exec --json --sandbox workspace-write -`, with the prompt on stdin. Stint maps the thread start, agent messages, command runs, file changes, MCP tool calls and the turn usage onto the timeline, and resumes with `codex exec resume <thread id>`. The gate is observed.
 
 To run Codex on a Meta model, give Codex an OpenAI-compatible provider in your Codex config (`~/.codex/config.toml`) that points at a host serving Muse Spark Open, such as Fireworks or Baseten, with that host's key variable as its `env_key`. Then turn the preset on and set its `model` to the model id that provider expects. Stint passes the model with `--model` and passes through only the variables named in `env`, such as `OPENAI_API_KEY`. Codex keeps its own provider and key settings; Stint only starts it in the worktree, watches it, and verifies after.
+
+### Agent Client Protocol (ACP)
+
+The Agent Client Protocol is JSON-RPC 2.0 over stdio, one JSON object per line, spoken by goose, opencode, Gemini CLI and others: https://agentclientprotocol.com. With `harness: "acp"`, Stint is the client. It starts the command in the manifest, opens a session in the run's worktree, and sends `prompt.md` as the prompt; the manifest's `prompt` setting is ignored for ACP. Messages, tool calls and tool results from the agent land on the same timeline as every other run. ACP does not report token usage, so these runs show as unpriced, not as $0.
+
+Because Stint is the client, the agent's file reads and writes, terminal commands and permission questions come to Stint first. File paths must resolve inside the worktree, symlinks included; a path outside is refused and recorded. Terminal commands run in the worktree in the run's sandbox. A permission question waits for you: it appears on the task and in the Factory queue with the choices the agent offered (such as allow once, always for this run, or reject), and your answer goes back to the agent. `GET /api/permissions` lists the questions still waiting. Stopping a run cancels any question it is waiting on.
+
+Three presets use ACP, all turned off: `goose` (`goose acp`, https://block.github.io/goose/docs/guides/acp-clients), `opencode` (`opencode acp`, https://opencode.ai/docs/acp/) and `gemini-acp` (`gemini --experimental-acp`, https://geminicli.com/docs/cli/acp-mode/). No preset carries a flag that bypasses approvals.
+
+To run goose on a Meta model, configure goose with an OpenAI-compatible provider pointed at the Meta Model API: set the provider's base URL to `https://api.meta.ai/v1`, give it your `META_API_KEY` in goose's own settings, and pick a Muse model such as `muse-spark-1.3`. Then turn the `goose` preset on.
+
+To run opencode on a Meta model, add an OpenAI-compatible provider in your opencode config with the same base URL, `https://api.meta.ai/v1`, your `META_API_KEY`, and a Muse model. Then turn the `opencode` preset on.
+
+To run either one offline, point that same OpenAI-compatible provider at Ollama on your machine instead: base URL `http://localhost:11434/v1`, model `muse-glimmer:30b-mlx`, and no key. goose and opencode both accept a custom OpenAI-compatible endpoint, so the only change is the address and the model name. The keys stay in each tool's own settings and your environment; Stint passes through only the variables named in `env`.
 
 ## Another model
 

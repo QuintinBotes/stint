@@ -1,7 +1,7 @@
 import type { Adapter, AgentDef, Availability, CapabilityLevel, Config, GateStrength, Role, Vendor } from '@stint-dev/core';
 import readership from '../../core/src/readership.json';
 
-export type { Adapter, AdapterCapabilities, AdapterEvent, Availability, Enrichment, RunContext, RunResult } from '@stint-dev/core';
+export type { Adapter, AdapterCapabilities, AdapterEvent, Availability, Enrichment, PermissionOption, PermissionRequest, RunContext, RunResult } from '@stint-dev/core';
 
 /** Adapters Stint knows about; health always lists every one of them, configured or not. */
 export const KNOWN_ADAPTERS: Array<{ id: string; vendor: Vendor; roles: Role[]; arrivesIn: string }> = [

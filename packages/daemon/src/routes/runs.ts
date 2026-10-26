@@ -51,4 +51,27 @@ export function runRoutes(app: Hono, ctx: DaemonContext): void {
     const r = await assign(ctx, c.req.param('id'), body);
     return c.json({ run: r.run, worktree: r.worktree }, 202);
   });
+
+  // every permission question waiting for a person, across tasks (R-033)
+  app.get('/api/permissions', (c) => c.json(ctx.runs.pendingPermissions()));
+
+  app.post('/api/tasks/:id/runs/:run/permission', async (c) => {
+    const body = z
+      .strictObject({ requestId: z.string().min(1), optionId: z.string().min(1).optional(), option: z.string().min(1).optional(), by: z.string().min(1).max(80).optional() })
+      .parse(await c.req.json());
+    const optionId = body.optionId ?? body.option;
+    if (!optionId) throw new DaemonError('invalid', 'optionId is required');
+    const id = c.req.param('id');
+    const run = c.req.param('run');
+    const live = ctx.runs.get(id);
+    if (!live || live.run !== run) throw new DaemonError('not_found', `${id} ${run} is not running`);
+    const pending = live.permissions?.get(body.requestId);
+    if (!pending) throw new DaemonError('not_found', `no pending permission ${body.requestId} on ${id} ${run}`);
+    if (!pending.options.some((o) => o.optionId === optionId)) throw new DaemonError('invalid', `${optionId} is not one of the options for ${body.requestId}`);
+    live.permissions?.delete(body.requestId);
+    const by = body.by ?? 'human';
+    await ctx.ws.events(id).append({ task: id, run, adapter: live.adapter, vendor: 'human', type: 'permission.decided', payload: { requestId: body.requestId, optionId, by } });
+    pending.resolve({ optionId });
+    return c.json({ ok: true, requestId: body.requestId, optionId });
+  });
 }

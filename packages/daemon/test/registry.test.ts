@@ -54,7 +54,7 @@ describe('the open registry', () => {
       }
       expect(byId.get('claude-code')?.harness).toBe('claude-code');
       expect(byId.get('codex')?.harness).toBe('codex');
-      expect(byId.get('goose')?.harness).toBe('cli');
+      expect(byId.get('goose')?.harness).toBe('acp');
       expect(byId.get('claude-code')?.capabilities?.costReporting).toBe(true);
     } finally {
       tmp.cleanup();
@@ -86,7 +86,7 @@ describe('the open registry', () => {
 
   test('the shipped presets are disabled, name their harness, and carry no flag that bypasses approvals or turns off a sandbox', () => {
     const agents = DEFAULT_CONFIG.agents ?? {};
-    expect(Object.keys(agents).sort()).toEqual(['aider', 'claude-code', 'codex', 'gemini-cli', 'goose', 'opencode']);
+    expect(Object.keys(agents).sort()).toEqual(['aider', 'claude-code', 'codex', 'gemini-acp', 'gemini-cli', 'goose', 'opencode']);
     const banned = /--yolo|--dangerously|--yes-always|--full-auto|bypassPermissions|danger-full-access/i;
     for (const [id, def] of Object.entries(agents)) {
       expect(def.enabled, id).toBe(false);
@@ -96,7 +96,7 @@ describe('the open registry', () => {
     }
     expect(agents['claude-code']?.harness).toBe('claude-code');
     expect(agents.codex?.harness).toBe('codex');
-    expect(agents.goose?.harness).toBe('cli');
+    expect(agents.goose?.harness).toBe('acp');
     expect(agents['claude-code']?.env).toContain('ANTHROPIC_BASE_URL');
     expect(agents['claude-code']?.env).toContain('ANTHROPIC_AUTH_TOKEN');
   });
@@ -124,4 +124,15 @@ describe('the open registry', () => {
     expect(def.roles).toEqual(['tester', 'learn']);
     expect(def.harness).toBe('cli');
   });
+});
+
+test('ACP agents are built by the ACP adapter, from harness acp or the acp shorthand', async () => {
+  const { DEFAULT_CONFIG } = await import('@stint-dev/core');
+  const { defaultAdapters } = await import('../src/server');
+  const config = structuredClone(DEFAULT_CONFIG);
+  for (const id of ['goose', 'opencode', 'gemini-acp']) (config.agents?.[id] as { enabled: boolean }).enabled = true;
+  config.agents = { ...config.agents, mine: { command: ['my-agent', 'acp'], prompt: 'stdin', roles: ['implementer'], vendor: 'other', enabled: true, harness: 'cli', acp: true } };
+  const ids = defaultAdapters(config).map((a) => [a.id, a.gate(), a.capabilities.runsCommands]);
+  for (const id of ['goose', 'opencode', 'gemini-acp', 'mine']) expect(ids).toContainEqual([id, 'observed', true]);
+  expect(config.agents?.goose?.command).toEqual(['goose', 'acp']);
 });

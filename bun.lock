@@ -41,6 +41,16 @@
         "vite": "7.3.7",
       },
     },
+    "packages/adapters/acp": {
+      "name": "@stint-dev/adapter-acp",
+      "version": "0.0.0",
+      "dependencies": {
+        "@stint-dev/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@stint-dev/daemon": "workspace:*",
+      },
+    },
     "packages/adapters/claude-code": {
       "name": "@stint-dev/adapter-claude-code",
       "version": "0.0.0",
@@ -126,6 +136,7 @@
       "name": "@stint-dev/daemon",
       "version": "0.0.0",
       "dependencies": {
+        "@stint-dev/adapter-acp": "workspace:*",
         "@stint-dev/adapter-claude-code": "workspace:*",
         "@stint-dev/adapter-cli-agent": "workspace:*",
         "@stint-dev/adapter-codex": "workspace:*",
@@ -345,6 +356,8 @@
     "@rollup/rollup-win32-x64-gnu": ["@rollup/rollup-win32-x64-gnu@4.65.1", "", { "os": "win32", "cpu": "x64" }, "sha512-+KN8HIr88vN59JNxlrM2fMimzY43Y0lQB7+0xdVsFbvFCAA74CLKCdfzIHzzvndJryBc94Pm+MvwtukKjaS2ug=="],
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.65.1", "", { "os": "win32", "cpu": "x64" }, "sha512-+Y1Sd49cSDq60UOl8/U2HI0ebUvnSl/hDhMHQn+ouw17yb8fYwMWIazzJ4JFpSkjPE7sj5NTNSX9IoyEqcFfyQ=="],
+
+    "@stint-dev/adapter-acp": ["@stint-dev/adapter-acp@workspace:packages/adapters/acp"],
 
     "@stint-dev/adapter-claude-code": ["@stint-dev/adapter-claude-code@workspace:packages/adapters/claude-code"],
 

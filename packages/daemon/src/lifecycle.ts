@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { type Cost, type Role, type Task, countTokens, priceUsage } from '@stint-dev/core';
+import { type Cost, type PermissionRequest, type Role, type Task, countTokens, priceUsage } from '@stint-dev/core';
 import { runsFromEvents, writeJsonAtomic } from '@stint-dev/core/node';
 import { lockPlanTests } from './acceptance';
 import type { Adapter, RunResult } from './adapter';
@@ -169,7 +169,38 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
 
   await writeActive(ctx, { task: taskId, run, worktree: relative(ws.root, wt.path), adapter: adapter.id });
   const abort = new AbortController();
-  const live = { task: taskId, run, adapter: adapter.id, worktree: wt.path, startedAt, abort, inFlight: null as string | null, done: Promise.resolve() as Promise<unknown> };
+  const live = {
+    task: taskId,
+    run,
+    adapter: adapter.id,
+    worktree: wt.path,
+    startedAt,
+    abort,
+    inFlight: null as string | null,
+    permissions: new Map<string, { requestId: string; tool: string; title: string; options: PermissionRequest['options']; resolve: (answer: { optionId: string } | 'cancelled') => void }>(),
+    done: Promise.resolve() as Promise<unknown>,
+  };
+  const askPermission = async (req: PermissionRequest): Promise<{ optionId: string } | 'cancelled'> => {
+    if (abort.signal.aborted) return 'cancelled';
+    let resolveAnswer: (answer: { optionId: string } | 'cancelled') => void = () => undefined;
+    const answer = new Promise<{ optionId: string } | 'cancelled'>((r) => {
+      resolveAnswer = r;
+    });
+    live.permissions.set(req.requestId, { requestId: req.requestId, tool: req.tool, title: req.title, options: req.options, resolve: resolveAnswer });
+    abort.signal.addEventListener(
+      'abort',
+      () => {
+        if (live.permissions.delete(req.requestId)) resolveAnswer('cancelled');
+      },
+      { once: true },
+    );
+    await events.append({ ...base, type: 'permission.requested', payload: { requestId: req.requestId, run, tool: req.tool, title: req.title, options: req.options } });
+    if (abort.signal.aborted) {
+      live.permissions.delete(req.requestId);
+      return 'cancelled';
+    }
+    return answer;
+  };
   const done = (async () => {
     const snaps = ctx.worktrees.startSnapshots(task, run, wt.path, ctx.snapshotMs);
     let result: RunResult;
@@ -192,6 +223,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
         env: sandbox.env,
         ...(sandbox.wrap ? { wrap: sandbox.wrap } : {}),
         signal: abort.signal,
+        askPermission,
         onSpawn: (pid) => {
           (live as { pgid?: number }).pgid = pid;
         },
@@ -242,7 +274,16 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
 export async function stop(ctx: DaemonContext, taskId: string, run: string): Promise<{ run: string; stopped: boolean }> {
   const live = ctx.runs.get(taskId);
   if (!live || live.run !== run) throw new DaemonError('not_found', `${taskId} ${run} is not running`);
+  const pending = [...(live.permissions?.values() ?? [])];
   live.abort.abort();
+  for (const p of pending) {
+    live.permissions?.delete(p.requestId);
+    p.resolve('cancelled');
+    await ctx.ws
+      .events(taskId)
+      .append({ task: taskId, run, vendor: 'daemon', type: 'permission.decided', payload: { requestId: p.requestId, optionId: null, cancelled: true, by: 'stop' } })
+      .catch(() => undefined);
+  }
   const closed = await Promise.race([live.done.then(() => true), Bun.sleep(5_000).then(() => false)]);
   return { run, stopped: closed };
 }

@@ -213,6 +213,6 @@ export function cliAgent(name: string, def: AgentDef): Adapter {
 /** The adapters for every enabled generic (`cli` harness) agent in config; native harnesses are built by the daemon. */
 export function cliAgents(config: Pick<Config, 'agents'>): Adapter[] {
   return Object.entries(config.agents ?? {})
-    .filter(([, def]) => def.enabled && (def.harness ?? 'cli') === 'cli')
+    .filter(([, def]) => def.enabled && !def.acp && (def.harness ?? 'cli') === 'cli')
     .map(([name, def]) => cliAgent(name, def));
 }

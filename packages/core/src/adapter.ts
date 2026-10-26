@@ -17,6 +17,12 @@ export type AdapterCapabilities = {
 /** An event an adapter reports; the daemon adds task, run, adapter and vendor before it lands in the log. */
 export type AdapterEvent = Omit<NewEvent, 'task' | 'run' | 'adapter' | 'vendor' | 'type'> & { type: string };
 
+/** One choice an agent offers when it asks permission (R-033). */
+export type PermissionOption = { optionId: string; name: string; kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always' | string };
+
+/** A permission question from an agent, answered by a person through the daemon (R-033). */
+export type PermissionRequest = { requestId: string; tool: string; title: string; options: PermissionOption[] };
+
 export type RunContext = {
   /** Called with the agent's process id once it is spawned, so a stop can kill its process group. */
   onSpawn?: (pid: number) => void;
@@ -34,6 +40,8 @@ export type RunContext = {
   /** Wraps a command line in the run's sandbox (R-040); adapters apply it to every process they start. */
   wrap?: (argv: string[]) => string[];
   signal: AbortSignal;
+  /** Asks a person to allow or reject one agent action; resolves with the chosen option or 'cancelled' (R-033). */
+  askPermission?: (req: PermissionRequest) => Promise<{ optionId: string } | 'cancelled'>;
   emit: (e: AdapterEvent) => Promise<void>;
   transcript: (line: string) => Promise<{ pointer: string; byteLen: number }>;
 };
