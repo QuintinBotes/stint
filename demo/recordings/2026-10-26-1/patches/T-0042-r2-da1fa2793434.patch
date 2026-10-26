@@ -1,0 +1,98 @@
+diff --git a/src/app.ts b/src/app.ts
+index c41e355..67acbdc 100644
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -2,6 +2,7 @@ import { Hono } from 'hono';
+ import { type Config, loadConfig } from './config';
+ import { AuditLog } from './lib/audit';
+ import { EventStore } from './lib/store';
++import { RateLimiter } from './rate-limit';
+ import { TenantRegistry } from './lib/tenants';
+ import { adminRoutes } from './routes/admin';
+ import { auditRoutes } from './routes/audit';
+@@ -13,6 +14,7 @@ export interface Deps {
+   store: EventStore;
+   tenants: TenantRegistry;
+   audit: AuditLog;
++  rateLimiter: RateLimiter;
+ }
+ 
+ export function createDeps(config: Config = loadConfig()): Deps {
+@@ -24,6 +26,7 @@ export function createDeps(config: Config = loadConfig()): Deps {
+       { id: 'tenant-b', name: 'Tenant B' },
+     ]),
+     audit: new AuditLog(),
++    rateLimiter: new RateLimiter(config.rateLimitMaxRequests, config.rateLimitWindowMs),
+   };
+ }
+ 
+diff --git a/src/config.ts b/src/config.ts
+index 7816adc..5c7cb2b 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -3,6 +3,8 @@ export interface Config {
+   maxBodyBytes: number;
+   replayMaxAttempts: number;
+   replayBaseDelayMs: number;
++  rateLimitMaxRequests: number;
++  rateLimitWindowMs: number;
+ }
+ 
+ type Env = Record<string, string | undefined>;
+@@ -19,5 +21,7 @@ export function loadConfig(env: Env = process.env): Config {
+     maxBodyBytes: positiveInt(env.MAX_BODY_BYTES, 65536),
+     replayMaxAttempts: positiveInt(env.REPLAY_MAX_ATTEMPTS, 5),
+     replayBaseDelayMs: positiveInt(env.REPLAY_BASE_DELAY_MS, 100),
++    rateLimitMaxRequests: positiveInt(env.RATE_LIMIT_MAX_REQUESTS, 100),
++    rateLimitWindowMs: positiveInt(env.RATE_LIMIT_WINDOW_MS, 60_000),
+   };
+ }
+diff --git a/src/rate-limit.ts b/src/rate-limit.ts
+new file mode 100644
+index 0000000..71c7bd6
+--- /dev/null
++++ b/src/rate-limit.ts
+@@ -0,0 +1,40 @@
++export interface RateLimitResult {
++  allowed: boolean;
++  /** Milliseconds from now until the current window resets. */
++  msUntilReset: number;
++}
++
++export type Clock = () => number;
++
++/** Fixed-window in-memory limiter keyed by an arbitrary string (tenant id). */
++export class RateLimiter {
++  private buckets = new Map<string, { count: number; resetAt: number }>();
++
++  constructor(
++    private maxRequests: number,
++    private windowMs: number,
++    private now: Clock = () => Date.now(),
++  ) {}
++
++  consume(key: string): RateLimitResult {
++    const t = this.now();
++    this.prune(t);
++    const bucket = this.buckets.get(key);
++    if (bucket === undefined || t >= bucket.resetAt) {
++      const resetAt = t + this.windowMs;
++      this.buckets.set(key, { count: 1, resetAt });
++      return { allowed: true, msUntilReset: this.windowMs };
++    }
++    if (bucket.count < this.maxRequests) {
++      bucket.count += 1;
++      return { allowed: true, msUntilReset: bucket.resetAt - t };
++    }
++    return { allowed: false, msUntilReset: bucket.resetAt - t };
++  }
++
++  private prune(t: number): void {
++    for (const [key, bucket] of this.buckets) {
++      if (t >= bucket.resetAt) this.buckets.delete(key);
++    }
++  }
++}
+-- 
+2.54.0 (Apple Git-157)
+

@@ -1,0 +1,90 @@
+diff --git a/src/routes/webhooks.ts b/src/routes/webhooks.ts
+index 5292091..44d64cf 100644
+--- a/src/routes/webhooks.ts
++++ b/src/routes/webhooks.ts
+@@ -9,6 +9,12 @@ export function webhookRoutes(deps: Deps): Hono {
+     if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
+     if (!deps.tenants.get(tenant)) return c.json({ error: `unknown tenant ${tenant}` }, 404);
+ 
++    const verdict = deps.rateLimiter.consume(tenant);
++    if (!verdict.allowed) {
++      const retryAfter = Math.max(1, Math.ceil(verdict.msUntilReset / 1000));
++      return c.json({ error: 'rate limit exceeded' }, 429, { 'Retry-After': String(retryAfter) });
++    }
++
+     const raw = await c.req.text();
+     if (new TextEncoder().encode(raw).length > deps.config.maxBodyBytes) {
+       return c.json({ error: 'payload too large' }, 413);
+diff --git a/test/config.test.ts b/test/config.test.ts
+index dbec790..edeb457 100644
+--- a/test/config.test.ts
++++ b/test/config.test.ts
+@@ -3,12 +3,26 @@ import { loadConfig } from '../src/config';
+ 
+ describe('config', () => {
+   it('uses defaults when the environment is empty', () => {
+-    expect(loadConfig({})).toEqual({ port: 3000, maxBodyBytes: 65536, replayMaxAttempts: 5, replayBaseDelayMs: 100 });
++    expect(loadConfig({})).toEqual({
++      port: 3000,
++      maxBodyBytes: 65536,
++      replayMaxAttempts: 5,
++      replayBaseDelayMs: 100,
++      rateLimitMaxRequests: 100,
++      rateLimitWindowMs: 60_000,
++    });
+   });
+ 
+   it('reads values from the environment', () => {
+     const config = loadConfig({ PORT: '8080', MAX_BODY_BYTES: '1024', REPLAY_MAX_ATTEMPTS: '3', REPLAY_BASE_DELAY_MS: '50' });
+-    expect(config).toEqual({ port: 8080, maxBodyBytes: 1024, replayMaxAttempts: 3, replayBaseDelayMs: 50 });
++    expect(config).toEqual({
++      port: 8080,
++      maxBodyBytes: 1024,
++      replayMaxAttempts: 3,
++      replayBaseDelayMs: 50,
++      rateLimitMaxRequests: 100,
++      rateLimitWindowMs: 60_000,
++    });
+   });
+ 
+   it('falls back on values that are not numbers', () => {
+diff --git a/test/webhooks.rate-limit.test.ts b/test/webhooks.rate-limit.test.ts
+new file mode 100644
+index 0000000..ff125e8
+--- /dev/null
++++ b/test/webhooks.rate-limit.test.ts
+@@ -0,0 +1,31 @@
++import { describe, expect, it } from 'vitest';
++import { setup } from './helpers';
++
++describe('POST /webhooks rate limiting', () => {
++  it('accepts webhooks under the limit', async () => {
++    const { postWebhook } = setup({ rateLimitMaxRequests: 3, rateLimitWindowMs: 60_000 });
++    for (let i = 0; i < 3; i++) {
++      const res = await postWebhook('tenant-a', { type: 'invoice.paid' });
++      expect(res.status).toBe(202);
++    }
++  });
++
++  it('returns 429 with Retry-After when a tenant exceeds the limit', async () => {
++    const { postWebhook } = setup({ rateLimitMaxRequests: 2, rateLimitWindowMs: 60_000 });
++    expect((await postWebhook('tenant-a', { type: 'a' })).status).toBe(202);
++    expect((await postWebhook('tenant-a', { type: 'b' })).status).toBe(202);
++
++    const res = await postWebhook('tenant-a', { type: 'c' });
++    expect(res.status).toBe(429);
++    const retryAfter = res.headers.get('Retry-After');
++    expect(retryAfter).not.toBeNull();
++    expect(Number(retryAfter)).toBeGreaterThan(0);
++  });
++
++  it('does not rate-limit other tenants when one tenant is over the limit', async () => {
++    const { postWebhook } = setup({ rateLimitMaxRequests: 1, rateLimitWindowMs: 60_000 });
++    expect((await postWebhook('tenant-a', { type: 'a' })).status).toBe(202);
++    expect((await postWebhook('tenant-a', { type: 'b' })).status).toBe(429);
++    expect((await postWebhook('tenant-b', { type: 'a' })).status).toBe(202);
++  });
++});
+-- 
+2.54.0 (Apple Git-157)
+

@@ -41,7 +41,7 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 |---|---|---|---|---|---|
 | 1 | R-008 | PASS | author | 2026-10-26 | replay plays end to end with no keys: `stint demo --speed 0` done at 2:35 in 3 s from a clean install; the CI quickstart job and 16 UI tests run against it |
 | 2 | R-014 | PASS | author | 2026-10-26 | live Muse Code to Stint agent handoff passes verification: Muse Code killed mid T-0042, the Stint agent continued from the packet on Muse Spark 1.3, the daemon's run passed 29 of 29 ($0.10); continue.live.test.ts with STINT_LIVE=1 |
-| 3 | R-019 | pending | | | full live demo incl. offline review and approve |
+| 3 | R-019 | partial | author | 2026-10-26 | full live demo incl. offline review and approve: the second rehearsal ran every beat live (plan, Muse Code killed with a 567-token packet, the Stint agent green 30 of 30, review, approve and merge, T-0043 to the gate; $0.34) and is recorded in demo/recordings/2026-10-26-1, whose replay rebuilds the same packet hash. Open: the review ran on Muse Spark because Ollama was busy with another model (needs Glimmer, network off), and the learn step proposed nothing because the live review found no recurring finding |
 | 4 | R-023 | pending | | | video recorded, repo public-ready |
 
 ## Decisions (append-only; D-001 upward; a reversal is a new line with supersedes)
@@ -88,6 +88,7 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 | D-038 | 2026-10-26 | author | First live bench (5 tasks, Muse Code capped at 7 or 8 steps, Stint agent on Muse Spark 1.3 continues): hand-over prompt 728 tokens from the packet against 4,418 from the transcript; whole continued run 64,863 against 60,816 input tokens ($0.065 against $0.059); 5 of 5 green both ways. Reported as measured. Response: a killed or unaskable run's packet gets a diff digest (what the code now does) from routes.summary, on in `stint up`; the quiz writer states one fact per statement and can reuse frozen statements (`statementsFrom`) so two packets for one run compare | the packet agent re-read code the packet did not describe; the quiz found the same gap |
 | D-039 | 2026-10-26 | author | Second live run of the packet side with the diff digest (bench/digest): mean input 48,623 tokens (64,863 without the digest, 60,816 from the transcript), prompt 797 tokens, $0.054, 5 of 5 green; the digest did not arrive for one task. Reported with the sample-size caveat | the fix the quiz pointed to, measured |
 | D-040 | 2026-10-26 | author | A packet over 600 tokens is trimmed in steps (fewer list items, shorter items, the largest file changes only, a shorter summary) with a note saying what was left out, and is refused only if the tightest step still does not fit | the first live rehearsal: a killed run with a six-step Wonder plan (1,056 characters of open steps, 771 of risks) rendered 1,039 tokens, the builder refused, and the run never closed; a run that leaves no packet breaks the core promise |
+| D-041 | 2026-10-26 | author | A recording stores the diff of each commit only, never format-patch's mail header | the first live recording carried the commit author's real name and address in its patches; the identity guard caught it before commit |
 
 ## Deviations (a spec line not followed, with the reason; the human decides whether the spec changes)
 

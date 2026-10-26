@@ -1,0 +1,75 @@
+diff --git a/src/routes/admin.ts b/src/routes/admin.ts
+index c5cb715..576c377 100644
+--- a/src/routes/admin.ts
++++ b/src/routes/admin.ts
+@@ -5,6 +5,18 @@ import { TenantError } from '../lib/tenants';
+ export function adminRoutes(deps: Deps): Hono {
+   const r = new Hono();
+ 
++  // Shared fixed-window bucket for all admin requests, which carry no tenant.
++  // The key uses characters invalid in tenant ids so it can never collide
++  // with the per-tenant webhook buckets in the same limiter.
++  r.use(async (c, next) => {
++    const verdict = deps.rateLimiter.consume('__admin__');
++    if (!verdict.allowed) {
++      const retryAfter = Math.max(1, Math.ceil(verdict.msUntilReset / 1000));
++      return c.json({ error: 'rate limit exceeded' }, 429, { 'Retry-After': String(retryAfter) });
++    }
++    await next();
++  });
++
+   r.get('/tenants', (c) => c.json({ tenants: deps.tenants.list() }));
+ 
+   r.post('/tenants', async (c) => {
+diff --git a/test/admin.rate-limit.test.ts b/test/admin.rate-limit.test.ts
+new file mode 100644
+index 0000000..97725f5
+--- /dev/null
++++ b/test/admin.rate-limit.test.ts
+@@ -0,0 +1,43 @@
++import { describe, expect, it } from 'vitest';
++import { setup } from './helpers';
++
++describe('admin API rate limiting', () => {
++  it('returns 429 with Retry-After when tenant creation exceeds the limit', async () => {
++    const { send } = setup({ rateLimitMaxRequests: 2, rateLimitWindowMs: 60_000 });
++    const create = (id: string) =>
++      send('/admin/tenants', { method: 'POST', body: JSON.stringify({ id, name: `Tenant ${id}` }) });
++
++    expect((await create('tenant-c')).status).toBe(201);
++    expect((await create('tenant-d')).status).toBe(201);
++
++    const res = await create('tenant-e');
++    expect(res.status).toBe(429);
++    expect(await res.json()).toEqual({ error: 'rate limit exceeded' });
++    const retryAfter = res.headers.get('Retry-After');
++    expect(retryAfter).not.toBeNull();
++    expect(Number(retryAfter)).toBeGreaterThan(0);
++  });
++
++  it('limits reads and writes through one shared bucket', async () => {
++    const { send } = setup({ rateLimitMaxRequests: 2, rateLimitWindowMs: 60_000 });
++
++    expect((await send('/admin/tenants')).status).toBe(200);
++    expect(
++      (
++        await send('/admin/tenants', {
++          method: 'POST',
++          body: JSON.stringify({ id: 'tenant-c', name: 'Tenant C' }),
++        })
++      ).status,
++    ).toBe(201);
++    expect((await send('/admin/tenants')).status).toBe(429);
++  });
++
++  it('does not share the bucket with webhook traffic', async () => {
++    const { send, postWebhook } = setup({ rateLimitMaxRequests: 1, rateLimitWindowMs: 60_000 });
++
++    expect((await postWebhook('tenant-a', { type: 'a' })).status).toBe(202);
++    expect((await postWebhook('tenant-a', { type: 'b' })).status).toBe(429);
++    expect((await send('/admin/tenants')).status).toBe(200);
++  });
++});
+-- 
+2.54.0 (Apple Git-157)
+

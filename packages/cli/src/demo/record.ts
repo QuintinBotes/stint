@@ -90,7 +90,11 @@ export async function recordWorkspace(o: RecordOptions): Promise<RecordResult> {
       const commit = str(e.payload.commit);
       if (!(await isAncestor(repo, commit, task.baseCommit))) {
         const meta = await commitMeta(repo, commit);
-        const patch = await gitOk(repo, ['format-patch', '-1', '--stdout', commit]);
+        // the diff only: format-patch's mail header names the commit's author (a real name and address),
+        // and the replay commits with its own fixed identity anyway
+        const full = await gitOk(repo, ['format-patch', '-1', '--stdout', commit]);
+        const at = full.indexOf('diff --git');
+        const patch = at >= 0 ? full.slice(at).replace(/\n-- \n[^\n]*\n?$/, '\n') : '';
         const name = `${e.task}-${e.run ?? 'run'}-${commit.slice(0, 12)}.patch`;
         await Bun.write(join(patchesDir, name), scrubPaths(patch));
         patches.push(name);
