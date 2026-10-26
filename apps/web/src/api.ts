@@ -14,6 +14,7 @@ export type Health = {
   models?: ModelHealth[];
   autopilot?: { running: string[]; queued: string[] };
 };
+export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number };
 export type ModelHealth = { host: string; model: string; roles: string[]; ready: boolean; reason: string | null; offline: boolean };
 
 export type RunSummary = {
@@ -120,6 +121,9 @@ export const api = {
   graphQuery: <T>(params: Record<string, string>) => request<T[]>(`/api/graph/query?${new URLSearchParams(params)}`),
   pending: () => request<PendingItem[]>('/api/graph/pending'),
   settle: (name: string, action: 'keep' | 'supersede') => post<unknown>(`/api/graph/pending/${name}`, { action }),
+  skills: () => request<SkillRecord[]>('/api/skills'),
+  approveSkill: (id: string) => post<unknown>(`/api/skills/${id}/approve`),
+  rejectSkill: (id: string, reason: string) => post<unknown>(`/api/skills/${id}/reject`, { reason }),
   stopRun: (id: string, run: string) => post<unknown>(`/api/tasks/${id}/runs/${run}/stop`),
   autopilot: (id: string, on: boolean) => post<{ on: boolean; running: string[]; queued: string[] }>(`/api/tasks/${id}/autopilot`, { on }),
 };

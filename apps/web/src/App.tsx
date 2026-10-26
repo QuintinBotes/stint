@@ -5,6 +5,7 @@ import { Kbd } from './components/ui';
 import { useHealth } from './hooks';
 import { Board } from './routes/Board';
 import { Factory } from './routes/Factory';
+import { Skills } from './routes/Skills';
 import { Placeholder, TaskView } from './routes/TaskView';
 import { useTheme } from './theme';
 
@@ -57,7 +58,7 @@ export function App() {
           <Route path="/" element={<Board />} />
           <Route path="/t/:id" element={<TaskView memoryOpen={memoryOpen} />} />
           <Route path="/factory" element={<Factory />} />
-          <Route path="/skills" element={<Placeholder title="Skills">Skills the agents load, and the ones the learn step proposes, appear here. The skills registry arrives in R-020.</Placeholder>} />
+          <Route path="/skills" element={<Skills />} />
           <Route path="*" element={<Placeholder title="Not found">There is nothing at this address. The board is at the top left.</Placeholder>} />
         </Routes>
         <Palette open={palette} onClose={() => setPalette(false)} actions={actions} />
