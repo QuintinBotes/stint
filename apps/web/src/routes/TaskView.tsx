@@ -11,6 +11,7 @@ import { MemoryPanel } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
 import { QuizPanel } from '../components/Quiz';
 import { Terminal } from '../components/Terminal';
+import { FilesTab } from '../components/Files';
 import { VerificationTab } from '../components/Verification';
 import { Rail } from '../components/Rail';
 import { Button, CostMeter, EmptyState, StatusChip, cx } from '../components/ui';
@@ -18,9 +19,9 @@ import { useEvents, useTask } from '../hooks';
 
 const GRAPH_EVENTS = new Set(['run.finished', 'decision.recorded', 'review.recorded', 'skill.applied', 'skill.approved', 'approval.granted', 'approval.rejected', 'merge.completed', 'human.command']);
 
-export const TABS = ['diff', 'terminal', 'plan', 'packet', 'review', 'verification'] as const;
+export const TABS = ['diff', 'files', 'terminal', 'plan', 'packet', 'review', 'verification'] as const;
 export type Tab = (typeof TABS)[number];
-const TAB_NAMES: Record<Tab, string> = { diff: 'Diff', terminal: 'Terminal', plan: 'Plan', packet: 'Packet', review: 'Review', verification: 'Verification' };
+const TAB_NAMES: Record<Tab, string> = { diff: 'Diff', files: 'Files', terminal: 'Terminal', plan: 'Plan', packet: 'Packet', review: 'Review', verification: 'Verification' };
 
 function useWide(): boolean {
   const [wide, setWide] = useState(() => matchMedia('(min-width: 1024px)').matches);
@@ -171,6 +172,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-4" role="tabpanel">
         {tab === 'diff' ? <DiffView taskId={t.id} version={diffVersion} /> : null}
+        {tab === 'files' ? <FilesTab taskId={t.id} /> : null}
         {tab === 'terminal' ? <Terminal taskId={t.id} liveRun={bundle.runs.find((r) => !r.endedAt)?.run ?? null} /> : null}
         {tab === 'plan' ? <PlanCard plan={bundle.plan} /> : null}
         {tab === 'packet' ? (

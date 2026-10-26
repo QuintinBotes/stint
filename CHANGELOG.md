@@ -12,6 +12,23 @@ The first release. Everything here was built during the event; `PROGRESS.md` rec
 - **Autopilot:** it plans, builds, verifies and reviews until the approval gate. It hands off when a run fails, stops when two agents in a row make no progress, and can write failing acceptance tests first.
 - **Approve:** a real merge with Stint-Task trailers. Reject turns the reason into a decision and the next ask.
 
+
+### The factory (added on 26 October from the factory review)
+- **After merge:** the daemon watches reverts, follow-up work, CI on the base branch and incidents, and links each one to the task that caused it. Approve can open a pull request and follow its checks.
+- **Learning that is measured:** a skill starts on probation and earns its place on tasks it helped. A skill that hurts is proposed for retirement. Golden tasks report pass@1 and pass^3.
+- **Any agent, any model:** an agent is a config entry. Claude Code and Codex have native adapters. Both are off by default.
+- **Smarter hand-offs:**
+  - A task escalates after repeated failures.
+  - Best of n builds candidates and keeps the best green one.
+  - No model reviews its own work.
+  - Reviews run per lens: general, security and spec fit.
+- **Plans that remember:** the planner reads similar tasks and the decisions on the files it will touch. It splits big tasks into subtasks that run in dependency order.
+- **Boundaries:** keys stay in the daemon. A default-deny egress proxy, and a sandbox-exec or docker sandbox, run each agent.
+- **Seeing the work:**
+  - A Files tab with "Open in your editor".
+  - A scoreboard per agent and model, with routing learned from it.
+  - OpenTelemetry traces.
+  - `stint report` for the build record, and `loop.sh --self` so Stint builds Stint.
 ### Meta models
 - **Planning:** Muse Wonder 1.0.
 - **Building and continuing:** Muse Spark 1.3.

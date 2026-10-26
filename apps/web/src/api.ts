@@ -82,6 +82,9 @@ export type OutcomeRecord = {
   url: string | null;
 };
 export type ReleaseRecord = { url: string | null; number: number | null; status: string | null };
+/** A task's files: the live worktree when there is one, else its branch; `changed` is what its change touched. */
+export type TaskFiles = { files: string[]; changed: Array<{ path: string; added: number; removed: number }>; worktree: string | null; ref: string; editable: boolean };
+
 /** How one agent and model has done on one tag; `*` is every task (R-045). */
 export type ScoreRow = { tag: string; agent: string; model: string | null; runs: number; attempts: number; passed: number; passRate: number | null; pass3: boolean | null; resolved: number; costPerResolved: number | null; reverts: number };
 
@@ -167,6 +170,9 @@ export const api = {
   demoStatus: () => request<DemoStatus>('/api/demo/status'),
   createTask: (t: { title: string; goal: string; acceptance: string[]; testCommand?: string }) => post<Task>('/api/tasks', t),
   verify: (id: string) => post<Verification>(`/api/tasks/${id}/verify`),
+  files: (id: string) => request<TaskFiles>(`/api/tasks/${id}/files`),
+  fileContent: (id: string, path: string) => request<{ path: string; content: string | null; reason?: string }>(`/api/tasks/${id}/files/content?path=${encodeURIComponent(path)}`),
+  openInEditor: (id: string, path?: string, line?: number) => post<{ opened: string; with: string }>(`/api/tasks/${id}/open`, { ...(path ? { path } : {}), ...(line ? { line } : {}) }),
   verifications: (id: string) => request<Verification[]>(`/api/tasks/${id}/verification`),
   verificationOutput: (id: string, run: string) => request<string>(`/api/tasks/${id}/verification/${run}/output`),
   approve: (id: string) => post<unknown>(`/api/tasks/${id}/approve`),

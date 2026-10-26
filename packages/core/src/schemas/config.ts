@@ -173,6 +173,8 @@ export const ConfigSchema = z.strictObject({
     .optional(),
   /** Pick the implementer by the configured order, or learn it from outcomes (R-045). */
   routing: z.strictObject({ mode: z.enum(['chains', 'learned']), explore: z.number().min(0).max(1) }).optional(),
+  /** The person's editor for "Open in your editor": `{path}` and `{line}` are filled in; unset, Stint finds Cursor, VS Code or Zed. */
+  editor: z.array(z.string().min(1)).min(1).max(10).optional(),
   /** Other coding agents a person can hand a task to; off until enabled (R-026). */
   agents: z.record(z.string().regex(/^[a-z0-9-]+$/), AgentDefSchema).optional(),
   allowDirectEvents: z.boolean().optional(),
