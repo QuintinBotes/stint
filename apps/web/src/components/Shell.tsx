@@ -1,8 +1,9 @@
 import { Command } from 'cmdk';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { hostName, modelName } from '../agents';
-import { type CostRow, type DemoStatus, type Health, type ModelHealth, api } from '../api';
+import { type CostRow, DaemonError, type DemoStatus, type Health, type ModelHealth, api } from '../api';
+import { toast } from 'sonner';
 import { localDate, money } from '../format';
 import { useTasks } from '../hooks';
 import { Button, Kbd, StatusChip, cx } from './ui';
@@ -137,12 +138,42 @@ export function ReplayStrip({ health }: { health: Health | null }) {
   );
 }
 
-type Action = { id: string; label: string; cli: string; arrivesIn?: string; run?: () => void };
+type Action = { id: string; label: string; cli: string; run: () => void };
 
-export function Palette({ open, onClose, actions }: { open: boolean; onClose: () => void; actions: Action[] }) {
+/** What a daemon call said, as a toast: the daemon's own message when it refuses. */
+function report(promise: Promise<unknown>, done: string): void {
+  promise.then(() => toast.success(done)).catch((e: unknown) => toast.error(e instanceof DaemonError ? `${e.error.message}${e.error.hint && typeof e.error.hint === 'string' ? `: ${e.error.hint}` : ''}` : String(e)));
+}
+
+/** Actions on the task that is open, each with the command that does the same from a terminal. */
+function taskActions(id: string, navigate: (to: string) => void): Action[] {
+  const tab = (t: string) => () => navigate(`/t/${id}?tab=${t}`);
+  return [
+    { id: 'verify', label: 'Verify: the daemon runs the tests', cli: `stint verify ${id}`, run: () => report(api.verify(id), `${id}: tests run by the daemon`) },
+    { id: 'autopilot-on', label: 'Put on autopilot', cli: `stint run ${id}`, run: () => report(api.autopilot(id, true), `${id} is on autopilot`) },
+    { id: 'autopilot-off', label: 'Take off autopilot', cli: `stint run ${id} --stop`, run: () => report(api.autopilot(id, false), `${id} is off autopilot`) },
+    { id: 'hand', label: 'Hand to another agent', cli: `stint hand ${id} <agent>`, run: tab('packet') },
+    { id: 'approve', label: 'Approve and merge', cli: `stint approve ${id}`, run: () => report(api.approve(id), `${id} merged`) },
+    { id: 'changes', label: 'Request changes', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },
+    { id: 'reject', label: 'Reject', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'reject' })) },
+    { id: 'terminal', label: 'Open the terminal in the worktree', cli: 't', run: tab('terminal') },
+    { id: 'packet', label: 'Show the packet', cli: `stint packet ${id} --as prompt`, run: tab('packet') },
+    { id: 'diff', label: 'Show the diff', cli: 'd', run: tab('diff') },
+  ];
+}
+
+export function Palette({ open, onClose, actions: global }: { open: boolean; onClose: () => void; actions: Action[] }) {
   const { data: tasks } = useTasks();
   const navigate = useNavigate();
+  const location = useLocation();
   if (!open) return null;
+  const taskId = /^\/t\/(T-\d+)/.exec(location.pathname)?.[1] ?? null;
+  const go: Action[] = [
+    { id: 'board', label: 'Go to the board', cli: '/', run: () => navigate('/') },
+    { id: 'factory', label: 'Go to the Factory', cli: '/factory', run: () => navigate('/factory') },
+    { id: 'skills', label: 'Go to Skills', cli: 'stint skills list', run: () => navigate('/skills') },
+  ];
+  const actions = [...(taskId ? taskActions(taskId, navigate) : []), ...global, ...go];
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-[12vh] px-4" onMouseDown={onClose}>
       <Command
@@ -154,20 +185,19 @@ export function Palette({ open, onClose, actions }: { open: boolean; onClose: ()
         <Command.Input autoFocus placeholder="Type a command or a task" className="w-full h-11 px-4 bg-transparent border-b border-line outline-none text-[13px]" />
         <Command.List className="max-h-[50vh] overflow-y-auto p-1">
           <Command.Empty className="px-3 py-4 text-faint">Nothing matches.</Command.Empty>
-          <Command.Group heading="Actions" className="text-[11px] text-faint px-2 [&_[cmdk-group-heading]]:px-1 [&_[cmdk-group-heading]]:py-1">
+          <Command.Group heading={taskId ? `On ${taskId}, and everywhere` : 'Actions'} className="text-[11px] text-faint px-2 [&_[cmdk-group-heading]]:px-1 [&_[cmdk-group-heading]]:py-1">
             {actions.map((a) => (
               <Command.Item
                 key={a.id}
                 value={`${a.label} ${a.cli}`}
-                disabled={!a.run}
                 onSelect={() => {
-                  a.run?.();
+                  a.run();
                   onClose();
                 }}
-                className="flex items-center justify-between gap-3 px-2 h-9 rounded-md text-[13px] text-ink data-[selected=true]:bg-accent-tint data-[disabled=true]:text-faint"
+                className="flex items-center justify-between gap-3 px-2 h-9 rounded-md text-[13px] text-ink data-[selected=true]:bg-accent-tint"
               >
                 <span>{a.label}</span>
-                <span className="font-mono text-[11.5px] text-faint">{a.arrivesIn ? `arrives in ${a.arrivesIn}` : a.cli}</span>
+                <span className="font-mono text-[11.5px] text-faint truncate">{a.cli}</span>
               </Command.Item>
             ))}
           </Command.Group>
@@ -268,14 +298,12 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
+/** Actions that need nothing from the router; the palette adds navigation and the open task's actions itself. */
 export function usePaletteActions(extra: { newTask: () => void }): Action[] {
   return useMemo(
     () => [
-      { id: 'new', label: 'New task', cli: 'stint new', run: extra.newTask },
-      { id: 'assign', label: 'Assign to an agent', cli: 'stint assign', arrivesIn: 'R-009' },
-      { id: 'hand', label: 'Hand to another agent', cli: 'stint hand', arrivesIn: 'R-012' },
-      { id: 'verify', label: 'Verify (the daemon runs the tests)', cli: 'stint verify', arrivesIn: 'R-016' },
-      { id: 'approve', label: 'Approve and merge', cli: 'stint approve' },
+      { id: 'new', label: 'New task', cli: 'stint new "..."', run: extra.newTask },
+      { id: 'run-all', label: 'Run all planned tasks on autopilot', cli: 'stint run <task>', run: () => report(api.autopilotAll(true), 'Planned tasks are on autopilot') },
     ],
     [extra.newTask],
   );

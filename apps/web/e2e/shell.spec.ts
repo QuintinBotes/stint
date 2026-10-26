@@ -7,5 +7,6 @@ test('bun run build:web succeeds and the daemon serves / with the shell', async 
   await expect(page.getByTestId('replay-strip')).toContainText('Replay, hand-written');
   await page.keyboard.press('Meta+k');
   await expect(page.getByPlaceholder('Type a command or a task')).toBeVisible();
-  await expect(page.getByText('arrives in R-009')).toBeVisible();
+  await expect(page.getByText('Run all planned tasks on autopilot')).toBeVisible();
+  await expect(page.getByText(/arrives in/)).toHaveCount(0);
 });

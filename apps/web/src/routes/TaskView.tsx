@@ -4,13 +4,14 @@ import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useParams, useSearchParams } from 'react-router';
 import { api } from '../api';
 import { ApprovalGate } from '../components/ApprovalGate';
-import { HandoffCard, PlanCard, ReviewCard, VerificationCard } from '../components/Cards';
+import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
 import { DiffView } from '../components/DiffView';
 import { HandTo } from '../components/HandTo';
 import { MemoryPanel } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
 import { QuizPanel } from '../components/Quiz';
 import { Terminal } from '../components/Terminal';
+import { VerificationTab } from '../components/Verification';
 import { Rail } from '../components/Rail';
 import { Button, CostMeter, EmptyState, StatusChip, cx } from '../components/ui';
 import { useEvents, useTask } from '../hooks';
@@ -191,7 +192,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
           </div>
         ) : null}
         {tab === 'review' ? <ReviewCard review={bundle.review} /> : null}
-        {tab === 'verification' ? <VerificationCard v={bundle.verification} onRerun={() => void api.verify(t.id).then(reload).catch(() => reload())} /> : null}
+        {tab === 'verification' ? <VerificationTab taskId={t.id} acceptance={t.acceptance} live={bundle.runs.some((r) => !r.endedAt)} onChanged={reload} /> : null}
       </div>
     </div>
   );

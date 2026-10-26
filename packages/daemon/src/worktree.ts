@@ -123,7 +123,7 @@ export class Worktrees implements WorktreeManager {
 }
 
 /** A fresh worktree has no dependencies; without them neither the agent nor the verifier can run the tests. */
-async function installDependencies(path: string): Promise<void> {
+export async function installDependencies(path: string): Promise<void> {
   if (!existsSync(join(path, 'bun.lock')) || existsSync(join(path, 'node_modules'))) return;
   const p = Bun.spawn(['bun', 'install', '--frozen-lockfile'], { cwd: path, stdout: 'ignore', stderr: 'pipe' });
   if ((await p.exited) !== 0) {

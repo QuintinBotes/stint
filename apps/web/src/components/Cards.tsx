@@ -1,8 +1,6 @@
 import { type Handoff, type Plan, type Review, countTokens, renderHandoff } from '@stint-dev/core';
 import { useState } from 'react';
 import { agentOf, hostName, modelName } from '../agents';
-import type { Verification } from '../api';
-import { localTime } from '../format';
 import { Button, CostMeter, EmptyState, Section, StatusChip, VendorMark, cx } from './ui';
 
 function List({ items, empty }: { items: string[]; empty: string }) {
@@ -92,37 +90,6 @@ export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
           </Section>
         </>
       )}
-    </article>
-  );
-}
-
-export function VerificationCard({ v, onRerun }: { v: Verification | null; onRerun?: () => void }) {
-  if (!v) return <EmptyState testId="empty-verification">Verification runs here when the run ends.</EmptyState>;
-  return (
-    <article data-testid="verification-card" className={cx('rounded-lg border p-4 max-w-[60ch]', v.status === 'green' ? 'border-good/50' : 'border-bad/50')}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[15px] font-semibold tabular" data-testid="verification-summary">
-          {v.passed} passed, {v.failed} failed, run by the daemon
-        </p>
-        <StatusChip status={v.status} />
-      </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 mt-3 text-[12.5px]">
-        <dt className="text-muted">Command</dt>
-        <dd className="font-mono">{v.command}</dd>
-        <dt className="text-muted">Exit code</dt>
-        <dd className="tabular">{v.exitCode}</dd>
-        <dt className="text-muted">Duration</dt>
-        <dd className="tabular">{(v.durationMs / 1000).toFixed(1)} s</dd>
-        <dt className="text-muted">Run</dt>
-        <dd>
-          {v.run}, at {localTime(v.at)}
-        </dd>
-      </dl>
-      {onRerun ? (
-        <Button className="mt-3" onClick={onRerun}>
-          Re-run the tests
-        </Button>
-      ) : null}
     </article>
   );
 }

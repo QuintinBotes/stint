@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DaemonError, type TaskBundle, api } from '../api';
 import { Button, Kbd, StatusChip } from './ui';
 
@@ -18,6 +18,23 @@ export function ApprovalGate({ bundle, onDone }: { bundle: TaskBundle; onDone: (
   const [asking, setAsking] = useState<'changes' | 'reject' | null>(null);
   const [text, setText] = useState('');
   const id = bundle.task.id;
+  // a approves, r asks for changes, x rejects: the keys the help lists, and the palette's request
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (bundle.task.status === 'done') return;
+      if (e.key === 'a' && open) void call(() => api.approve(id));
+      else if (e.key === 'r') setAsking('changes');
+      else if (e.key === 'x') setAsking('reject');
+    };
+    const onAsk = (e: Event) => setAsking((e as CustomEvent<'changes' | 'reject'>).detail);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('stint:gate', onAsk);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('stint:gate', onAsk);
+    };
+  });
   const call = async (fn: () => Promise<unknown>) => {
     setError(null);
     try {

@@ -1,9 +1,12 @@
 import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { runsFromEvents } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
-import { worktreePath } from '../worktree';
+import { git, gitOk } from '../git';
+import { installDependencies, worktreePath } from '../worktree';
 
 /** The worktree to verify: the named run's, else the newest run whose worktree still exists. */
 export async function currentWorktree(ctx: DaemonContext, taskId: string, run?: string): Promise<{ run: string; path: string }> {
@@ -26,8 +29,37 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
     const task = await ctx.ws.readTask(id);
     const body = (await c.req.json().catch(() => ({}))) as { run?: string };
     if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'verification runs when the run ends');
-    const wt = await currentWorktree(ctx, id, body.run);
-    return c.json(await ctx.verifier.verify(task, wt.run, wt.path));
+    const wt = await currentWorktree(ctx, id, body.run).catch(() => null);
+    if (wt) return c.json(await ctx.verifier.verify(task, wt.run, wt.path));
+    // no worktree (merged, or replayed): check the task branch out on its own and run the tests there
+    const head = (await git(ctx.ws.root, ['rev-parse', '--verify', '-q', `refs/heads/${task.branch}`])).stdout.trim();
+    const last = runsFromEvents(await ctx.ws.events(id).read()).filter((r) => r.role === 'implementer').at(-1);
+    if (!head || !last) throw new DaemonError('not_found', `${id} has nothing to verify`, 'a run creates the task branch');
+    const path = join(ctx.ws.cacheDir, 'verify', `${id}-${Date.now()}`);
+    await mkdir(join(ctx.ws.cacheDir, 'verify'), { recursive: true });
+    await gitOk(ctx.ws.root, ['worktree', 'add', '-q', '--detach', path, head]);
+    try {
+      await installDependencies(path);
+      return c.json(await ctx.verifier.verify(task, last.run, path));
+    } finally {
+      // this checkout holds no work, only the branch head and the test run's leftovers, so it is removed even if dirty
+      await git(ctx.ws.root, ['worktree', 'remove', '--force', path]);
+    }
+  });
+
+  app.get('/api/tasks/:id/verification', async (c) => {
+    const id = c.req.param('id');
+    await ctx.ws.readTask(id);
+    return c.json(await ctx.ws.verification(id).list());
+  });
+
+  app.get('/api/tasks/:id/verification/:run/output', async (c) => {
+    const id = c.req.param('id');
+    const run = c.req.param('run');
+    if (!/^r[0-9]+$/.test(run)) throw new DaemonError('invalid', `bad run ${run}`);
+    const file = join(await ctx.ws.taskDir(id), 'verification', `${run}.out.txt`);
+    if (!existsSync(file)) throw new DaemonError('not_found', `${id} kept no test output for ${run}`, 'replayed runs carry their counts, not their output');
+    return c.text(await Bun.file(file).text());
   });
 
   app.get('/api/tasks/:id/handoffs', async (c) => {
