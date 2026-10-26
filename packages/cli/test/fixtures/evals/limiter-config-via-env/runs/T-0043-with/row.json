@@ -1,0 +1,17 @@
+{
+  "task": "T-0043",
+  "heldOut": true,
+  "withSkill": true,
+  "findings": 0,
+  "passed": 36,
+  "failed": 0,
+  "verified": true,
+  "inputTokens": 12500,
+  "cachedTokens": 6200,
+  "outputTokens": 920,
+  "usd": 0.0125,
+  "synthetic": true,
+  "implementer": "stint-agent",
+  "model": "muse-spark-1.3",
+  "host": "meta-api"
+}

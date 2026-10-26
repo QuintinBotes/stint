@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
-import { approveSkill, listSkills, rejectSkill, retireSkill } from '../skills';
+import { approveSkill, keepSkill, listSkills, rejectSkill, retireSkill, updateSkillStatuses } from '../skills';
 
 const ApproveBody = z.strictObject({ by: z.string().min(1).max(80).optional() });
 const RejectBody = z.strictObject({ reason: z.string().min(1).max(400) });
@@ -12,16 +12,25 @@ export function skillRoutes(app: Hono, ctx: DaemonContext): void {
 
   app.post('/api/skills/:id/approve', async (c) => {
     const body = ApproveBody.parse(await c.req.json().catch(() => ({})));
-    return c.json(await approveSkill(ctx.ws, c.req.param('id'), body.by ?? 'you'));
+    const approved = await approveSkill(ctx.ws, c.req.param('id'), body.by ?? 'you');
+    await updateSkillStatuses(ctx);
+    return c.json(approved);
   });
 
   app.post('/api/skills/:id/reject', async (c) => {
     const { reason } = RejectBody.parse(await c.req.json());
-    return c.json(await rejectSkill(ctx.ws, c.req.param('id'), reason));
+    const rejected = await rejectSkill(ctx.ws, c.req.param('id'), reason);
+    await updateSkillStatuses(ctx);
+    return c.json(rejected);
   });
 
   app.post('/api/skills/:id/retire', async (c) => {
     EmptyBody.parse(await c.req.json().catch(() => ({})));
     return c.json(await retireSkill(ctx.ws, c.req.param('id')));
+  });
+
+  app.post('/api/skills/:id/keep', async (c) => {
+    EmptyBody.parse(await c.req.json().catch(() => ({})));
+    return c.json(await keepSkill(ctx.ws, c.req.param('id')));
   });
 }

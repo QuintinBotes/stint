@@ -1,11 +1,58 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { type Role, type SkillProposal, SkillProposalSchema, parseSkillFrontmatter } from '@stint-dev/core';
-import { type Workspace, canonicalJSON, readJsonIfExists, sha256Hex, skillsHelped, writeFileAtomic, writeJsonAtomic } from '@stint-dev/core/node';
+import { type Role, type SkillProposal, type SkillStatus, SkillProposalSchema, parseSkillFrontmatter } from '@stint-dev/core';
+import { type StintEvent, type Workspace, canonicalJSON, findingThemes, readJsonIfExists, sha256Hex, writeFileAtomic, writeJsonAtomic } from '@stint-dev/core/node';
+import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
 import { git, gitOk, identityArgs } from './git';
 import type { MountedSkill } from './prompt';
+
+/** One side of a skill eval: every run with (or without) the skill mounted, summed (R-031). */
+export type SkillEvalSide = {
+  runs: number;
+  findings: number;
+  passed: number;
+  failed: number;
+  verified: number;
+  inputTokens: number;
+  cachedTokens: number;
+  outputTokens: number;
+  usd: number | null;
+};
+
+/** The eval summary the Skills page shows, read from `.stint/evals/<id>.json`. */
+export type SkillEvalSummary = {
+  id: string;
+  with: SkillEvalSide;
+  without: SkillEvalSide;
+  card: string;
+  createdAt?: string;
+  synthetic?: true;
+  replay?: boolean;
+};
+
+const evalMoney = (usd: number | null) => (usd === null ? 'unpriced' : `$${usd.toFixed(4)}`);
+
+/** The one line a proposal card and the Skills page print for an eval. */
+export function formatSkillEvalCard(withSide: SkillEvalSide, withoutSide: SkillEvalSide): string {
+  const side = (s: SkillEvalSide) => `${s.findings} findings, ${s.passed} passed, cost ${evalMoney(s.usd)}`;
+  return `with skill: ${side(withSide)}; without: ${side(withoutSide)}`;
+}
+
+/**
+ * A skill's record in the world (R-031): helped is a mounted task approved with no repeat
+ * finding on the skill's theme; hurt is a mounted task with a repeat finding, a rejection,
+ * or an outcome.reverted. Both count tasks, not events.
+ */
+export type SkillTrack = {
+  appliedIn: string[];
+  applied: number;
+  helped: number;
+  hurt: number;
+  helpedTasks: string[];
+  hurtTasks: string[];
+};
 
 export type SkillRecord = {
   id: string;
@@ -14,12 +61,14 @@ export type SkillRecord = {
   roles: Role[];
   tags: string[];
   origin: 'human' | 'learn-loop';
-  status: 'active' | 'proposed' | 'retired';
+  status: SkillStatus;
   evidence: string[];
   stale: boolean;
   appliedIn: string[];
   helped: number;
   hurt: number;
+  retireProposed: boolean;
+  eval?: SkillEvalSummary;
 };
 
 export type RejectedProposal = { id: string; evidenceKey: string; reason: string; at: string };
@@ -71,15 +120,15 @@ export function scanSkillFiles(root: string): SkillFile[] {
 }
 
 /**
- * Active skills in `.agents/skills` that apply to a role. A skill without roles applies to every
- * role; a skill without tags applies to every task. When `tags` is given, a tagged skill mounts
- * only when one of its tags is one of the task's tags.
+ * Mounted skills in `.agents/skills` that apply to a role: active and probation both mount
+ * (R-031). A skill without roles applies to every role; a skill without tags applies to every
+ * task. When `tags` is given, a tagged skill mounts only when one of its tags is one of the task's tags.
  */
 export function skillsFor(root: string, role: Role, tags?: string[]): MountedSkill[] {
   const out: MountedSkill[] = [];
   for (const s of scanSkillFiles(root)) {
     const fm = s.frontmatter;
-    if (fm.status !== 'active') continue;
+    if (fm.status !== 'active' && fm.status !== 'probation') continue;
     if (fm.roles && !fm.roles.includes(role)) continue;
     if (tags && fm.tags && fm.tags.length > 0 && !fm.tags.some((t) => tags.includes(t))) continue;
     out.push({ name: fm.name, description: fm.description });
@@ -134,15 +183,195 @@ async function recordRejected(ws: Workspace, entry: RejectedProposal): Promise<v
   await writeJsonAtomic(join(proposalsDir(ws), 'rejected.json'), all);
 }
 
-/** The registry: skill files plus pending proposals, with consent staleness and the graph track record. */
+type FindingShape = { id?: unknown; text?: unknown; linksTo?: unknown };
+
+const asRecord = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+const asStr = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
+
+/** Findings of one review event, in the two shapes the log carries (the review object, or a bare list). */
+function findingsOf(e: StintEvent): Array<{ id: string; text: string; linksTo: string | null }> {
+  const review = asRecord(e.payload.review);
+  const list = review && Array.isArray(review.findings) ? review.findings : Array.isArray(e.payload.findings) && typeof e.payload.findings[0] === 'object' ? e.payload.findings : [];
+  const out: Array<{ id: string; text: string; linksTo: string | null }> = [];
+  for (const raw of list) {
+    const f = asRecord(raw) as FindingShape | null;
+    const id = f && asStr(f.id);
+    const text = f && asStr(f.text);
+    if (id && text) out.push({ id, text, linksTo: asStr(f?.linksTo) });
+  }
+  return out;
+}
+
+const normalised = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[0-9]+/g, ' ')
+    .replace(/[^a-z-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+type SkillTheme = { themes: Set<string>; links: Set<string>; texts: Set<string> };
+
+/** What counts as the same mistake again: the evidence findings' themes, links and texts, plus the tags. */
+function themeOf(evidenceFindings: Array<{ text: string; linksTo: string | null }>, tags: string[], description: string): SkillTheme {
+  const theme: SkillTheme = { themes: new Set(), links: new Set(), texts: new Set() };
+  for (const f of evidenceFindings) {
+    for (const t of findingThemes({ text: f.text, ...(f.linksTo ? { linksTo: f.linksTo } : {}) })) theme.themes.add(t);
+    if (f.linksTo) theme.links.add(f.linksTo.toLowerCase());
+    theme.texts.add(normalised(f.text));
+  }
+  for (const t of tags) theme.themes.add(t.toLowerCase());
+  if (evidenceFindings.length === 0) for (const t of findingThemes({ text: description })) theme.themes.add(t);
+  return theme;
+}
+
+/** A repeat: the same text again, the same risk link, or two or more shared theme words with the evidence. */
+export function isRepeatFinding(theme: SkillTheme, f: { text: string; linksTo: string | null }): boolean {
+  if (theme.texts.has(normalised(f.text))) return true;
+  if (f.linksTo && theme.links.has(f.linksTo.toLowerCase())) return true;
+  const words = findingThemes({ text: f.text, ...(f.linksTo ? { linksTo: f.linksTo } : {}) });
+  return words.filter((w) => theme.themes.has(w)).length >= 2;
+}
+
+type TaskEvents = { task: string; events: StintEvent[] };
+
+async function allTaskEvents(ws: Workspace): Promise<TaskEvents[]> {
+  const out: TaskEvents[] = [];
+  for (const t of await ws.listTasks()) out.push({ task: t.id, events: await ws.events(t.id).read().catch(() => [] as StintEvent[]) });
+  return out;
+}
+
+export type SkillTrackBook = {
+  tracks: Map<string, SkillTrack>;
+  /** skill.retire_proposed payloads already on record, keyed by skill id. */
+  retireEvents: Map<string, Array<{ helped: number; hurt: number }>>;
+  /** A task timeline that can carry the skill's next event: an evidence task first, then a mounted one. */
+  carriers: Map<string, string | null>;
+};
+
+const emptyTrack = (): SkillTrack => ({ appliedIn: [], applied: 0, helped: 0, hurt: 0, helpedTasks: [], hurtTasks: [] });
+
+/**
+ * Every skill file's and proposal's track record, computed from the event logs: skill.applied
+ * says where it mounted, and what followed on that timeline says whether it helped or hurt.
+ */
+export async function skillTrackBook(ws: Workspace): Promise<SkillTrackBook> {
+  const files = scanSkillFiles(ws.root);
+  const proposals = await listProposals(ws);
+  const byTask = await allTaskEvents(ws);
+  const findingsByRef = new Map<string, { text: string; linksTo: string | null }>();
+  for (const { task, events } of byTask) {
+    for (const e of events) {
+      if (e.type !== 'review.recorded') continue;
+      const run = e.run ?? asStr(asRecord(e.payload.review)?.run) ?? 'unknown';
+      for (const f of findingsOf(e)) findingsByRef.set(`${task}/${run}#${f.id}`, f);
+    }
+  }
+  const subjects = [
+    ...files.map((s) => ({ id: s.id, aliases: new Set([s.id, s.frontmatter.name]), evidence: s.frontmatter.evidence ?? [], tags: s.frontmatter.tags ?? [], description: s.frontmatter.description })),
+    ...proposals.filter((p) => !files.some((s) => s.id === p.id)).map((p) => ({ id: p.id, aliases: new Set([p.id, p.name]), evidence: p.evidence, tags: p.tags, description: p.description })),
+  ];
+  const tracks = new Map<string, SkillTrack>();
+  const retireEvents = new Map<string, Array<{ helped: number; hurt: number }>>();
+  const carriers = new Map<string, string | null>();
+  for (const subject of subjects) {
+    const evidenceFindings = subject.evidence.map((ref) => findingsByRef.get(ref)).filter((f): f is { text: string; linksTo: string | null } => Boolean(f));
+    const theme = themeOf(evidenceFindings, subject.tags, subject.description);
+    const track = emptyTrack();
+    const appliedIn = new Set<string>();
+    const retires: Array<{ helped: number; hurt: number }> = [];
+    let carrier: string | null = null;
+    for (const ref of subject.evidence) {
+      const task = ref.split('/')[0] as string;
+      if (byTask.some((t) => t.task === task)) {
+        carrier = task;
+        break;
+      }
+    }
+    for (const { task, events } of byTask) {
+      let firstAppliedSeq = Number.POSITIVE_INFINITY;
+      for (const e of events) {
+        if (e.type === 'skill.retire_proposed' && asStr(e.payload.id) === subject.id) {
+          retires.push({ helped: typeof e.payload.helped === 'number' ? e.payload.helped : 0, hurt: typeof e.payload.hurt === 'number' ? e.payload.hurt : 0 });
+        }
+        if (e.type !== 'skill.applied') continue;
+        const skill = asStr(e.payload.skill);
+        if (!skill || !subject.aliases.has(skill)) continue;
+        const run = e.run ?? asStr(e.payload.run) ?? 'unknown';
+        appliedIn.add(`${task}/${run}`);
+        if (e.seq < firstAppliedSeq) firstAppliedSeq = e.seq;
+        if (carrier === null) carrier = task;
+      }
+      if (!Number.isFinite(firstAppliedSeq)) continue;
+      const after = events.filter((e) => e.seq >= firstAppliedSeq);
+      const repeat = after.filter((e) => e.type === 'review.recorded').flatMap(findingsOf).some((f) => isRepeatFinding(theme, f));
+      const approved = after.some((e) => e.type === 'approval.granted');
+      const hurtHere = repeat || after.some((e) => e.type === 'approval.rejected' || e.type === 'outcome.reverted');
+      if (approved && !repeat) {
+        track.helped += 1;
+        track.helpedTasks.push(task);
+      }
+      if (hurtHere) {
+        track.hurt += 1;
+        track.hurtTasks.push(task);
+      }
+    }
+    track.appliedIn = [...appliedIn].sort();
+    track.applied = track.appliedIn.length;
+    track.helpedTasks.sort();
+    track.hurtTasks.sort();
+    tracks.set(subject.id, track);
+    retireEvents.set(subject.id, retires);
+    carriers.set(subject.id, carrier);
+  }
+  return { tracks, retireEvents, carriers };
+}
+
+type RetireKeep = { id: string; helped: number; hurt: number; at: string };
+
+function retireKeepPath(ws: Workspace): string {
+  return join(ws.cacheDir, 'skills-retire-keep.json');
+}
+
+async function readRetireKeeps(ws: Workspace): Promise<RetireKeep[]> {
+  return (await readJsonIfExists<RetireKeep[]>(retireKeepPath(ws))) ?? [];
+}
+
+const evalSideOk = (v: unknown): v is SkillEvalSide => {
+  const s = asRecord(v);
+  return Boolean(s && ['runs', 'findings', 'passed', 'failed', 'verified', 'inputTokens', 'cachedTokens', 'outputTokens'].every((k) => typeof s[k] === 'number') && (s.usd === null || typeof s.usd === 'number'));
+};
+
+/** The eval a `stint eval --skill` run left for this skill, or null when there is none to show. */
+export async function readSkillEval(ws: Workspace, id: string): Promise<SkillEvalSummary | null> {
+  const raw = asRecord(await readJsonIfExists<unknown>(join(ws.stintDir, 'evals', `${id}.json`)));
+  if (!raw || !evalSideOk(raw.with) || !evalSideOk(raw.without)) return null;
+  const withSide = raw.with as SkillEvalSide;
+  const withoutSide = raw.without as SkillEvalSide;
+  return {
+    id,
+    with: withSide,
+    without: withoutSide,
+    card: asStr(raw.card) ?? formatSkillEvalCard(withSide, withoutSide),
+    ...(asStr(raw.createdAt) ? { createdAt: asStr(raw.createdAt) as string } : {}),
+    ...(raw.synthetic === true ? { synthetic: true as const } : {}),
+    ...(typeof raw.replay === 'boolean' ? { replay: raw.replay } : {}),
+  };
+}
+
+/** The registry: skill files plus pending proposals, with consent staleness, the track record and any eval. */
 export async function listSkills(ws: Workspace): Promise<SkillRecord[]> {
-  const helped = await skillsHelped(ws);
-  const track = (id: string, name: string) => {
-    const rows = helped.filter((r) => r.skill === id || r.skill === name);
+  const book = await skillTrackBook(ws);
+  const keeps = await readRetireKeeps(ws);
+  const track = (id: string, status: SkillStatus) => {
+    const t = book.tracks.get(id) ?? emptyTrack();
+    const kept = keeps.some((k) => k.id === id && k.helped === t.helped && k.hurt === t.hurt);
+    const proposed = (book.retireEvents.get(id) ?? []).length > 0;
     return {
-      appliedIn: [...new Set(rows.flatMap((r) => r.appliedIn))].sort(),
-      helped: rows.reduce((s, r) => s + r.approvedAfter, 0),
-      hurt: rows.reduce((s, r) => s + r.hurt, 0),
+      appliedIn: t.appliedIn,
+      helped: t.helped,
+      hurt: t.hurt,
+      retireProposed: proposed && !kept && status !== 'retired' && status !== 'proposed' && t.hurt > t.helped,
     };
   };
   const consent = await readConsent(ws);
@@ -169,7 +398,7 @@ export async function listSkills(ws: Workspace): Promise<SkillRecord[]> {
       status: fm.status,
       evidence: fm.evidence ?? [],
       stale,
-      ...track(s.id, fm.name),
+      ...track(s.id, fm.status),
     });
   }
   if (consentChanged) await writeJsonAtomic(consentPath(ws), consent);
@@ -185,15 +414,20 @@ export async function listSkills(ws: Workspace): Promise<SkillRecord[]> {
       status: 'proposed',
       evidence: p.evidence,
       stale: false,
-      ...track(p.id, p.name),
+      ...track(p.id, 'proposed'),
     });
   }
-  return [...records.values()].sort((a, b) => a.id.localeCompare(b.id));
+  const out = [...records.values()].sort((a, b) => a.id.localeCompare(b.id));
+  for (const r of out) {
+    const summary = await readSkillEval(ws, r.id);
+    if (summary) r.eval = summary;
+  }
+  return out;
 }
 
 const yamlList = (items: string[]) => `[${items.map((i) => JSON.stringify(i)).join(', ')}]`;
 
-/** The SKILL.md a proposal becomes on approval: the rule verbatim under the proposal's name. */
+/** The SKILL.md a proposal becomes on approval: on probation first; the track record earns active (R-031). */
 export function renderSkillMarkdown(p: SkillProposal): string {
   return [
     '---',
@@ -204,7 +438,7 @@ export function renderSkillMarkdown(p: SkillProposal): string {
     'version: 1.0.0',
     'origin: learn-loop',
     `evidence: ${yamlList(p.evidence)}`,
-    'status: active',
+    'status: probation',
     '---',
     '',
     `# ${p.name}`,
@@ -219,18 +453,82 @@ export function renderExamplesMarkdown(p: SkillProposal): string {
   return ['# Examples', '', ...(lines.length ? lines : ['No examples.']), ''].join('\n');
 }
 
+type SkillEventType = 'skill.approved' | 'skill.rejected' | 'skill.status' | 'skill.retire_proposed' | 'human.command';
+
 /** Skill events live on a task timeline; the first evidence task that exists carries them. */
-async function emitSkillEvent(ws: Workspace, evidence: string[], type: 'skill.approved' | 'skill.rejected', payload: Record<string, unknown>): Promise<void> {
-  for (const ref of evidence) {
-    const task = ref.split('/')[0] as string;
+async function emitSkillEvent(ws: Workspace, evidence: string[], type: SkillEventType, payload: Record<string, unknown>, carrier?: string | null): Promise<void> {
+  const candidates = [...evidence.map((ref) => ref.split('/')[0] as string), ...(carrier ? [carrier] : [])];
+  for (const task of candidates) {
     try {
       await ws.readTask(task);
     } catch {
       continue;
     }
-    await ws.events(task).append({ task, vendor: 'human', type, payload, links: [{ kind: 'skill', ref: String(payload.id) }] });
+    await ws.events(task).append({ task, vendor: type === 'skill.status' || type === 'skill.retire_proposed' ? 'daemon' : 'human', type, payload, links: [{ kind: 'skill', ref: String(payload.id) }] });
     return;
   }
+  process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'warn', message: `${type} for skill ${String(payload.id)} was NOT recorded: no task timeline carries it` })}\n`);
+}
+
+/** Rewrites only the frontmatter status line; the body and every other field stay byte for byte. */
+function withStatus(text: string, status: SkillStatus): string {
+  const lines = text.split('\n');
+  let start = -1;
+  let end = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^---[ \t]*$/.test(lines[i] as string)) {
+      if (start < 0) start = i;
+      else if (lines.slice(start + 1, i).some((l) => l.trim().length > 0)) {
+        end = i;
+        break;
+      } else start = i;
+    }
+  }
+  if (start < 0 || end < 0) throw new Error('SKILL.md has no frontmatter');
+  const at = lines.findIndex((l, i) => i > start && i < end && /^status:/.test(l));
+  if (at >= 0) lines[at] = `status: ${status}`;
+  else lines.splice(end, 0, `status: ${status}`);
+  const next = lines.join('\n');
+  parseSkillFrontmatter(next);
+  return next;
+}
+
+/** Commits only the named skill files on the checked out branch, as approval does. A failure is said out loud. */
+async function commitSkillFiles(ws: Workspace, id: string, files: string[], subject: string): Promise<{ committed: boolean; commit: string | null }> {
+  const root = ws.root;
+  const branch = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
+  if (!branch) return { committed: false, commit: null };
+  const msgFile = join(ws.cacheDir, `skill-${id}.txt`);
+  try {
+    await mkdir(ws.cacheDir, { recursive: true });
+    await writeFileAtomic(msgFile, `${subject}\n\nStint-Skill: ${id}\n`);
+    await gitOk(root, ['add', '--', ...files]);
+    await gitOk(root, [...(await identityArgs(root)), 'commit', '-F', msgFile, '--', ...files]);
+    return { committed: true, commit: (await gitOk(root, ['rev-parse', 'HEAD'])).trim() };
+  } catch (err) {
+    await git(root, ['reset', '-q', '--', ...files]);
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `skill ${id} files were written but NOT committed: ${err instanceof Error ? err.message : String(err)}` })}\n`);
+    return { committed: false, commit: null };
+  } finally {
+    await rm(msgFile, { force: true });
+  }
+}
+
+/** Writes a status change into SKILL.md, commits it, records consent, and emits skill.status. */
+async function applySkillStatus(ws: Workspace, id: string, to: SkillStatus, track: SkillTrack, carrier: string | null): Promise<{ from: SkillStatus; to: SkillStatus } | null> {
+  const file = join(skillsDir(ws.root), id, 'SKILL.md');
+  if (!existsSync(file)) return null;
+  const text = await readFile(file, 'utf8');
+  const from = parseSkillFrontmatter(text).frontmatter.status;
+  if (from === to) return null;
+  const next = withStatus(text, to);
+  await writeFileAtomic(file, next);
+  const rel = `.agents/skills/${id}/SKILL.md`;
+  const { committed, commit } = await commitSkillFiles(ws, id, [rel], `Skill ${id} is now ${to}`);
+  await recordConsent(ws, id, next);
+  const evidence = parseSkillFrontmatter(next).frontmatter.evidence ?? [];
+  await emitSkillEvent(ws, evidence, 'skill.status', { id, from, to, helped: track.helped, hurt: track.hurt, committed, commit }, carrier);
+  return { from, to };
 }
 
 function checkId(id: string): void {
@@ -265,27 +563,7 @@ export async function approveSkill(ws: Workspace, id: string, by = 'you'): Promi
   await writeFileAtomic(join(dir, 'SKILL.md'), skillMd);
   await writeFileAtomic(join(dir, 'examples.md'), examplesMd);
 
-  let committed = false;
-  let commit: string | null = null;
-  const branch = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
-  if (branch) {
-    const msgFile = join(ws.cacheDir, `skill-${id}.txt`);
-    try {
-      const files = [rel, `.agents/skills/${id}/examples.md`];
-      await mkdir(ws.cacheDir, { recursive: true });
-      await writeFileAtomic(msgFile, `Add skill ${id}\n\nStint-Skill: ${id}\n`);
-      await gitOk(root, ['add', '--', ...files]);
-      await gitOk(root, [...(await identityArgs(root)), 'commit', '-F', msgFile, '--', ...files]);
-      commit = (await gitOk(root, ['rev-parse', 'HEAD'])).trim();
-      committed = true;
-    } catch (err) {
-      // unstage, so the skill files do not ride along in the person's next commit
-      await git(root, ['reset', '-q', '--', rel, `.agents/skills/${id}/examples.md`]);
-      process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `skill ${id} was written but NOT committed: ${err instanceof Error ? err.message : String(err)}` })}\n`);
-    } finally {
-      await rm(msgFile, { force: true });
-    }
-  }
+  const { committed, commit } = await commitSkillFiles(ws, id, [rel, `.agents/skills/${id}/examples.md`], `Add skill ${id}`);
   await recordConsent(ws, id, skillMd);
   await rm(join(proposalsDir(ws), `${id}.json`), { force: true });
   await emitSkillEvent(ws, proposal.evidence, 'skill.approved', { id, by, path: rel, committed, commit });
@@ -304,31 +582,72 @@ export async function rejectSkill(ws: Workspace, id: string, reason: string): Pr
   return { id, rejected: true };
 }
 
-/** Retires an active skill in place: its frontmatter status becomes `retired`, so nothing mounts it. */
+/**
+ * Retires a skill in place: its frontmatter status becomes `retired`, committed like an
+ * approval, so nothing mounts it. This is also how a retirement proposal is accepted.
+ */
 export async function retireSkill(ws: Workspace, id: string): Promise<SkillRecord> {
   checkId(id);
   const file = join(skillsDir(ws.root), id, 'SKILL.md');
   if (!existsSync(file)) throw new DaemonError('not_found', `no skill ${id}`, 'a proposed skill is rejected, not retired');
-  const text = await readFile(file, 'utf8');
-  const lines = text.split('\n');
-  let start = -1;
-  let end = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^---[ \t]*$/.test(lines[i] as string)) {
-      if (start < 0) start = i;
-      else if (lines.slice(start + 1, i).some((l) => l.trim().length > 0)) {
-        end = i;
-        break;
-      } else start = i;
+  const book = await skillTrackBook(ws);
+  try {
+    await applySkillStatus(ws, id, 'retired', book.tracks.get(id) ?? emptyTrack(), book.carriers.get(id) ?? null);
+  } catch {
+    throw new DaemonError('invalid', `${relative(ws.root, file)} has no frontmatter to retire`);
+  }
+  return (await listSkills(ws)).find((s) => s.id === id) as SkillRecord;
+}
+
+/** Keeps a skill whose retirement was proposed: the same counts never propose it again. */
+export async function keepSkill(ws: Workspace, id: string): Promise<SkillRecord> {
+  checkId(id);
+  if (!existsSync(join(skillsDir(ws.root), id, 'SKILL.md'))) throw new DaemonError('not_found', `no skill ${id}`);
+  const book = await skillTrackBook(ws);
+  const track = book.tracks.get(id) ?? emptyTrack();
+  const keeps = await readRetireKeeps(ws);
+  if (!keeps.some((k) => k.id === id && k.helped === track.helped && k.hurt === track.hurt)) {
+    keeps.push({ id, helped: track.helped, hurt: track.hurt, at: new Date().toISOString() });
+    await writeJsonAtomic(retireKeepPath(ws), keeps);
+  }
+  const file = scanSkillFiles(ws.root).find((s) => s.id === id);
+  await emitSkillEvent(ws, file?.frontmatter.evidence ?? [], 'human.command', { id, text: `Kept skill ${id}: retirement was proposed and declined.`, helped: track.helped, hurt: track.hurt }, book.carriers.get(id) ?? null);
+  return (await listSkills(ws)).find((s) => s.id === id) as SkillRecord;
+}
+
+export type SkillStatusChange = { id: string; from: SkillStatus; to: SkillStatus; helped: number; hurt: number };
+export type SkillStatusPass = { changed: SkillStatusChange[]; retireProposed: string[] };
+
+/**
+ * The one place track records become statuses (R-031): probation with helped >= 3 earns
+ * active, and hurt > helped proposes retirement through the queue. Run after every skill
+ * approve or reject and every task outcome (approval, rejection, outcome.reverted when a
+ * producer lands one), never on a read.
+ */
+export async function updateSkillStatuses(ctx: DaemonContext): Promise<SkillStatusPass> {
+  const ws = ctx.ws;
+  const book = await skillTrackBook(ws);
+  const keeps = await readRetireKeeps(ws);
+  const changed: SkillStatusChange[] = [];
+  const retireProposed: string[] = [];
+  for (const s of scanSkillFiles(ws.root)) {
+    const track = book.tracks.get(s.id) ?? emptyTrack();
+    let status = s.frontmatter.status;
+    if (status === 'probation' && track.helped >= 3) {
+      const applied = await applySkillStatus(ws, s.id, 'active', track, book.carriers.get(s.id) ?? null);
+      if (applied) {
+        changed.push({ id: s.id, ...applied, helped: track.helped, hurt: track.hurt });
+        status = 'active';
+      }
+    }
+    if ((status === 'probation' || status === 'active') && track.hurt > track.helped) {
+      const already = (book.retireEvents.get(s.id) ?? []).some((r) => r.helped === track.helped && r.hurt === track.hurt);
+      const kept = keeps.some((k) => k.id === s.id && k.helped === track.helped && k.hurt === track.hurt);
+      if (!already && !kept) {
+        await emitSkillEvent(ws, s.frontmatter.evidence ?? [], 'skill.retire_proposed', { id: s.id, helped: track.helped, hurt: track.hurt }, book.carriers.get(s.id) ?? null);
+        retireProposed.push(s.id);
+      }
     }
   }
-  if (start < 0 || end < 0) throw new DaemonError('invalid', `${relative(ws.root, file)} has no frontmatter to retire`);
-  const at = lines.findIndex((l, i) => i > start && i < end && /^status:/.test(l));
-  if (at >= 0) lines[at] = 'status: retired';
-  else lines.splice(end, 0, 'status: retired');
-  const next = lines.join('\n');
-  parseSkillFrontmatter(next);
-  await writeFileAtomic(file, next);
-  await recordConsent(ws, id, next);
-  return (await listSkills(ws)).find((s) => s.id === id) as SkillRecord;
+  return { changed, retireProposed };
 }

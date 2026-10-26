@@ -1,0 +1,12 @@
+{
+  "title": "Rate-limit incoming webhooks per tenant",
+  "goal": "POST /webhooks answers 429 with a Retry-After header when one tenant sends more webhooks than the configured limit in the configured window. Put the limiter in src/lib/limiter.ts, wire it into src/routes/webhooks.ts (and src/app.ts if it needs shared state), and read the limit and the window through loadConfig() in src/config.ts with defaults. Add tests in test/webhooks.test.ts or a new test file.",
+  "acceptance": [
+    "A tenant over the limit gets 429 with a Retry-After header",
+    "Other tenants are not affected",
+    "The limit and the window come from config, not constants in a route",
+    "The suite stays green with new tests for the 429 path"
+  ],
+  "testCommand": "bun run test",
+  "fixtureCommit": "be1bee8d153659647701b8f5886f0a5c73cf276a"
+}

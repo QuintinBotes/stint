@@ -1,0 +1,12 @@
+{
+  "title": "Delete a tenant through the admin routes",
+  "goal": "Add DELETE /admin/tenants/:id: add a remove method to TenantRegistry in src/lib/tenants.ts, call it from src/routes/admin.ts, answer 404 for an unknown tenant, and write an audit entry for the deletion like the other admin writes. A deleted tenant must no longer be accepted by POST /webhooks. Add tests in test/admin.test.ts.",
+  "acceptance": [
+    "DELETE /admin/tenants/:id removes a known tenant and answers 404 for an unknown one",
+    "The deletion writes an audit entry with the tenant",
+    "POST /webhooks answers 404 for the deleted tenant",
+    "The suite stays green with new tests for the delete path"
+  ],
+  "testCommand": "bun run test",
+  "fixtureCommit": "be1bee8d153659647701b8f5886f0a5c73cf276a"
+}

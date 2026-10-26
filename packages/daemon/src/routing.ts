@@ -1,11 +1,14 @@
 // Learned routing (R-045): which implementer to send a task to, chosen from how each one has done on tasks like it.
 // Thompson sampling: each agent's pass rate is a Beta posterior, one draw each, the highest draw wins. With
 // probability `explore` the pick goes instead to the least-tried agent, so a new or unlucky one still gets work.
-import { ALL_TAGS, type ScoreRow, scoreboard } from '@stint-dev/core/node';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { StintEvent, Task } from '@stint-dev/core';
-import type { Workspace } from '@stint-dev/core/node';
+import { ALL_TAGS, type ScoreRow, type Workspace, scoreboard } from '@stint-dev/core/node';
 
 export type Record = { passed: number; attempts: number };
+/** What an eval measured for an agent before or beside real tasks. */
+export type Prior = { agent: string; passed: number; attempts: number };
 export type Pick = { agent: string; score: number; explored: boolean; records: { [agent: string]: Record } };
 
 /** A Beta(a, b) draw for whole a and b: the a-th of a + b - 1 uniform order statistics, as gamma sums. */
@@ -41,10 +44,10 @@ export function chooseLearned(candidates: string[], records: { [agent: string]: 
 
 /**
  * Each agent's record on tasks like this one: the rows for the task's tags when any agent has them, else
- * every task. Eval results (`eval.ran` events naming an agent) count as attempts too, so routing starts
- * from what the evals measured before any real task has run.
+ * every task. Eval results count as attempts too, so routing starts from what the evals measured before
+ * any real task has run.
  */
-export function recordsFor(task: Task, rows: ScoreRow[], evals: StintEvent[]): { [agent: string]: Record } {
+export function recordsFor(task: Task, rows: ScoreRow[], priors: Prior[]): { [agent: string]: Record } {
   const tags = (task.tags ?? []).filter((t) => rows.some((r) => r.tag === t));
   const use = tags.length ? rows.filter((r) => tags.includes(r.tag)) : rows.filter((r) => r.tag === ALL_TAGS);
   const out: { [agent: string]: Record } = {};
@@ -54,23 +57,42 @@ export function recordsFor(task: Task, rows: ScoreRow[], evals: StintEvent[]): {
     r.attempts += attempts;
   };
   for (const r of use) add(r.agent, r.passed, r.attempts);
-  for (const e of evals) {
-    const agent = e.payload.agent;
-    const passed = Number(e.payload.passed);
-    const attempts = Number(e.payload.attempts ?? passed + Number(e.payload.failed ?? 0));
-    if (typeof agent === 'string' && Number.isFinite(passed) && Number.isFinite(attempts) && attempts >= passed) add(agent, passed, attempts);
-  }
+  for (const p of priors) add(p.agent, p.passed, p.attempts);
   return out;
 }
 
-/** The scoreboard and eval events of a whole workspace. */
-export async function workspaceRecords(ws: Workspace): Promise<{ rows: ScoreRow[]; evals: StintEvent[] }> {
+/** An `eval.ran` event that names an agent, as a prior. */
+function priorOf(e: StintEvent): Prior | null {
+  const passed = Number(e.payload.passed);
+  const attempts = Number(e.payload.attempts ?? passed + Number(e.payload.failed ?? 0));
+  if (typeof e.payload.agent !== 'string' || !Number.isFinite(passed) || !Number.isFinite(attempts) || attempts < passed) return null;
+  return { agent: e.payload.agent, passed, attempts };
+}
+
+/** Each try of the golden set (R-046) by the implementer it ran; a synthetic set teaches routing nothing. */
+export function goldenPriors(root: string): Prior[] {
+  const path = join(root, 'bench', 'golden-results.json');
+  if (!existsSync(path)) return [];
+  try {
+    const g = JSON.parse(readFileSync(path, 'utf8')) as { synthetic?: boolean; tasks?: Array<{ runs?: Array<{ implementer?: string; passed?: boolean; synthetic?: boolean }> }> };
+    if (g.synthetic) return [];
+    return (g.tasks ?? []).flatMap((t) => (t.runs ?? []).filter((r) => typeof r.implementer === 'string' && !r.synthetic).map((r) => ({ agent: r.implementer as string, passed: r.passed ? 1 : 0, attempts: 1 })));
+  } catch {
+    return [];
+  }
+}
+
+/** The scoreboard of a whole workspace, and the eval results routing starts from. */
+export async function workspaceRecords(ws: Workspace): Promise<{ rows: ScoreRow[]; priors: Prior[] }> {
   const all = [];
-  const evals: StintEvent[] = [];
+  const priors: Prior[] = goldenPriors(ws.root);
   for (const task of await ws.listTasks()) {
     const events = await ws.events(task.id).read();
     all.push({ task, events });
-    evals.push(...events.filter((e) => e.type === 'eval.ran' && typeof e.payload.agent === 'string'));
+    for (const e of events) if (e.type === 'eval.ran') {
+      const p = priorOf(e);
+      if (p) priors.push(p);
+    }
   }
-  return { rows: scoreboard(all), evals };
+  return { rows: scoreboard(all), priors };
 }

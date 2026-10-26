@@ -24,7 +24,8 @@ function SkillRow({ s, onChange }: { s: SkillRecord; onChange: () => void }) {
         </div>
         <div className="flex gap-1.5 shrink-0">
           {s.stale ? <StatusChip label="changed since approved" tone="warn" /> : null}
-          <StatusChip label={s.status} tone={s.status === 'active' ? 'good' : s.status === 'proposed' ? 'warn' : 'neutral'} />
+          {s.retireProposed ? <StatusChip label="retirement proposed" tone="bad" /> : null}
+          <StatusChip label={s.status} tone={s.status === 'active' ? 'good' : s.status === 'probation' ? 'active' : s.status === 'proposed' ? 'warn' : 'neutral'} />
         </div>
       </div>
       <dl className="mt-3 grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[12px]">
@@ -45,12 +46,36 @@ function SkillRow({ s, onChange }: { s: SkillRecord; onChange: () => void }) {
           </>
         ) : null}
         <dt className="text-muted">Track record</dt>
-        <dd className="tabular">
+        <dd className="tabular" data-testid="skill-track">
           {s.appliedIn.length
-            ? `applied in ${s.appliedIn.length} run${s.appliedIn.length === 1 ? '' : 's'}, approved without rejection after it ${s.helped} time${s.helped === 1 ? '' : 's'}, hurt ${s.hurt ?? 0} time${(s.hurt ?? 0) === 1 ? '' : 's'} (a reverted task counts as hurt)`
+            ? `applied in ${s.appliedIn.length} run${s.appliedIn.length === 1 ? '' : 's'}, helped ${s.helped} task${s.helped === 1 ? '' : 's'}, hurt ${s.hurt} task${s.hurt === 1 ? '' : 's'}`
             : 'not applied yet'}
         </dd>
+        {s.eval ? (
+          <>
+            <dt className="text-muted">Eval</dt>
+            <dd className="tabular" data-testid="skill-eval">
+              {s.eval.card}
+              {s.eval.synthetic ? ' (synthetic recording)' : ''}
+            </dd>
+          </>
+        ) : null}
       </dl>
+      {s.retireProposed ? (
+        <div className="mt-3 rounded-md border border-bad/40 bg-bad-tint p-3" data-testid="retire-proposal">
+          <p className="text-[13px]">
+            Retirement proposed: this skill hurt more tasks than it helped (helped {s.helped}, hurt {s.hurt}). Retiring stops it mounting; keeping it clears the proposal until the record changes.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <Button tone="danger" onClick={() => act(() => api.retireSkill(s.id))} data-testid="retire-skill">
+              Retire
+            </Button>
+            <Button onClick={() => act(() => api.keepSkill(s.id))} data-testid="keep-skill">
+              Keep
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {s.status === 'proposed' ? (
         rejecting ? (
           <form
@@ -89,13 +114,13 @@ export function Skills() {
       .catch(() => setSkills([]));
   }, []);
   useEffect(load, [load]);
-  const order = (s: SkillRecord) => (s.status === 'proposed' ? 0 : s.status === 'active' ? 1 : 2);
+  const order = (s: SkillRecord) => (s.status === 'proposed' ? 0 : s.retireProposed ? 1 : s.status === 'probation' ? 2 : s.status === 'active' ? 3 : 4);
   return (
     <main className="flex-1 min-h-0 overflow-y-auto" data-testid="skills">
       <div className="max-w-[900px] mx-auto px-4 py-6">
         <h1 className="text-[20px] font-semibold">Skills</h1>
         <p className="text-muted text-[13px] mt-1 mb-4 max-w-[72ch]">
-          Rules the agents load before a run. When a review finding recurs across tasks, the learn step proposes one with its evidence; nothing is written to <span className="font-mono">.agents/skills</span> until you approve it.
+          Rules the agents load before a run. When a review finding recurs across tasks, the learn step proposes one with its evidence; nothing is written to <span className="font-mono">.agents/skills</span> until you approve it. A learned skill starts on probation and becomes active after it helps on three tasks; one that hurts more than it helps is proposed for retirement.
         </p>
         {skills === null ? <p className="text-faint">Reading the skills.</p> : null}
         {skills?.length === 0 ? <EmptyState>No skills yet. A skill appears here when a review finding recurs across two tasks, or when a file is added to .agents/skills.</EmptyState> : null}

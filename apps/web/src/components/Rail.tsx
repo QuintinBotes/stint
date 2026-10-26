@@ -24,6 +24,10 @@ const NOTABLE = new Set([
   'merge.completed',
   'skill.proposed',
   'skill.approved',
+  'skill.status',
+  'skill.retire_proposed',
+  'skill.evaluated',
+  'outcome.reverted',
   'provider.fallback',
 ]);
 
@@ -121,6 +125,28 @@ export function describe(e: StintEvent): ReactNode {
       return <>Skill proposed: {str(p.id)}</>;
     case 'skill.approved':
       return <>Skill approved: {str(p.id)}</>;
+    case 'skill.status':
+      return (
+        <>
+          Skill {str(p.id)} is now {str(p.to)} (helped {Number(p.helped)}, hurt {Number(p.hurt)})
+        </>
+      );
+    case 'skill.retire_proposed':
+      return (
+        <>
+          Retirement proposed for {str(p.id)}: helped {Number(p.helped)}, hurt {Number(p.hurt)}
+        </>
+      );
+    case 'skill.evaluated':
+      return <>Skill evaluated: {str(p.id)}: {str(p.card)}</>;
+    case 'outcome.reverted':
+      return <>This change was reverted after merge</>;
+    case 'eval.ran':
+      return (
+        <>
+          Golden eval {str(p.golden)} run {Number(p.run)}/{Number(p.k)}: {p.passed ? 'passed' : 'failed'}
+        </>
+      );
     case 'human.command':
       return (
         <>

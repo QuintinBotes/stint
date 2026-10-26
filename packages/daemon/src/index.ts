@@ -21,3 +21,4 @@ export * from './quiz';
 export { afterRunPacket, digestFrom } from './routes/handoff';
 export * from './acceptance';
 export * from './outcomes';
+export * from './gates';

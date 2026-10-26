@@ -124,7 +124,8 @@ test('Approving the proposal writes .agents/skills/limiter-config-via-env/SKILL.
       const res = await post(made.app, '/api/skills/limiter-config-via-env/approve', {});
       expect(res.status).toBe(200);
       const body = (await res.json()) as { committed: boolean; commit: string | null; status: string };
-      expect(body).toMatchObject({ committed: true, status: 'active' });
+      // R-031: an approved skill starts on probation and earns active from its track record
+      expect(body).toMatchObject({ committed: true, status: 'probation' });
 
       const file = join(repo, '.agents', 'skills', 'limiter-config-via-env', 'SKILL.md');
       const { frontmatter, body: text } = parseSkillFrontmatter(readFileSync(file, 'utf8'));
@@ -134,7 +135,7 @@ test('Approving the proposal writes .agents/skills/limiter-config-via-env/SKILL.
         tags: ['limits', 'config'],
         version: '1.0.0',
         origin: 'learn-loop',
-        status: 'active',
+        status: 'probation',
         evidence: ['T-0042/r4#F1', 'T-0040/r3#F2'],
       });
       expect(text).toContain('Every limit, threshold, window and cap is read through loadConfig()');

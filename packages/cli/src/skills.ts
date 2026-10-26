@@ -14,6 +14,8 @@ type SkillRow = {
   stale: boolean;
   appliedIn: string[];
   helped: number;
+  hurt: number;
+  retireProposed: boolean;
 };
 
 const repoArg = { repo: { type: 'string', description: 'Repository root (default: the git top level)' } } as const;
@@ -33,7 +35,8 @@ export function formatSkills(rows: SkillRow[]): string[] {
   if (rows.length === 0) return ['No skills yet.'];
   return rows.map((s) => {
     const mount = [s.roles.length ? `roles: ${s.roles.join(', ')}` : 'roles: all', s.tags.length ? `tags: ${s.tags.join(', ')}` : 'tags: all'].join('; ');
-    return `${s.id.padEnd(28)} ${s.origin.padEnd(11)} ${s.status.padEnd(9)}${s.stale ? ' stale   ' : '         '}${mount}`;
+    const track = `applied ${s.appliedIn.length}, helped ${s.helped}, hurt ${s.hurt}${s.retireProposed ? ', retirement proposed' : ''}`;
+    return `${s.id.padEnd(28)} ${s.origin.padEnd(11)} ${s.status.padEnd(9)}${s.stale ? ' stale   ' : '         '}${mount}; ${track}`;
   });
 }
 

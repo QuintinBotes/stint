@@ -1,0 +1,12 @@
+{
+  "title": "Get one stored event by id",
+  "goal": "Add GET /events/:id in src/routes/events.ts: it returns the stored event as JSON when the X-Tenant header names the tenant that owns it, 400 when the header is missing, and 404 when the event does not exist or belongs to another tenant. Use the existing EventStore. Add tests in test/events.test.ts.",
+  "acceptance": [
+    "GET /events/:id returns the event for its owning tenant",
+    "Another tenant asking for the same id gets 404",
+    "A missing X-Tenant header gets 400",
+    "The suite stays green with new tests for all three cases"
+  ],
+  "testCommand": "bun run test",
+  "fixtureCommit": "be1bee8d153659647701b8f5886f0a5c73cf276a"
+}

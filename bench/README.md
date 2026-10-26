@@ -66,3 +66,7 @@ Each row is the continued run, not the capped first run:
 - `repeat`: which repeat this row is, starting at 1.
 
 The one-screen summary prints, per mode, the mean input tokens, mean prompt tokens, mean USD and pass rate, then the ratio. When packet mode passes less often than transcript mode, the summary says so and names `leftOut` and `askOfNext` as the fields to improve, because those are the packet fields that carry what the first agent skipped and what it asks the next agent to do.
+
+## Golden tasks
+
+`bench/golden/*.json` holds tasks that must keep passing, run by `stint eval --golden --k 3` (each task k times on fresh fixtures, graded by the daemon's verification plus any scenarios in the file). Results land in `bench/golden-results.json` as `stint.golden/1` with pass@1 (the share of tries that pass), pass^k (the share of tasks where every try passes) and the total cost; recorded runs stay in `bench/golden-runs/` so `--replay` rebuilds the same numbers with no model call. `stint eval add-golden <task>` adds a rejected or reverted task to the set. See `docs/evals.md`.

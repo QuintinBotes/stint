@@ -10,12 +10,15 @@ export const SkillFrontmatterSchema = z.looseObject({
   version: z.string().optional(),
   origin: z.enum(['human', 'learn-loop']).optional(),
   evidence: z.array(z.string()).optional(),
-  status: z.enum(['active', 'proposed', 'retired']).optional(),
+  status: z.enum(['active', 'probation', 'proposed', 'retired']).optional(),
 });
 export type SkillFrontmatter = z.infer<typeof SkillFrontmatterSchema>;
 
+/** A learned skill starts on probation and earns active from its track record (R-031). */
+export type SkillStatus = 'active' | 'probation' | 'proposed' | 'retired';
+
 export type ParsedSkill = {
-  frontmatter: SkillFrontmatter & { origin: 'human' | 'learn-loop'; status: 'active' | 'proposed' | 'retired' };
+  frontmatter: SkillFrontmatter & { origin: 'human' | 'learn-loop'; status: SkillStatus };
   body: string;
 };
 

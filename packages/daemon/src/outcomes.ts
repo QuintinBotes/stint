@@ -8,6 +8,7 @@ import { gh, ghOk, git } from './git';
 import { triggerLearn } from './learn';
 import { releaseWorktrees } from './lifecycle';
 import { parseTrailers } from './routes/approve';
+import { updateSkillStatuses } from './skills';
 
 /**
  * Outcomes after merge (R-030) and release signals (R-042): the daemon watches what happens to a
@@ -199,6 +200,8 @@ export async function scanOutcomes(ctx: DaemonContext): Promise<ScanResult> {
   const result: ScanResult = { reverted: 0, followup: 0, ci: 0 };
   const merges = await scanRevertsAndFollowups(ctx, result);
   await scanCi(ctx, merges, result);
+  // a revert is a hurt for every skill mounted on that task (R-031)
+  if (result.reverted > 0) await updateSkillStatuses(ctx);
   return result;
 }
 

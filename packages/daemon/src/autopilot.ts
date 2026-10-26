@@ -311,8 +311,8 @@ export class Autopilot {
     if (routing?.mode !== 'learned' || !task || ordered.length === 0) return ordered[0] ?? null;
     const candidates = ordered.length > 1 && after ? ordered.filter((a) => a !== after) : ordered;
     const t = await this.ctx.ws.readTask(task);
-    const { rows, evals } = await workspaceRecords(this.ctx.ws);
-    const pick = chooseLearned(candidates, recordsFor(t, rows, evals), routing.explore, this.rng);
+    const { rows, priors } = await workspaceRecords(this.ctx.ws);
+    const pick = chooseLearned(candidates, recordsFor(t, rows, priors), routing.explore, this.rng);
     await this.ctx.ws.events(task).append({ task, vendor: 'daemon', type: 'routing.chosen', payload: { agent: pick.agent, tags: t.tags ?? [], score: Math.round(pick.score * 1000) / 1000, explored: pick.explored, records: pick.records } });
     return pick.agent;
   }

@@ -14,6 +14,6 @@
     "version": { "type": "string" },
     "origin": { "type": "string", "enum": ["human", "learn-loop"], "default": "human" },
     "evidence": { "type": "array", "items": { "type": "string" } },
-    "status": { "type": "string", "enum": ["active", "proposed", "retired"], "default": "active" }
+    "status": { "type": "string", "enum": ["active", "probation", "proposed", "retired"], "default": "active" }
   }
 }

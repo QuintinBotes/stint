@@ -182,7 +182,7 @@ export async function runLearn(ctx: DaemonContext, taskId: string): Promise<void
     const key = evidenceKey(candidate.evidence);
     if ((await readRejected(ctx.ws)).some((r) => r.evidenceKey === key)) return skipped(ctx, taskId, 'evidence was rejected before');
     if ((await listProposals(ctx.ws)).some((p) => evidenceKey(p.evidence) === key)) return skipped(ctx, taskId, 'already proposed');
-    if (scanSkillFiles(ctx.ws.root).some((s) => s.frontmatter.status === 'active' && evidenceKey(s.frontmatter.evidence ?? []) === key)) {
+    if (scanSkillFiles(ctx.ws.root).some((s) => (s.frontmatter.status === 'active' || s.frontmatter.status === 'probation') && evidenceKey(s.frontmatter.evidence ?? []) === key)) {
       return skipped(ctx, taskId, 'already a skill');
     }
 

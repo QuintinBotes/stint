@@ -50,6 +50,11 @@ test('A fixture repo where a Stint-Task merge is reverted yields exactly one out
       await gitOk(repo, ['add', '--', 'src/lib/outcome-fixture.ts']);
       await gitOk(repo, ['commit', '-q', '-m', 'Add the outcome fixture']);
       await gitOk(repo, ['checkout', '-q', base]);
+      // a learned skill on probation, mounted on this task
+      mkdirSync(join(repo, '.agents/skills/limiter-config-via-env'), { recursive: true });
+      writeFileSync(join(repo, '.agents/skills/limiter-config-via-env/SKILL.md'), '---\nname: limiter-config-via-env\ndescription: Read limits through loadConfig.\norigin: learn-loop\nstatus: probation\n---\nRead limits through loadConfig().\n');
+      await gitOk(repo, ['add', '--', '.agents/skills']);
+      await gitOk(repo, ['commit', '-q', '-m', 'Add a probation skill']);
       await gitOk(repo, ['merge', '-q', '--no-ff', task.branch, '-m', `${task.title} (${task.id})`, '-m', `Stint-Task: ${task.id}`]);
       const mergeCommit = (await gitOk(repo, ['rev-parse', 'HEAD'])).trim();
       const events = ws.events(task.id);
@@ -80,6 +85,10 @@ test('A fixture repo where a Stint-Task merge is reverted yields exactly one out
       // a reverted task with a skill mounted counts as hurt
       const helped = await skillsHelped(ws);
       expect(helped.find((r) => r.skill === 'limiter-config-via-env')?.hurt).toBe(1);
+      // and the scan itself moves the skill's track record: hurt and never helped, so retirement is proposed, once
+      const proposed = (await events.read()).filter((e) => e.type === 'skill.retire_proposed');
+      expect(proposed).toHaveLength(1);
+      expect(proposed[0]?.payload).toMatchObject({ id: 'limiter-config-via-env', hurt: 1, helped: 0 });
     });
   });
 }, 60_000);

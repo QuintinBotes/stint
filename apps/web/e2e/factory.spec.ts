@@ -13,6 +13,16 @@ test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost b
   await expect(page.getByTestId('queue-row').first()).toContainText('would reverse D3');
 });
 
+test('The Factory shows the phase gates with their reasons', async ({ page }) => {
+  await page.goto('/factory');
+  const gates = page.getByTestId('phase-gates');
+  await expect(gates).toContainText('Phase 2');
+  await expect(gates).toContainText('Phase 3');
+  // the replay fixture has no golden results file, so both gates say not yet and say why
+  await expect(gates).toContainText('No golden results yet');
+  await expect(gates).toContainText('not yet');
+});
+
 test('The relay shows each agent as a lane, the killed run, the 412-token packet to the next agent, and the skill that crossed tasks', async ({ page }) => {
   await page.goto('/factory');
   const relay = page.getByTestId('relay');

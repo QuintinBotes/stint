@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
-import { type CostRow, type ScoreRow, api } from '../api';
+import { type CostRow, type PhaseGates, type ScoreRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
-import { Button, EmptyState, VendorMark, cx } from '../components/ui';
+import { Button, EmptyState, StatusChip, VendorMark, cx } from '../components/ui';
 import { money, tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
 
@@ -325,6 +325,40 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
   );
 }
 
+const gatePct = (n: number) => `${Math.round(n * 100)}%`;
+
+/** The phase gates: golden pass rates first, then whether each phase has opened and why. */
+function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
+  if (!gates) return <EmptyState>The phase gates appear once the daemon can read the golden results.</EmptyState>;
+  const rows: Array<[string, boolean, string]> = [
+    ['Phase 2', gates.phase2.met, gates.phase2.detail],
+    ['Phase 3', gates.phase3.met, gates.phase3.detail],
+  ];
+  return (
+    <div data-testid="phase-gates">
+      {gates.golden ? (
+        <p className="text-[13px] tabular mb-3" data-testid="golden-line">
+          Golden tasks: {gates.golden.tasks} tasks, pass@1 {gatePct(gates.golden.passAt1)}, pass^{gates.golden.k} {gatePct(gates.golden.passPowK)}
+          {gates.golden.usd !== null ? `, cost $${gates.golden.usd.toFixed(2)}` : ''}
+        </p>
+      ) : (
+        <p className="text-[13px] text-muted mb-3">No golden results yet. Run stint eval --golden --k 3.</p>
+      )}
+      <ul className="flex flex-col gap-2">
+        {rows.map(([name, met, detail]) => (
+          <li key={name} className="flex items-start justify-between gap-3 border-t border-line pt-2">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium">{name}</p>
+              <p className="text-[12px] text-muted">{detail}</p>
+            </div>
+            <StatusChip label={met ? 'open' : 'not yet'} tone={met ? 'good' : 'neutral'} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Panel({ title, children, className, testId }: { title: string; children: React.ReactNode; className?: string; testId?: string }) {
   return (
     <section className={cx('rounded-lg border border-line bg-raised p-4', className)} data-testid={testId}>
@@ -342,6 +376,7 @@ export function Factory() {
   const byTask = useLoad(() => api.costs('task'), []);
   const helped = useLoad(() => api.graphQuery<Helped>({ q: 'skills-helped' }), []);
   const scores = useLoad(() => api.scoreboard(), []);
+  const gates = useLoad(() => api.phaseGates(), []);
   const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
   const [outcomeRows, setOutcomeRows] = useState<OutcomeRow[] | null>(null);
@@ -435,6 +470,10 @@ export function Factory() {
 
         <Panel title="Scoreboard: how each agent has done" testId="panel-scoreboard">
           <Scoreboard data={scores} />
+        </Panel>
+
+        <Panel title="Phase gates: the golden tasks and the shadow record" testId="panel-phase-gates">
+          <PhaseGatePanel gates={gates} />
         </Panel>
 
         <div className="grid md:grid-cols-2 gap-4">

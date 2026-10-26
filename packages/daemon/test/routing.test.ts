@@ -64,3 +64,21 @@ test('Autopilot in learned mode builds with the agent the evals favour and recor
     models.stop();
   }
 }, 120_000);
+
+test('Real golden results seed routing by implementer, and a synthetic set seeds nothing', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { goldenPriors } = await import('../src/routing');
+  await withFixtureRepo(async (repo) => {
+    mkdirSync(join(repo, 'bench'), { recursive: true });
+    const results = (synthetic: boolean) => ({ version: 'stint.golden/1', ...(synthetic ? { synthetic: true } : {}), tasks: [{ name: 'a', runs: [{ implementer: 'muse-code', passed: true }, { implementer: 'muse-code', passed: false }, { implementer: 'stint-agent', passed: true }] }] });
+    writeFileSync(join(repo, 'bench', 'golden-results.json'), JSON.stringify(results(false)));
+    expect(goldenPriors(repo)).toEqual([
+      { agent: 'muse-code', passed: 1, attempts: 1 },
+      { agent: 'muse-code', passed: 0, attempts: 1 },
+      { agent: 'stint-agent', passed: 1, attempts: 1 },
+    ]);
+    writeFileSync(join(repo, 'bench', 'golden-results.json'), JSON.stringify(results(true)));
+    expect(goldenPriors(repo)).toEqual([]);
+  });
+});

@@ -14,7 +14,14 @@ export type Health = {
   models?: ModelHealth[];
   autopilot?: { running: string[]; queued: string[] };
 };
-export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number; hurt: number };
+export type SkillEvalSide = { runs: number; findings: number; passed: number; failed: number; verified: number; inputTokens: number; cachedTokens: number; outputTokens: number; usd: number | null };
+export type SkillEvalSummary = { id: string; with: SkillEvalSide; without: SkillEvalSide; card: string; createdAt?: string; synthetic?: true; replay?: boolean };
+export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number; hurt: number; retireProposed: boolean; eval?: SkillEvalSummary };
+export type PhaseGates = {
+  phase2: { met: boolean; passPowK: number | null; k: number | null; tamperEscapes: number; detail: string };
+  phase3: { met: boolean; tier: string | null; shadowDays: number; reverts: number; detail: string };
+  golden: { k: number; passAt1: number; passPowK: number; tasks: number; usd: number | null } | null;
+};
 export type QuizMiss = { id: string; text: string; truth: boolean; blocking: boolean; answer: string };
 export type QuizResult = {
   name: string;
@@ -160,6 +167,9 @@ export const api = {
   skills: () => request<SkillRecord[]>('/api/skills'),
   approveSkill: (id: string) => post<unknown>(`/api/skills/${id}/approve`),
   rejectSkill: (id: string, reason: string) => post<unknown>(`/api/skills/${id}/reject`, { reason }),
+  retireSkill: (id: string) => post<unknown>(`/api/skills/${id}/retire`),
+  keepSkill: (id: string) => post<unknown>(`/api/skills/${id}/keep`),
+  phaseGates: () => request<PhaseGates>('/api/phase-gates'),
   relay: () => request<import('./components/Relay').RelayData>('/api/relay'),
   hand: (id: string, adapter: string, ask?: string) => post<{ run: string; packet: string }>(`/api/tasks/${id}/hand`, { adapter, ...(ask ? { ask } : {}) }),
   quiz: (id: string, name: string) => post<QuizResult>(`/api/tasks/${id}/handoffs/${name}/quiz`),

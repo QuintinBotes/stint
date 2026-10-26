@@ -22,6 +22,7 @@ import { DaemonError, errorResponse } from './errors';
 import { outcomeRoutes } from './outcomes';
 import { ptyHealth } from './pty';
 import { benchRoutes } from './routes/bench';
+import { gateRoutes } from './routes/gates';
 import { demoRoutes } from './routes/demo';
 import { approveRoutes } from './routes/approve';
 import { graphRoutes } from './routes/graph';
@@ -379,4 +380,5 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   skillRoutes(app, ctx);
   ptyRoutes(app, ctx);
   benchRoutes(app, ctx);
+  gateRoutes(app, ctx);
 }

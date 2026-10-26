@@ -9,6 +9,16 @@ import { DaemonError } from '../errors';
 import { ghOk, git, gitOk, identityArgs } from '../git';
 import { triggerLearn } from '../learn';
 import { releaseWorktrees } from '../lifecycle';
+import { updateSkillStatuses } from '../skills';
+
+/** Skill statuses follow task outcomes; a status pass that fails is said out loud, never hidden. */
+async function skillStatuses(ctx: DaemonContext): Promise<void> {
+  try {
+    await updateSkillStatuses(ctx);
+  } catch (err) {
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `skill statuses were NOT updated after the outcome: ${err instanceof Error ? err.message : String(err)}` })}\n`);
+  }
+}
 
 const ApproveBody = z.strictObject({ squash: z.boolean().optional(), by: z.string().min(1).max(80).optional() });
 const ReasonBody = z.strictObject({ reason: z.string().min(1).max(400) });
@@ -182,6 +192,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
         cleanup = err instanceof Error ? err.message : String(err);
       }
       const result = { commit, into: base, trailers, ...(cleanup ? { cleanup } : {}) };
+      await skillStatuses(ctx);
       // learn runs after the response is computed and cannot delay or fail it
       triggerLearn(ctx, id);
       return c.json(result);
@@ -200,6 +211,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     void ctx.otel.task(id).catch(() => undefined);
     await ctx.ws.writeTask(id, { status: 'building', pendingAsk: reason });
     const result = { status: 'building', decision: d.id };
+    await skillStatuses(ctx);
     triggerLearn(ctx, id);
     return c.json(result);
   });
@@ -210,6 +222,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     await ctx.ws.readTask(id);
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason: text, changes: true } });
     await ctx.ws.writeTask(id, { status: 'building', pendingAsk: text });
+    await skillStatuses(ctx);
     return c.json({ status: 'building' });
   });
 }

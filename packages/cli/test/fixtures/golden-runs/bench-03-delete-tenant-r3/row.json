@@ -1,0 +1,17 @@
+{
+  "task": "bench-03-delete-tenant",
+  "run": 3,
+  "passed": true,
+  "verified": true,
+  "passedTests": 33,
+  "failedTests": 0,
+  "scenarios": [],
+  "inputTokens": 15800,
+  "cachedTokens": 7900,
+  "outputTokens": 1100,
+  "usd": 0.015,
+  "synthetic": true,
+  "implementer": "stint-agent",
+  "model": "muse-spark-1.3",
+  "host": "meta-api"
+}
