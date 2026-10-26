@@ -2,6 +2,18 @@
   "name": "@stint-dev/cli",
   "version": "0.0.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": {}
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun build ./src/main.ts --target=bun --outfile=dist/stint.js"
+  },
+  "dependencies": {
+    "@stint-dev/core": "workspace:*",
+    "@stint-dev/daemon": "workspace:*",
+    "citty": "0.2.2"
+  },
+  "bin": {
+    "stint": "./bin/stint"
+  }
 }

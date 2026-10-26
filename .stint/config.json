@@ -1,0 +1,143 @@
+{
+  "adapters": {
+    "claude-code": {
+      "enabled": true,
+      "maxTurns": 40
+    },
+    "muse-code": {
+      "enabled": true,
+      "maxModelSteps": 60,
+      "model": "muse-spark-1.3",
+      "timeoutMs": 900000
+    },
+    "replay": {
+      "enabled": true
+    }
+  },
+  "branchRetentionDays": 7,
+  "budgets": {
+    "implementer": 150000,
+    "learn": 20000,
+    "planner": 40000,
+    "reviewer": 30000
+  },
+  "credits": {
+    "baseten": 100,
+    "fireworks": 25,
+    "meta-api": 150,
+    "modal": 100
+  },
+  "hosts": {
+    "baseten": {
+      "baseURL": "https://inference.baseten.co/v1",
+      "cachedInput": true,
+      "keyEnv": "BASETEN_API_KEY",
+      "models": {
+        "muse-spark-open": "meta-models/muse-spark-open"
+      },
+      "offline": false,
+      "structuredOutput": "accepted",
+      "tpm": 2000000
+    },
+    "fireworks": {
+      "baseURL": "https://api.fireworks.ai/inference/v1",
+      "cachedInput": true,
+      "keyEnv": "FIREWORKS_API_KEY",
+      "models": {
+        "muse-spark-open": "accounts/fireworks/models/muse-spark-open"
+      },
+      "offline": false,
+      "structuredOutput": "enforced"
+    },
+    "meta-api": {
+      "baseURL": "https://api.meta.ai/v1",
+      "cachedInput": true,
+      "keyEnv": "META_API_KEY",
+      "models": {
+        "muse-spark-1.3": "muse-spark-1.3",
+        "muse-wonder-1.0": "muse-wonder-1.0"
+      },
+      "offline": false,
+      "structuredOutput": "enforced"
+    },
+    "modal": {
+      "baseURLEnv": "MODAL_BASE_URL",
+      "cachedInput": true,
+      "keyEnv": "MODAL_API_KEY",
+      "models": {
+        "muse-spark-open": "meta-models/Muse-Spark-Open-816B-A42B"
+      },
+      "offline": false,
+      "structuredOutput": "accepted"
+    },
+    "ollama": {
+      "baseURL": "http://localhost:11434/v1",
+      "cachedInput": false,
+      "models": {
+        "muse-glimmer:30b-mlx": "muse-glimmer:30b-mlx"
+      },
+      "offline": true,
+      "structuredOutput": "enforced"
+    }
+  },
+  "port": 0,
+  "prices": {
+    "baseten/muse-spark-open": {
+      "cached": 0.15,
+      "input": 1.25,
+      "output": 4.25
+    },
+    "fireworks/muse-spark-open": {
+      "cached": 0.15,
+      "input": 1.25,
+      "output": 4.25
+    },
+    "meta-api/muse-spark-1.3": {
+      "cached": 0.15,
+      "input": 1.25,
+      "output": 5
+    },
+    "meta-api/muse-wonder-1.0": {
+      "cached": 0.2,
+      "input": 4,
+      "output": 20
+    },
+    "modal/muse-spark-open": {
+      "cached": 0.15,
+      "input": 1.25,
+      "output": 4.25
+    },
+    "ollama/muse-glimmer:30b-mlx": {
+      "cached": 0,
+      "input": 0,
+      "output": 0
+    }
+  },
+  "routes": {
+    "learn": [
+      "baseten/muse-spark-open",
+      "meta-api/muse-spark-1.3",
+      "modal/muse-spark-open",
+      "ollama/muse-glimmer:30b-mlx"
+    ],
+    "planner": [
+      "meta-api/muse-wonder-1.0",
+      "fireworks/muse-spark-open",
+      "baseten/muse-spark-open",
+      "modal/muse-spark-open",
+      "ollama/muse-glimmer:30b-mlx"
+    ],
+    "reviewer": [
+      "ollama/muse-glimmer:30b-mlx",
+      "fireworks/muse-spark-open",
+      "baseten/muse-spark-open",
+      "modal/muse-spark-open"
+    ],
+    "summary": [
+      "ollama/muse-glimmer:30b-mlx",
+      "baseten/muse-spark-open"
+    ]
+  },
+  "testCommand": "bun test",
+  "version": "stint.config/1"
+}

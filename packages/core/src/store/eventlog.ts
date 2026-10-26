@@ -9,6 +9,7 @@ export const GENESIS = '0'.repeat(64);
 const ulid = monotonicFactory();
 const queue = new KeyedQueue();
 const instances = new Map<string, EventLog>();
+const anyListeners = new Set<(e: StintEvent) => void>();
 
 /** The hash chain (ported from an earlier terminal project's run.rs): NUL-separated canonical fields plus the previous hash. */
 export function eventHash(e: Pick<StintEvent, 'seq' | 'ts' | 'task' | 'run' | 'adapter' | 'type' | 'payload'>, prev: string): string {
@@ -46,6 +47,7 @@ export class EventLog {
       await appendFile(this.path, `${JSON.stringify(event)}\n`, { flag: 'a' });
       this.tail = { seq: event.seq, hash: event.hash as string };
       for (const l of this.listeners) l(event);
+      for (const l of anyListeners) l(event);
       return event;
     });
   }
@@ -71,6 +73,12 @@ export class EventLog {
       prev = e.hash;
     }
     return { ok: true };
+  }
+
+  /** In-process subscription to every append in this process, across all tasks (the board stream). */
+  static onAnyAppend(cb: (e: StintEvent) => void): () => void {
+    anyListeners.add(cb);
+    return () => anyListeners.delete(cb);
   }
 
   /** In-process subscription to appends made through this instance. */

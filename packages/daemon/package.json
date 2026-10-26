@@ -6,6 +6,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "echo 'The daemon arrives in R-004. Open http://127.0.0.1:<port> once it exists.'"
+    "dev": "bun run src/server.ts"
+  },
+  "dependencies": {
+    "@stint-dev/core": "workspace:*",
+    "@stint-dev/adapter-openai-compatible": "workspace:*",
+    "hono": "4.13.14",
+    "zod": "4.6.7"
   }
 }
