@@ -13,3 +13,5 @@ export { billingHost, costs, latestHandoff, runsFromEvents, sumCosts, taskBundle
 export type { CostGroup, CostRow, RunSummary, TaskBundle } from './project/index';
 export { asOf, constrains, filesTogether, findingThemes, graphCachePath, openFindings, project, similar, skillsHelped } from './graph/index';
 export type { ConstrainsRow, FilesTogetherRow, Graph, GraphEdge, GraphEdgeType, GraphNode, GraphNodeType, GraphOptions, OpenFindingRow, ProjectOptions, SimilarRow, SkillsHelpedRow } from './graph/index';
+export { relayFromEvents } from './project/relay';
+export type { Relay, RelayLane, RelayLink, RelayMark, RelayRun } from './project/relay';

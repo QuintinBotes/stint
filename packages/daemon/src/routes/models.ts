@@ -1,4 +1,5 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { relayFromEvents } from '@stint-dev/core/node';
 import { join } from 'node:path';
 import {
   type Host,
@@ -192,4 +193,11 @@ export function modelRoutes(app: Hono, ctx: DaemonContext): void {
   });
 
   app.get('/api/graph/pending', async (c) => c.json(await pendingContradictions(ctx)));
+
+  // the whole floor: every run on its agent's lane, with the packets and skills that connect them
+  app.get('/api/relay', async (c) => {
+    const byTask = [];
+    for (const t of await ctx.ws.listTasks()) byTask.push({ task: t.id, events: await ctx.ws.events(t.id).read() });
+    return c.json(relayFromEvents(byTask));
+  });
 }
