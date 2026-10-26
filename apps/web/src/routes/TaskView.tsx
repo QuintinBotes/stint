@@ -6,6 +6,7 @@ import { api } from '../api';
 import { ApprovalGate } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard, VerificationCard } from '../components/Cards';
 import { DiffView } from '../components/DiffView';
+import { HandTo } from '../components/HandTo';
 import { MemoryPanel } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
 import { QuizPanel } from '../components/Quiz';
@@ -184,6 +185,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
               </div>
             ) : null}
             <HandoffCard handoff={packetName ? packet : bundle.handoff} />
+            {t.status !== 'done' ? <HandTo taskId={t.id} packet={packetName ? packet : bundle.handoff} live={bundle.runs.some((r) => !r.endedAt)} /> : null}
             {packetNames.length ? <PacketSources taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} onSelect={(seq) => setParam('ev', String(seq))} /> : null}
             {packetNames.length ? <QuizPanel taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} /> : null}
           </div>
