@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { Dialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions } from './components/Shell';
+import { Notifier } from './components/Notifier';
 import { Kbd } from './components/ui';
 import { useHealth } from './hooks';
 import { Board } from './routes/Board';
@@ -54,6 +55,7 @@ export function App() {
       <div className="h-full flex flex-col">
         <TopBar health={health.data} theme={theme} setTheme={setTheme} onPalette={() => setPalette(true)} />
         <ReplayStrip health={health.data} />
+        <Notifier theme={theme} />
         <Routes>
           <Route path="/" element={<Board />} />
           <Route path="/t/:id" element={<TaskView memoryOpen={memoryOpen} />} />
