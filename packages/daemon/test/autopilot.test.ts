@@ -115,3 +115,37 @@ test('Two tasks on autopilot with parallel: 1 run one after the other, the secon
     models.stop();
   }
 }, 180_000);
+
+test('Run all puts every planned task on autopilot and each reaches the approval gate', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }], models, { implementers: ['muse-code'], maxHops: 3, parallel: 1 });
+      const a = await ws.createTask(task('true', 'First task'));
+      const b = await ws.createTask(task('true', 'Second task'));
+      const res = (await (await post(app, '/api/autopilot', { on: true })).json()) as { tasks: string[] };
+      expect(res.tasks).toEqual([a.id, b.id]);
+      await until(ws, a.id, stopped);
+      await until(ws, b.id, stopped);
+      expect((await ws.readTask(a.id)).status).toBe('awaiting_approval');
+      expect((await ws.readTask(b.id)).status).toBe('awaiting_approval');
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);
+
+test('With autopilot.onCreate, a task created through the daemon starts on autopilot by itself', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }], models, { implementers: ['muse-code'], maxHops: 3, parallel: 2, onCreate: true });
+      const created = (await (await post(app, '/api/tasks', task('true', 'Starts itself'))).json()) as { id: string };
+      const events = await until(ws, created.id, stopped);
+      expect(events[1]?.type === 'autopilot.started' || events.some((e) => e.type === 'autopilot.started')).toBe(true);
+      expect((await ws.readTask(created.id)).status).toBe('awaiting_approval');
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);

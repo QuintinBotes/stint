@@ -196,6 +196,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
   app.post('/api/tasks', async (c) => {
     const body = NewTaskBody.parse(await c.req.json());
     const task = await ws.createTask(body);
+    if (ws.config.autopilot?.onCreate) await ctx.autopilot.start(task.id);
     return c.json(task, 201);
   });
 

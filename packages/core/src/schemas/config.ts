@@ -67,6 +67,8 @@ export const ConfigSchema = z.strictObject({
       parallel: z.int().min(1).max(8),
       /** Write failing acceptance tests first and lock them before the build (R-027). */
       testsFirst: z.boolean().optional(),
+      /** Put every new task on autopilot as soon as it is created. */
+      onCreate: z.boolean().optional(),
     })
     .optional(),
   /** Other coding agents a person can hand a task to; off until enabled (R-026). */
