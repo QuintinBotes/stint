@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runsFromEvents } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
+import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
 import { git, gitOk } from '../git';
@@ -45,6 +46,24 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
       // this checkout holds no work, only the branch head and the test run's leftovers, so it is removed even if dirty
       await git(ctx.ws.root, ['worktree', 'remove', '--force', path]);
     }
+  });
+
+  // an agent or a person records a decision; a reversal names what it supersedes and never edits it
+  app.post('/api/tasks/:id/decisions', async (c) => {
+    const id = c.req.param('id');
+    await ctx.ws.readTask(id);
+    const body = z
+      .strictObject({ text: z.string().min(1).max(200), supersedes: z.string().regex(/^D[0-9]+$/).optional(), by: z.string().min(1).max(80).optional() })
+      .parse(await c.req.json());
+    const d = await ctx.ws.decisions(id).append({ text: body.text, by: body.by ?? 'you', ...(body.supersedes ? { supersedes: body.supersedes } : {}) });
+    await ctx.ws.events(id).append({ task: id, vendor: body.by && body.by !== 'you' ? 'daemon' : 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by, ...(d.supersedes ? { supersedes: d.supersedes } : {}) }, links: [{ kind: 'decision', ref: d.id }] });
+    return c.json(d, 201);
+  });
+
+  app.get('/api/tasks/:id/decisions', async (c) => {
+    const id = c.req.param('id');
+    await ctx.ws.readTask(id);
+    return c.json(await ctx.ws.decisions(id).validAt());
   });
 
   app.get('/api/tasks/:id/verification', async (c) => {

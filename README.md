@@ -91,6 +91,10 @@ The first packet was six times smaller to hand over, and every continued run pas
 
 One run per task is a small sample, and single tasks swung both ways, so read this as a first measurement, not a law. The digest also failed to arrive for one task. The rows, prompts, packets and transcripts are in `bench/runs/` and `bench/digest/runs/`, and `stint bench --replay` rebuilds the tables from them.
 
+## Stint as a tool for any agent
+
+`stint mcp` serves Stint over MCP: the board, packets, similar tasks, the decisions that constrain a file, recording a decision, handing off, autopilot and verify. The Stint plugin registers it for Muse Code, so Muse Code can read the memory mid-session. Any other MCP client can connect too. Approving and merging stay with a person. See [`docs/mcp.md`](docs/mcp.md).
+
 ## Meta models, where each one works
 
 | Model | Where it runs | What it does in Stint |
