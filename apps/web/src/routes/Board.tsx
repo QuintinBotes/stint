@@ -1,5 +1,6 @@
 import type { TaskStatus } from '@stint-dev/core';
 import type { TaskCardData } from '../api';
+import { IntakePanel } from '../components/Intake';
 import { TaskCard } from '../components/TaskCard';
 import { EmptyState } from '../components/ui';
 import { useTasks } from '../hooks';
@@ -21,6 +22,7 @@ export function Board() {
   const all = new Map(cards.map((c) => [c.task.id, c.task]));
   return (
     <main className="flex-1 min-h-0 overflow-auto">
+      <IntakePanel tasks={cards} />
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4 p-4" data-testid="board">
         {LANES.map((lane) => {
           const inLane = cards.filter((c) => lane.statuses.includes(c.task.status));

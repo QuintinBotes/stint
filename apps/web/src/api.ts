@@ -108,6 +108,20 @@ export type ScoreRow = { tag: string; agent: string; model: string | null; runs:
 
 export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null; outcomes: OutcomeRecord[]; release?: ReleaseRecord | null; risk?: { tier: string; reasons: string[]; byPolicy: boolean } | null };
 
+/** An issue pulled from GitHub or Linear and triaged, waiting for a person (R-041). */
+export type IntakeItem = {
+  id: string;
+  source: 'github' | 'linear';
+  ref: string;
+  url: string | null;
+  title: string;
+  labels: string[];
+  triage: { size: string; title: string; goal: string; acceptance: string[]; duplicates: string[]; risk: string; reason: string; model: string } | null;
+  triageError?: string;
+  state: 'open' | 'accepted' | 'merged' | 'dismissed';
+  task: string | null;
+};
+
 /** Scheduled upkeep: each template, when it next makes a task, and the task it has open (R-044). */
 export type Gardening = { schedule: 'off' | 'daily' | 'weekly'; templates: Array<{ id: string; title: string; lastAt: string | null; nextAt: string | null; openTask: string | null }> };
 
@@ -198,6 +212,10 @@ export const api = {
   costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
   risk: () => request<RiskState>('/api/risk'),
   gardening: () => request<Gardening>('/api/gardening'),
+  intake: () => request<IntakeItem[]>('/api/intake'),
+  acceptIntake: (id: string) => post<{ task: string }>(`/api/intake/${id}/accept`),
+  mergeIntake: (id: string, task: string) => post<{ task: string }>(`/api/intake/${id}/merge`, { task }),
+  dismissIntake: (id: string) => post<{ state: string }>(`/api/intake/${id}/dismiss`),
   laneOff: () => post<{ enabled: false }>('/api/risk/autoapprove', { enabled: false }),
   scoreboard: () => request<{ rows: ScoreRow[]; routing: { mode: 'chains' | 'learned'; explore: number } }>('/api/scoreboard'),
   demoStatus: () => request<DemoStatus>('/api/demo/status'),

@@ -29,6 +29,7 @@ import { graphRoutes } from './routes/graph';
 import { modelRoutes } from './routes/models';
 import { riskRoutes } from './risk';
 import { gardeningRoutes } from './gardening';
+import { intakeRoutes } from './intake';
 import { fileRoutes } from './routes/files';
 import { afterRunPacket, handoffRoutes } from './routes/handoff';
 import { runRoutes } from './routes/runs';
@@ -384,6 +385,7 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   fileRoutes(app, ctx);
   riskRoutes(app, ctx);
   gardeningRoutes(app, ctx);
+  intakeRoutes(app, ctx);
   outcomeRoutes(app, ctx);
   demoRoutes(app, ctx);
   graphRoutes(app, ctx);

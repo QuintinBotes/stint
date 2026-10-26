@@ -13,6 +13,7 @@ import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
 import { type Adapter, replayAdapter } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
 import { gardenTick } from './gardening';
+import { scheduledPull } from './intake';
 import { pollReleases, scanOutcomes } from './outcomes';
 import { killAllPtys } from './pty';
 
@@ -72,6 +73,9 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   await gardenTick(outcomeCtx).catch(logScanFailure('the upkeep schedule on start'));
   const gardenTimer = setInterval(() => void gardenTick(outcomeCtx).catch(logScanFailure('the upkeep schedule')), 60 * 60_000);
   (gardenTimer as unknown as { unref?: () => void }).unref?.();
+  // issues from GitHub and Linear, when the config sets them up (R-041)
+  const intakeTimer = setInterval(() => void scheduledPull(outcomeCtx).catch(logScanFailure('the intake pull')), 15 * 60_000);
+  (intakeTimer as unknown as { unref?: () => void }).unref?.();
   const releaseTimer = setInterval(() => void pollReleases(outcomeCtx).catch(logScanFailure('the pull request poll')), 60_000);
   (releaseTimer as unknown as { unref?: () => void }).unref?.();
   const { websocket } = createBunWebSocket();
@@ -96,6 +100,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     clearInterval(outcomeTimer);
     clearInterval(releaseTimer);
     clearInterval(gardenTimer);
+    clearInterval(intakeTimer);
     killAllPtys();
     // let run endings finish their commit, verification and packet (at most 10 s)
     const ctx = daemonContext(app);

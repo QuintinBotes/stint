@@ -55,7 +55,10 @@ const models = Bun.serve({
     else if (schema.includes('"confidence"')) answer = proposal(prompt);
     else if (schema.includes('"statements"')) answer = { statements: [1, 2, 3].map((n) => ({ id: `S${n}`, text: `Fact ${n} about the run`, truth: n !== 3, blocking: n === 1 })) };
     else if (schema.includes('"answers"')) answer = { answers: [1, 2, 3].map((n) => ({ id: `S${n}`, answer: n === 1 ? 'true' : 'unknown', quote: '' })) };
-    else if (schema.includes('"steps"')) answer = PLAN;
+    else if (schema.includes('"duplicates"')) {
+      const title = /Title: (.+)/.exec(prompt)?.[1] ?? 'An issue';
+      answer = { size: 'S', title, goal: `Done when ${title.toLowerCase()}.`, acceptance: [`${title} works`], duplicates: [], risk: 'low', reason: 'Small and new.' };
+    } else if (schema.includes('"steps"')) answer = PLAN;
     else answer = { summary: 'The run wrote one file for its task.' };
     return Response.json({ message: { content: JSON.stringify(answer) }, prompt_eval_count: 120, eval_count: 30 });
   },
@@ -98,6 +101,11 @@ const sleeper: Adapter = {
 };
 
 const root = mkdtempSync(join(tmpdir(), 'stint-flows-'));
+// a fake gh with two open issues, for the intake flow; the daemon runs in this process and finds it on PATH
+const bin = join(root, '..', `stint-flows-bin-${process.pid}`);
+mkdirSync(bin, { recursive: true });
+writeFileSync(join(bin, 'gh'), `#!/bin/sh\nif [ "$1" = "issue" ]; then cat <<'JSON'\n[{"number":7,"title":"Show the tenant name in the audit log","body":"Ops asked.","url":"https://example.invalid/acme/api/issues/7","labels":[]},{"number":8,"title":"Remove the legacy v0 webhook route","body":"Nobody calls it.","url":"https://example.invalid/acme/api/issues/8","labels":[]}]\nJSON\nexit 0; fi\nexit 1\n`, { mode: 0o755 });
+process.env.PATH = `${bin}:${process.env.PATH}`;
 const clone = Bun.spawnSync(['git', 'clone', '-q', join(import.meta.dir, '..', '..', '..', '..', 'demo', 'repo.bundle'), root]);
 if (clone.exitCode !== 0) throw new Error('cannot clone the fixture');
 for (const [k, v] of [['user.name', 'Stint Flows'], ['user.email', 'flows@example.com'], ['commit.gpgsign', 'false']]) Bun.spawnSync(['git', '-C', root, 'config', k as string, v as string]);

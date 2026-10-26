@@ -23,6 +23,7 @@ The first release. Everything here was built during the event; `PROGRESS.md` rec
   - Best of n builds candidates and keeps the best green one.
   - No model reviews its own work.
   - Reviews run per lens: general, security and spec fit.
+- **Work from where teams track it:** issues from GitHub and Linear arrive triaged, with size, risk and possible duplicates, and become tasks only when you accept them. Upkeep tasks (doc gardening, dead code and drift) run on a schedule.
 - **Plans that remember:** the planner reads similar tasks and the decisions on the files it will touch. It splits big tasks into subtasks that run in dependency order.
 - **Risk and the auto-approve lane:** every change gets a risk tier with its reasons. The policy's would-approve is recorded beside every human decision. A lane that merges low-risk changes by policy must be earned on that record, and is off unless you turn it on.
 - **Boundaries:** keys stay in the daemon. A default-deny egress proxy, and a sandbox-exec or docker sandbox, run each agent.

@@ -171,3 +171,18 @@ On the schedule (daily or weekly), Stint makes one task per job and puts it on a
 - **Dead code and dependency drift:** removes what is clearly dead, and proposes upgrades rather than making them.
 
 A job with a task still open is skipped until that task is merged or abandoned. The Factory shows each job and when it is next due.
+
+## Work from GitHub and Linear
+
+```sh
+stint intake github --label stint    # through gh, for the repository here or --gh-repo owner/name
+stint intake linear --team ENG       # the Linear key comes from the variable intake.linear.keyEnv names
+```
+
+Each open issue becomes an intake item on the board, never a task straight away. Stint triages it on the planner chain:
+- a size: S for one run, M for a few, L for work that must be split;
+- a proposed title, goal and acceptance criteria;
+- the existing tasks it may duplicate, chosen only from tasks with matching words;
+- a risk tier and one line on why.
+
+You accept it as a task (it keeps a link to the issue), merge it into the task it duplicates, or dismiss it. Nothing is ever pulled twice. With `intake` set in the config, the daemon also pulls every 15 minutes.

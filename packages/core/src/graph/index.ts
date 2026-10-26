@@ -786,3 +786,22 @@ export async function skillsHelped(ws: Workspace, o: GraphOptions = {}): Promise
   }
   return rows.sort((a, b) => cmpStr(a.skill, b.skill));
 }
+
+export type SimilarTextRow = { task: string; score: number; why: string[] };
+
+/**
+ * Tasks whose title and goal share words with a text that is not a task yet, such as an issue being triaged
+ * (R-041): the same words findingThemes keeps, scored by overlap over the smaller set.
+ */
+export async function similarText(ws: Workspace, text: { title: string; goal: string }, limit = 5): Promise<SimilarTextRow[]> {
+  const mine = new Set(findingThemes({ text: `${text.title} ${text.goal}` }));
+  if (mine.size === 0) return [];
+  const rows: SimilarTextRow[] = [];
+  for (const t of await ws.listTasks()) {
+    const theirs = new Set(findingThemes({ text: `${t.title} ${t.goal}` }));
+    const shared = [...mine].filter((w) => theirs.has(w));
+    if (shared.length === 0) continue;
+    rows.push({ task: t.id, score: Math.round((shared.length / Math.min(mine.size, theirs.size)) * 1000) / 1000, why: shared.sort(cmpStr) });
+  }
+  return rows.sort((a, b) => b.score - a.score || cmpStr(a.task, b.task)).slice(0, limit);
+}
