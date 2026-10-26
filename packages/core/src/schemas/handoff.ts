@@ -4,7 +4,7 @@ export const TASK_ID = /^T-[0-9]{4,}$/;
 export const RUN_ID = /^r[0-9]+$/;
 export const DECISION_ID = /^D[0-9]+$/;
 
-export const RoleSchema = z.enum(['planner', 'implementer', 'reviewer']);
+export const RoleSchema = z.enum(['planner', 'implementer', 'reviewer', 'tester', 'learn']);
 export type Role = z.infer<typeof RoleSchema>;
 
 export const EndedBySchema = z.enum(['completed', 'capped', 'killed', 'failed', 'handed']);
@@ -13,7 +13,8 @@ export type EndedBy = z.infer<typeof EndedBySchema>;
 export const VendorSchema = z.enum(['meta', 'openai', 'anthropic', 'local', 'other']);
 export type Vendor = z.infer<typeof VendorSchema>;
 
-export const HostIdSchema = z.enum(['meta-api', 'baseten', 'fireworks', 'modal', 'ollama', 'local-cli']);
+/** Any host named in config (R-032); the shipped ones are meta-api, baseten, fireworks, modal, ollama and local-cli. */
+export const HostIdSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/);
 export type HostId = z.infer<typeof HostIdSchema>;
 
 export const CostSchema = z.strictObject({

@@ -17,11 +17,11 @@
         "adapter": { "type": "string", "minLength": 1 },
         "vendor": { "type": "string", "enum": ["meta", "openai", "anthropic", "local", "other"] },
         "model": { "type": "string", "minLength": 1 },
-        "role": { "type": "string", "enum": ["planner", "implementer", "reviewer"] },
+        "role": { "type": "string", "enum": ["planner", "implementer", "reviewer", "tester", "learn"] },
         "run": { "type": "string", "pattern": "^r[0-9]+$" },
         "endedBy": { "type": "string", "enum": ["completed", "capped", "killed", "failed", "handed"] },
         "sessionId": { "type": "string" },
-        "host": { "type": "string", "enum": ["meta-api", "baseten", "fireworks", "modal", "ollama", "local-cli"], "description": "Which host served the model: the Meta Model API, a hosting partner for Muse Spark Open (Baseten, Fireworks, Modal), Ollama, or a local CLI (Muse Code)." }
+        "host": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$", "description": "Which host served the model, by its id in config: the shipped ones are meta-api, baseten, fireworks, modal, ollama and local-cli." }
       }
     },
     "to": {
@@ -30,7 +30,7 @@
       "required": ["adapter", "role"],
       "properties": {
         "adapter": { "type": "string", "minLength": 1 },
-        "role": { "type": "string", "enum": ["planner", "implementer", "reviewer"] }
+        "role": { "type": "string", "enum": ["planner", "implementer", "reviewer", "tester", "learn"] }
       }
     },
     "summary": { "type": "string", "minLength": 1, "maxLength": 400 },

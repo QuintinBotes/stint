@@ -19,9 +19,17 @@ export const BudgetsSchema = z.strictObject({
   implementer: z.int().min(0),
   reviewer: z.int().min(0),
   learn: z.int().min(0).optional(),
+  tester: z.int().min(0).optional(),
   usdCap: z.number().min(0).optional(),
 });
 export type Budgets = z.infer<typeof BudgetsSchema>;
+
+export const CheckSchema = z.strictObject({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/),
+  command: z.string().min(1).max(400),
+  kind: z.enum(['test', 'typecheck', 'lint', 'custom']),
+});
+export type Check = z.infer<typeof CheckSchema>;
 
 export const TaskSchema = z.strictObject({
   version: z.literal('stint.task/1'),
@@ -50,6 +58,15 @@ export const TaskSchema = z.strictObject({
     issueUrl: z.url().nullable().optional(),
   }),
   pendingAsk: z.string().max(400).nullable().optional(),
+  /** The verify suite the daemon runs beside testCommand (R-029). */
+  checks: z.array(CheckSchema).max(8).optional(),
+  /** The task this one was split from, and the tasks it waits for (R-036). */
+  parent: z.string().regex(TASK_ID).nullable().optional(),
+  dependsOn: z.array(z.string().regex(TASK_ID)).max(20).optional(),
+  /** The risk tier that decides how much gating the task needs (R-039). */
+  risk: z.enum(['low', 'medium', 'high']).nullable().optional(),
+  /** Where the task came from (R-041, R-044). */
+  source: z.strictObject({ kind: z.enum(['manual', 'github', 'linear', 'gardening']), ref: z.string().max(200), url: z.url().optional() }).nullable().optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

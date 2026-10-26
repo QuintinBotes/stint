@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CheckSchema } from './task';
 
 const HostModelRef = z.string().regex(/^[a-z0-9-]+\/.+$/, 'expected host/model');
 
@@ -24,7 +25,7 @@ export type Price = z.infer<typeof PriceSchema>;
 export const AgentDefSchema = z.strictObject({
   command: z.array(z.string().min(1)).min(1),
   prompt: z.enum(['file', 'stdin', 'arg']),
-  roles: z.array(z.enum(['planner', 'implementer', 'reviewer'])).min(1),
+  roles: z.array(z.enum(['planner', 'implementer', 'reviewer', 'tester', 'learn'])).min(1),
   vendor: z.enum(['meta', 'openai', 'anthropic', 'local', 'other']),
   model: z.string().optional(),
   enabled: z.boolean().default(false),
@@ -69,8 +70,66 @@ export const ConfigSchema = z.strictObject({
       testsFirst: z.boolean().optional(),
       /** Put every new task on autopilot as soon as it is created. */
       onCreate: z.boolean().optional(),
+      /** After this many failed verifications, hand to the escalate list instead of the next implementer (R-035). */
+      escalateAfter: z.int().min(1).max(5).optional(),
+      escalate: z.array(z.string().min(1)).optional(),
+      /** Build with this many implementers from the same packet and let the reviewer pick (R-035). */
+      bestOf: z.int().min(1).max(3).optional(),
     })
     .optional(),
+  /** The verify suite beside testCommand, and what a changed locked test does (R-029). */
+  verify: z
+    .strictObject({
+      checks: z.array(CheckSchema).max(8),
+      tamper: z.enum(['off', 'warn', 'fail']),
+      coverage: z.boolean().optional(),
+    })
+    .optional(),
+  /** Held-out scenarios: kept outside every worktree, run by the daemon after the tests (R-037). */
+  scenarios: z.strictObject({ dir: z.string().min(1), command: z.string().min(1).optional() }).optional(),
+  /** Review lenses and best-of-n reviews; a reviewer may not be the implementer's harness and model (R-035, R-038). */
+  review: z
+    .strictObject({
+      lenses: z.array(z.enum(['general', 'security', 'spec-fit'])).min(1),
+      bestOf: z.int().min(1).max(3),
+      crossVendor: z.boolean(),
+    })
+    .optional(),
+  /** Risk tiers and the auto-approve lane, earned in shadow mode first; off unless a person turns it on (R-039). */
+  risk: z
+    .strictObject({
+      highPaths: z.array(z.string()).max(50),
+      autoApprove: z.strictObject({ enabled: z.boolean(), tiers: z.array(z.enum(['low', 'medium'])), shadowDays: z.int().min(0).max(90) }),
+    })
+    .optional(),
+  /** A sandbox per run and a default-deny egress proxy (R-040). */
+  sandbox: z
+    .strictObject({
+      kind: z.enum(['none', 'docker', 'sandbox-exec']),
+      image: z.string().optional(),
+      egress: z.strictObject({ mode: z.enum(['off', 'proxy']), allow: z.array(z.string()).max(100) }),
+    })
+    .optional(),
+  /** Where tasks come from besides a person typing them (R-041). */
+  intake: z
+    .strictObject({
+      github: z.strictObject({ repo: z.string().optional(), label: z.string().optional() }).optional(),
+      linear: z.strictObject({ team: z.string().optional(), keyEnv: z.string() }).optional(),
+    })
+    .optional(),
+  /** Approve merges locally, or opens a pull request and follows its checks (R-042). */
+  release: z.strictObject({ mode: z.enum(['merge', 'pr']), remote: z.string(), base: z.string().optional() }).optional(),
+  /** OpenTelemetry export of runs, model calls and evals (R-043). */
+  otel: z.strictObject({ endpoint: z.string().optional(), headersEnv: z.string().optional(), serviceName: z.string() }).optional(),
+  /** Scheduled upkeep tasks that go through the same queue (R-044). */
+  gardening: z
+    .strictObject({
+      schedule: z.enum(['off', 'daily', 'weekly']),
+      tasks: z.array(z.strictObject({ title: z.string().min(1).max(120), goal: z.string().min(1).max(2000) })).max(10),
+    })
+    .optional(),
+  /** Pick the implementer by the configured order, or learn it from outcomes (R-045). */
+  routing: z.strictObject({ mode: z.enum(['chains', 'learned']), explore: z.number().min(0).max(1) }).optional(),
   /** Other coding agents a person can hand a task to; off until enabled (R-026). */
   agents: z.record(z.string().regex(/^[a-z0-9-]+$/), AgentDefSchema).optional(),
   allowDirectEvents: z.boolean().optional(),

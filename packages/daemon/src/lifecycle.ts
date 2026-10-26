@@ -94,7 +94,8 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     throw new DaemonError('invalid', `steps must be a positive whole number, not ${input.steps}`);
   }
   if (ctx.runs.get(taskId)) throw new DaemonError('run_active', `${taskId} already has a live run`, 'stop it or wait for it to end');
-  const budget = task.budgets[input.role];
+  // tester and learn runs draw on the implementer's budget unless the task gives them their own
+  const budget = task.budgets[input.role] ?? task.budgets.implementer;
   const spent = await spentByRole(ctx, taskId, input.role);
   const av = await adapter.available();
   if (!av.ok) throw new DaemonError('adapter_unavailable', `${adapter.id} is unavailable: ${av.reason ?? 'no reason given'}`);
