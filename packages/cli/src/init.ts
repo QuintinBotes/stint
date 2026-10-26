@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
 import { defineCommand } from 'citty';
@@ -17,13 +17,25 @@ This repository is a Stint workspace: tasks live in \`.stint/tasks/<id>/\` as pl
 - Read a task's packet (where the last agent got to, what it left out, the ask for you) with \`stint packet <task> --as prompt\`.
 - When you make a decision that should not be silently reversed, write it on its own line in your messages as \`decision: <the decision>\`; Stint records it in the task's \`decisions.md\`.
 - Stint runs the tests itself after every run; do not push or merge, the person approves through Stint.
+- Skills the team approved are in \`.agents/skills/<id>/SKILL.md\`; read the ones that match your task.
 ${END}`;
 
-/** Writes the config, the ignore entries and the AGENTS.md section; running it twice changes nothing. */
+/** The context file an agent reads instead of AGENTS.md; each is linked to AGENTS.md once that agent is enabled (R-048). */
+export const CONTEXT_FILES: Record<string, string> = { 'claude-code': 'CLAUDE.md', 'gemini-cli': 'GEMINI.md' };
+
+const isLink = (path: string) => {
+  try {
+    return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+};
+
+/** Writes the config, the ignore entries, the AGENTS.md section and the links for enabled agents; running it twice changes nothing. */
 export async function init(root: string): Promise<string[]> {
   const changed: string[] = [];
   const hadConfig = existsSync(join(root, '.stint', 'config.json'));
-  await Workspace.open(root);
+  const ws = await Workspace.open(root);
   if (!hadConfig) changed.push('.stint/config.json');
   const gi = join(root, '.gitignore');
   const ignore = existsSync(gi) ? readFileSync(gi, 'utf8') : '';
@@ -40,6 +52,18 @@ export async function init(root: string): Promise<string[]> {
   if (next !== text) {
     writeFileSync(agents, next);
     changed.push('AGENTS.md');
+  }
+  // one source for every agent: a link where symlinks work, a copy where they do not
+  for (const [agent, file] of Object.entries(CONTEXT_FILES)) {
+    if (!ws.config.agents?.[agent]?.enabled) continue;
+    const path = join(root, file);
+    if (existsSync(path) || isLink(path)) continue;
+    try {
+      symlinkSync('AGENTS.md', path);
+    } catch {
+      copyFileSync(agents, path);
+    }
+    changed.push(file);
   }
   return changed;
 }

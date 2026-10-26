@@ -1,7 +1,10 @@
 import { type Adapter, type Availability, type Config, type Cost, DEFAULT_CONFIG, type RunContext, type RunResult } from '@stint-dev/core';
 import OpenAI from 'openai';
 import type { ChatCompletion, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { TOOLS, runTool } from './tools';
+import { TOOLS, checkCall, runTool } from './tools';
+
+/** Malformed tool calls in a row before the run ends as failed: enough for a retry or two, not a loop. */
+const MAX_INVALID = 3;
 
 export { checkCommand, checkPath } from './refusals';
 export { TOOLS, runTool } from './tools';
@@ -87,6 +90,7 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
     const shellEnv = Object.fromEntries(Object.entries(ctx.env).filter(([k]) => !/(KEY|TOKEN|SECRET|PASSWORD)/i.test(k)));
     let inFlight: string | null = null;
     let lastText = '';
+    let invalid = 0;
     const done = (endedBy: RunResult['endedBy']): RunResult => ({
       endedBy,
       cost: { ...usage, usd: null } as Cost,
@@ -141,13 +145,22 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
         const calls = (msg.tool_calls ?? []).filter((c) => c.type === 'function');
         if (calls.length === 0) return done('completed');
         for (const call of calls) {
-          let args: Record<string, unknown> = {};
-          try {
-            args = JSON.parse(call.function.arguments || '{}') as Record<string, unknown>;
-          } catch {
-            args = {};
-          }
           const tool = call.function.name;
+          const checked = checkCall(tool, call.function.arguments);
+          if (!checked.ok) {
+            // never run a malformed call: say what was wrong and let the model call again, a few times at most
+            invalid += 1;
+            await ctx.emit({ type: 'agent.tool_call', payload: { tool, args: { raw: call.function.arguments.slice(0, 500) }, callId: call.id, invalid: checked.reason } });
+            await ctx.emit({ type: 'agent.tool_result', payload: { tool, callId: call.id, ok: false, summary: `not run: ${checked.reason}` } });
+            messages.push({ role: 'tool', tool_call_id: call.id, content: `That call was not run: ${checked.reason}. Call ${tool} again with arguments that match its definition.` });
+            if (invalid > MAX_INVALID) {
+              await ctx.emit({ type: 'agent.message', payload: { text: `The Stint agent stopped: ${invalid} tool calls in a row were not valid.`, stderr: true } });
+              return done('failed');
+            }
+            continue;
+          }
+          invalid = 0;
+          const args = checked.args;
           await ctx.emit({ type: 'agent.tool_call', payload: { tool, args, callId: call.id } });
           inFlight = `${tool} ${short(args)}`.trim();
           const out = await runTool(tool, args, ctx.worktree, shellEnv, ctx.signal, ctx.wrap);

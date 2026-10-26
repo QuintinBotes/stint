@@ -19,6 +19,33 @@ export const TOOLS = [
 ].map((f) => ({ type: 'function' as const, function: f }));
 
 export type ToolName = 'read_file' | 'write_file' | 'edit_file' | 'list_dir' | 'grep' | 'bash';
+
+/**
+ * Checks one tool call against the definitions the model was given: known tool, JSON arguments, every
+ * required argument there with the right type. Local models get this wrong often; a bad call is never
+ * run, the model is told what was wrong and calls again (R-048).
+ */
+export function checkCall(name: string, raw: string): { ok: true; args: Record<string, unknown> } | { ok: false; reason: string } {
+  const def = TOOLS.find((t) => t.function.name === name)?.function;
+  if (!def) return { ok: false, reason: `there is no tool named ${name}; the tools are ${TOOLS.map((t) => t.function.name).join(', ')}` };
+  let args: unknown;
+  try {
+    args = JSON.parse(raw || '{}');
+  } catch {
+    return { ok: false, reason: 'the arguments are not valid JSON' };
+  }
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return { ok: false, reason: 'the arguments must be a JSON object' };
+  const a = args as Record<string, unknown>;
+  const props = def.parameters.properties as Record<string, { type: string }>;
+  for (const k of def.parameters.required) if (a[k] === undefined || a[k] === null) return { ok: false, reason: `${k} is required` };
+  for (const [k, v] of Object.entries(a)) {
+    const want = props[k]?.type;
+    if (!want) return { ok: false, reason: `${name} takes no argument ${k}` };
+    if (want === 'string' && typeof v !== 'string') return { ok: false, reason: `${k} must be a string` };
+    if (want === 'integer' && !Number.isInteger(v)) return { ok: false, reason: `${k} must be a whole number` };
+  }
+  return { ok: true, args: a };
+}
 export type ToolOutcome = { ok: boolean; output: string; refused?: string; summary: string; args: Record<string, unknown> };
 
 const cap = (s: string) => (s.length > OUTPUT_CAP ? `${s.slice(0, OUTPUT_CAP)}\n[output truncated at ${OUTPUT_CAP} bytes]` : s);

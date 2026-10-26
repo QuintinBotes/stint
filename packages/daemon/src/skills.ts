@@ -494,10 +494,42 @@ function withStatus(text: string, status: SkillStatus): string {
 }
 
 /** Commits only the named skill files on the checked out branch, as approval does. A failure is said out loud. */
+/**
+ * Where else a skill is copied for agents that read their own folder (R-048): `.claude/skills` when a Claude Code
+ * agent is enabled. `.agents/skills` stays the one source; the copies follow it in the same commit.
+ */
+export function skillMirrors(config: Workspace['config']): string[] {
+  return config.agents?.['claude-code']?.enabled ? ['.claude/skills'] : [];
+}
+
+/** Copies SKILL.md to each mirror, or removes the copy once the skill is retired; returns the paths that changed. */
+async function syncMirrors(ws: Workspace, id: string): Promise<string[]> {
+  const source = join(skillsDir(ws.root), id, 'SKILL.md');
+  const changed: string[] = [];
+  for (const mirror of skillMirrors(ws.config)) {
+    const rel = `${mirror}/${id}/SKILL.md`;
+    const target = join(ws.root, rel);
+    const text = existsSync(source) ? readFileSync(source, 'utf8') : null;
+    const retired = !text || parseSkillFrontmatter(text).frontmatter.status === 'retired';
+    if (retired) {
+      if (existsSync(target)) {
+        await rm(target, { force: true });
+        changed.push(rel);
+      }
+      continue;
+    }
+    if (existsSync(target) && readFileSync(target, 'utf8') === text) continue;
+    await writeFileAtomic(target, text as string);
+    changed.push(rel);
+  }
+  return changed;
+}
+
 async function commitSkillFiles(ws: Workspace, id: string, files: string[], subject: string): Promise<{ committed: boolean; commit: string | null }> {
   const root = ws.root;
   const branch = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
   if (!branch) return { committed: false, commit: null };
+  files = [...files, ...(await syncMirrors(ws, id))];
   const msgFile = join(ws.cacheDir, `skill-${id}.txt`);
   try {
     await mkdir(ws.cacheDir, { recursive: true });

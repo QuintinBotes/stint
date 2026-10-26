@@ -52,3 +52,7 @@ By default autopilot picks agents in the order of `autopilot.implementers`. With
 - Results recorded by evals (`eval.ran`) count as attempts, so routing can start from what an eval measured.
 - A hand-off never goes back to the agent that just failed.
 - Each pick is recorded as `routing.chosen`, with the records it was based on.
+
+## One set of instructions for every agent
+
+`AGENTS.md` and `.agents/skills` are the only source. When you enable an agent that reads its own file, `stint init` links that file to `AGENTS.md`: `CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI. Where symlinks don't work it copies the file instead, and it never overwrites a file you already have. With Claude Code enabled, an approved skill is also written to `.claude/skills/<id>/SKILL.md` in the same commit, and removed again when the skill is retired. With only Meta's agents enabled, none of these files appear.
