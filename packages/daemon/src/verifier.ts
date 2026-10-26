@@ -33,6 +33,12 @@ export function failingTests(output: string): string[] {
   return [...names].slice(0, 20).map((n) => n.slice(0, 200));
 }
 
+/** The first line that says the tests could not even load: a test that never ran cannot fail for the right reason. */
+export function loadError(output: string): string | null {
+  const m = /^.*(SyntaxError|Cannot find module|Could not resolve|Module not found|Cannot find package|Unexpected token).*$/m.exec(output.replace(ANSI, ''));
+  return m ? m[0].trim().slice(0, 200) : null;
+}
+
 type Exec = { exitCode: number; output: string; durationMs: number; timedOut: boolean };
 
 /** Runs a shell command in its own process group so a cap kills the whole tree. */
@@ -102,6 +108,7 @@ export class DaemonVerifier implements Verifier {
         runBy: 'daemon',
         parsed: parsed !== null,
         failing: failingTests(r.output),
+        ...(loadError(r.output) ? { loadError: loadError(r.output) } : {}),
         ...(r.timedOut ? { timedOut: true } : {}),
       },
     });

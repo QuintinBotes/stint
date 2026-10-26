@@ -65,6 +65,8 @@ export const ConfigSchema = z.strictObject({
       implementers: z.array(z.string().min(1)).min(1),
       maxHops: z.int().min(0).max(10),
       parallel: z.int().min(1).max(8),
+      /** Write failing acceptance tests first and lock them before the build (R-027). */
+      testsFirst: z.boolean().optional(),
     })
     .optional(),
   /** Other coding agents a person can hand a task to; off until enabled (R-026). */

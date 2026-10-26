@@ -30,6 +30,8 @@ export const EVENT_TYPES = [
   'autopilot.step',
   'autopilot.stopped',
   'handoff.quizzed',
+  'acceptance.locked',
+  'acceptance.tampered',
   'provider.fallback',
   'cost.unpriced',
   'runtime.unclassified',

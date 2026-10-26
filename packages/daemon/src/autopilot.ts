@@ -2,6 +2,7 @@ import type { Config, StintEvent, Task } from '@stint-dev/core';
 import { runsFromEvents } from '@stint-dev/core/node';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
+import { lockAcceptance } from './acceptance';
 import { assign } from './lifecycle';
 import { planTask, reviewTask } from './routes/models';
 
@@ -12,6 +13,8 @@ export type Step =
   | { kind: 'idle' }
   | { kind: 'wait'; reason: string }
   | { kind: 'plan' }
+  | { kind: 'specify'; ask: string }
+  | { kind: 'lock'; run: string; failing: string[] }
   | { kind: 'build'; adapter?: string; ask?: string; reason: string }
   | { kind: 'hand'; after: string; handoffFrom: string | null; reason: string }
   | { kind: 'review'; verified: string }
@@ -34,6 +37,24 @@ export function autopilotCard(events: StintEvent[]): { on: boolean; step: string
   if (!last) return null;
   if (last.type === 'autopilot.stopped') return { on: false, step: 'stopped', reason: String(last.payload.reason ?? ''), queued: false };
   return { on: true, step: last.type === 'autopilot.step' ? String(last.payload.step) : 'starting', reason: last.type === 'autopilot.step' ? String(last.payload.reason ?? '') : null, queued: !!last.payload.queued };
+}
+
+const SPECIFY_ASK = `Write tests for this task's acceptance criteria only. Put them where the repository keeps its tests and follow its test conventions. Do not change any file outside the tests: the tests must fail now, because the behaviour does not exist yet, and they must fail on an assertion, not on a missing import or a syntax error. Stint locks these tests; the build that follows must make them pass without changing them.`;
+
+/** The specify leg: ask for the tests, then judge them by the daemon's own run of them. */
+function specifyStep(tail: StintEvent[]): Step {
+  const asked = tail.findIndex((e) => e.type === 'autopilot.step' && e.payload.step === 'specify');
+  if (asked < 0) return { kind: 'specify', ask: SPECIFY_ASK };
+  const run = runsFromEvents(tail.slice(asked)).find((r) => r.role === 'implementer');
+  if (!run) return { kind: 'wait', reason: 'the tests are being written' };
+  if (!run.endedBy) return { kind: 'wait', reason: `${run.run} is writing the tests` };
+  const v = tail.filter((e) => e.type === 'verification.ran' && e.run === run.run).at(-1)?.payload;
+  if (v?.status === 'green') return { kind: 'stop', reason: 'Needs you: the acceptance tests pass before any change, so the task may be done already, or the tests do not test it.', needsYou: true };
+  const failing = (v?.failing as string[] | undefined) ?? [];
+  if (!v || v.loadError || failing.length === 0) {
+    return { kind: 'stop', reason: `Needs you: the new tests do not run${v?.loadError ? `: ${String(v.loadError)}` : ', so they cannot fail for the right reason'}.`, needsYou: true };
+  }
+  return { kind: 'lock', run: run.run, failing };
 }
 
 /** A task holds a slot once it has taken a step that is not waiting in the queue. */
@@ -79,9 +100,22 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   const planned = events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
   if (!planned) return { kind: 'plan' };
 
-  const impl = runsFromEvents(tail).filter((r) => r.role === 'implementer');
+  // tests first (R-027): failing acceptance tests are written and locked before anything is built
+  let fromLock = tail;
+  if (s.testsFirst) {
+    const lockAt = tail.findIndex((e) => e.type === 'acceptance.locked');
+    if (lockAt < 0) return specifyStep(tail);
+    fromLock = tail.slice(lockAt);
+    const tampered = fromLock.find((e) => e.type === 'acceptance.tampered');
+    if (tampered) {
+      const by = runsFromEvents(tail).find((r) => r.run === tampered.run);
+      return { kind: 'stop', reason: `Needs you: ${by?.adapter ?? 'an agent'} ${tampered.run} changed the acceptance tests (${(tampered.payload.files as string[]).join(', ')}).`, needsYou: true };
+    }
+  }
+
+  const impl = runsFromEvents(fromLock).filter((r) => r.role === 'implementer');
   const last = impl.at(-1);
-  if (!last) return { kind: 'build', reason: 'Nothing is built yet.' };
+  if (!last) return { kind: 'build', reason: s.testsFirst ? 'The acceptance tests are locked and fail.' : 'Nothing is built yet.' };
   if (!last.endedBy) return { kind: 'wait', reason: `${last.run} has not finished` };
 
   const verification = tail.filter((e) => e.type === 'verification.ran' && e.run === last.run).at(-1);
@@ -207,6 +241,18 @@ export class Autopilot {
         if (s.kind === 'plan') {
           await this.step(id, 'plan', 'No plan yet; asking the planner chain.');
           await planTask(this.ctx, id).catch((err: unknown) => this.step(id, 'plan', `No planner could answer (${err instanceof Error ? err.message : String(err)}); building without a plan.`));
+          continue;
+        }
+        if (s.kind === 'specify') {
+          const adapter = await this.firstAvailable();
+          if (!adapter) return this.stop(id, `Needs you: no implementer in ${this.settings.implementers.join(', ')} is available.`, true);
+          await this.step(id, 'specify', `Tests first: ${adapter} writes failing tests for the acceptance criteria.`, { adapter });
+          await assign(this.ctx, id, { adapter, role: 'implementer', instruction: s.ask });
+          return;
+        }
+        if (s.kind === 'lock') {
+          const files = await lockAcceptance(this.ctx, id, s.run);
+          await this.step(id, 'verify', `${files.length} test file${files.length === 1 ? '' : 's'} locked; ${s.failing.length} failing as they should: ${s.failing.slice(0, 2).join('; ')}.`);
           continue;
         }
         if (s.kind === 'review') {

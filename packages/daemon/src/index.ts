@@ -19,3 +19,4 @@ export * from './autopilot';
 export * from './hosts';
 export * from './quiz';
 export { afterRunPacket, digestFrom } from './routes/handoff';
+export * from './acceptance';

@@ -15,6 +15,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
+import { checkAcceptanceLock } from './acceptance';
 import { Autopilot, autopilotCard } from './autopilot';
 import { modelHealth } from './hosts';
 import { DaemonError, errorResponse } from './errors';
@@ -123,6 +124,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
   } as Omit<DaemonContext, 'autopilot'> as DaemonContext;
   ctx.autopilot = new Autopilot(ctx);
   ctx.afterRun = async (task, run, result) => {
+    await checkAcceptanceLock(ctx, task, run);
     await afterRunPacket(ctx, task, run, result);
     ctx.autopilot.kick(task);
   };

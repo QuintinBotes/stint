@@ -164,7 +164,7 @@ export function subscribe(path: string, onEvent: (e: StintEvent) => void, onFall
     'human.command', 'file.changed', 'decision.recorded', 'verification.ran', 'review.recorded', 'handoff.created', 'approval.requested',
     'approval.granted', 'approval.rejected', 'rule.blocked', 'skill.applied', 'skill.proposed', 'skill.approved', 'skill.rejected',
     'merge.completed', 'learn.skipped', 'provider.fallback', 'cost.unpriced', 'runtime.unclassified', 'autopilot.started', 'autopilot.step',
-    'autopilot.stopped', 'handoff.quizzed',
+    'autopilot.stopped', 'handoff.quizzed', 'acceptance.locked', 'acceptance.tampered',
   ];
   for (const t of types) es.addEventListener(t, handler as EventListener);
   es.onerror = () => {
