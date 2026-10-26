@@ -14,7 +14,7 @@ export type Health = {
   models?: ModelHealth[];
   autopilot?: { running: string[]; queued: string[] };
 };
-export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number };
+export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number; hurt: number };
 export type QuizMiss = { id: string; text: string; truth: boolean; blocking: boolean; answer: string };
 export type QuizResult = {
   name: string;
@@ -45,7 +45,23 @@ export type RunSummary = {
 
 export type Verification = { run: string; command: string; exitCode: number; passed: number; failed: number; durationMs: number; runBy: 'daemon'; status: 'green' | 'red'; at: string };
 export type MergeRecord = { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> };
-export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null };
+export type OutcomeRecord = {
+  kind: 'reverted' | 'followup' | 'ci' | 'incident';
+  type: string;
+  at: string;
+  task: string;
+  commit: string | null;
+  mergeCommit: string | null;
+  by: string | null;
+  followup: string | null;
+  files: string[];
+  run: string | number | null;
+  status: string | null;
+  summary: string | null;
+  url: string | null;
+};
+export type ReleaseRecord = { url: string | null; number: number | null; status: string | null };
+export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null; outcomes: OutcomeRecord[]; release?: ReleaseRecord | null };
 export type AutopilotCard = { on: boolean; step: string | null; reason: string | null; queued: boolean };
 export type TaskCardData = { task: Task; cost: Cost; lastRun: RunSummary | null; lastEventAt: string; summary: string | null; autopilot?: AutopilotCard | null };
 export type GraphNode = { id: string; type: string; label: string; data: Record<string, unknown> };
@@ -129,6 +145,8 @@ export const api = {
   verifications: (id: string) => request<Verification[]>(`/api/tasks/${id}/verification`),
   verificationOutput: (id: string, run: string) => request<string>(`/api/tasks/${id}/verification/${run}/output`),
   approve: (id: string) => post<unknown>(`/api/tasks/${id}/approve`),
+  releaseRefresh: (id: string) => post<unknown>(`/api/tasks/${id}/release/refresh`),
+  scanOutcomes: () => post<{ reverted: number; followup: number; ci: number }>('/api/outcomes/scan'),
   reject: (id: string, reason: string) => post<unknown>(`/api/tasks/${id}/reject`, { reason }),
   requestChanges: (id: string, text: string) => post<unknown>(`/api/tasks/${id}/request-changes`, { text }),
   graph: (id: string) => request<GraphData>(`/api/tasks/${id}/graph`),

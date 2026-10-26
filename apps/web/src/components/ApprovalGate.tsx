@@ -5,6 +5,7 @@ import { Button, Kbd, StatusChip } from './ui';
 /** Opens only on a green verification and a review that is not a block. The daemon enforces the same on /approve. */
 export function gateState(b: TaskBundle): { open: boolean; reason: string } {
   if (b.task.status === 'done') return { open: false, reason: '' };
+  if (b.task.status === 'in_review') return { open: false, reason: '' };
   if (!b.verification) return { open: false, reason: 'Waiting for the daemon to run the tests.' };
   if (b.verification.status !== 'green') return { open: false, reason: `The tests are red: ${b.verification.failed} failed.` };
   if (b.review?.verdict === 'block') return { open: false, reason: 'The review blocks this change.' };
@@ -53,6 +54,51 @@ export function ApprovalGate({ bundle, onDone }: { bundle: TaskBundle; onDone: (
         <StatusChip label={bundle.task.status === 'done' ? 'merged' : open ? 'ready' : 'closed'} tone={bundle.task.status === 'done' ? 'good' : open ? 'warn' : 'neutral'} />
       </div>
       {reason ? <p className="text-[12px] text-muted">{reason}</p> : null}
+      {bundle.task.status === 'in_review' && bundle.release ? (
+        <div className="text-[12px] flex flex-wrap items-center gap-2" data-testid="release">
+          <p>
+            In pull request review
+            {bundle.release.url ? (
+              <>
+                :{' '}
+                <a href={bundle.release.url} className="text-accent hover:underline" target="_blank" rel="noreferrer">
+                  pull request {bundle.release.number ?? ''}
+                </a>
+              </>
+            ) : null}
+            . The task finishes when it merges.
+          </p>
+          <Button onClick={() => void call(() => api.releaseRefresh(id))} data-testid="release-refresh">
+            Check now
+          </Button>
+        </div>
+      ) : null}
+      {bundle.outcomes?.length ? (
+        <div className="text-[12px]" data-testid="task-outcomes">
+          <p className="text-muted mb-1">After merge:</p>
+          <ul className="flex flex-col gap-1">
+            {bundle.outcomes.map((o, i) => (
+              <li key={`${o.type}-${i}`}>
+                {o.kind === 'reverted'
+                  ? `Reverted${o.by ? ` by ${o.by}` : ''}${o.commit ? ` in ${o.commit.slice(0, 10)}` : ''}.`
+                  : o.kind === 'followup'
+                    ? `Followed up by ${o.followup ?? 'a later task'}${o.files.length ? ` on ${o.files.join(', ')}` : ''}.`
+                    : o.kind === 'ci'
+                      ? `CI failed on the merged commit${o.url ? '' : ''} (run ${o.run ?? 'unknown'}).`
+                      : `Incident: ${o.summary ?? 'reported against the merged commit'}.`}
+                {o.url ? (
+                  <>
+                    {' '}
+                    <a href={o.url} className="text-accent hover:underline" target="_blank" rel="noreferrer">
+                      Details
+                    </a>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {bundle.task.status === 'done' ? (
         <div className="text-[12px]" data-testid="signoff">
           {bundle.merge ? (

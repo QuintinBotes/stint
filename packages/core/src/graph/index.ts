@@ -18,7 +18,7 @@ import type { Workspace } from '../store/workspace';
  * graph as of a moment is a filter, never a second data structure.
  */
 
-export type GraphNodeType = 'task' | 'run' | 'decision' | 'file' | 'finding' | 'skill' | 'outcome';
+export type GraphNodeType = 'task' | 'run' | 'decision' | 'file' | 'finding' | 'skill' | 'outcome' | 'merge';
 export type GraphEdgeType =
   | 'touches'
   | 'produced'
@@ -74,7 +74,7 @@ export type OpenFindingRow = {
   linksTo: string | null;
   recordedAt: string;
 };
-export type SkillsHelpedRow = { skill: string; appliedIn: string[]; approvedAfter: number };
+export type SkillsHelpedRow = { skill: string; appliedIn: string[]; approvedAfter: number; hurt: number };
 
 const taskNodeId = (task: string) => `task:${task}`;
 const runNodeId = (task: string, run: string) => `run:${task}/${run}`;
@@ -83,6 +83,7 @@ const fileNodeId = (path: string) => `file:${path}`;
 const findingNodeId = (task: string, run: string, id: string) => `finding:${task}/${run}#${id}`;
 const skillNodeId = (skill: string) => `skill:${skill}`;
 const outcomeNodeId = (outcome: string) => `outcome:${outcome}`;
+const mergeNodeId = (commit: string) => `merge:${commit}`;
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -156,7 +157,9 @@ type FindingInfo = {
   eventId: string;
 };
 type Touch = { added: number; removed: number; changes: number } & At;
-type OutcomeInfo = { task: string; run: string | null; outcome: 'approved' | 'rejected' } & At;
+type OutcomeKind = 'approved' | 'rejected' | 'reverted' | 'followup' | 'ci' | 'incident';
+type OutcomeInfo = { task: string; run: string | null; outcome: OutcomeKind; payload: Record<string, unknown> } & At;
+type MergeInfo = { task: string; commit: string; into: string | null } & At;
 type TaskInfo = {
   task: Task;
   created: At;
@@ -173,13 +176,14 @@ type Collected = {
   findings: FindingInfo[];
   touches: Map<string, Touch & { task: string; run: string; path: string }>;
   outcomes: OutcomeInfo[];
+  merges: MergeInfo[];
   applied: Array<{ skill: string; task: string; run: string } & At>;
   proposals: Array<{ skill: string; refs: string[] } & At>;
   skills: Map<string, Record<string, unknown>>;
 };
 
 function emptyCollected(): Collected {
-  return { tasks: [], runs: new Map(), decisions: [], findings: [], touches: new Map(), outcomes: [], applied: [], proposals: [], skills: new Map() };
+  return { tasks: [], runs: new Map(), decisions: [], findings: [], touches: new Map(), outcomes: [], merges: [], applied: [], proposals: [], skills: new Map() };
 }
 
 function ensureRun(c: Collected, task: string, run: string, at: At): RunInfo {
@@ -316,7 +320,18 @@ async function collectTask(ws: Workspace, task: Task, c: Collected): Promise<voi
       }
       case 'approval.granted':
       case 'approval.rejected':
-        c.outcomes.push({ task: task.id, run: e.run ?? str(p.run) ?? str(p.verificationRun), outcome: e.type === 'approval.granted' ? 'approved' : 'rejected', ...at });
+        c.outcomes.push({ task: task.id, run: e.run ?? str(p.run) ?? str(p.verificationRun), outcome: e.type === 'approval.granted' ? 'approved' : 'rejected', payload: p, ...at });
+        break;
+      case 'merge.completed': {
+        const commit = str(p.commit);
+        if (commit) c.merges.push({ task: task.id, commit, into: str(p.into), ...at });
+        break;
+      }
+      case 'outcome.reverted':
+      case 'outcome.followup':
+      case 'outcome.ci':
+      case 'outcome.incident':
+        c.outcomes.push({ task: task.id, run: e.run ?? null, outcome: e.type.slice('outcome.'.length) as OutcomeKind, payload: p, ...at });
         break;
       default:
         break;
@@ -442,16 +457,48 @@ function build(c: Collected): Graph {
     }
   }
 
+  const producedMerges = new Set<string>();
   for (const o of c.outcomes) {
-    let run = o.run;
-    if (!run) {
-      const candidates = [...c.runs.values()].filter((r) => r.task === o.task && cmpTime(r.endedAt ?? r.startedAt ?? r.first.ts, o.ts) <= 0);
-      candidates.sort((x, y) => cmpTime(y.endedAt ?? y.startedAt ?? y.first.ts, x.endedAt ?? x.startedAt ?? x.first.ts));
-      run = candidates[0]?.run ?? null;
-    }
-    if (!run) continue;
     addNode({ id: outcomeNodeId(o.outcome), type: 'outcome', label: o.outcome, data: { outcome: o.outcome } });
-    addEdge('resulted_in', runNodeId(o.task, run), outcomeNodeId(o.outcome), o.ts, null, o.eventId, { task: o.task, run, outcome: o.outcome });
+    if (o.outcome === 'approved' || o.outcome === 'rejected') {
+      let run = o.run;
+      if (!run) {
+        const candidates = [...c.runs.values()].filter((r) => r.task === o.task && cmpTime(r.endedAt ?? r.startedAt ?? r.first.ts, o.ts) <= 0);
+        candidates.sort((x, y) => cmpTime(y.endedAt ?? y.startedAt ?? y.first.ts, x.endedAt ?? x.startedAt ?? x.first.ts));
+        run = candidates[0]?.run ?? null;
+      }
+      if (!run) continue;
+      addEdge('resulted_in', runNodeId(o.task, run), outcomeNodeId(o.outcome), o.ts, null, o.eventId, { task: o.task, run, outcome: o.outcome });
+      continue;
+    }
+    // Post-merge outcomes hang from the merge itself: merge -> outcome (R-030).
+    const p = o.payload;
+    const known = new Map(c.merges.filter((m) => m.task === o.task).map((m) => [m.commit, m]));
+    const byTime = c.merges.filter((m) => m.task === o.task && cmpTime(m.ts, o.ts) <= 0).sort((x, y) => cmpTime(y.ts, x.ts))[0];
+    const mergeCommit =
+      str(p.mergeCommit) ?? str(p.revertedCommit) ?? (str(p.commit) && known.has(str(p.commit) as string) ? str(p.commit) : null) ?? byTime?.commit ?? null;
+    const data: Record<string, unknown> = {
+      task: o.task,
+      outcome: o.outcome,
+      ...(mergeCommit ? { commit: mergeCommit, mergeCommit } : {}),
+      ...(str(p.commit) ? { outcomeCommit: str(p.commit) } : {}),
+      ...(str(p.by) ? { by: str(p.by) } : {}),
+      ...(str(p.followup) ? { followup: str(p.followup) } : {}),
+      ...(Array.isArray(p.files) ? { files: p.files.filter((f): f is string => typeof f === 'string') } : {}),
+      ...(str(p.status) ? { status: str(p.status) } : {}),
+      ...(str(p.summary) ? { summary: str(p.summary) } : {}),
+    };
+    if (mergeCommit) {
+      const merge = known.get(mergeCommit);
+      addNode({ id: mergeNodeId(mergeCommit), type: 'merge', label: mergeCommit.slice(0, 10), data: { task: o.task, commit: mergeCommit, mergeCommit, ...(merge?.into ? { into: merge.into } : {}), ...(merge ? { mergedAt: merge.ts } : {}) } });
+      if (!producedMerges.has(mergeCommit)) {
+        producedMerges.add(mergeCommit);
+        addEdge('produced', taskNodeId(o.task), mergeNodeId(mergeCommit), merge?.ts ?? o.ts, null, merge?.eventId ?? o.eventId, { task: o.task, commit: mergeCommit });
+      }
+      addEdge('resulted_in', mergeNodeId(mergeCommit), outcomeNodeId(o.outcome), o.ts, null, o.eventId, data);
+    } else {
+      addEdge('resulted_in', taskNodeId(o.task), outcomeNodeId(o.outcome), o.ts, null, o.eventId, data);
+    }
   }
 
   for (let i = 0; i < c.tasks.length; i++) {
@@ -478,7 +525,7 @@ async function buildGraph(ws: Workspace, only?: string[]): Promise<Graph> {
   return build(c);
 }
 
-const GRAPH_VERSION = 1;
+const GRAPH_VERSION = 2;
 const META_NODE = 'meta:cache-key';
 const cacheQueue = new KeyedQueue();
 
@@ -714,14 +761,20 @@ export async function skillsHelped(ws: Workspace, o: GraphOptions = {}): Promise
   const rows: SkillsHelpedRow[] = [];
   for (const [skill, info] of bySkill) {
     let approvedAfter = 0;
+    let hurt = 0;
     for (const o of outcomes) {
+      // A reverted task with the skill mounted counts as hurt (R-030, for R-031).
+      if (o.data.outcome === 'reverted') {
+        if (info.at.some((a) => a.task === o.data.task && cmpTime(a.ts, o.recordedAt) <= 0)) hurt += 1;
+        continue;
+      }
       if (o.data.outcome !== 'approved') continue;
       const applied = info.at.filter((a) => a.task === o.data.task && cmpTime(a.ts, o.recordedAt) <= 0).sort((x, y) => cmpTime(x.ts, y.ts))[0];
       if (!applied) continue;
       const rejectedBetween = outcomes.some((r) => r.data.outcome === 'rejected' && r.data.task === o.data.task && cmpTime(r.recordedAt, applied.ts) > 0 && cmpTime(r.recordedAt, o.recordedAt) <= 0);
       if (!rejectedBetween) approvedAfter += 1;
     }
-    rows.push({ skill, appliedIn: [...info.appliedIn].sort(cmpStr), approvedAfter });
+    rows.push({ skill, appliedIn: [...info.appliedIn].sort(cmpStr), approvedAfter, hurt });
   }
   return rows.sort((a, b) => cmpStr(a.skill, b.skill));
 }

@@ -19,6 +19,7 @@ export type SkillRecord = {
   stale: boolean;
   appliedIn: string[];
   helped: number;
+  hurt: number;
 };
 
 export type RejectedProposal = { id: string; evidenceKey: string; reason: string; at: string };
@@ -141,6 +142,7 @@ export async function listSkills(ws: Workspace): Promise<SkillRecord[]> {
     return {
       appliedIn: [...new Set(rows.flatMap((r) => r.appliedIn))].sort(),
       helped: rows.reduce((s, r) => s + r.approvedAfter, 0),
+      hurt: rows.reduce((s, r) => s + r.hurt, 0),
     };
   };
   const consent = await readConsent(ws);

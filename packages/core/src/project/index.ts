@@ -20,6 +20,24 @@ export type RunSummary = {
   handoffFrom: string | null;
 };
 
+/** One thing that happened to a merged change, from an `outcome.*` event (R-030, R-042). */
+export type OutcomeRecord = {
+  kind: 'reverted' | 'followup' | 'ci' | 'incident';
+  type: string;
+  at: string;
+  task: string;
+  commit: string | null;
+  mergeCommit: string | null;
+  by: string | null;
+  followup: string | null;
+  files: string[];
+  run: string | number | null;
+  status: string | null;
+  summary: string | null;
+  url: string | null;
+  payload: Record<string, unknown>;
+};
+
 export type TaskBundle = {
   task: Task;
   plan: Plan | null;
@@ -30,7 +48,39 @@ export type TaskBundle = {
   cost: Cost;
   /** The sign-off, from the log: who approved, when, and the merge commit. */
   merge?: { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> } | null;
+  /** Reverts, follow-ups, failing CI and incidents recorded after merge (R-030, R-042). */
+  outcomes: OutcomeRecord[];
+  /** The open pull request, in PR release mode (R-042). */
+  release?: { url: string | null; number: number | null; status: string | null } | null;
 };
+
+/** Outcomes as the event log tells them: one per `outcome.*` event, oldest first. */
+export function outcomesFromEvents(events: StintEvent[]): OutcomeRecord[] {
+  const out: OutcomeRecord[] = [];
+  for (const e of events) {
+    if (!e.type.startsWith('outcome.')) continue;
+    const kind = e.type.slice('outcome.'.length) as OutcomeRecord['kind'];
+    if (!['reverted', 'followup', 'ci', 'incident'].includes(kind)) continue;
+    const p = e.payload;
+    out.push({
+      kind,
+      type: e.type,
+      at: e.ts,
+      task: str(p.task) ?? e.task,
+      commit: str(p.commit),
+      mergeCommit: str(p.mergeCommit) ?? str(p.revertedCommit),
+      by: str(p.by),
+      followup: str(p.followup),
+      files: Array.isArray(p.files) ? p.files.filter((f): f is string => typeof f === 'string') : [],
+      run: typeof p.run === 'string' || typeof p.run === 'number' ? p.run : null,
+      status: str(p.status),
+      summary: str(p.summary),
+      url: str(p.url),
+      payload: p,
+    });
+  }
+  return out;
+}
 
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
@@ -92,6 +142,10 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
   const merge = merged
     ? { commit: str(merged.payload.commit) ?? '', into: str(merged.payload.into), by: str(granted?.payload.by), at: merged.ts, trailers: (merged.payload.trailers ?? {}) as Record<string, string> }
     : null;
+  const opened = events.filter((e) => e.type === 'release.pr_opened').at(-1);
+  const release = opened
+    ? { url: str(opened.payload.url), number: typeof opened.payload.number === 'number' ? opened.payload.number : null, status: merged ? 'merged' : task.status === 'in_review' ? 'open' : 'closed' }
+    : null;
   return {
     task,
     plan: await ws.readPlan(id),
@@ -101,6 +155,8 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
     runs,
     cost: sumCosts(runs.map((r) => r.cost)),
     merge,
+    outcomes: outcomesFromEvents(events),
+    release,
   };
 }
 

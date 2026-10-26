@@ -46,7 +46,9 @@ function SkillRow({ s, onChange }: { s: SkillRecord; onChange: () => void }) {
         ) : null}
         <dt className="text-muted">Track record</dt>
         <dd className="tabular">
-          {s.appliedIn.length ? `applied in ${s.appliedIn.length} run${s.appliedIn.length === 1 ? '' : 's'}, approved without rejection after it ${s.helped} time${s.helped === 1 ? '' : 's'}` : 'not applied yet'}
+          {s.appliedIn.length
+            ? `applied in ${s.appliedIn.length} run${s.appliedIn.length === 1 ? '' : 's'}, approved without rejection after it ${s.helped} time${s.helped === 1 ? '' : 's'}, hurt ${s.hurt ?? 0} time${(s.hurt ?? 0) === 1 ? '' : 's'} (a reverted task counts as hurt)`
+            : 'not applied yet'}
         </dd>
       </dl>
       {s.status === 'proposed' ? (

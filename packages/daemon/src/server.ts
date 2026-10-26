@@ -9,6 +9,7 @@ import { createStintAgent } from '@stint-dev/adapter-stint-agent';
 import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
 import { type Adapter, replayAdapter } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
+import { pollReleases, scanOutcomes } from './outcomes';
 import { killAllPtys } from './pty';
 
 /** Every adapter that has landed; health reports each one honestly, available or not. */
@@ -46,6 +47,15 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   });
   // a task the log says is on autopilot picks up where it was
   void daemonContext(app).autopilot.resume();
+  // outcomes after merge are scanned on start, then every 10 minutes; pull requests every minute (R-030, R-042)
+  const outcomeCtx = daemonContext(app);
+  const logScanFailure = (what: string) => (err: unknown) =>
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `${what} did NOT run: ${err instanceof Error ? err.message : String(err)}` })}\n`);
+  await scanOutcomes(outcomeCtx).catch(logScanFailure('the outcome scan on start'));
+  const outcomeTimer = setInterval(() => void scanOutcomes(outcomeCtx).catch(logScanFailure('the outcome scan')), 10 * 60_000);
+  (outcomeTimer as unknown as { unref?: () => void }).unref?.();
+  const releaseTimer = setInterval(() => void pollReleases(outcomeCtx).catch(logScanFailure('the pull request poll')), 60_000);
+  (releaseTimer as unknown as { unref?: () => void }).unref?.();
   const { websocket } = createBunWebSocket();
   const server = Bun.serve({
     hostname: '127.0.0.1',
@@ -65,6 +75,8 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   const stop = async () => {
     if (stopped) return;
     stopped = true;
+    clearInterval(outcomeTimer);
+    clearInterval(releaseTimer);
     killAllPtys();
     // let run endings finish their commit, verification and packet (at most 10 s)
     const ctx = daemonContext(app);

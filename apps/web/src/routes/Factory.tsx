@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { ROLE_NAMES, hostName, modelName } from '../agents';
+import { ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
 import { type CostRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
-import { EmptyState, cx } from '../components/ui';
+import { EmptyState, VendorMark, cx } from '../components/ui';
 import { money, tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
 
@@ -106,6 +106,7 @@ const STAGES: Array<[string, string]> = [
   ['building', 'Building'],
   ['verifying', 'Verifying'],
   ['reviewing', 'Reviewing'],
+  ['in_review', 'In review'],
   ['awaiting_approval', 'Needs you'],
   ['done', 'Done'],
 ];
@@ -230,6 +231,45 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
   );
 }
 
+type OutcomeRow = { adapter: string; merged: number; reverted: number; followup: number; ci: number; incident: number };
+
+/** What happened after merge, per agent that built the task: merged, reverted, followed up. */
+function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
+  if (rows === null) return <EmptyState>Reading what happened after merge.</EmptyState>;
+  if (rows.length === 0) return <EmptyState>Outcomes appear here once a change has merged and the daemon has seen what happened to it.</EmptyState>;
+  return (
+    <div data-testid="outcomes">
+      <table className="w-full text-[13px]">
+        <thead className="text-[12px] text-muted text-left">
+          <tr>
+            <th className="font-normal pb-2">Agent</th>
+            <th className="font-normal pb-2 text-right">Merged</th>
+            <th className="font-normal pb-2 text-right">Reverted</th>
+            <th className="font-normal pb-2 text-right">Followed up</th>
+            <th className="font-normal pb-2 text-right">Failing CI</th>
+            <th className="font-normal pb-2 text-right">Incidents</th>
+          </tr>
+        </thead>
+        <tbody className="tabular">
+          {rows.map((r) => (
+            <tr key={r.adapter} className="border-t border-line" data-testid="outcome-row" data-agent={r.adapter}>
+              <td className="py-2 font-medium">
+                <VendorMark agent={agentOf(r.adapter)} />
+              </td>
+              <td className="py-2 text-right">{r.merged}</td>
+              <td className="py-2 text-right">{r.reverted}</td>
+              <td className="py-2 text-right">{r.followup}</td>
+              <td className="py-2 text-right">{r.ci}</td>
+              <td className="py-2 text-right">{r.incident}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-[12px] text-faint mt-3">A task built by two agents counts for both. The daemon records a revert, a follow-up within 7 days, a failed CI run and a reported incident on the task that merged.</p>
+    </div>
+  );
+}
+
 function Panel({ title, children, className, testId }: { title: string; children: React.ReactNode; className?: string; testId?: string }) {
   return (
     <section className={cx('rounded-lg border border-line bg-raised p-4', className)} data-testid={testId}>
@@ -248,6 +288,7 @@ export function Factory() {
   const helped = useLoad(() => api.graphQuery<Helped>({ q: 'skills-helped' }), []);
   const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
+  const [outcomeRows, setOutcomeRows] = useState<OutcomeRow[] | null>(null);
   useEffect(() => {
     if (!cards) return;
     let live = true;
@@ -257,6 +298,28 @@ export function Factory() {
         setHandoffs(all.flat().filter((e) => e.type === 'run.started' && e.payload.handoffFrom).length);
         // learned means proposed by the learn step and approved by a person, not written by hand
         setLearned(new Set(all.flat().filter((e) => e.type === 'skill.approved').map((e) => String(e.payload.id ?? e.payload.skill))).size);
+        const rows = new Map<string, OutcomeRow>();
+        const rowFor = (adapter: string) => {
+          let row = rows.get(adapter);
+          if (!row) rows.set(adapter, (row = { adapter, merged: 0, reverted: 0, followup: 0, ci: 0, incident: 0 }));
+          return row;
+        };
+        for (const events of all) {
+          const builders = [...new Set(events.filter((e) => e.type === 'run.started' && e.payload.role === 'implementer' && e.adapter).map((e) => e.adapter as string))];
+          const agents = builders.length ? builders : [...new Set(events.filter((e) => e.type === 'run.started' && e.adapter).map((e) => e.adapter as string))];
+          if (agents.length === 0) continue;
+          const count = (type: string) => events.filter((e) => e.type === type).length;
+          if (count('merge.completed') === 0 && count('outcome.reverted') + count('outcome.followup') + count('outcome.ci') + count('outcome.incident') === 0) continue;
+          for (const agent of agents) {
+            const row = rowFor(agent);
+            row.merged += count('merge.completed');
+            row.reverted += count('outcome.reverted');
+            row.followup += count('outcome.followup');
+            row.ci += count('outcome.ci');
+            row.incident += count('outcome.incident');
+          }
+        }
+        setOutcomeRows([...rows.values()].sort((a, b) => b.merged - a.merged || a.adapter.localeCompare(b.adapter)));
       })
       .catch(() => undefined);
     return () => {
@@ -309,6 +372,10 @@ export function Factory() {
             <CostByDay rows={byDayHost ?? []} />
           </Panel>
         </div>
+
+        <Panel title="Outcomes after merge, per agent" testId="panel-outcomes">
+          <Outcomes rows={outcomeRows} />
+        </Panel>
 
         <div className="grid md:grid-cols-2 gap-4">
           <Panel title="It learned">

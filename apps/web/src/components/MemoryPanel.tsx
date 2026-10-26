@@ -15,6 +15,7 @@ const COLOUR: Record<string, string> = {
   skill: 'var(--status-good)',
   finding: 'var(--status-bad)',
   outcome: 'var(--status-good)',
+  merge: 'var(--status-good)',
   file: 'var(--ink-faint)',
   run: 'var(--ink-muted)',
 };

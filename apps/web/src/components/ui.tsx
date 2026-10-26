@@ -38,6 +38,7 @@ const STATUS: Record<string, { label: string; tone: ChipTone }> = {
   building: { label: 'building', tone: 'active' },
   verifying: { label: 'verifying', tone: 'active' },
   reviewing: { label: 'reviewing', tone: 'active' },
+  in_review: { label: 'in review', tone: 'active' },
   awaiting_approval: { label: 'needs you', tone: 'warn' },
   approved: { label: 'approved', tone: 'good' },
   rejected: { label: 'rejected', tone: 'bad' },

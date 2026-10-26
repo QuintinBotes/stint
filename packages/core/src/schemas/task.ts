@@ -6,6 +6,7 @@ export const TaskStatusSchema = z.enum([
   'building',
   'verifying',
   'reviewing',
+  'in_review',
   'awaiting_approval',
   'approved',
   'rejected',

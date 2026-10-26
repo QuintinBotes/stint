@@ -6,7 +6,7 @@ import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
-import { git, gitOk, identityArgs } from '../git';
+import { ghOk, git, gitOk, identityArgs } from '../git';
 import { triggerLearn } from '../learn';
 import { releaseWorktrees } from '../lifecycle';
 
@@ -87,6 +87,44 @@ async function merge(ctx: DaemonContext, id: string, squash: boolean, verifiedCo
   return { commit, base, trailers };
 }
 
+/**
+ * PR release mode (R-042): approval pushes the task branch and opens a pull request carrying the
+ * packet summary and the same trailers a local merge would. The task then waits in review until
+ * the pull request merges; the poller in outcomes.ts follows its checks.
+ */
+async function openPullRequest(ctx: DaemonContext, id: string, verifiedCommit: string | undefined): Promise<{ url: string; number: number; base: string; trailers: Trailers }> {
+  const root = ctx.ws.root;
+  const release = ctx.ws.config.release;
+  if (!release) throw new DaemonError('invalid', 'PR release mode needs a release config');
+  const task = await ctx.ws.readTask(id);
+  const base = release.base ?? (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
+  if (!base) throw new DaemonError('invalid', 'the main tree is not on a branch', 'check out the base branch or set release.base');
+  const branchHead = (await git(root, ['rev-parse', '--verify', '-q', `refs/heads/${task.branch}`])).stdout.trim();
+  if (!branchHead) throw new DaemonError('not_found', `the task branch ${task.branch} does not exist`);
+  if (verifiedCommit && verifiedCommit !== branchHead) {
+    throw new DaemonError('verification_red', `${task.branch} moved after the last verification`, `verified ${verifiedCommit.slice(0, 10)}, the branch is at ${branchHead.slice(0, 10)}; run the tests again`);
+  }
+  const events = await ctx.ws.events(id).read();
+  const runs = runsFromEvents(events).map((r) => r.run);
+  const packet = await ctx.ws.handoffs(id).latest();
+  const v = await ctx.ws.verification(id).latest();
+  const trailers: Trailers = {
+    'Stint-Task': id,
+    'Stint-Runs': runs.join(','),
+    'Stint-Handoff': packet?.hash ?? 'none',
+    'Stint-Verified': v ? `${oneLine(v.command)} ${v.passed}/${v.passed + v.failed}` : 'none',
+  };
+  const pushed = await git(root, ['push', release.remote, task.branch]);
+  if (pushed.code !== 0) throw new Error(`git push ${release.remote} ${task.branch} failed: ${pushed.stderr.trim() || pushed.stdout.trim()}`);
+  const summary = oneLine(packet?.summary ?? task.goal);
+  const body = `${summary}\n\n${Object.entries(trailers).map(([k, val]) => `${k}: ${val}`).join('\n')}\n`;
+  const out = await ghOk(root, ['pr', 'create', '--head', task.branch, '--base', base, '--title', task.title, '--body', body]);
+  const url = (out.match(/https?:\/\/\S+/)?.[0] ?? out.trim().split('\n').find((l) => l.trim()) ?? '').trim();
+  const number = Number(/\/pull\/(\d+)/.exec(url)?.[1] ?? /(\d+)\s*$/.exec(url)?.[1] ?? /#(\d+)/.exec(out)?.[1] ?? NaN);
+  if (!url || !Number.isFinite(number)) throw new Error(`gh pr create did not return a pull request URL: ${out.trim()}`);
+  return { url, number, base, trailers };
+}
+
 const approving = new Set<string>();
 
 export function approveRoutes(app: Hono, ctx: DaemonContext): void {
@@ -109,6 +147,23 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
       const lockAt = log.map((e) => e.type).lastIndexOf('acceptance.locked');
       const tampered = lockAt >= 0 ? log.slice(lockAt).find((e) => e.type === 'acceptance.tampered') : undefined;
       if (tampered) throw new DaemonError('review_blocked', 'an agent changed the locked acceptance tests', { files: tampered.payload.files });
+
+      if (ctx.ws.config.release?.mode === 'pr') {
+        if (task.status === 'in_review') throw new DaemonError('invalid', `${id} already has a pull request in review`);
+        const by = body.by ?? 'you';
+        const pr = await openPullRequest(ctx, id, v.commit);
+        const releaseEvents = ctx.ws.events(id);
+        await releaseEvents.append({ task: id, vendor: 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
+        await releaseEvents.append({
+          task: id,
+          vendor: 'daemon',
+          type: 'release.pr_opened',
+          payload: { url: pr.url, number: pr.number, branch: task.branch, base: pr.base, remote: ctx.ws.config.release.remote, trailers: pr.trailers },
+          links: [{ kind: 'url', ref: pr.url }],
+        });
+        await ctx.ws.writeTask(id, { status: 'in_review', assignee: null, pendingAsk: null });
+        return c.json({ status: 'in_review', url: pr.url, number: pr.number, pr: { url: pr.url, number: pr.number }, into: pr.base, trailers: pr.trailers });
+      }
 
       const { commit, base, trailers } = await merge(ctx, id, body.squash ?? false, v.commit);
       const by = body.by ?? 'you';

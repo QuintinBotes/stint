@@ -10,6 +10,7 @@ const LANES: Array<{ id: string; title: string; statuses: TaskStatus[]; empty: s
   { id: 'building', title: 'Building', statuses: ['building'], empty: 'No agent is building.' },
   { id: 'verifying', title: 'Verifying', statuses: ['verifying'], empty: 'Nothing is being verified.' },
   { id: 'reviewing', title: 'Reviewing', statuses: ['reviewing'], empty: 'Nothing is in review.' },
+  { id: 'in-review', title: 'In review', statuses: ['in_review'], empty: 'Nothing is in pull request review.' },
   { id: 'done', title: 'Done', statuses: ['approved', 'done', 'abandoned'], empty: 'Nothing merged yet.' },
 ];
 
@@ -19,7 +20,7 @@ export function Board() {
   const cards: TaskCardData[] = data ?? [];
   return (
     <main className="flex-1 min-h-0 overflow-auto">
-      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 p-4" data-testid="board">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4 p-4" data-testid="board">
         {LANES.map((lane) => {
           const inLane = cards.filter((c) => lane.statuses.includes(c.task.status));
           return (

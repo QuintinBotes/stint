@@ -19,6 +19,7 @@ import { checkAcceptanceLock } from './acceptance';
 import { Autopilot, autopilotCard } from './autopilot';
 import { modelHealth } from './hosts';
 import { DaemonError, errorResponse } from './errors';
+import { outcomeRoutes } from './outcomes';
 import { ptyHealth } from './pty';
 import { benchRoutes } from './routes/bench';
 import { demoRoutes } from './routes/demo';
@@ -360,6 +361,7 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   handoffRoutes(app, ctx);
   modelRoutes(app, ctx);
   approveRoutes(app, ctx);
+  outcomeRoutes(app, ctx);
   demoRoutes(app, ctx);
   graphRoutes(app, ctx);
   skillRoutes(app, ctx);

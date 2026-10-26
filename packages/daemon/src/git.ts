@@ -13,6 +13,25 @@ export async function gitOk(cwd: string, args: string[]): Promise<string> {
   return r.stdout;
 }
 
+/** Runs `gh` with an explicit cwd and argument list, resolved on the current PATH (tests put a fake there). */
+export async function gh(cwd: string, args: string[]): Promise<GitResult> {
+  const bin = Bun.which('gh', { PATH: process.env.PATH ?? '' });
+  if (!bin) return { code: 127, stdout: '', stderr: 'gh is not on PATH' };
+  try {
+    const p = Bun.spawn([bin, ...args], { cwd, stdout: 'pipe', stderr: 'pipe', env: process.env });
+    const [stdout, stderr, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
+    return { code, stdout, stderr };
+  } catch (err) {
+    return { code: 127, stdout: '', stderr: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function ghOk(cwd: string, args: string[]): Promise<string> {
+  const r = await gh(cwd, args);
+  if (r.code !== 0) throw new Error(`gh ${args.join(' ')} failed: ${r.stderr.trim() || r.stdout.trim()}`);
+  return r.stdout;
+}
+
 export type NumstatEntry = { path: string; added: number; removed: number };
 
 export function parseNumstat(text: string): NumstatEntry[] {
