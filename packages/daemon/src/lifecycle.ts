@@ -15,7 +15,7 @@ import { worktreePath } from './worktree';
 export type AssignInput = { adapter: string; role: Role; model?: string; instruction?: string; handoffFrom?: string };
 export type Assigned = { run: string; worktree: string; done: Promise<void> };
 
-/** The price key of a run: Muse Code and the Claude Code harness bill the Meta Model API. */
+/** The price key of a run: Muse Code bills the Meta Model API; other agents bill the host that answered. */
 export function priceKey(adapter: string, host: string | undefined, model: string | undefined): string {
   if (adapter === 'muse-code' || host === 'local-cli' || !host) return `meta-api/${model ?? 'muse-spark-1.3'}`;
   return `${host}/${model ?? ''}`;
@@ -23,14 +23,16 @@ export function priceKey(adapter: string, host: string | undefined, model: strin
 
 export function priced(ctx: DaemonContext, adapter: string, r: Pick<RunResult, 'cost' | 'host' | 'model'>): Cost {
   if (r.cost.usd !== null) return r.cost;
+  // an agent killed before it reported usage cost something unknown, not nothing
+  if (r.cost.estimated && r.cost.inputTokens + r.cost.outputTokens === 0) return r.cost;
   const usd = priceUsage(ctx.ws.config.prices[priceKey(adapter, r.host, r.model)], r.cost);
   return { ...r.cost, usd };
 }
 
-/** Tokens a role has already spent on a task, from its finished runs. */
+/** Tokens a role has already spent on a task: fresh input plus output, the part that costs money (D-033). */
 async function spentByRole(ctx: DaemonContext, task: string, role: Role): Promise<number> {
   const runs = runsFromEvents(await ctx.ws.events(task).read());
-  return runs.filter((r) => r.role === role && r.cost).reduce((s, r) => s + (r.cost?.inputTokens ?? 0) + (r.cost?.outputTokens ?? 0), 0);
+  return runs.filter((r) => r.role === role && r.cost).reduce((s, r) => s + Math.max(0, (r.cost?.inputTokens ?? 0) - (r.cost?.cachedTokens ?? 0)) + (r.cost?.outputTokens ?? 0), 0);
 }
 
 /** Removes the task's earlier worktrees that no run holds, so the branch can be checked out again. Never forced. */

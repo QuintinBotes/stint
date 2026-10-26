@@ -12,7 +12,7 @@
     "host": "local-cli"
   },
   "to": {
-    "adapter": "claude-code",
+    "adapter": "stint-agent",
     "role": "implementer"
   },
   "summary": "Reached the 60-step cap after adding the limiter and wiring it into POST /webhooks. No tests were written yet.",
@@ -87,5 +87,5 @@
     "usd": 0.2117
   },
   "createdAt": "2026-10-26T15:01:07.500Z",
-  "hash": "sha256:ecf3e4204d304ae6e16b2b19c7cde1c28943169177dabfb4712d756e95de986a"
+  "hash": "sha256:306700ec11763aca5229d703472d30b090a6dfbfdc31aa4c11b3843ff0d21686"
 }

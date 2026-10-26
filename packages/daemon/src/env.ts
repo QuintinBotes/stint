@@ -1,4 +1,4 @@
-const SESSION_MARKERS = [/^CLAUDECODE$/, /^CLAUDE_CODE_/, /^MUSE_/];
+const SESSION_MARKERS = [/^MUSE_/];
 
 /** The environment of anything the daemon spawns in a worktree: session markers stripped, Stint's added. */
 export function runEnv(task: string, run: string, worktree: string, base: NodeJS.ProcessEnv = process.env): Record<string, string> {

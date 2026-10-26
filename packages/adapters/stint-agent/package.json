@@ -1,0 +1,16 @@
+{
+  "name": "@stint-dev/adapter-stint-agent",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {},
+  "dependencies": {
+    "@stint-dev/core": "workspace:*",
+    "openai": "5.23.2"
+  },
+  "devDependencies": {
+    "@stint-dev/daemon": "workspace:*"
+  }
+}

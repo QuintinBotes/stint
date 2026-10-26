@@ -12,7 +12,7 @@
     "host": "local-cli"
   },
   "to": {
-    "adapter": "claude-code",
+    "adapter": "stint-agent",
     "role": "implementer"
   },
   "summary": "Added a per-tenant sliding window limiter and wired it into POST /webhooks. The run was killed while writing the 429 tests.",
@@ -95,5 +95,5 @@
     "usd": 0.2117
   },
   "createdAt": "2026-10-26T15:01:07.500Z",
-  "hash": "sha256:800f3fe4e8818adc9affefe179a6b76b7ba65057e6a606a5dd749cb7981fe0db"
+  "hash": "sha256:bedcfacf7ea13e061eb3f2ba1fb234c12d65fb2f39fbefb091fe322059585bbb"
 }

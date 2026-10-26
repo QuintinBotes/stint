@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { RoleSchema } from './handoff';
 
-/** SKILL.md frontmatter: what Muse Code, Claude Code and Codex read, plus Stint's additions. */
+/** SKILL.md frontmatter: what Muse Code and other coding agents read, plus Stint's additions. */
 export const SkillFrontmatterSchema = z.looseObject({
   name: z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
   description: z.string().min(1).max(1024),

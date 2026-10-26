@@ -1,5 +1,5 @@
 /** Every model Stint calls is a Meta model; what differs between runs is the agent that drove it. */
-export type Mark = 'meta' | 'anthropic' | 'local';
+export type Mark = 'meta' | 'alt' | 'local';
 
 const MODEL_NAMES: Record<string, string> = {
   'muse-wonder-1.0': 'Muse Wonder 1.0',
@@ -20,7 +20,7 @@ export type Agent = { name: string; mark: Mark; letter: string };
 /** Coding agents are named by their harness; plan and review calls are named by the model that answered. */
 export function agentOf(adapter: string | null | undefined, host?: string | null, model?: string | null): Agent {
   if (adapter === 'muse-code') return { name: 'Muse Code', mark: 'meta', letter: 'M' };
-  if (adapter === 'claude-code') return { name: 'Claude Code harness', mark: 'anthropic', letter: 'C' };
+  if (adapter === 'stint-agent') return { name: 'Stint agent', mark: 'alt', letter: 'S' };
   if (adapter === 'openai-compatible' && host === 'ollama') return { name: model ? `${modelName(model)}, local` : 'Local model', mark: 'local', letter: 'L' };
   if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: 'meta', letter: 'M' };
   if (adapter === 'replay') return { name: 'Replay', mark: 'local', letter: 'R' };
@@ -48,7 +48,7 @@ export function hostName(host: string | null | undefined): string {
 
 export const markColor: Record<Mark, string> = {
   meta: 'var(--vendor-meta)',
-  anthropic: 'var(--vendor-anthropic)',
+  alt: 'var(--vendor-alt)',
   local: 'var(--vendor-local)',
 };
 

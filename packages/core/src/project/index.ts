@@ -101,7 +101,7 @@ export function latestHandoff(ws: Workspace, id: string): Promise<Handoff | null
 
 export type CostRow = Cost & { key: string; runs: number; creditsLeft?: number; derived?: true };
 
-/** Local CLIs (Muse Code, the Claude Code harness) run Meta models billed to the Meta Model API (D-018). */
+/** Local CLIs (Muse Code) run Meta models billed to the Meta Model API (D-018). */
 export function billingHost(host: string | null): string {
   return host === 'local-cli' || host === null ? 'meta-api' : host;
 }

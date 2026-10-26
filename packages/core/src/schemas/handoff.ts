@@ -10,7 +10,7 @@ export type Role = z.infer<typeof RoleSchema>;
 export const EndedBySchema = z.enum(['completed', 'capped', 'killed', 'failed', 'handed']);
 export type EndedBy = z.infer<typeof EndedBySchema>;
 
-export const VendorSchema = z.enum(['meta', 'anthropic', 'openai', 'local']);
+export const VendorSchema = z.enum(['meta', 'openai', 'local']);
 export type Vendor = z.infer<typeof VendorSchema>;
 
 export const HostIdSchema = z.enum(['meta-api', 'baseten', 'fireworks', 'modal', 'ollama', 'local-cli']);

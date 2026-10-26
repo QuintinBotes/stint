@@ -231,7 +231,7 @@ const H1 = packet({
   version: 'stint.handoff/1',
   task: T,
   from: { adapter: 'muse-code', vendor: 'meta', model: 'muse-spark-1.3', role: 'implementer', run: 'r2', endedBy: 'killed', sessionId: '01a1787f-4d06-7ca1-8d41-34127655ceb9', host: 'local-cli' },
-  to: { adapter: 'claude-code', role: 'implementer' },
+  to: { adapter: 'stint-agent', role: 'implementer' },
   summary: 'Added a per-tenant sliding window limiter and wired it into POST /webhooks. The run was killed while writing the 429 tests.',
   done: ['Sliding window limiter in src/lib/limiter.ts', 'Limiter wired into POST /webhooks', 'Three limiter unit tests pass'],
   open: ['Tests for the 429 response and the Retry-After header', 'A test that other tenants are not affected'],
@@ -263,23 +263,23 @@ const handoffPayload = (name: string, h: Handoff, reason: string) => ({ name, ha
 emit('1:07.5', T, 'handoff.created', handoffPayload('h1', H1, 'killed'), { run: 'r2', vendor: 'daemon' }, { links: [{ kind: 'handoff', ref: 'h1' }] });
 
 // 1:20, a different agent continues from the packet alone.
-const r3: Ctx = { run: 'r3', adapter: 'claude-code', vendor: 'meta' };
+const r3: Ctx = { run: 'r3', adapter: 'stint-agent', vendor: 'meta' };
 emit('1:20', T, 'run.started', { role: 'implementer', model: 'muse-spark-1.3', host: 'meta-api', handoffFrom: 'h1', worktree: '.stint/worktrees/T-0042-r3', skills: ['review-voice-policy'] }, r3, { beat: 'A different agent finishes' });
 emit('1:20.4', T, 'skill.applied', { skill: 'review-voice-policy', run: 'r3' }, { run: 'r3', vendor: 'daemon' }, { links: [{ kind: 'skill', ref: 'review-voice-policy' }] });
 say('1:21', T, r3, 'Checking the unknown step first: test/ratelimit.test.ts.');
-tool('1:21.6', '1:21.9', T, r3, 'Read', { file_path: 'test/ratelimit.test.ts' }, 'File does not exist.');
+tool('1:21.6', '1:21.9', T, r3, 'read_file', { path: 'test/ratelimit.test.ts' }, 'File does not exist.');
 say('1:22.5', T, r3, 'The in-flight write never landed, so there is nothing to undo. The limiter and its tests from r2 are in place; I will not redo them.');
-tool('1:22.8', '1:23.0', T, r3, 'Bash', { command: 'git log --oneline -2' }, 'wip(T-0042 r2): killed; Ignore local env files');
-tool('1:23.2', '1:23.4', T, r3, 'Read', { file_path: 'src/lib/limiter.ts' }, '26 lines');
-tool('1:23.9', '1:24.1', T, r3, 'Read', { file_path: 'src/routes/webhooks.ts' }, '39 lines');
-tool('1:24.6', '1:24.8', T, r3, 'Read', { file_path: 'test/helpers.ts' }, '17 lines');
-tool('1:24.9', '1:25.1', T, r3, 'Grep', { pattern: 'Retry-After', path: 'src' }, '1 match in src/routes/webhooks.ts');
+tool('1:22.8', '1:23.0', T, r3, 'bash', { command: 'git log --oneline -2' }, 'wip(T-0042 r2): killed; Ignore local env files');
+tool('1:23.2', '1:23.4', T, r3, 'read_file', { path: 'src/lib/limiter.ts' }, '26 lines');
+tool('1:23.9', '1:24.1', T, r3, 'read_file', { path: 'src/routes/webhooks.ts' }, '39 lines');
+tool('1:24.6', '1:24.8', T, r3, 'read_file', { path: 'test/helpers.ts' }, '17 lines');
+tool('1:24.9', '1:25.1', T, r3, 'grep', { pattern: 'Retry-After', path: 'src' }, '1 match in src/routes/webhooks.ts');
 say('1:25.4', T, r3, 'Tests can swap deps.limiter for a small limit, so no test needs 61 requests.');
-tool('1:26.2', '1:26.8', T, r3, 'Write', { file_path: 'test/ratelimit.test.ts' }, 'wrote 35 lines');
+tool('1:26.2', '1:26.8', T, r3, 'write_file', { path: 'test/ratelimit.test.ts' }, 'wrote 35 lines');
 changed('1:27.2', T, r3, 'test/ratelimit.test.ts', 35, 0);
-tool('1:27.5', '1:28.2', T, r3, 'Bash', { command: 'bunx vitest run test/ratelimit.test.ts' }, 'Tests  3 passed (3)');
-tool('1:28.4', '1:29.6', T, r3, 'Bash', { command: 'bun run test' }, 'Tests  33 passed (33)');
-emit('1:30.4', T, 'agent.tool_call', { tool: 'Bash', args: { command: 'git push origin stint/T-0042' }, callId: `call_${String(++callN).padStart(3, '0')}` }, r3);
+tool('1:27.5', '1:28.2', T, r3, 'bash', { command: 'bunx vitest run test/ratelimit.test.ts' }, 'Tests  3 passed (3)');
+tool('1:28.4', '1:29.6', T, r3, 'bash', { command: 'bun run test' }, 'Tests  33 passed (33)');
+emit('1:30.4', T, 'agent.tool_call', { tool: 'bash', args: { command: 'git push origin stint/T-0042' }, callId: `call_${String(++callN).padStart(3, '0')}` }, r3);
 emit('1:30.6', T, 'rule.blocked', { action: 'git push origin stint/T-0042', reason: 'pushing is the human\'s call; Stint merges on approve', by: 'stint-rules', gate: 'enforced' }, { run: 'r3', vendor: 'daemon' });
 say('1:31.5', T, r3, 'Done: the 429 response, Retry-After and tenant isolation are tested. The limit is still a constant in the limiter, as the packet\'s risks say.');
 const c3 = await commitStep('1:33', 'stint/T-0042', 'T-0042-r3.patch', 'wip(T-0042 r3): completed');
@@ -289,7 +289,7 @@ emit('1:34.2', T, 'verification.ran', { command: 'bun run test', exitCode: 0, pa
 const H2 = packet({
   version: 'stint.handoff/1',
   task: T,
-  from: { adapter: 'claude-code', vendor: 'meta', model: 'muse-spark-1.3', role: 'implementer', run: 'r3', endedBy: 'completed', sessionId: 'b7c2e1d4-5f60-4a8b-9c3d-2e1f0a9b8c7d', host: 'meta-api' },
+  from: { adapter: 'stint-agent', vendor: 'meta', model: 'muse-spark-1.3', role: 'implementer', run: 'r3', endedBy: 'completed', sessionId: 'b7c2e1d4-5f60-4a8b-9c3d-2e1f0a9b8c7d', host: 'meta-api' },
   to: { adapter: 'openai-compatible', role: 'reviewer' },
   summary: 'Continued from the killed run: the unknown step had not landed, so it added the 429, Retry-After and tenant isolation tests. 33 tests pass.',
   done: ['Sliding window limiter wired into POST /webhooks (r2)', 'Tests for 429 with Retry-After and for tenant isolation'],

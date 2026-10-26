@@ -18,6 +18,7 @@ import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
+import { modelRoutes } from './routes/models';
 import { afterRunPacket, handoffRoutes } from './routes/handoff';
 import { runRoutes } from './routes/runs';
 import { ptyRoutes } from './routes/pty';
@@ -329,6 +330,7 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   workRoutes(app, ctx);
   runRoutes(app, ctx);
   handoffRoutes(app, ctx);
+  modelRoutes(app, ctx);
   demoRoutes(app, ctx);
   ptyRoutes(app, ctx);
 }

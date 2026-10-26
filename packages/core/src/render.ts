@@ -26,7 +26,7 @@ function refusalLine(r: Refusal): string {
 }
 
 export type RenderOptions = {
-  /** Extra lines under "Where it got to", e.g. "Before that it was with claude-code." (multi-hop rule). */
+  /** Extra lines under "Where it got to", e.g. "Before that it was with muse-code r2." (multi-hop rule). */
   before?: string[];
 };
 

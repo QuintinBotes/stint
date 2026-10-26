@@ -27,7 +27,7 @@
   --color-bad: var(--status-bad);
   --color-bad-tint: var(--status-bad-tint);
   --color-meta: var(--vendor-meta);
-  --color-anthropic: var(--vendor-anthropic);
+  --color-alt: var(--vendor-alt);
   --color-local: var(--vendor-local);
   --color-on-mark: var(--on-mark);
   --color-added: var(--diff-added);

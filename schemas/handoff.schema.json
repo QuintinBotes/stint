@@ -15,13 +15,13 @@
       "required": ["adapter", "vendor", "model", "role", "run", "endedBy"],
       "properties": {
         "adapter": { "type": "string", "minLength": 1 },
-        "vendor": { "type": "string", "enum": ["meta", "anthropic", "openai", "local"] },
+        "vendor": { "type": "string", "enum": ["meta", "openai", "local"] },
         "model": { "type": "string", "minLength": 1 },
         "role": { "type": "string", "enum": ["planner", "implementer", "reviewer"] },
         "run": { "type": "string", "pattern": "^r[0-9]+$" },
         "endedBy": { "type": "string", "enum": ["completed", "capped", "killed", "failed", "handed"] },
         "sessionId": { "type": "string" },
-        "host": { "type": "string", "enum": ["meta-api", "baseten", "fireworks", "modal", "ollama", "local-cli"], "description": "Which host served the model: the Meta Model API, a hosting partner for Muse Spark Open (Baseten, Fireworks, Modal), Ollama, or a local CLI (Muse Code, Claude Code)." }
+        "host": { "type": "string", "enum": ["meta-api", "baseten", "fireworks", "modal", "ollama", "local-cli"], "description": "Which host served the model: the Meta Model API, a hosting partner for Muse Spark Open (Baseten, Fireworks, Modal), Ollama, or a local CLI (Muse Code)." }
       }
     },
     "to": {

@@ -39,10 +39,6 @@
         "vite": "7.3.7",
       },
     },
-    "packages/adapters/claude-code": {
-      "name": "@stint-dev/adapter-claude-code",
-      "version": "0.0.0",
-    },
     "packages/adapters/muse-code": {
       "name": "@stint-dev/adapter-muse-code",
       "version": "0.0.0",
@@ -57,6 +53,17 @@
         "@stint-dev/core": "workspace:*",
         "openai": "5.23.2",
         "zod": "4.6.7",
+      },
+    },
+    "packages/adapters/stint-agent": {
+      "name": "@stint-dev/adapter-stint-agent",
+      "version": "0.0.0",
+      "dependencies": {
+        "@stint-dev/core": "workspace:*",
+        "openai": "5.23.2",
+      },
+      "devDependencies": {
+        "@stint-dev/daemon": "workspace:*",
       },
     },
     "packages/cli": {
@@ -89,6 +96,7 @@
       "dependencies": {
         "@stint-dev/adapter-muse-code": "workspace:*",
         "@stint-dev/adapter-openai-compatible": "workspace:*",
+        "@stint-dev/adapter-stint-agent": "workspace:*",
         "@stint-dev/core": "workspace:*",
         "hono": "4.13.14",
         "ulid": "3.0.2",
@@ -303,11 +311,11 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.65.1", "", { "os": "win32", "cpu": "x64" }, "sha512-+Y1Sd49cSDq60UOl8/U2HI0ebUvnSl/hDhMHQn+ouw17yb8fYwMWIazzJ4JFpSkjPE7sj5NTNSX9IoyEqcFfyQ=="],
 
-    "@stint-dev/adapter-claude-code": ["@stint-dev/adapter-claude-code@workspace:packages/adapters/claude-code"],
-
     "@stint-dev/adapter-muse-code": ["@stint-dev/adapter-muse-code@workspace:packages/adapters/muse-code"],
 
     "@stint-dev/adapter-openai-compatible": ["@stint-dev/adapter-openai-compatible@workspace:packages/adapters/openai-compatible"],
+
+    "@stint-dev/adapter-stint-agent": ["@stint-dev/adapter-stint-agent@workspace:packages/adapters/stint-agent"],
 
     "@stint-dev/cli": ["@stint-dev/cli@workspace:packages/cli"],
 

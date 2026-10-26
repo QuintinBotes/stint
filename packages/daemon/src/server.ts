@@ -4,13 +4,15 @@ import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
 import { createBunWebSocket } from 'hono/bun';
 import { museCodeAdapter } from '@stint-dev/adapter-muse-code';
+import { createStintAgent } from '@stint-dev/adapter-stint-agent';
+import type { Config } from '@stint-dev/core';
 import { type Adapter, replayAdapter } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
 import { killAllPtys } from './pty';
 
 /** Every adapter that has landed; health reports each one honestly, available or not. */
-export function defaultAdapters(): Adapter[] {
-  return [replayAdapter, museCodeAdapter];
+export function defaultAdapters(config?: Config): Adapter[] {
+  return [replayAdapter, museCodeAdapter, createStintAgent(config)];
 }
 
 export type DaemonInfo = { port: number; token: string; pid: number; startedAt: string; version: string };
@@ -31,7 +33,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   const ws = await Workspace.open(o.root);
   const token = randomBytes(24).toString('hex');
   const startedAt = new Date().toISOString();
-  const adapters = o.adapters ?? defaultAdapters();
+  const adapters = o.adapters ?? defaultAdapters(ws.config);
   const app = createApp(ws, adapters, {
     token,
     startedAt,

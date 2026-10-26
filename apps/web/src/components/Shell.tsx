@@ -9,7 +9,7 @@ import { Button, Kbd, StatusChip, cx } from './ui';
 
 const ADAPTER_NAMES: Record<string, string> = {
   'muse-code': 'Muse Code',
-  'claude-code': 'Claude Code harness',
+  'stint-agent': 'Stint agent',
   'openai-compatible': 'Plan and review hosts',
   replay: 'Replay',
 };

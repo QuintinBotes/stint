@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stint.dev/schemas/skill/1",
   "title": "SKILL.md frontmatter (Stint superset)",
-  "description": "The YAML frontmatter of .agents/skills/<id>/SKILL.md. name and description are what Muse Code, Claude Code and Codex read; roles, origin, evidence and status are Stint's additions. A file with only name and description is valid.",
+  "description": "The YAML frontmatter of .agents/skills/<id>/SKILL.md. name and description are what Muse Code and other coding agents read; roles, origin, evidence and status are Stint's additions. A file with only name and description is valid.",
   "type": "object",
   "additionalProperties": true,
   "required": ["name", "description"],

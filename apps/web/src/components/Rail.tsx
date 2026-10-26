@@ -197,13 +197,17 @@ function Segment({ b, showAll, selected, onSelect, live }: { b: Extract<Block, {
       <span aria-hidden className={cx('absolute left-0 top-0 bottom-0 w-[3px] rounded-full', live && 'live-spine')} style={{ background: markColor[agent.mark] }} />
       <header className="flex items-start justify-between gap-2 py-2">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 font-semibold text-[13px]">
-            <VendorMark agent={agent} />
-            <span className="text-faint font-normal shrink-0">{b.run}</span>
+          <div className="flex items-center gap-2 text-[13px]">
+            <VendorMark agent={agent} showName={false} />
+            <span className="font-semibold truncate" data-testid="segment-model">
+              {modelName(model)}
+            </span>
+            <span className="text-faint shrink-0">{b.run}</span>
           </div>
           <div className="text-[12px] text-muted mt-0.5 truncate">
-            {isCall ? `${ROLE_NAMES[role] ?? role} on ${hostName(host)}` : `${ROLE_NAMES[role] ?? role} with ${modelName(model)}`}
-            {b.started.payload.handoffFrom ? `, from packet ${str(b.started.payload.handoffFrom)}` : ''}
+            {isCall
+              ? `${ROLE_NAMES[role] ?? role} ${host === 'ollama' ? 'offline on this machine' : `on ${hostName(host)}`}`
+              : `${agent.name} ${b.started.payload.handoffFrom ? `continues from packet ${str(b.started.payload.handoffFrom)}` : ROLE_NAMES[role] ?? role}`}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">

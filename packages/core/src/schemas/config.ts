@@ -38,6 +38,8 @@ export const ConfigSchema = z.strictObject({
     learn: z.array(HostModelRef),
     summary: z.array(HostModelRef),
     embed: z.array(HostModelRef).optional(),
+    /** The Stint agent's hosts, in order (R-013). */
+    agent: z.array(HostModelRef).optional(),
   }),
   /** USD per million tokens, keyed by `host/model`. */
   prices: z.record(z.string(), PriceSchema),
@@ -55,7 +57,7 @@ export const DEFAULT_CONFIG: Config = {
   port: 0,
   adapters: {
     'muse-code': { enabled: true, model: 'muse-spark-1.3', maxModelSteps: 60, timeoutMs: 900_000 },
-    'claude-code': { enabled: true, maxTurns: 40 },
+    'stint-agent': { enabled: true, maxTurns: 40, model: 'muse-spark-1.3' },
     replay: { enabled: true },
   },
   budgets: { planner: 40_000, implementer: 150_000, reviewer: 30_000, learn: 20_000 },
@@ -107,6 +109,7 @@ export const DEFAULT_CONFIG: Config = {
     reviewer: ['ollama/muse-glimmer:30b-mlx', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open'],
     learn: ['baseten/muse-spark-open', 'meta-api/muse-spark-1.3', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
     summary: ['ollama/muse-glimmer:30b-mlx', 'baseten/muse-spark-open'],
+    agent: ['meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
   },
   prices: {
     'meta-api/muse-spark-1.3': { input: 1.25, cached: 0.15, output: 5 },
