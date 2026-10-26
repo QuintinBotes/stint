@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { setToken } from './api';
 import './styles.css';
-import './theme';
 
 // The daemon writes its token into the page it serves; the UI needs it for state changes.
 const token = document.querySelector<HTMLMetaElement>('meta[name="stint-token"]')?.content;

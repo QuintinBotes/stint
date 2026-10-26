@@ -8,7 +8,6 @@ import { Board } from './routes/Board';
 import { Factory } from './routes/Factory';
 import { Skills } from './routes/Skills';
 import { Placeholder, TaskView } from './routes/TaskView';
-import { useTheme } from './theme';
 
 const KEYS: Array<[string, string]> = [
   ['n', 'New task'],
@@ -26,13 +25,12 @@ const KEYS: Array<[string, string]> = [
 
 export function App() {
   const health = useHealth();
-  const [theme, setTheme] = useTheme();
   const [palette, setPalette] = useState(false);
   const [newTask, setNewTask] = useState(false);
   const [help, setHelp] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(true);
   const openNewTask = useCallback(() => setNewTask(true), []);
-  const actions = usePaletteActions({ newTask: openNewTask, setTheme, theme });
+  const actions = usePaletteActions({ newTask: openNewTask });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,9 +51,9 @@ export function App() {
   return (
     <BrowserRouter>
       <div className="h-full flex flex-col">
-        <TopBar health={health.data} theme={theme} setTheme={setTheme} onPalette={() => setPalette(true)} />
+        <TopBar health={health.data} onPalette={() => setPalette(true)} />
         <ReplayStrip health={health.data} />
-        <Notifier theme={theme} />
+        <Notifier />
         <Routes>
           <Route path="/" element={<Board />} />
           <Route path="/t/:id" element={<TaskView memoryOpen={memoryOpen} />} />

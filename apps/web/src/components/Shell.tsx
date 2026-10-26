@@ -5,7 +5,6 @@ import { hostName, modelName } from '../agents';
 import { type CostRow, type DemoStatus, type Health, type ModelHealth, api } from '../api';
 import { localDate, money } from '../format';
 import { useTasks } from '../hooks';
-import { THEMES, type ThemeChoice } from '../theme';
 import { Button, Kbd, StatusChip, cx } from './ui';
 
 const ADAPTER_NAMES: Record<string, string> = {
@@ -63,7 +62,7 @@ function ModelChips({ models }: { models: ModelHealth[] }) {
   );
 }
 
-export function TopBar({ health, theme, setTheme, onPalette }: { health: Health | null; theme: ThemeChoice; setTheme: (t: ThemeChoice) => void; onPalette: () => void }) {
+export function TopBar({ health, onPalette }: { health: Health | null; onPalette: () => void }) {
   const week = useWeekCost();
   return (
     <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-line bg-surface">
@@ -108,22 +107,6 @@ export function TopBar({ health, theme, setTheme, onPalette }: { health: Health 
             <StatusChip label="daemon not reachable" tone="bad" />
           )}
         </div>
-        <label className="sr-only" htmlFor="theme">
-          Theme
-        </label>
-        <select
-          id="theme"
-          data-testid="theme"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value as ThemeChoice)}
-          className="h-8 rounded-md border border-line bg-raised px-2 text-[12px] text-ink"
-        >
-          {THEMES.map((t) => (
-            <option key={t} value={t}>
-              {t[0]?.toUpperCase() + t.slice(1)}
-            </option>
-          ))}
-        </select>
       </div>
     </header>
   );
@@ -285,7 +268,7 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
-export function usePaletteActions(extra: { newTask: () => void; setTheme: (t: ThemeChoice) => void; theme: ThemeChoice }): Action[] {
+export function usePaletteActions(extra: { newTask: () => void }): Action[] {
   return useMemo(
     () => [
       { id: 'new', label: 'New task', cli: 'stint new', run: extra.newTask },
@@ -293,13 +276,7 @@ export function usePaletteActions(extra: { newTask: () => void; setTheme: (t: Th
       { id: 'hand', label: 'Hand to another agent', cli: 'stint hand', arrivesIn: 'R-012' },
       { id: 'verify', label: 'Verify (the daemon runs the tests)', cli: 'stint verify', arrivesIn: 'R-016' },
       { id: 'approve', label: 'Approve and merge', cli: 'stint approve' },
-      {
-        id: 'theme',
-        label: `Switch theme (now ${extra.theme})`,
-        cli: 'theme',
-        run: () => extra.setTheme(THEMES[(THEMES.indexOf(extra.theme) + 1) % THEMES.length] as ThemeChoice),
-      },
     ],
-    [extra.newTask, extra.setTheme, extra.theme],
+    [extra.newTask],
   );
 }

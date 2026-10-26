@@ -17,7 +17,7 @@ export function notice(e: StintEvent): { text: string; tone: 'warn' | 'bad' | 'i
   return null;
 }
 
-export function Notifier({ theme }: { theme: 'dark' | 'light' | 'stage' | 'system' }) {
+export function Notifier() {
   const navigate = useNavigate();
   useEffect(() => {
     const since = Date.now();
@@ -32,6 +32,5 @@ export function Notifier({ theme }: { theme: 'dark' | 'light' | 'stage' | 'syste
       else toast(n.text, opts);
     });
   }, [navigate]);
-  // stage is the light, high-contrast theme for projectors
-  return <Toaster position="bottom-right" theme={theme === 'stage' ? 'light' : theme} visibleToasts={3} richColors closeButton />;
+  return <Toaster position="bottom-right" theme="dark" visibleToasts={3} richColors closeButton />;
 }

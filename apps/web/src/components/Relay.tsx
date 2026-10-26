@@ -13,9 +13,8 @@ type Link =
 type Mark = { kind: string; task: string; at: number; text: string };
 export type RelayData = { lanes: Lane[]; runs: Run[]; links: Link[]; marks: Mark[]; from: number; to: number; replay: boolean };
 
-// categorical slots in fixed order, validated for both themes; a task keeps its colour by its place on the board
-const TASK_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9'];
-const TASK_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#6250d6'];
+// categorical slots in fixed order, validated against the dark surface; a task keeps its colour by its place on the board
+const TASK_COLOURS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9'];
 
 const LABEL_W = 176;
 const LANE_H = 52;
@@ -34,22 +33,6 @@ function laneTitle(l: Lane): { name: string; detail: string } {
 
 const clock = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
 
-function useDark(): boolean {
-  const [dark, setDark] = useState(() => getComputedStyle(document.documentElement).getPropertyValue('--surface').trim().toLowerCase() !== '#ffffff');
-  useEffect(() => {
-    const read = () => setDark(getComputedStyle(document.documentElement).getPropertyValue('--surface').trim().toLowerCase() !== '#ffffff');
-    const obs = new MutationObserver(read);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    const mq = matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener('change', read);
-    return () => {
-      obs.disconnect();
-      mq.removeEventListener('change', read);
-    };
-  }, []);
-  return dark;
-}
-
 /** The whole floor: every run on its agent's lane, the packets that carried a task on, and the lesson that crossed tasks. */
 export function Relay() {
   const [data, setData] = useState<RelayData | null>(null);
@@ -57,7 +40,6 @@ export function Relay() {
   const [hover, setHover] = useState<{ x: number; y: number; lines: string[] } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const dark = useDark();
 
   useEffect(() => {
     let live = true;
@@ -83,7 +65,7 @@ export function Relay() {
   if (!data) return <p className="text-faint text-[13px]">Reading the floor.</p>;
   if (data.runs.length === 0) return <EmptyState>The relay appears here once a run starts: one lane per agent, and a link each time a task passes from one to the next.</EmptyState>;
 
-  const palette = dark ? TASK_DARK : TASK_LIGHT;
+  const palette = TASK_COLOURS;
   const tasks = [...new Set(data.runs.map((r) => r.task))].sort();
   const colour = (task: string) => palette[tasks.indexOf(task) % palette.length] as string;
   const span = Math.max(1, data.to - data.from);
