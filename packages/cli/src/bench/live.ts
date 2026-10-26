@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { countTokens } from '@stint-dev/core';
 import { Workspace, runsFromEvents } from '@stint-dev/core/node';
@@ -8,6 +9,19 @@ import { type Adapter, assign, createApp, daemonContext, defaultAdapters } from 
 import { freshFixture } from '../demo';
 import { type BenchMode, type BenchResults, type BenchRowFile, type BenchTaskDef, buildResults, taskKey } from './results';
 import { renderTranscript } from './transcript';
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Artefacts are published: the fixture's temporary folder and the home directory become placeholders. */
+export function scrubPaths(text: string): string {
+  return text
+    .replace(/(\/private)?\/var\/folders\/[^/\s"']+\/[^/\s"']+\/T\/stint-[a-z]+-[A-Za-z0-9]+/g, '<fixture>')
+    .replace(new RegExp(`${escape(tmpdir())}/stint-[a-z]+-[A-Za-z0-9]+`, 'g'), '<fixture>')
+    .replace(new RegExp(escape(homedir()), 'g'), '~')
+    // a path a tool output cut short still names the machine's temp folder
+    .replace(/(\/private)?\/var\/folders\/[^\s"'\\]*/g, '<tmp>')
+    .replace(/\/private\/var\/[^\s"'\\]*/g, '<tmp>');
+}
 
 export type LiveBenchOptions = {
   tasks: BenchTaskDef[];
@@ -103,9 +117,9 @@ async function runUnit(opts: LiveBenchOptions, unit: Unit): Promise<BenchRowFile
     const dirName = opts.repeat > 1 ? `${unit.task}-${unit.mode}-r${unit.repeat}` : `${unit.task}-${unit.mode}`;
     const dir = join(opts.outDir, 'runs', dirName);
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, 'transcript.jsonl'), transcriptLines.length ? `${transcriptLines.join('\n')}\n` : '');
-    await writeFile(join(dir, 'handoff.json'), `${JSON.stringify(packet, null, 2)}\n`);
-    await writeFile(join(dir, 'prompt.md'), prompt);
+    await writeFile(join(dir, 'transcript.jsonl'), scrubPaths(transcriptLines.length ? `${transcriptLines.join('\n')}\n` : ''));
+    await writeFile(join(dir, 'handoff.json'), scrubPaths(`${JSON.stringify(packet, null, 2)}\n`));
+    await writeFile(join(dir, 'prompt.md'), scrubPaths(prompt));
     await writeFile(join(dir, 'row.json'), `${JSON.stringify(row, null, 2)}\n`);
     opts.log?.(`${label}: input ${row.inputTokens} tokens, prompt ${row.promptTokens} tokens, verified ${row.verified}`);
     return row;

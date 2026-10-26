@@ -25,7 +25,7 @@ export type StartOptions = {
   quiet?: boolean;
   /** Install SIGTERM and SIGINT handlers that remove daemon.json and exit. */
   handleSignals?: boolean;
-} & Partial<Pick<AppOptions, 'webDist' | 'heartbeatMs' | 'health'>>;
+} & Partial<Pick<AppOptions, 'webDist' | 'heartbeatMs' | 'health' | 'digest'>>;
 
 export type RunningDaemon = DaemonInfo & { url: string; ws: Workspace; infoPath: string; stop: () => Promise<void> };
 
@@ -42,6 +42,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     ...(o.webDist !== undefined ? { webDist: o.webDist } : {}),
     ...(o.heartbeatMs ? { heartbeatMs: o.heartbeatMs } : {}),
     ...(o.health ? { health: o.health } : {}),
+    ...(o.digest ? { digest: true } : {}),
   });
   // a task the log says is on autopilot picks up where it was
   void daemonContext(app).autopilot.resume();

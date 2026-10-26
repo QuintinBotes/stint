@@ -12,7 +12,7 @@ export const up = defineCommand({
     json: { type: 'boolean', description: 'Machine-readable output' },
   },
   async run({ args }) {
-    const d = await startDaemon({ root: repoRoot(args.repo), port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check });
+    const d = await startDaemon({ root: repoRoot(args.repo), port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check });
     if (args.check) {
       const health = (await (await fetch(`${d.url}/api/health`)).json()) as { ok: boolean; adapters: Array<{ id: string; capability: { level: string; reason?: string } }> };
       await d.stop();

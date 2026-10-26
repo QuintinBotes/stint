@@ -50,6 +50,8 @@ export type AppOptions = {
   verifier?: Verifier;
   /** How often a live run's worktree is snapshotted into file.changed (default 5 s). */
   snapshotMs?: number;
+  /** Ask a model what a killed run's diff does, for its packet (off unless the daemon is started for real work). */
+  digest?: boolean;
 };
 
 export type DaemonContext = {
@@ -103,6 +105,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     webDist: join(import.meta.dir, '..', '..', '..', 'apps', 'web', 'dist'),
     quiet: false,
     heartbeatMs: 15_000,
+    digest: false,
     pollMs: 1_000,
     ...rest,
   };

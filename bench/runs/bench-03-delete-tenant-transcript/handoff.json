@@ -1,0 +1,59 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 4,
+      "path": "src/lib/tenants.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 9,
+      "path": "src/routes/admin.ts",
+      "removed": 0,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 186534,
+    "inputTokens": 237302,
+    "outputTokens": 1623,
+    "usd": 0.0996
+  },
+  "createdAt": "2026-10-26T18:08:36.298Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "98da3649591062b806d253e65c948d7b0fc4de05"
+  },
+  "done": [
+    "Verification by the daemon: 27 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "capped",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r1",
+    "sessionId": "01a17966-218a-7610-991d-374494ba3575",
+    "vendor": "meta"
+  },
+  "hash": "sha256:60ecb8092ad94c67cdb55a61e11e6318a720d5efa77046102d1783925e46bb52",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "muse-code capped after 12 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "bun run test",
+    "durationMs": 1196,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 27,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

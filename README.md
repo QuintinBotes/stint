@@ -70,7 +70,21 @@ It always renders under 600 tokens, and a killed run gets one too. The recorded 
 
 ## Benchmark
 
-`stint bench` runs the same tasks twice from the same commit. Each time the first agent is capped at the same step, and a second agent continues, once from the full transcript and once from the packet. It records input tokens, cost, wall time and whether the daemon's tests pass. The chart and `bench/results.json` are added when the live run finishes; until then `stint bench --replay` shows the format.
+`stint bench` runs the same tasks twice from the same commit. Each time Muse Code is capped at the same step, and the Stint agent continues on Muse Spark 1.3, once from the full transcript and once from the packet plus the diff. The daemon runs the tests both times.
+
+Live, 26 October, five tasks:
+
+| Continue from | Hand-over prompt | Input tokens for the whole continued run | Cost | Tests green (daemon) |
+|---|---|---|---|---|
+| the transcript | 4,418 tokens | 60,816 | $0.059 | 5 of 5 |
+| the packet | 728 tokens | 64,863 | $0.065 | 5 of 5 |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="bench/results.svg">
+  <img alt="Input tokens per continued run, transcript against packet, for five tasks" src="bench/results-light.svg" width="640">
+</picture>
+
+The packet is six times smaller to hand over, and every continued run passed. The whole run cost about the same either way, because these first runs were short (7 or 8 steps) and the agent that started from a packet spent the difference re-reading code. The packet quiz showed why: it says which files changed, not what the code now does. So a killed or capped run now gets a digest of what its diff implements. The rows, prompts, packets and transcripts are in `bench/runs/`, and `stint bench --replay` rebuilds the table from them.
 
 ## Meta models, where each one works
 

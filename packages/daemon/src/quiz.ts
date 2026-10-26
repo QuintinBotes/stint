@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
 import { type Cost, type StintEvent, renderHandoff } from '@stint-dev/core';
-import { writeJsonAtomic } from '@stint-dev/core/node';
+import { readJsonIfExists, writeJsonAtomic } from '@stint-dev/core/node';
 import { z } from 'zod';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
@@ -29,6 +29,9 @@ export type QuizResult = {
   advisoryMisses: QuizMiss[];
   writer: { host: string; model: string; cost: Cost };
   answerer: { host: string; model: string; cost: Cost };
+  /** Every statement, so another packet can be asked the same ones. */
+  statements: z.infer<typeof Statement>[];
+  statementsFrom?: string;
 };
 
 const RECORD_CHARS = 20_000;
@@ -56,7 +59,7 @@ export function renderRecord(events: StintEvent[]): string {
 
 const writerPrompt = (task: string, record: string) => `You are checking whether a handoff packet is enough for the next coding agent.
 
-Below is everything that happened in one run of task ${task}. Write 8 statements about facts the next agent needs to continue correctly: what was finished, what was not, which files changed, what the tests showed, what was refused, which decisions hold. Make about half of them true and half false; a false statement must be plausible, a near miss of the truth. Mark blocking true when an agent that believed the wrong answer would redo finished work, break something, or reverse a decision. Use only facts the record supports. Number them S1, S2 and so on.
+Below is everything that happened in one run of task ${task}. Write 8 statements about facts the next agent needs to continue correctly: what was finished, what was not, which files changed, what the tests showed, what was refused, which decisions hold. Each statement is one fact in at most 20 words: never join two facts with "and", a semicolon or a list, because one detail the packet lacks would sink the whole statement. Make about half of them true and half false; a false statement must be plausible, a near miss of the truth. Mark blocking true when an agent that believed the wrong answer would redo finished work, break something, or reverse a decision. Use only facts the record supports. Number them S1, S2 and so on.
 
 Record:
 ${record}`;
@@ -77,7 +80,7 @@ const hosts = (ctx: DaemonContext) => hostsFromConfig(ctx.ws.config) as Record<s
  * them from the packet alone, and an answer counts only when it is right and quotes the packet. A miss on a blocking
  * statement is something the next agent would get wrong.
  */
-export async function quizPacket(ctx: DaemonContext, taskId: string, name: string): Promise<QuizResult> {
+export async function quizPacket(ctx: DaemonContext, taskId: string, name: string, opts: { statementsFrom?: string } = {}): Promise<QuizResult> {
   const store = ctx.ws.handoffs(taskId);
   const packet = await store.read(name);
   if (!packet) throw new DaemonError('not_found', `${taskId} has no packet ${name}`);
@@ -88,13 +91,18 @@ export async function quizPacket(ctx: DaemonContext, taskId: string, name: strin
   const routes = ctx.ws.config.routes as { quiz?: string[]; recall?: string[]; planner: string[]; summary: string[] };
   const emit = (e: { type: string; payload: Record<string, unknown> }) => ctx.ws.events(taskId).append({ task: taskId, run, vendor: 'daemon', type: e.type, payload: e.payload }).then(() => undefined);
 
-  const written = await walkChain<{ value: z.infer<typeof Facts> }>({
-    role: 'planner',
-    chain: routes.quiz ?? routes.planner,
-    hosts: hosts(ctx),
-    emit,
-    call: (h, model, c) => h.complete(Facts, writerPrompt(taskId, renderRecord(own)), { model, timeoutMs: c.timeoutMs, emit: c.emit }),
-  });
+  // frozen statements: a second packet for the same run is asked exactly what the first was, so the scores compare
+  const frozen = opts.statementsFrom ? await readJsonIfExists<QuizResult>(join(await ctx.ws.taskDir(taskId), 'handoffs', `${opts.statementsFrom}.quiz.json`)) : null;
+  if (opts.statementsFrom && !frozen?.statements?.length) throw new DaemonError('not_found', `${taskId} has no quiz on ${opts.statementsFrom} to take statements from`);
+  const written = frozen
+    ? { value: { statements: frozen.statements }, host: frozen.writer.host, model: frozen.writer.model, cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0 } as Cost }
+    : await walkChain<{ value: z.infer<typeof Facts> }>({
+        role: 'planner',
+        chain: routes.quiz ?? routes.planner,
+        hosts: hosts(ctx),
+        emit,
+        call: (h, model, c) => h.complete(Facts, writerPrompt(taskId, renderRecord(own)), { model, timeoutMs: c.timeoutMs, emit: c.emit }),
+      });
   const facts = ((written.value as { value?: z.infer<typeof Facts> }).value ?? written.value) as z.infer<typeof Facts>;
   const rendered = renderHandoff(packet);
   const answered = await walkChain<{ value: z.infer<typeof Answers> }>({
@@ -127,6 +135,8 @@ export async function quizPacket(ctx: DaemonContext, taskId: string, name: strin
     advisoryMisses: misses.filter((m) => !m.blocking),
     writer: { host: written.host, model: written.model, cost: written.cost },
     answerer: { host: answered.host, model: answered.model, cost: answered.cost },
+    statements: facts.statements,
+    ...(opts.statementsFrom ? { statementsFrom: opts.statementsFrom } : {}),
   };
   await writeJsonAtomic(join(await ctx.ws.taskDir(taskId), 'handoffs', `${name}.quiz.json`), result);
   await ctx.ws.events(taskId).append({ task: taskId, run, vendor: 'daemon', type: 'handoff.quizzed', payload: { ...result }, links: [{ kind: 'handoff', ref: name }] });

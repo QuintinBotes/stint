@@ -1,0 +1,64 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 8,
+      "path": "src/routes/events.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 28,
+      "path": "test/events.test.ts",
+      "removed": 0,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 154293,
+    "inputTokens": 205448,
+    "outputTokens": 2234,
+    "usd": 0.0983
+  },
+  "createdAt": "2026-10-26T18:08:21.009Z",
+  "decisions": [
+    {
+      "id": "D1",
+      "text": "GET /events/:id returns the `{ event }` envelope to match the replay route convention in the same file."
+    }
+  ],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "7ab2dc09588f9dafce1f57be81646a93bb872815"
+  },
+  "done": [
+    "Verification by the daemon: 31 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "completed",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r1",
+    "sessionId": "01a17965-dd16-7fa3-84f7-3869c9f591b5",
+    "vendor": "meta"
+  },
+  "hash": "sha256:76a272c05489b1102f5c312744ef9905fc954346fcdbfff89e21e934da9d5c24",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "Done. Added `GET /events/:id` in [events.ts](<fixture>/.stint/worktrees/T-0001-r1/src/routes/events.ts) using the existing `EventStore.get`, mirroring the replay route's tenant checks: 400 on missing `X-Tenant`, 404 when the id is unknown or owned by another tenant, `{ event }` on success with no audit entry since a read is not a ...",
+  "task": "T-0001",
+  "verification": {
+    "command": "bun run test",
+    "durationMs": 805,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 31,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

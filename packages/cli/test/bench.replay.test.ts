@@ -134,3 +134,10 @@ test('renderTranscript turns Muse Code MSP lines and Stint agent response lines 
   expect(stint).toContain('Tool call: bash');
   expect(stint).toContain('git log --oneline -10');
 });
+
+test('published bench artefacts carry no local paths: the fixture folder, the home directory and cut-off temp paths become placeholders', async () => {
+  const { homedir } = await import('node:os');
+  const { scrubPaths } = await import('../src/bench/live');
+  const text = `cd /private/var/folders/vm/abc123/T/stint-demo-Xy12/.stint/worktrees/T-0001-r1 && cat ${homedir()}/.local/share/muse/sessions/x.jsonl; see [file](/private/var/f`;
+  expect(scrubPaths(text)).toBe('cd <fixture>/.stint/worktrees/T-0001-r1 && cat ~/.local/share/muse/sessions/x.jsonl; see [file](<tmp>');
+});

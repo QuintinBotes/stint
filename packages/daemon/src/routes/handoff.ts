@@ -1,3 +1,4 @@
+import { type Host, capDiff, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
 import { runsFromEvents } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
 import { z } from 'zod';
@@ -7,6 +8,7 @@ import { quizPacket } from '../quiz';
 import { DaemonError } from '../errors';
 import { buildHandoff } from '../handoff';
 import { assign, stop } from '../lifecycle';
+import { walkChain } from '../route';
 import { worktreePath } from '../worktree';
 
 const ENRICH_CAP_MS = 20_000;
@@ -20,11 +22,44 @@ async function enrichFrom(ctx: DaemonContext, taskId: string, run: string, adapt
   return Promise.race([ask, Bun.sleep(ENRICH_CAP_MS).then(() => ({}))]);
 }
 
-/** Every ending builds a packet; a killed session is not asked anything. */
+const DIGEST_CAP_MS = 60_000;
+const Digest = z.strictObject({ summary: z.string().min(1).max(400) });
+
+/**
+ * When the leaving agent cannot be asked (it was killed, or its session is gone), a model reads the diff instead and
+ * says what the code now does and what is visibly unfinished: the facts a file list leaves out. Capped; never throws.
+ */
+export async function digestFrom(ctx: DaemonContext, taskId: string): Promise<Enrichment | null> {
+  try {
+    const task = await ctx.ws.readTask(taskId);
+    const diff = capDiff(String(await ctx.worktrees.diff(task, 'unified')), 2500).text;
+    if (!diff.trim()) return null;
+    const prompt = `A coding agent stopped part way through this task. From the diff alone, say in at most 400 characters what the code now does, naming the files and the main functions or types, and what is visibly not done yet. Plain sentences, no preamble, nothing the diff does not show.
+
+Task: ${task.title}. ${task.goal}
+
+Diff:
+${diff}`;
+    const routes = ctx.ws.config.routes as { summary: string[] };
+    const call = walkChain<{ value: z.infer<typeof Digest> }>({
+      role: 'summary',
+      chain: routes.summary,
+      hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>,
+      call: (h, model, c) => h.complete(Digest, prompt, { model, timeoutMs: c.timeoutMs, emit: c.emit }),
+    }).then((r) => (((r.value as { value?: z.infer<typeof Digest> }).value ?? r.value) as z.infer<typeof Digest>).summary);
+    const summary = await Promise.race([call, Bun.sleep(DIGEST_CAP_MS).then(() => null)]);
+    return summary ? { summary } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every ending builds a packet; a killed session is not asked anything, its diff is read instead. */
 export async function afterRunPacket(ctx: DaemonContext, taskId: string, run: string, result: RunResult): Promise<void> {
   const events = await ctx.ws.events(taskId).read();
   const adapter = events.find((e) => e.type === 'run.started' && e.run === run)?.adapter ?? '';
-  const enrich = result.endedBy === 'killed' ? null : await enrichFrom(ctx, taskId, run, adapter, result.sessionId);
+  const asked = result.endedBy === 'killed' ? null : await enrichFrom(ctx, taskId, run, adapter, result.sessionId);
+  const enrich = asked && Object.keys(asked).length ? asked : ctx.opts.digest ? await digestFrom(ctx, taskId) : null;
   await buildHandoff(ctx, taskId, run, { enrich, reason: result.endedBy });
 }
 
@@ -51,7 +86,10 @@ const HandBody = z.strictObject({
 
 export function handoffRoutes(app: Hono, ctx: DaemonContext): void {
   // the packet fidelity quiz: facts from the full record, answered from the packet alone
-  app.post('/api/tasks/:id/handoffs/:name/quiz', async (c) => c.json(await quizPacket(ctx, c.req.param('id'), c.req.param('name'))));
+  app.post('/api/tasks/:id/handoffs/:name/quiz', async (c) => {
+    const body = z.strictObject({ statementsFrom: z.string().regex(/^h[0-9]+$/).optional() }).parse(await c.req.json().catch(() => ({})));
+    return c.json(await quizPacket(ctx, c.req.param('id'), c.req.param('name'), body));
+  });
 
   app.post('/api/tasks/:id/handoff', async (c) => {
     const id = c.req.param('id');

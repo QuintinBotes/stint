@@ -18,6 +18,8 @@ const DASH_EXT = /\.(md|ts|tsx|mjs|js|json|jsonl|sh|yml|yaml|css|html)$/;
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.tsbuild', '.stint', 'playwright-report', 'test-results']);
 // specs/ is the frozen build kit and the guard's own test quotes it: both name the sample address.
 const EMAIL_EXEMPT = /^(specs\/|scripts\/test\/guard-identity\.test\.ts$)/;
+// bench/runs holds model output verbatim; its dashes are the models' words, not ours. Names and emails are still checked.
+const DASH_EXEMPT = /^bench\/runs\//;
 
 function allowedEmail(addr) {
   const lower = addr.toLowerCase();
@@ -80,7 +82,7 @@ for (const file of files) {
         if (!allowedEmail(m[0])) findings.push(`${at}: email address ${m[0]}`);
       }
     }
-    if (DASH_EXT.test(file) && DASH.test(line)) findings.push(`${at}: em or en dash`);
+    if (DASH_EXT.test(file) && !DASH_EXEMPT.test(rel) && DASH.test(line)) findings.push(`${at}: em or en dash`);
     for (const { word, re } of denylist) {
       if (re.test(line)) findings.push(`${at}: denylisted word "${word}"`);
     }

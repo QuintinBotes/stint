@@ -132,7 +132,7 @@ export const DEFAULT_CONFIG: Config = {
     planner: ['meta-api/muse-wonder-1.0', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
     reviewer: ['ollama/muse-glimmer:30b-mlx', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open'],
     learn: ['baseten/muse-spark-open', 'meta-api/muse-spark-1.3', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
-    summary: ['ollama/muse-glimmer:30b-mlx', 'baseten/muse-spark-open'],
+    summary: ['ollama/muse-glimmer:30b-mlx', 'meta-api/muse-spark-1.3', 'baseten/muse-spark-open'],
     agent: ['meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
     quiz: ['meta-api/muse-wonder-1.0', 'meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open'],
     recall: ['ollama/muse-glimmer:30b-mlx', 'meta-api/muse-spark-1.3', 'baseten/muse-spark-open'],

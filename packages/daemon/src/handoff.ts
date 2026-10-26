@@ -98,7 +98,9 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
   const inFlight = endedBy === 'killed' ? str(finished?.payload.inFlight) || (toolCalls.length && !own.some((e) => e.type === 'agent.tool_result' && e.payload.callId === toolCalls.at(-1)?.payload.callId) ? str(toolCalls.at(-1)?.payload.tool) : '') : '';
   const open = list([
     ...notReached.map((s) => s.text),
-    ...(verified && !green ? [`Make the failing tests pass (${Number(verified.payload.failed)} failed)`] : []),
+    ...(verified && !green
+      ? [`Make the failing tests pass (${Number(verified.payload.failed)} failed${Array.isArray(verified.payload.failing) && verified.payload.failing.length ? `: ${(verified.payload.failing as string[]).slice(0, 3).join('; ')}` : ''})`]
+      : []),
   ]);
   const leftOut = list([
     ...(inFlight ? [`In-flight step unknown: ${inFlight}`] : []),

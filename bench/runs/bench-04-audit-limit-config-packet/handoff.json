@@ -1,0 +1,61 @@
+{
+  "askOfNext": "Next: Make the failing tests pass (6 failed).",
+  "changedFiles": [
+    {
+      "added": 2,
+      "path": "src/config.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 2,
+      "path": "src/lib/audit.ts",
+      "removed": 2,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 222487,
+    "inputTokens": 273266,
+    "outputTokens": 1751,
+    "usd": 0.1056
+  },
+  "createdAt": "2026-10-26T18:09:30.068Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "76efaf7b983f7c05557eb0556e36f9dc3eb06e99"
+  },
+  "done": [
+    "Verification by the daemon: 21 passed, 6 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "capped",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r1",
+    "sessionId": "01a17966-ea03-7250-9e80-b9ea2ed8295d",
+    "vendor": "meta"
+  },
+  "hash": "sha256:085db0a6d5346490bc43bf511f8b2c96ab7440093e876c4db32fd72030d21833",
+  "leftOut": [],
+  "open": [
+    "Make the failing tests pass (6 failed)"
+  ],
+  "refusals": [],
+  "risks": [],
+  "summary": "muse-code capped after 14 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "bun run test",
+    "durationMs": 1209,
+    "exitCode": 1,
+    "failed": 6,
+    "passed": 21,
+    "runBy": "daemon",
+    "status": "red"
+  },
+  "version": "stint.handoff/1"
+}
