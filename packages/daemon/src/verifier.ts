@@ -24,6 +24,15 @@ export function parseTestSummary(output: string): { passed: number; failed: numb
   return null;
 }
 
+/** The names of failing tests: bun's "(fail) name" lines and Vitest's "FAIL file > name" or "× name" lines. */
+export function failingTests(output: string): string[] {
+  const text = output.replace(ANSI, '');
+  const names = new Set<string>();
+  for (const m of text.matchAll(/^\s*\(fail\)\s+(.+?)(?:\s+\[[\d.]+m?s\])?\s*$/gm)) names.add((m[1] as string).trim());
+  for (const m of text.matchAll(/^\s*(?:FAIL|×|✗)\s+(.+?)(?:\s+\d+m?s)?\s*$/gm)) names.add((m[1] as string).trim());
+  return [...names].slice(0, 20).map((n) => n.slice(0, 200));
+}
+
 type Exec = { exitCode: number; output: string; durationMs: number; timedOut: boolean };
 
 /** Runs a shell command in its own process group so a cap kills the whole tree. */
@@ -92,6 +101,7 @@ export class DaemonVerifier implements Verifier {
         status: record.status,
         runBy: 'daemon',
         parsed: parsed !== null,
+        failing: failingTests(r.output),
         ...(r.timedOut ? { timedOut: true } : {}),
       },
     });

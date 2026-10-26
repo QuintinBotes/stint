@@ -110,17 +110,35 @@ test('A fake implementer that ends killed is followed by a hand to the next impl
   }
 }, 120_000);
 
-test('Three red hops stop autopilot with "Needs you" and the reason', async () => {
+test('Two red runs in a row with no progress stop autopilot with "Needs you" and the same failing tests named', async () => {
   const models = fakeModels();
   try {
     await withFixtureRepo(async (repo) => {
       const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }, { ...fakeAdapter('edit'), id: 'stint-agent' }], models);
-      const t = await ws.createTask(task('false'));
+      const t = await ws.createTask(task("printf '(fail) limiter > answers 429 [2.1ms]\\n 3 pass\\n 1 fail\\n'; exit 1"));
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped);
+      expect(steps(events)).toEqual(['plan', 'build', 'hand']);
+      const stop = events.find((e) => e.type === 'autopilot.stopped')?.payload;
+      expect(stop?.needsYou).toBe(true);
+      expect(String(stop?.reason)).toBe('Needs you: two agents in a row got no further. The same test fails: limiter > answers 429.');
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);
+
+test('Three red hops that each make progress stop autopilot at the hop limit with "Needs you" and the reason', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }, { ...fakeAdapter('edit'), id: 'stint-agent' }], models);
+      // every run adds a commit, so the passing count rises each time: progress, but never green
+      const t = await ws.createTask(task("printf ' %s pass\\n 1 fail\\n' \"$(git rev-list --count HEAD)\"; exit 1"));
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
       const events = await until(ws, t.id, stopped);
       expect(steps(events)).toEqual(['plan', 'build', 'hand', 'hand', 'hand']);
       const stop = events.find((e) => e.type === 'autopilot.stopped')?.payload;
-      expect(stop?.needsYou).toBe(true);
       expect(String(stop?.reason)).toMatch(/^Needs you: (muse-code|stint-agent) r\d+ finished with a red verification, after 3 handoffs\.$/);
       expect(models.asked).toEqual(['plan']);
     });

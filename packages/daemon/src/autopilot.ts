@@ -41,6 +41,29 @@ export function holdsSlot(tail: StintEvent[]): boolean {
   return tail.some((e) => e.type === 'autopilot.step' && !e.payload.queued);
 }
 
+type Verified = { passed: number; failed: number; failing: string[] };
+
+/**
+ * Two implementer runs in a row that ended badly with nothing gained between them: no fewer failures, no more
+ * passes. Handing on again would spend another run on the same wall, so the person is asked instead. A kill is
+ * not a failure of the agent and never counts.
+ */
+export function noProgress(tail: StintEvent[], impl: Array<{ run: string; endedBy: string | null }>): string | null {
+  const [prev, last] = impl.slice(-2);
+  if (!prev || !last || prev.endedBy === 'killed' || last.endedBy === 'killed') return null;
+  const v = (run: string): Verified | null => {
+    const e = tail.filter((x) => x.type === 'verification.ran' && x.run === run).at(-1);
+    return e ? { passed: Number(e.payload.passed ?? 0), failed: Number(e.payload.failed ?? 0), failing: (e.payload.failing as string[] | undefined) ?? [] } : null;
+  };
+  const a = v(prev.run);
+  const b = v(last.run);
+  if (!a || !b || b.failed < a.failed || b.passed > a.passed) return null;
+  const same = b.failing.filter((n) => a.failing.includes(n));
+  return same.length
+    ? `The same ${same.length === 1 ? 'test fails' : `${same.length} tests fail`}: ${same.slice(0, 3).join('; ')}${same.length > 3 ? '; and more' : ''}.`
+    : `${b.failed} failing before and after, ${b.passed} passing.`;
+}
+
 const why = (endedBy: string | null, verdict: string | undefined) =>
   endedBy && endedBy !== 'completed' ? `ended ${endedBy}` : `finished with a ${verdict ?? 'missing'} verification`;
 
@@ -67,6 +90,8 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
     const hops = tail.filter((e) => e.type === 'autopilot.step' && e.payload.step === 'hand').length;
     const reason = `${last.adapter} ${last.run} ${why(last.endedBy, status)}`;
     if (hops >= s.maxHops) return { kind: 'stop', reason: `Needs you: ${reason}, after ${hops} handoffs.`, needsYou: true };
+    const stuck = noProgress(tail, impl);
+    if (stuck) return { kind: 'stop', reason: `Needs you: two agents in a row got no further. ${stuck}`, needsYou: true };
     const packet = tail.filter((e) => e.type === 'handoff.created' && e.run === last.run).at(-1);
     return { kind: 'hand', after: last.adapter ?? '', handoffFrom: (packet?.payload.name as string | undefined) ?? null, reason };
   }
