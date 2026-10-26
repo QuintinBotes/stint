@@ -12,6 +12,7 @@ import { createStintAgent } from '@stint-dev/adapter-stint-agent';
 import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
 import { type Adapter, replayAdapter } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
+import { gardenTick } from './gardening';
 import { pollReleases, scanOutcomes } from './outcomes';
 import { killAllPtys } from './pty';
 
@@ -67,6 +68,10 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   await scanOutcomes(outcomeCtx).catch(logScanFailure('the outcome scan on start'));
   const outcomeTimer = setInterval(() => void scanOutcomes(outcomeCtx).catch(logScanFailure('the outcome scan')), 10 * 60_000);
   (outcomeTimer as unknown as { unref?: () => void }).unref?.();
+  // upkeep tasks on their schedule (R-044): on start, then every hour
+  await gardenTick(outcomeCtx).catch(logScanFailure('the upkeep schedule on start'));
+  const gardenTimer = setInterval(() => void gardenTick(outcomeCtx).catch(logScanFailure('the upkeep schedule')), 60 * 60_000);
+  (gardenTimer as unknown as { unref?: () => void }).unref?.();
   const releaseTimer = setInterval(() => void pollReleases(outcomeCtx).catch(logScanFailure('the pull request poll')), 60_000);
   (releaseTimer as unknown as { unref?: () => void }).unref?.();
   const { websocket } = createBunWebSocket();
@@ -90,6 +95,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     stopped = true;
     clearInterval(outcomeTimer);
     clearInterval(releaseTimer);
+    clearInterval(gardenTimer);
     killAllPtys();
     // let run endings finish their commit, verification and packet (at most 10 s)
     const ctx = daemonContext(app);

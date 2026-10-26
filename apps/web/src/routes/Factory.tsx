@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
-import { type CostRow, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
+import { type CostRow, type Gardening, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
 import { Button, EmptyState, StatusChip, VendorMark, cx } from '../components/ui';
@@ -416,6 +416,40 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
   );
 }
 
+function Upkeep({ data }: { data: Gardening | null }) {
+  if (data === null) return <EmptyState>Reading the upkeep schedule.</EmptyState>;
+  if (data.schedule === 'off') {
+    return (
+      <EmptyState testId="upkeep-off">
+        Upkeep is off. With <span className="font-mono">"gardening": {'{'} "schedule": "weekly" {'}'}</span> in the config, Stint makes a doc gardening task and a dead code and drift task each week, and they go through autopilot to your approval.
+      </EmptyState>
+    );
+  }
+  return (
+    <ul className="flex flex-col gap-2 text-[13px]" data-testid="upkeep">
+      {data.templates.map((t) => (
+        <li key={t.id} className="flex flex-wrap items-baseline gap-2 border-t border-line pt-2" data-testid="upkeep-row" data-template={t.id}>
+          <span className="font-medium min-w-0">{t.title}</span>
+          <span className="ml-auto text-muted text-[12px] tabular">
+            {t.openTask ? (
+              <>
+                open as{' '}
+                <Link to={`/t/${t.openTask}`} className="text-accent hover:underline">
+                  {t.openTask}
+                </Link>
+              </>
+            ) : t.nextAt ? (
+              `next ${new Date(t.nextAt).toLocaleString()}`
+            ) : (
+              'not scheduled'
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Panel({ title, children, className, testId }: { title: string; children: React.ReactNode; className?: string; testId?: string }) {
   return (
     <section className={cx('rounded-lg border border-line bg-raised p-4', className)} data-testid={testId}>
@@ -435,6 +469,7 @@ export function Factory() {
   const scores = useLoad(() => api.scoreboard(), []);
   const [riskVersion, setRiskVersion] = useState(0);
   const risk = useLoad(() => api.risk(), [riskVersion]);
+  const upkeep = useLoad(() => api.gardening(), []);
   const gates = useLoad(() => api.phaseGates(), []);
   const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
@@ -529,6 +564,10 @@ export function Factory() {
 
         <Panel title="Scoreboard: how each agent has done" testId="panel-scoreboard">
           <Scoreboard data={scores} />
+        </Panel>
+
+        <Panel title={`Upkeep${upkeep && upkeep.schedule !== 'off' ? `, ${upkeep.schedule}` : ''}`} testId="panel-upkeep">
+          <Upkeep data={upkeep} />
         </Panel>
 
         <Panel title="Auto-approve: earned in shadow, off unless you turn it on" testId="panel-auto-approve">

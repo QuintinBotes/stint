@@ -108,6 +108,9 @@ export type ScoreRow = { tag: string; agent: string; model: string | null; runs:
 
 export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null; outcomes: OutcomeRecord[]; release?: ReleaseRecord | null; risk?: { tier: string; reasons: string[]; byPolicy: boolean } | null };
 
+/** Scheduled upkeep: each template, when it next makes a task, and the task it has open (R-044). */
+export type Gardening = { schedule: 'off' | 'daily' | 'weekly'; templates: Array<{ id: string; title: string; lastAt: string | null; nextAt: string | null; openTask: string | null }> };
+
 /** The auto-approve lane, its shadow record per tier, and whether each tier may be approved by policy (R-039). */
 export type RiskState = {
   lane: { enabled: boolean; tiers: string[]; shadowDays: number };
@@ -194,6 +197,7 @@ export const api = {
   diffFiles: (id: string) => request<Array<{ path: string; added: number; removed: number }>>(`/api/tasks/${id}/diff?format=json`),
   costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
   risk: () => request<RiskState>('/api/risk'),
+  gardening: () => request<Gardening>('/api/gardening'),
   laneOff: () => post<{ enabled: false }>('/api/risk/autoapprove', { enabled: false }),
   scoreboard: () => request<{ rows: ScoreRow[]; routing: { mode: 'chains' | 'learned'; explore: number } }>('/api/scoreboard'),
   demoStatus: () => request<DemoStatus>('/api/demo/status'),

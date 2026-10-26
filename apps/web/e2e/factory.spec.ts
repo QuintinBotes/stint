@@ -41,3 +41,8 @@ test('The scoreboard lists each agent and model with its attempts and pass rate,
   await expect(board.locator('[data-testid="score-row"][data-agent="stint-agent"]')).toContainText('100%');
   await expect(page.getByTestId('routing-mode')).toContainText('in the order of autopilot.implementers');
 });
+
+test('The Factory says upkeep is off and how to turn it on', async ({ page }) => {
+  await page.goto('/factory');
+  await expect(page.getByTestId('upkeep-off')).toContainText('"schedule": "weekly"');
+});

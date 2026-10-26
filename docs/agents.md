@@ -157,3 +157,17 @@ By default one reviewer reads each change. To give reviews separate jobs, set `r
 With `bestOf` above 1, the general review is asked of reviewers on different hosts in `routes.reviewer`. When two of them find the same thing (same file and line, or the same subject), it is shown once with how many found it. If they disagree on the verdict, the review says so.
 
 When more than one review ran, the gate reads a combined review: any block blocks, and any request for changes sends it back. The review tab shows each review with its verdict and model.
+
+## Upkeep on a schedule
+
+Agent-written code drifts, so the factory can look after itself through the same queue as everything else:
+
+```json
+"gardening": { "schedule": "weekly", "tasks": [{ "title": "Prune stale feature flags", "goal": "Remove flags that have been on for every tenant for a month." }] }
+```
+
+On the schedule (daily or weekly), Stint makes one task per job and puts it on autopilot, which stops at your approval as usual. Two jobs come built in:
+- **Doc gardening:** README, AGENTS.md and docs/ against the code, for stale commands, dead links and flags that no longer exist.
+- **Dead code and dependency drift:** removes what is clearly dead, and proposes upgrades rather than making them.
+
+A job with a task still open is skipped until that task is merged or abandoned. The Factory shows each job and when it is next due.
