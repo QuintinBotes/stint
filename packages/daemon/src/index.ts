@@ -10,3 +10,6 @@ export * from './worktree';
 export * from './pty';
 export * from './replay';
 export { DEFAULT_RECORDING } from './routes/demo';
+export * from './lifecycle';
+export * from './prompt';
+export * from './skills';

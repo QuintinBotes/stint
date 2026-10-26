@@ -14,10 +14,11 @@ import {
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
-import { type Adapter, adapterHealth } from './adapter';
+import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
+import { runRoutes } from './routes/runs';
 import { ptyRoutes } from './routes/pty';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
@@ -52,6 +53,8 @@ export type DaemonContext = {
   verifier: Verifier;
   snapshotMs: number;
   replayer: Replayer;
+  /** Runs after a run is verified; the packet builder (R-012) hooks in here. */
+  afterRun?: (task: string, run: string, result: RunResult) => Promise<void>;
 };
 
 const NewTaskBody = z.strictObject({
@@ -184,7 +187,18 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
   app.get('/api/costs', async (c) => {
     const group = (c.req.query('group') ?? 'task') as CostGroup;
     if (!['task', 'run', 'day', 'host'].includes(group)) throw new DaemonError('invalid', `unknown group ${group}`, 'task, run, day or host');
-    return c.json(await costs(ws, { group }));
+    const rows = await costs(ws, { group });
+    if (group !== 'host') return c.json(rows);
+    // credits left are derived: the balance the person entered minus what the daemon metered
+    const credits = ws.config.credits;
+    const hosts = new Set([...rows.map((r) => r.key), ...Object.keys(credits)]);
+    return c.json(
+      [...hosts].sort().map((key) => {
+        const row = rows.find((r) => r.key === key) ?? { key, inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0, runs: 0 };
+        const start = credits[key];
+        return start === undefined ? row : { ...row, creditsLeft: Math.round((start - (row.usd ?? 0)) * 10_000) / 10_000, derived: true as const };
+      }),
+    );
   });
 
   app.get('/api/tasks/:id/stream', async (c) => {
@@ -298,6 +312,7 @@ function replayHealth(ctx: DaemonContext): Record<string, unknown> {
 /** Later specs (verify, assign, handoff, approve, graph, skills) add their routes here. */
 function registerRoutes(app: Hono, ctx: DaemonContext): void {
   workRoutes(app, ctx);
+  runRoutes(app, ctx);
   demoRoutes(app, ctx);
   ptyRoutes(app, ctx);
 }

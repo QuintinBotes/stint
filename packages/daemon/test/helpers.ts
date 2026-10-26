@@ -1,6 +1,6 @@
 import { Workspace } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
-import { type Adapter, createApp } from '../src/index';
+import { type Adapter, type RunContext, type RunResult, createApp } from '../src/index';
 
 export { withFixtureRepo, tempDir } from '../../core/test/fixture';
 
@@ -53,4 +53,33 @@ export async function readSSE(res: Response, done: (frames: SSEFrame[]) => boole
     await reader.cancel().catch(() => undefined);
   }
   return frames;
+}
+
+
+export type FakeBehaviour = 'sleep' | 'edit';
+
+/** An adapter that needs no model: it sleeps until stopped, or writes a file and completes. */
+export function fakeAdapter(behaviour: FakeBehaviour, roles: Array<'planner' | 'implementer' | 'reviewer'> = ['implementer']): Adapter & { seen: RunContext[] } {
+  const seen: RunContext[] = [];
+  return {
+    id: 'fake',
+    vendor: 'local',
+    roles,
+    capabilities: { editsFiles: true, runsCommands: false, resumable: false, structuredOutput: false, offline: true },
+    available: async () => ({ ok: true, version: 'fake 1' }),
+    gate: () => 'none',
+    seen,
+    async run(ctx): Promise<RunResult> {
+      seen.push(ctx);
+      await ctx.emit({ type: 'agent.tool_call', payload: { tool: 'write_file', args: { path: 'src/lib/limiter.ts' }, callId: 'c1' } });
+      if (behaviour === 'sleep') {
+        await new Promise<void>((resolve) => ctx.signal.addEventListener('abort', () => resolve(), { once: true }));
+        return { endedBy: 'killed', cost: { inputTokens: 10, cachedTokens: 0, outputTokens: 2, usd: 0 }, inFlight: 'write_file src/lib/limiter.ts' };
+      }
+      await Bun.write(`${ctx.worktree}/src/lib/limiter.ts`, 'export const LIMIT = 60;\n');
+      await ctx.emit({ type: 'agent.tool_result', payload: { tool: 'write_file', callId: 'c1', ok: true, summary: 'wrote 1 line' } });
+      await ctx.emit({ type: 'agent.message', payload: { text: 'Added the limiter constant.' } });
+      return { endedBy: 'completed', cost: { inputTokens: 100, cachedTokens: 40, outputTokens: 20, usd: 0.001 } };
+    },
+  };
 }

@@ -46,6 +46,9 @@
     "packages/adapters/muse-code": {
       "name": "@stint-dev/adapter-muse-code",
       "version": "0.0.0",
+      "dependencies": {
+        "@stint-dev/core": "workspace:*",
+      },
     },
     "packages/adapters/openai-compatible": {
       "name": "@stint-dev/adapter-openai-compatible",
@@ -79,6 +82,7 @@
       "name": "@stint-dev/daemon",
       "version": "0.0.0",
       "dependencies": {
+        "@stint-dev/adapter-muse-code": "workspace:*",
         "@stint-dev/adapter-openai-compatible": "workspace:*",
         "@stint-dev/core": "workspace:*",
         "hono": "4.13.14",

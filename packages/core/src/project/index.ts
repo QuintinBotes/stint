@@ -99,7 +99,12 @@ export function latestHandoff(ws: Workspace, id: string): Promise<Handoff | null
   return ws.handoffs(id).latest();
 }
 
-export type CostRow = Cost & { key: string; runs: number };
+export type CostRow = Cost & { key: string; runs: number; creditsLeft?: number; derived?: true };
+
+/** Local CLIs (Muse Code, the Claude Code harness) run Meta models billed to the Meta Model API (D-018). */
+export function billingHost(host: string | null): string {
+  return host === 'local-cli' || host === null ? 'meta-api' : host;
+}
 export type CostGroup = 'task' | 'run' | 'day' | 'host';
 
 /** Cost rows across every task, from `run.finished` events. `day` is the UTC date of the run's end. */
@@ -109,7 +114,7 @@ export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<Cos
     for (const r of runsFromEvents(await ws.events(task.id).read())) {
       if (!r.endedAt) continue;
       const key =
-        o.group === 'task' ? task.id : o.group === 'run' ? `${task.id}/${r.run}` : o.group === 'day' ? r.endedAt.slice(0, 10) : (r.host ?? 'unknown');
+        o.group === 'task' ? task.id : o.group === 'run' ? `${task.id}/${r.run}` : o.group === 'day' ? r.endedAt.slice(0, 10) : billingHost(r.host);
       const list = groups.get(key) ?? [];
       list.push(r.cost);
       groups.set(key, list);

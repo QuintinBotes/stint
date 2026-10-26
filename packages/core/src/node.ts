@@ -9,5 +9,5 @@ export type { RunMeta, VerificationRecord } from './store/runs';
 export { StoreError, Workspace, slugify } from './store/workspace';
 export type { NewTask, StoreErrorCode } from './store/workspace';
 export { KeyedQueue, readJsonIfExists, stableJSON, writeFileAtomic, writeJsonAtomic } from './store/files';
-export { costs, latestHandoff, runsFromEvents, sumCosts, taskBundle } from './project/index';
+export { billingHost, costs, latestHandoff, runsFromEvents, sumCosts, taskBundle } from './project/index';
 export type { CostGroup, CostRow, RunSummary, TaskBundle } from './project/index';
