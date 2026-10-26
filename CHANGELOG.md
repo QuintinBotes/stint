@@ -24,6 +24,7 @@ The first release. Everything here was built during the event; `PROGRESS.md` rec
   - No model reviews its own work.
   - Reviews run per lens: general, security and spec fit.
 - **Plans that remember:** the planner reads similar tasks and the decisions on the files it will touch. It splits big tasks into subtasks that run in dependency order.
+- **Risk and the auto-approve lane:** every change gets a risk tier with its reasons. The policy's would-approve is recorded beside every human decision. A lane that merges low-risk changes by policy must be earned on that record, and is off unless you turn it on.
 - **Boundaries:** keys stay in the daemon. A default-deny egress proxy, and a sandbox-exec or docker sandbox, run each agent.
 - **Seeing the work:**
   - A Files tab with "Open in your editor".

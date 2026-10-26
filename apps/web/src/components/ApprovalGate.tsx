@@ -54,6 +54,13 @@ export function ApprovalGate({ bundle, onDone }: { bundle: TaskBundle; onDone: (
         <StatusChip label={bundle.task.status === 'done' ? 'merged' : open ? 'ready' : 'closed'} tone={bundle.task.status === 'done' ? 'good' : open ? 'warn' : 'neutral'} />
       </div>
       {reason ? <p className="text-[12px] text-muted">{reason}</p> : null}
+      {bundle.risk ? (
+        <p className="text-[12px] flex flex-wrap items-baseline gap-2" data-testid="risk-line">
+          <StatusChip label={`${bundle.risk.tier} risk`} tone={bundle.risk.tier === 'high' ? 'bad' : bundle.risk.tier === 'medium' ? 'warn' : 'neutral'} />
+          <span className="text-muted">{bundle.risk.reasons.join('; ')}</span>
+          {bundle.risk.byPolicy ? <span className="text-muted">Approved by the auto-approve lane, under the policy you turned on.</span> : null}
+        </p>
+      ) : null}
       {bundle.task.status === 'in_review' && bundle.release ? (
         <div className="text-[12px] flex flex-wrap items-center gap-2" data-testid="release">
           <p>

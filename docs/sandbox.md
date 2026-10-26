@@ -52,3 +52,25 @@ On its own the proxy only covers tools that honour the proxy variables, which mo
 If the configured sandbox can't run (docker not running, or `sandbox-exec` on Linux), Stint refuses the run and says why. It never quietly runs an agent outside the boundary you asked for.
 
 The Stint agent's file tools run inside the daemon and are held to the worktree by its path checks. Its shell commands run in the sandbox.
+
+## Risk and the auto-approve lane
+
+Every reviewed change gets a risk tier, shown on the approval gate with its reasons:
+- **High:** it touches sensitive paths (access, payments, migrations, CI, the lockfile; `risk.highPaths` replaces the list), deletes or shrinks tests, changes over 400 lines, has security findings, or touched the locked tests.
+- **Medium:** it touches more than 5 files, or an entry point, typings or schemas.
+- **Low:** everything else.
+
+Shadow mode is always on. Each time you approve, reject or ask for changes, Stint records what an auto-approve policy would have done. The Factory shows the record per tier: how often it agreed with you, how often it didn't, and whether anything it would have approved was reverted later.
+
+The lane that approves by policy is off. To turn it on, edit the config:
+
+```json
+"risk": { "highPaths": [], "autoApprove": { "enabled": true, "tiers": ["low"], "shadowDays": 14 } }
+```
+
+Even then it approves a change only when all of these hold:
+- the change's tier is in `tiers`;
+- the tests are green and every review approves;
+- that tier's shadow record covers `shadowDays`, with at least three decisions, no disagreement in the window and no revert.
+
+A policy approval goes through the same checks as yours, and is recorded as the policy's, never yours. The Factory has a button to turn the lane off. Turning it on is only ever an edit to the config.

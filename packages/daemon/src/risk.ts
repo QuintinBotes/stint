@@ -1,10 +1,16 @@
 // Risk tiers and the auto-approve lane (R-039). Every reviewed change gets a tier; every human decision is
 // compared with what the policy would have done (shadow mode, always on); and the lane approves by policy only
 // when a person turned it on and the shadow record for that tier is long and clean.
+import { existsSync, readFileSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { StintEvent, Task } from '@stint-dev/core';
+import type { Hono } from 'hono';
+import { z } from 'zod';
 import type { DaemonContext } from './app';
 import { isTestPath } from './acceptance';
 import { type NumstatEntry, git } from './git';
+import { approveTask } from './routes/approve';
 
 export type Tier = 'low' | 'medium' | 'high';
 
@@ -103,14 +109,37 @@ export function policyWould(task: Task, events: StintEvent[], tiers: Tier[]): { 
 
 const laneTiers = (ctx: DaemonContext): Tier[] => (ctx.ws.config.risk?.autoApprove.tiers ?? ['low']) as Tier[];
 
-/** Shadow mode (requirement 2): what the policy would have done, beside what the person did. Always on. */
-export async function recordShadow(ctx: DaemonContext, id: string, humanDecision: 'approved' | 'rejected'): Promise<void> {
-  const task = await ctx.ws.readTask(id);
+export type PreparedShadow = { risk: { tier: Tier; reasons: string[] } | null; payload: { tier: Tier; wouldApprove: boolean; humanDecision: 'approved' | 'rejected'; why: string } };
+
+/**
+ * Shadow mode (requirement 2): what the policy would have done, beside what the person did. Always on.
+ * Worked out before the decision lands and written after it, so a refused approve leaves nothing behind.
+ */
+export async function prepareShadow(ctx: DaemonContext, id: string, humanDecision: 'approved' | 'rejected'): Promise<PreparedShadow | null> {
   const events = await ctx.ws.events(id).read();
-  const tier = (events.findLast((e) => e.type === 'risk.assessed')?.payload.tier as Tier | undefined) ?? task.risk ?? null;
-  if (!tier) return;
-  const p = policyWould(task, events, laneTiers(ctx));
-  await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autoapprove.shadow', payload: { tier, wouldApprove: p.would, humanDecision, why: p.why } });
+  const task = await ctx.ws.readTask(id);
+  // a change no reviewer answered for is assessed now, so every decision a person makes is on the record
+  const stale = events.findLastIndex((e) => e.type === 'risk.assessed') < events.findLastIndex((e) => e.type === 'verification.ran');
+  const risk = stale ? await assessRisk(ctx, id) : null;
+  const tier = risk?.tier ?? (events.findLast((e) => e.type === 'risk.assessed')?.payload.tier as Tier | undefined) ?? task.risk ?? null;
+  if (!tier) return null;
+  const withRisk = risk ? [...events, { type: 'risk.assessed', payload: risk, ts: new Date().toISOString() } as unknown as StintEvent] : events;
+  const p = policyWould(task, withRisk, laneTiers(ctx));
+  return { risk, payload: { tier, wouldApprove: p.would, humanDecision, why: p.why } };
+}
+
+export async function writeShadow(ctx: DaemonContext, id: string, prepared: PreparedShadow): Promise<void> {
+  if (prepared.risk) {
+    await ctx.ws.writeTask(id, { risk: prepared.risk.tier });
+    await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'risk.assessed', payload: prepared.risk });
+  }
+  await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autoapprove.shadow', payload: prepared.payload });
+}
+
+/** For decisions that always land (reject, request changes): prepare and write at once. */
+export async function recordShadow(ctx: DaemonContext, id: string, humanDecision: 'approved' | 'rejected'): Promise<void> {
+  const prepared = await prepareShadow(ctx, id, humanDecision);
+  if (prepared) await writeShadow(ctx, id, prepared);
 }
 
 export type ShadowRecord = { tier: Tier; decisions: number; agreements: number; disagreements: number; revertsAfterWouldApprove: number; since: string | null; days: number };
@@ -140,6 +169,21 @@ export async function shadowRecords(ctx: DaemonContext, now = new Date(), days?:
 }
 
 /**
+ * After a review: the risk is assessed and, when the lane is open for that tier and the policy would approve,
+ * the task is approved and merged by policy, through the same checks a person's approval goes through.
+ */
+export async function afterReview(ctx: DaemonContext, id: string, now = new Date()): Promise<{ approved: boolean; why: string }> {
+  const risk = await recordRisk(ctx, id);
+  const lane = await laneOpen(ctx, risk.tier, now);
+  if (!lane.open) return { approved: false, why: lane.why };
+  const p = policyWould(await ctx.ws.readTask(id), await ctx.ws.events(id).read(), laneTiers(ctx));
+  if (!p.would) return { approved: false, why: p.why };
+  await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autoapprove.granted', payload: { tier: risk.tier, reasons: risk.reasons, lane: lane.why, why: p.why } });
+  await approveTask(ctx, id, { by: 'policy', squash: false });
+  return { approved: true, why: p.why };
+}
+
+/**
  * Whether the lane may approve a task of this tier (requirement 3): turned on by a person, the tier in the lane,
  * and a shadow record that covers `shadowDays` with at least three decisions, no disagreement and no revert.
  */
@@ -154,4 +198,26 @@ export async function laneOpen(ctx: DaemonContext, tier: Tier, now = new Date())
   if (window?.disagreements) return { open: false, why: `${window.disagreements} shadow disagreement${window.disagreements === 1 ? '' : 's'} on ${tier} risk in the last ${cfg.shadowDays} days` };
   if (window?.revertsAfterWouldApprove) return { open: false, why: `a change the policy would have approved was reverted in the last ${cfg.shadowDays} days` };
   return { open: true, why: `${all.decisions} shadow decisions on ${tier} risk over ${all.days} days, all agreed, none reverted` };
+}
+
+/** The lane and its record for the Factory; the lane can be turned off here, and only turned on in config (R-039). */
+export function riskRoutes(app: Hono, ctx: DaemonContext): void {
+  app.get('/api/risk', async (c) => {
+    const cfg = ctx.ws.config.risk?.autoApprove ?? { enabled: false, tiers: ['low'], shadowDays: 14 };
+    const records = await shadowRecords(ctx);
+    const tiers: Tier[] = ['low', 'medium', 'high'];
+    const lanes = await Promise.all(tiers.map(async (tier) => ({ tier, ...(await laneOpen(ctx, tier)) })));
+    return c.json({ lane: cfg, records, lanes });
+  });
+
+  app.post('/api/risk/autoapprove', async (c) => {
+    const body = z.strictObject({ enabled: z.literal(false) }).parse(await c.req.json());
+    const path = join(ctx.ws.root, '.stint', 'config.json');
+    const raw = (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}) as { risk?: { autoApprove?: { enabled?: boolean } } };
+    if (raw.risk?.autoApprove) raw.risk.autoApprove.enabled = body.enabled;
+    if (ctx.ws.config.risk) ctx.ws.config.risk.autoApprove.enabled = body.enabled;
+    await writeFile(path, `${JSON.stringify(raw, null, 2)}\n`);
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'info', message: 'the auto-approve lane was turned off from the Factory' })}\n`);
+    return c.json({ enabled: false });
+  });
 }

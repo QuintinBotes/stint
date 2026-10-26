@@ -52,6 +52,8 @@ export type TaskBundle = {
   outcomes: OutcomeRecord[];
   /** The open pull request, in PR release mode (R-042). */
   release?: { url: string | null; number: number | null; status: string | null } | null;
+  /** The latest risk tier and its reasons, and whether the auto-approve lane merged it (R-039). */
+  risk?: { tier: string; reasons: string[]; byPolicy: boolean } | null;
 };
 
 /** Outcomes as the event log tells them: one per `outcome.*` event, oldest first. */
@@ -143,6 +145,7 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
     ? { commit: str(merged.payload.commit) ?? '', into: str(merged.payload.into), by: str(granted?.payload.by), at: merged.ts, trailers: (merged.payload.trailers ?? {}) as Record<string, string> }
     : null;
   const opened = events.filter((e) => e.type === 'release.pr_opened').at(-1);
+  const assessed = events.filter((e) => e.type === 'risk.assessed').at(-1);
   const release = opened
     ? { url: str(opened.payload.url), number: typeof opened.payload.number === 'number' ? opened.payload.number : null, status: merged ? 'merged' : task.status === 'in_review' ? 'open' : 'closed' }
     : null;
@@ -157,6 +160,7 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
     merge,
     outcomes: outcomesFromEvents(events),
     release,
+    risk: assessed ? { tier: String(assessed.payload.tier), reasons: (assessed.payload.reasons as string[] | undefined) ?? [], byPolicy: events.some((e) => e.type === 'autoapprove.granted') } : null,
   };
 }
 

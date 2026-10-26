@@ -15,6 +15,7 @@ import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
 import { namedFiles } from '../paths';
+import { afterReview } from '../risk';
 import { lockPlanTests } from '../acceptance';
 import { ChainExhaustedError, walkChain } from '../route';
 import { skillsFor } from '../skills';
@@ -325,6 +326,8 @@ export async function reviewTask(ctx: DaemonContext, id: string, host?: string):
   } else {
     await ctx.ws.writeTask(id, { status: 'awaiting_approval' });
     await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'approval.requested', payload: { verification: { passed: v.passed, failed: v.failed, status: v.status }, review: review.verdict } });
+    // the risk tier, and the auto-approve lane's one chance at this change (R-039); a failure leaves it for the person
+    await afterReview(ctx, id).catch((err: unknown) => process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `risk for ${id} was NOT assessed: ${err instanceof Error ? err.message : String(err)}` })}\n`));
   }
   return review;
 }

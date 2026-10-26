@@ -9,6 +9,7 @@ import { DaemonError } from '../errors';
 import { ghOk, git, gitOk, identityArgs } from '../git';
 import { triggerLearn } from '../learn';
 import { releaseWorktrees } from '../lifecycle';
+import { prepareShadow, recordShadow, writeShadow } from '../risk';
 import { updateSkillStatuses } from '../skills';
 
 /** Skill statuses follow task outcomes; a status pass that fails is said out loud, never hidden. */
@@ -137,80 +138,92 @@ async function openPullRequest(ctx: DaemonContext, id: string, verifiedCommit: s
 
 const approving = new Set<string>();
 
+/**
+ * Approve and merge, with every check the gate makes: green tests the daemon ran, no blocking review, no
+ * unexplained tamper, the verified commit only. A person approves through the route; the auto-approve lane
+ * (R-039) calls this with by 'policy' and is held to exactly the same checks.
+ */
+export async function approveTask(ctx: DaemonContext, id: string, { by, squash }: { by: string; squash: boolean }): Promise<Record<string, unknown>> {
+  const key = `${ctx.ws.root}:${id}`;
+  // a double click or a retry must never merge twice
+  if (approving.has(key)) throw new DaemonError('run_active', `${id} is already being approved`);
+  approving.add(key);
+  try {
+    const task = await ctx.ws.readTask(id);
+    if (task.status === 'done') throw new DaemonError('invalid', `${id} is already approved and merged`);
+    if (ctx.runs.get(id) || task.status === 'verifying') throw new DaemonError('run_active', `${id} has a run that is still running or being verified`, 'wait for the daemon to finish');
+    const v = await ctx.ws.verification(id).latest();
+    if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'approve needs a green verification by the daemon', v ? `${v.failed} failed` : 'nothing verified yet');
+    const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
+    if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
+    const log = await ctx.ws.events(id).read();
+    const lockAt = log.findIndex((e) => e.type === 'acceptance.locked');
+    // a tamper the escape hatch allowed (a `tests:` decision naming every file) does not stand in the way
+    const tampered =
+      lockAt >= 0
+        ? log.slice(lockAt).find((e) => (e.type === 'verification.tampered' || e.type === 'acceptance.tampered') && !e.payload.allowedBy)
+        : undefined;
+    if (tampered) throw new DaemonError('review_blocked', 'an agent changed the locked acceptance tests', { files: tampered.payload.files });
+
+    if (ctx.ws.config.release?.mode === 'pr') {
+      if (task.status === 'in_review') throw new DaemonError('invalid', `${id} already has a pull request in review`);
+      const pr = await openPullRequest(ctx, id, v.commit);
+      const releaseEvents = ctx.ws.events(id);
+      await releaseEvents.append({ task: id, vendor: by === 'policy' ? 'daemon' : 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
+      await releaseEvents.append({
+        task: id,
+        vendor: 'daemon',
+        type: 'release.pr_opened',
+        payload: { url: pr.url, number: pr.number, branch: task.branch, base: pr.base, remote: ctx.ws.config.release.remote, trailers: pr.trailers },
+        links: [{ kind: 'url', ref: pr.url }],
+      });
+      await ctx.ws.writeTask(id, { status: 'in_review', assignee: null, pendingAsk: null });
+      return { status: 'in_review', url: pr.url, number: pr.number, pr: { url: pr.url, number: pr.number }, into: pr.base, trailers: pr.trailers };
+    }
+
+    const { commit, base, trailers } = await merge(ctx, id, squash, v.commit);
+    const at = new Date().toISOString();
+    const events = ctx.ws.events(id);
+    await events.append({ task: id, vendor: by === 'policy' ? 'daemon' : 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
+    await events.append({ task: id, vendor: 'daemon', type: 'merge.completed', payload: { branch: task.branch, into: base, commit, squash, trailers } });
+    void ctx.otel.task(id).catch(() => undefined);
+    await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), { by, at, verificationHash: `sha256:${sha256Hex(canonicalJSON(v))}`, commit });
+    await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
+    // only once it reads as done can a task waiting on it move
+    void ctx.autopilot.onDone(id).catch(() => undefined);
+    // the merge has landed; a worktree that will not go away is reported, not turned into a failed approve
+    let cleanup: string | null = null;
+    try {
+      await releaseWorktrees(ctx, await ctx.ws.readTask(id));
+    } catch (err) {
+      cleanup = err instanceof Error ? err.message : String(err);
+    }
+    const result = { commit, into: base, trailers, ...(cleanup ? { cleanup } : {}) };
+    await skillStatuses(ctx);
+    // learn runs after the response is computed and cannot delay or fail it
+    triggerLearn(ctx, id);
+    return result;
+  } finally {
+    approving.delete(key);
+  }
+}
+
 export function approveRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/approve', async (c) => {
     const id = c.req.param('id');
     const body = ApproveBody.parse(await c.req.json().catch(() => ({})));
-    const key = `${ctx.ws.root}:${id}`;
-    // a double click or a retry must never merge twice
-    if (approving.has(key)) throw new DaemonError('run_active', `${id} is already being approved`);
-    approving.add(key);
-    try {
-      const task = await ctx.ws.readTask(id);
-      if (task.status === 'done') throw new DaemonError('invalid', `${id} is already approved and merged`);
-      if (ctx.runs.get(id) || task.status === 'verifying') throw new DaemonError('run_active', `${id} has a run that is still running or being verified`, 'wait for the daemon to finish');
-      const v = await ctx.ws.verification(id).latest();
-      if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'approve needs a green verification by the daemon', v ? `${v.failed} failed` : 'nothing verified yet');
-      const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
-      if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
-      const log = await ctx.ws.events(id).read();
-      const lockAt = log.findIndex((e) => e.type === 'acceptance.locked');
-      // a tamper the escape hatch allowed (a `tests:` decision naming every file) does not stand in the way
-      const tampered =
-        lockAt >= 0
-          ? log.slice(lockAt).find((e) => (e.type === 'verification.tampered' || e.type === 'acceptance.tampered') && !e.payload.allowedBy)
-          : undefined;
-      if (tampered) throw new DaemonError('review_blocked', 'an agent changed the locked acceptance tests', { files: tampered.payload.files });
-
-      if (ctx.ws.config.release?.mode === 'pr') {
-        if (task.status === 'in_review') throw new DaemonError('invalid', `${id} already has a pull request in review`);
-        const by = body.by ?? 'you';
-        const pr = await openPullRequest(ctx, id, v.commit);
-        const releaseEvents = ctx.ws.events(id);
-        await releaseEvents.append({ task: id, vendor: 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
-        await releaseEvents.append({
-          task: id,
-          vendor: 'daemon',
-          type: 'release.pr_opened',
-          payload: { url: pr.url, number: pr.number, branch: task.branch, base: pr.base, remote: ctx.ws.config.release.remote, trailers: pr.trailers },
-          links: [{ kind: 'url', ref: pr.url }],
-        });
-        await ctx.ws.writeTask(id, { status: 'in_review', assignee: null, pendingAsk: null });
-        return c.json({ status: 'in_review', url: pr.url, number: pr.number, pr: { url: pr.url, number: pr.number }, into: pr.base, trailers: pr.trailers });
-      }
-
-      const { commit, base, trailers } = await merge(ctx, id, body.squash ?? false, v.commit);
-      const by = body.by ?? 'you';
-      const at = new Date().toISOString();
-      const events = ctx.ws.events(id);
-      await events.append({ task: id, vendor: 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
-      await events.append({ task: id, vendor: 'daemon', type: 'merge.completed', payload: { branch: task.branch, into: base, commit, squash: body.squash ?? false, trailers } });
-      void ctx.otel.task(id).catch(() => undefined);
-      await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), { by, at, verificationHash: `sha256:${sha256Hex(canonicalJSON(v))}`, commit });
-      await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
-      // only once it reads as done can a task waiting on it move
-      void ctx.autopilot.onDone(id).catch(() => undefined);
-      // the merge has landed; a worktree that will not go away is reported, not turned into a failed approve
-      let cleanup: string | null = null;
-      try {
-        await releaseWorktrees(ctx, await ctx.ws.readTask(id));
-      } catch (err) {
-        cleanup = err instanceof Error ? err.message : String(err);
-      }
-      const result = { commit, into: base, trailers, ...(cleanup ? { cleanup } : {}) };
-      await skillStatuses(ctx);
-      // learn runs after the response is computed and cannot delay or fail it
-      triggerLearn(ctx, id);
-      return c.json(result);
-    } finally {
-      approving.delete(key);
-    }
+    // what the auto-approve policy would have done, beside what the person does (R-039): written once it lands
+    const shadow = await prepareShadow(ctx, id, 'approved').catch(() => null);
+    const result = await approveTask(ctx, id, { by: body.by ?? 'you', squash: body.squash ?? false });
+    if (shadow) await writeShadow(ctx, id, shadow).catch(() => undefined);
+    return c.json(result);
   });
 
   app.post('/api/tasks/:id/reject', async (c) => {
     const id = c.req.param('id');
     const { reason } = ReasonBody.parse(await c.req.json());
     await ctx.ws.readTask(id);
+    await recordShadow(ctx, id, 'rejected').catch(() => undefined);
     const d = await ctx.ws.decisions(id).append({ text: `Rejected: ${reason}`.slice(0, 200), by: 'you' });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by }, links: [{ kind: 'decision', ref: d.id }] });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason, decision: d.id } });
@@ -226,6 +239,8 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     const id = c.req.param('id');
     const { text } = TextBody.parse(await c.req.json());
     await ctx.ws.readTask(id);
+    // asking for changes is not approving: the shadow record counts it against the policy's would-approve
+    await recordShadow(ctx, id, 'rejected').catch(() => undefined);
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason: text, changes: true } });
     await ctx.ws.writeTask(id, { status: 'building', pendingAsk: text });
     await skillStatuses(ctx);

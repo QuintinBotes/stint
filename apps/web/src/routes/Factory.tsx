@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
-import { type CostRow, type PhaseGates, type ScoreRow, api } from '../api';
+import { type CostRow, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
 import { Button, EmptyState, StatusChip, VendorMark, cx } from '../components/ui';
@@ -359,6 +359,63 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
   );
 }
 
+function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged: () => void }) {
+  if (state === null) return <EmptyState>Reading the shadow record.</EmptyState>;
+  const { lane } = state;
+  return (
+    <div data-testid="auto-approve" className="flex flex-col gap-3 text-[13px]">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusChip label={lane.enabled ? 'lane on' : 'lane off'} tone={lane.enabled ? 'warn' : 'neutral'} />
+        <span className="text-muted">
+          {lane.enabled
+            ? `The policy may approve ${lane.tiers.join(' and ')} risk once ${lane.shadowDays} days of shadow decisions agree with yours.`
+            : 'Every change waits for you. The record below shows what the policy would have done.'}
+        </span>
+        {lane.enabled ? (
+          <Button className="ml-auto" tone="danger" data-testid="lane-off" onClick={() => void api.laneOff().then(onChanged)}>
+            Turn the lane off
+          </Button>
+        ) : null}
+      </div>
+      {state.records.length === 0 ? (
+        <EmptyState>Each approve or reject you make is recorded beside what the policy would have done.</EmptyState>
+      ) : (
+        <table className="w-full text-[13px]">
+          <thead className="text-[12px] text-muted text-left">
+            <tr>
+              <th className="font-normal pb-2">Risk</th>
+              <th className="font-normal pb-2 text-right">Decisions</th>
+              <th className="font-normal pb-2 text-right">Agreed with you</th>
+              <th className="font-normal pb-2 text-right">Disagreed</th>
+              <th className="font-normal pb-2 text-right">Reverted after it would approve</th>
+              <th className="font-normal pb-2 text-right">Days on record</th>
+            </tr>
+          </thead>
+          <tbody className="tabular">
+            {state.records.map((r) => (
+              <tr key={r.tier} className="border-t border-line" data-testid="shadow-row" data-tier={r.tier}>
+                <td className="py-2">{r.tier}</td>
+                <td className="py-2 text-right">{r.decisions}</td>
+                <td className="py-2 text-right">{r.agreements}</td>
+                <td className="py-2 text-right">{r.disagreements}</td>
+                <td className="py-2 text-right">{r.revertsAfterWouldApprove}</td>
+                <td className="py-2 text-right">{r.days}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <ul className="text-[12px] text-muted flex flex-col gap-1">
+        {state.lanes.map((l) => (
+          <li key={l.tier} data-testid="lane-tier" data-tier={l.tier}>
+            {l.tier}: {l.open ? 'may be approved by policy' : 'waits for you'}, {l.why}.
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function Panel({ title, children, className, testId }: { title: string; children: React.ReactNode; className?: string; testId?: string }) {
   return (
     <section className={cx('rounded-lg border border-line bg-raised p-4', className)} data-testid={testId}>
@@ -376,6 +433,8 @@ export function Factory() {
   const byTask = useLoad(() => api.costs('task'), []);
   const helped = useLoad(() => api.graphQuery<Helped>({ q: 'skills-helped' }), []);
   const scores = useLoad(() => api.scoreboard(), []);
+  const [riskVersion, setRiskVersion] = useState(0);
+  const risk = useLoad(() => api.risk(), [riskVersion]);
   const gates = useLoad(() => api.phaseGates(), []);
   const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
@@ -470,6 +529,10 @@ export function Factory() {
 
         <Panel title="Scoreboard: how each agent has done" testId="panel-scoreboard">
           <Scoreboard data={scores} />
+        </Panel>
+
+        <Panel title="Auto-approve: earned in shadow, off unless you turn it on" testId="panel-auto-approve">
+          <AutoApprove state={risk} onChanged={() => setRiskVersion((v) => v + 1)} />
         </Panel>
 
         <Panel title="Phase gates: the golden tasks and the shadow record" testId="panel-phase-gates">

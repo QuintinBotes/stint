@@ -106,7 +106,14 @@ export type TaskFiles = { files: string[]; changed: Array<{ path: string; added:
 /** How one agent and model has done on one tag; `*` is every task (R-045). */
 export type ScoreRow = { tag: string; agent: string; model: string | null; runs: number; attempts: number; passed: number; passRate: number | null; pass3: boolean | null; resolved: number; costPerResolved: number | null; reverts: number };
 
-export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null; outcomes: OutcomeRecord[]; release?: ReleaseRecord | null };
+export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null; outcomes: OutcomeRecord[]; release?: ReleaseRecord | null; risk?: { tier: string; reasons: string[]; byPolicy: boolean } | null };
+
+/** The auto-approve lane, its shadow record per tier, and whether each tier may be approved by policy (R-039). */
+export type RiskState = {
+  lane: { enabled: boolean; tiers: string[]; shadowDays: number };
+  records: Array<{ tier: string; decisions: number; agreements: number; disagreements: number; revertsAfterWouldApprove: number; since: string | null; days: number }>;
+  lanes: Array<{ tier: string; open: boolean; why: string }>;
+};
 export type AutopilotCard = { on: boolean; step: string | null; reason: string | null; queued: boolean };
 export type TaskCardData = { task: Task; cost: Cost; lastRun: RunSummary | null; lastEventAt: string; summary: string | null; autopilot?: AutopilotCard | null };
 export type GraphNode = { id: string; type: string; label: string; data: Record<string, unknown> };
@@ -186,6 +193,8 @@ export const api = {
   handoff: (id: string, name: string) => request<{ name: string; packet: Handoff; meta: unknown }>(`/api/tasks/${id}/handoffs/${name}`),
   diffFiles: (id: string) => request<Array<{ path: string; added: number; removed: number }>>(`/api/tasks/${id}/diff?format=json`),
   costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
+  risk: () => request<RiskState>('/api/risk'),
+  laneOff: () => post<{ enabled: false }>('/api/risk/autoapprove', { enabled: false }),
   scoreboard: () => request<{ rows: ScoreRow[]; routing: { mode: 'chains' | 'learned'; explore: number } }>('/api/scoreboard'),
   demoStatus: () => request<DemoStatus>('/api/demo/status'),
   createTask: (t: { title: string; goal: string; acceptance: string[]; testCommand?: string }) => post<Task>('/api/tasks', t),
