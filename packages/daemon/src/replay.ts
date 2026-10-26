@@ -1,6 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
   type Handoff,
   HandoffSchema,
@@ -62,6 +62,12 @@ export function loadRecording(path: string): Recording {
     const r = StintEventSchema.safeParse(event);
     if (!r.success) throw new DaemonError('invalid', `recording line ${i + 2} is not a valid event`, r.error.issues);
     if (typeof line.at !== 'number') throw new DaemonError('invalid', `recording line ${i + 2} has no at`);
+    // A live recording keeps each commit patch in a file beside it (patches/<name>.patch) so the
+    // recording stays readable; the hand-written one embeds the patch text. Resolve a path here.
+    if (line.apply?.kind === 'commit' && !line.apply.patch.includes('\n')) {
+      const file = join(dirname(path), line.apply.patch);
+      if (existsSync(file)) line.apply = { ...line.apply, patch: readFileSync(file, 'utf8') };
+    }
     return line;
   });
   return { header, lines, path };
@@ -318,12 +324,18 @@ export async function applyGitStep(root: string, step: ApplyStep): Promise<strin
     dir = temp;
   }
   try {
-    const patch = Bun.spawn(['git', 'apply', '--whitespace=nowarn', '-'], { cwd: dir, stdin: 'pipe', stderr: 'pipe' });
-    patch.stdin.write(step.patch);
-    patch.stdin.end();
-    if ((await patch.exited) !== 0) throw new DaemonError('invalid', `replayed patch does not apply: ${await new Response(patch.stderr).text()}`);
+    // Live patches come from `git format-patch`: strip the mail header and footer for git apply.
+    // A commit with no diff (a run killed before it wrote anything) replays as an empty commit.
+    const diffAt = step.patch.indexOf('diff --git');
+    const body = diffAt >= 0 ? step.patch.slice(diffAt).replace(/\n-- \n[^\n]*\n?$/, '\n') : '';
+    if (body) {
+      const patch = Bun.spawn(['git', 'apply', '--whitespace=nowarn', '-'], { cwd: dir, stdin: 'pipe', stderr: 'pipe' });
+      patch.stdin.write(body);
+      patch.stdin.end();
+      if ((await patch.exited) !== 0) throw new DaemonError('invalid', `replayed patch does not apply: ${await new Response(patch.stderr).text()}`);
+    }
     await gitOk(dir, ['add', '-A']);
-    const r = await git(dir, ['commit', '-q', '--no-verify', '-m', step.message], env);
+    const r = await git(dir, ['commit', '-q', '--allow-empty', '--no-verify', '-m', step.message], env);
     if (r.code !== 0) throw new DaemonError('invalid', `replayed commit failed: ${r.stderr.trim()}`);
     return (await gitOk(dir, ['rev-parse', 'HEAD'])).trim();
   } finally {

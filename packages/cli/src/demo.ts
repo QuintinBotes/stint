@@ -1,8 +1,12 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { DEFAULT_RECORDING, formatClock, loadRecording, parseClock, startDaemon } from '@stint-dev/daemon';
 import { defineCommand } from 'citty';
+import { runLiveDemo } from './demo/live';
+import { recordWorkspace } from './demo/record';
+import { seedDemo } from './demo/seed';
+import { repoRoot } from './repo';
 import { readSSE } from './sse';
 
 const FIXTURE_BUNDLE = join(import.meta.dir, '..', '..', '..', 'demo', 'repo.bundle');
@@ -18,16 +22,67 @@ export function freshFixture(): string {
 type StreamEvent = { task: string; seq: number; type: string; run?: string; adapter?: string; payload: { replayAt?: number; beat?: string; [k: string]: unknown } };
 
 export const demo = defineCommand({
-  meta: { name: 'demo', description: 'Replay the demo through a daemon on a fresh copy of the fixture; no keys needed' },
+  meta: { name: 'demo', description: 'Replay the demo (no keys needed), or seed, run it live, and record a live run' },
   args: {
+    action: { type: 'positional', description: 'seed or record; omit to replay (or pass --live)', required: false },
     speed: { type: 'string', description: '1 is real time, 0 is instant', default: '1' },
     from: { type: 'string', description: 'Start at mm:ss (earlier events are applied silently)', default: '0:00' },
     path: { type: 'string', description: 'Recording file (default demo/recording.jsonl)' },
     keep: { type: 'boolean', description: 'Keep the daemon running for the UI after the replay ends' },
     open: { type: 'boolean', description: 'Open the UI in the browser' },
     json: { type: 'boolean', description: 'One JSON line per event, then a summary line' },
+    live: { type: 'boolean', description: 'Run the beats live through the daemon with real models' },
+    auto: { type: 'boolean', description: 'Do not pause for Enter between beats (--live)' },
+    'allow-online': { type: 'boolean', description: 'Let the review beat run online on the hosted chain (--live)' },
+    'kill-after': { type: 'string', description: 'Seconds after the first src/ change before the kill (--live)', default: '6' },
+    repo: { type: 'string', description: 'Repository for seed and record (default: the git top level)' },
+    out: { type: 'string', description: 'Recording file to write (record)' },
   },
   async run({ args }) {
+    const outLine = (s: string) => process.stdout.write(`${s}\n`);
+    const fail = (err: unknown): never => {
+      process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    };
+    if (args.action === 'seed') {
+      try {
+        const root = args.repo ? resolve(args.repo) : repoRoot();
+        const r = await seedDemo(root);
+        for (const id of r.created) outLine(`Seeded ${id} in ${root}.`);
+        for (const id of r.existing) outLine(`${id} already exists in ${root}; left as it was.`);
+        outLine(`T-0040 merge: ${r.merge.slice(0, 12)} (Stint-Task: T-0040)`);
+        return;
+      } catch (err) {
+        fail(err);
+      }
+    }
+    if (args.action === 'record') {
+      if (!args.repo || !args.out) {
+        process.stderr.write('stint demo record needs --repo <path> and --out <file>\n');
+        process.exit(2);
+      }
+      try {
+        const r = await recordWorkspace({ repo: args.repo, out: args.out });
+        outLine(`Wrote ${r.out}: ${r.events} events, ${r.patches.length} patches, live ${r.header.live}.`);
+        outLine(`Replay it with: stint demo --path ${r.out}`);
+        return;
+      } catch (err) {
+        fail(err);
+      }
+    }
+    if (args.action) {
+      process.stderr.write(`stint demo has no action ${args.action}; use seed, record, --live, or no action to replay\n`);
+      process.exit(2);
+    }
+    if (args.live) {
+      try {
+        const killAfter = Number(args['kill-after']);
+        await runLiveDemo({ auto: args.auto, allowOnline: args['allow-online'], killAfterSeconds: Number.isFinite(killAfter) ? killAfter : 6 });
+        return;
+      } catch (err) {
+        fail(err);
+      }
+    }
     const path = args.path ?? DEFAULT_RECORDING;
     const rec = loadRecording(path);
     const from = parseClock(args.from);
