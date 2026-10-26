@@ -22,17 +22,16 @@ Coding agents are good at a task until the session ends: the context fills up, t
 
 ## Meta technology, where it is used
 
-| Model or tool | Role in Stint |
-|---|---|
-| Muse Wonder 1.0 (Meta Model API) | plans each task with structured output |
-| Muse Spark 1.3 through Muse Code | builds in the task's worktree; its JSON event stream is the timeline |
-| Muse Spark 1.3 through the Stint agent | the continue hop: Stint's own tool-calling agent, with a permission gate Stint enforces |
-| Muse Glimmer 30B (Ollama, offline) | reviews at $0.00 with the network off |
-| Muse Spark Open (Baseten, Fireworks, Modal) | planning fallback when the Meta API is busy, the learn step, and the benchmark |
-| Muse Code hooks | draft a packet at the moment context would be lost |
-| Muse Voice Transcribe | speak a task into `task.json` |
+| Model | Where it runs | What it does in Stint |
+|---|---|---|
+| Muse Wonder 1.0 | Meta Model API | plans each task with structured output, and writes the statements of the packet quiz |
+| Muse Spark 1.3 | Meta Model API, through Muse Code | builds in the task's worktree; Muse Code's JSON event stream becomes the timeline |
+| Muse Spark 1.3 | Meta Model API, through the Stint agent | continues from a packet: Stint's own tool-calling agent, with refusals Stint enforces |
+| Muse Glimmer 30B | Ollama on the laptop | reviews at $0.00 with the network off, digests a killed run's diff, answers the packet quiz |
+| Muse Spark Open | Fireworks, Baseten, Modal | fallback for planning, building and the learn step when the Meta API is busy |
+| Muse Code plugin hooks | the laptop | draft a packet when context would be lost, and name the step in flight |
 
-Every model Stint calls at runtime is a Meta model.
+Every model Stint calls at runtime by default is a Meta model, and the demo uses nothing else. A person can add another agent or model in config; those ship turned off.
 
 ## How it is built
 
