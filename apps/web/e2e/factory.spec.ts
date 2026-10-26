@@ -23,3 +23,11 @@ test('The relay shows each agent as a lane, the killed run, the 412-token packet
   await expect(relay.locator('[data-link="skill"]')).toContainText('learned: limiter-config-via-env');
   await expect(relay.locator('[data-mark="approved"]')).toContainText('merged T-0042');
 });
+
+test('The scoreboard lists each agent and model with its attempts and pass rate, per tag, and says how autopilot picks', async ({ page }) => {
+  await page.goto('/factory');
+  const board = page.getByTestId('scoreboard');
+  await expect(board.locator('[data-testid="score-row"][data-agent="stint-agent"]')).toContainText('Muse Spark 1.3');
+  await expect(board.locator('[data-testid="score-row"][data-agent="stint-agent"]')).toContainText('100%');
+  await expect(page.getByTestId('routing-mode')).toContainText('in the order of autopilot.implementers');
+});

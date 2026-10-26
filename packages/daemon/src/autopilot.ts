@@ -8,6 +8,7 @@ import { DaemonError } from './errors';
 import { git, gitOk } from './git';
 import { assign } from './lifecycle';
 import { walkChain } from './route';
+import { chooseLearned, recordsFor, workspaceRecords } from './routing';
 import { planTask, reviewTask } from './routes/models';
 import { verifyBranch } from './routes/work';
 
@@ -238,6 +239,8 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
 /** Drives tasks on autopilot: one serialized tick per task, at most `parallel` tasks holding a slot. */
 export class Autopilot {
   private readonly ticks = new Map<string, Promise<void>>();
+  /** The randomness learned routing draws on; tests seed it. */
+  rng: () => number = Math.random;
 
   constructor(private readonly ctx: DaemonContext) {}
 
@@ -290,16 +293,28 @@ export class Autopilot {
     await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.step', payload: { step, reason, ...extra } });
   }
 
-  private async firstAvailable(after?: string): Promise<string | null> {
+  /**
+   * The next implementer: in `chains` mode the next available one in the list after `after`; in `learned`
+   * mode (R-045) the one the scoreboard favours for this task, never the one that just failed.
+   */
+  private async firstAvailable(after?: string, task?: string): Promise<string | null> {
     const chain = this.settings.implementers.filter((a) => this.ctx.adapters.some((x) => x.id === a));
     if (chain.length === 0) return null;
     const from = after ? chain.indexOf(after) + 1 : 0;
+    const ordered: string[] = [];
     for (let i = 0; i < chain.length; i++) {
       const id = chain[(from + i) % chain.length] as string;
       const adapter = this.ctx.adapters.find((x) => x.id === id);
-      if (adapter && (await adapter.available()).ok) return id;
+      if (adapter && (await adapter.available()).ok) ordered.push(id);
     }
-    return null;
+    const routing = this.ctx.ws.config.routing;
+    if (routing?.mode !== 'learned' || !task || ordered.length === 0) return ordered[0] ?? null;
+    const candidates = ordered.length > 1 && after ? ordered.filter((a) => a !== after) : ordered;
+    const t = await this.ctx.ws.readTask(task);
+    const { rows, evals } = await workspaceRecords(this.ctx.ws);
+    const pick = chooseLearned(candidates, recordsFor(t, rows, evals), routing.explore, this.rng);
+    await this.ctx.ws.events(task).append({ task, vendor: 'daemon', type: 'routing.chosen', payload: { agent: pick.agent, tags: t.tags ?? [], score: Math.round(pick.score * 1000) / 1000, explored: pick.explored, records: pick.records } });
+    return pick.agent;
   }
 
   private async tick(id: string): Promise<void> {
@@ -353,7 +368,7 @@ export class Autopilot {
           continue;
         }
         if (s.kind === 'build') {
-          const adapter = s.adapter ?? (await this.firstAvailable());
+          const adapter = s.adapter ?? (await this.firstAvailable(undefined, id));
           if (!adapter) return this.stop(id, `Needs you: no implementer in ${this.settings.implementers.join(', ')} is available.`, true);
           await this.step(id, 'build', `${s.reason} ${adapter} builds it.`, { adapter, ...(s.ask ? { changes: true } : {}) });
           await assign(this.ctx, id, { adapter, role: 'implementer', ...(s.ask ? { instruction: s.ask } : {}) });
@@ -418,7 +433,7 @@ export class Autopilot {
           continue;
         }
         if (s.kind === 'hand') {
-          const next = await this.firstAvailable(s.after);
+          const next = await this.firstAvailable(s.after, id);
           if (!next) return this.stop(id, `Needs you: ${s.reason}, and no other implementer is available.`, true);
           await this.step(id, 'hand', `${s.reason}; handing ${s.handoffFrom ?? 'the task'} to ${next}.`, { from: s.after, to: next, handoffFrom: s.handoffFrom });
           await assign(this.ctx, id, { adapter: next, role: 'implementer', ...(s.handoffFrom ? { handoffFrom: s.handoffFrom } : {}) });

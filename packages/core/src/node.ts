@@ -14,4 +14,6 @@ export type { CostGroup, CostRow, OutcomeRecord, RunSummary, TaskBundle } from '
 export { asOf, constrains, filesTogether, findingThemes, graphCachePath, openFindings, project, similar, skillsHelped } from './graph/index';
 export type { ConstrainsRow, FilesTogetherRow, Graph, GraphEdge, GraphEdgeType, GraphNode, GraphNodeType, GraphOptions, OpenFindingRow, ProjectOptions, SimilarRow, SkillsHelpedRow } from './graph/index';
 export { relayFromEvents } from './project/relay';
+export { ALL_TAGS, scoreboard } from './project/scoreboard';
+export type { ScoreRow } from './project/scoreboard';
 export type { Relay, RelayLane, RelayLink, RelayMark, RelayRun } from './project/relay';

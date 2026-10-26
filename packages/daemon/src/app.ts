@@ -33,6 +33,7 @@ import { ptyRoutes } from './routes/pty';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
+import { workspaceRecords } from './routing';
 import { egressProxy, sandboxHealth } from './sandbox';
 import type { EgressProxy } from './egress';
 import { DaemonVerifier, type Verifier } from './verifier';
@@ -227,6 +228,12 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     if (typeof body.type !== 'string') throw new DaemonError('invalid', 'type is required');
     const e = await ws.events(id).append({ ...body, task: id, type: body.type, payload: body.payload ?? {} });
     return c.json(e, 201);
+  });
+
+  // how each agent and model has done, per tag, and how routing would pick (R-045)
+  app.get('/api/scoreboard', async (c) => {
+    const { rows } = await workspaceRecords(ws);
+    return c.json({ rows, routing: ws.config.routing ?? { mode: 'chains', explore: 0 } });
   });
 
   app.get('/api/costs', async (c) => {

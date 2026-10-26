@@ -41,7 +41,7 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 | R-042 | Release: pull requests, CI and production signals | R-017, R-030 | done | release.test.ts | 2 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-043 | OpenTelemetry export | R-011 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-044 | Scheduled upkeep tasks | R-025 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
-| R-045 | A scoreboard and learned routing | R-030, R-031 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
+| R-045 | A scoreboard and learned routing | R-030, R-031 | done | scoreboard.test.ts, routing.test.ts, e2e factory.spec.ts | 6 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-046 | Golden tasks, pass^k and phase gates | R-021, R-031 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-047 | Stint builds Stint | R-017, R-025 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-048 | Shared context every agent reads | R-014, R-020 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |

@@ -35,3 +35,20 @@ Autopilot hands a red or killed run to the next implementer in `autopilot.implem
 ## Nobody reviews their own work
 
 Stint's reviewer skips any entry in `routes.reviewer` that runs the model the Stint agent built the change with, and tries the next one. The review run records what it skipped. When every entry is that model, the review is refused with `review_blocked` and the reason, so you can add a reviewer on another model. Another coding agent on the same model has its own harness and may be reviewed by it. Set `review.crossVendor` to `false` to turn this off.
+
+## Which agent gets the task
+
+The Factory's scoreboard shows how each agent and model has done, overall and per task tag:
+- **Attempts:** runs the daemon verified.
+- **Passed:** how many of those were green.
+- **Last 3 all passed:** whether all of the last three attempts passed.
+- **Cost per merged task**, and **reverts** after merge.
+
+`GET /api/scoreboard` returns the same rows.
+
+By default autopilot picks agents in the order of `autopilot.implementers`. With `"routing": { "mode": "learned", "explore": 0.1 }` it picks from the results instead.
+- For each available agent, it draws once from that agent's record on tasks with the same tags. Agents with more passes draw higher more often, and the highest draw wins.
+- In a tenth of picks it gives the task to the least-tried agent instead, so a new agent still gets work.
+- Results recorded by evals (`eval.ran`) count as attempts, so routing can start from what an eval measured.
+- A hand-off never goes back to the agent that just failed.
+- Each pick is recorded as `routing.chosen`, with the records it was based on.

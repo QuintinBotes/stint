@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
-import { type CostRow, api } from '../api';
+import { type CostRow, type ScoreRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
-import { EmptyState, VendorMark, cx } from '../components/ui';
+import { Button, EmptyState, VendorMark, cx } from '../components/ui';
 import { money, tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
 
@@ -270,6 +270,61 @@ function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
   );
 }
 
+function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: string; explore: number } } | null }) {
+  const [tag, setTag] = useState('*');
+  if (data === null) return <EmptyState>Reading how each agent has done.</EmptyState>;
+  const tags = [...new Set(data.rows.map((r) => r.tag))].sort((a, b) => (a === '*' ? -1 : b === '*' ? 1 : a.localeCompare(b)));
+  const rows = data.rows.filter((r) => r.tag === tag);
+  const pct = (v: number | null) => (v === null ? 'none yet' : `${Math.round(v * 100)}%`);
+  return (
+    <div data-testid="scoreboard">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {tags.length > 1
+          ? tags.map((t) => (
+              <Button key={t} aria-pressed={t === tag} onClick={() => setTag(t)} className={cx('h-7', t === tag && 'border-accent text-accent')}>
+                {t === '*' ? 'All tasks' : t}
+              </Button>
+            ))
+          : null}
+        <span className="text-[12px] text-muted ml-auto" data-testid="routing-mode">
+          {data.routing.mode === 'learned' ? `Autopilot picks from these results, and tries another agent ${Math.round(data.routing.explore * 100)}% of the time` : 'Autopilot picks agents in the order of autopilot.implementers'}
+        </span>
+      </div>
+      {rows.length === 0 ? (
+        <EmptyState>Each agent's record appears here once the daemon has verified one of its runs.</EmptyState>
+      ) : (
+        <table className="w-full text-[13px]">
+          <thead className="text-[12px] text-muted text-left">
+            <tr>
+              <th className="font-normal pb-2">Agent and model</th>
+              <th className="font-normal pb-2 text-right">Attempts</th>
+              <th className="font-normal pb-2 text-right">Passed</th>
+              <th className="font-normal pb-2 text-right" title="All three of the last three attempts passed">Last 3 all passed</th>
+              <th className="font-normal pb-2 text-right">Cost per merged task</th>
+              <th className="font-normal pb-2 text-right">Reverts</th>
+            </tr>
+          </thead>
+          <tbody className="tabular">
+            {rows.map((r) => (
+              <tr key={`${r.agent}/${r.model ?? ''}`} className="border-t border-line" data-testid="score-row" data-agent={r.agent}>
+                <td className="py-2">
+                  <VendorMark agent={agentOf(r.agent)} />
+                  {r.model ? <span className="text-muted ml-2">{modelName(r.model)}</span> : null}
+                </td>
+                <td className="py-2 text-right">{r.attempts}</td>
+                <td className="py-2 text-right">{pct(r.passRate)}</td>
+                <td className="py-2 text-right">{r.pass3 === null ? 'fewer than 3' : r.pass3 ? 'yes' : 'no'}</td>
+                <td className="py-2 text-right">{r.costPerResolved === null ? (r.resolved ? 'unpriced' : 'none merged') : `$${r.costPerResolved.toFixed(2)}`}</td>
+                <td className="py-2 text-right">{r.reverts}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function Panel({ title, children, className, testId }: { title: string; children: React.ReactNode; className?: string; testId?: string }) {
   return (
     <section className={cx('rounded-lg border border-line bg-raised p-4', className)} data-testid={testId}>
@@ -286,6 +341,7 @@ export function Factory() {
   const byDayHost = useLoad(() => api.costs('day-host'), []);
   const byTask = useLoad(() => api.costs('task'), []);
   const helped = useLoad(() => api.graphQuery<Helped>({ q: 'skills-helped' }), []);
+  const scores = useLoad(() => api.scoreboard(), []);
   const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
   const [outcomeRows, setOutcomeRows] = useState<OutcomeRow[] | null>(null);
@@ -375,6 +431,10 @@ export function Factory() {
 
         <Panel title="Outcomes after merge, per agent" testId="panel-outcomes">
           <Outcomes rows={outcomeRows} />
+        </Panel>
+
+        <Panel title="Scoreboard: how each agent has done" testId="panel-scoreboard">
+          <Scoreboard data={scores} />
         </Panel>
 
         <div className="grid md:grid-cols-2 gap-4">

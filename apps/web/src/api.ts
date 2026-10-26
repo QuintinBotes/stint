@@ -61,6 +61,9 @@ export type OutcomeRecord = {
   url: string | null;
 };
 export type ReleaseRecord = { url: string | null; number: number | null; status: string | null };
+/** How one agent and model has done on one tag; `*` is every task (R-045). */
+export type ScoreRow = { tag: string; agent: string; model: string | null; runs: number; attempts: number; passed: number; passRate: number | null; pass3: boolean | null; resolved: number; costPerResolved: number | null; reverts: number };
+
 export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null; outcomes: OutcomeRecord[]; release?: ReleaseRecord | null };
 export type AutopilotCard = { on: boolean; step: string | null; reason: string | null; queued: boolean };
 export type TaskCardData = { task: Task; cost: Cost; lastRun: RunSummary | null; lastEventAt: string; summary: string | null; autopilot?: AutopilotCard | null };
@@ -139,6 +142,7 @@ export const api = {
   handoff: (id: string, name: string) => request<{ name: string; packet: Handoff; meta: unknown }>(`/api/tasks/${id}/handoffs/${name}`),
   diffFiles: (id: string) => request<Array<{ path: string; added: number; removed: number }>>(`/api/tasks/${id}/diff?format=json`),
   costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
+  scoreboard: () => request<{ rows: ScoreRow[]; routing: { mode: 'chains' | 'learned'; explore: number } }>('/api/scoreboard'),
   demoStatus: () => request<DemoStatus>('/api/demo/status'),
   createTask: (t: { title: string; goal: string; acceptance: string[]; testCommand?: string }) => post<Task>('/api/tasks', t),
   verify: (id: string) => post<Verification>(`/api/tasks/${id}/verify`),
