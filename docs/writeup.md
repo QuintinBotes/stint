@@ -6,6 +6,12 @@ Theme: Push the Frontier, Meta's Muse Spark and Muse Glimmer on a hard problem i
 
 Coding agents are good at a task until the session ends: the context fills up, the process dies, the rate limit hits, or you want a different agent for the next step. Then the work lives in a transcript nobody can hand on. Stint makes the task, not the chat, the unit of work. The task is a folder in your repository; any agent can pick it up; when a run ends, however it ends, Stint writes a packet of a few hundred tokens that the next agent continues from. Stint runs every agent in its own git worktree, runs the tests itself, reviews offline, and merges only when a person says so. It is a software factory on your own machine, built on Meta's models end to end.
 
+## Who it is for
+
+- **Developers who already use a coding agent and lose work when its session ends.** That happens when the context fills, the rate limit hits, the process dies, or they want another agent for the next step.
+- **Small teams that want agents to work in parallel without losing track.** Every task's history is an event log in the repository, every merge says which task, runs and packet it came from, and decisions are protected from being silently reversed.
+- **Anyone who cannot send code to a cloud reviewer.** The review runs on the laptop.
+
 ## What it proves
 
 | Claim | Evidence |
