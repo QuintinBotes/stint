@@ -1,6 +1,6 @@
 # Stint: the task outlives the agent
 
-Track: indie developer. Built with Muse Spark Open.
+Theme: Push the Frontier, Meta's Muse Spark and Muse Glimmer on a hard problem in software. Track: indie developer.
 
 ## Pitch
 
