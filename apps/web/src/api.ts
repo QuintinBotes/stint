@@ -92,6 +92,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (isJson ? res.json() : res.text()) as Promise<T>;
 }
 
+/** The address of a task's terminal: same origin, with the daemon token as the query parameter. */
+export function ptyUrl(id: string): string {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}${base}/api/tasks/${id}/pty${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+}
+
 const post = <T>(path: string, body: unknown = {}) => request<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
 export const api = {
@@ -114,6 +120,7 @@ export const api = {
   graphQuery: <T>(params: Record<string, string>) => request<T[]>(`/api/graph/query?${new URLSearchParams(params)}`),
   pending: () => request<PendingItem[]>('/api/graph/pending'),
   settle: (name: string, action: 'keep' | 'supersede') => post<unknown>(`/api/graph/pending/${name}`, { action }),
+  stopRun: (id: string, run: string) => post<unknown>(`/api/tasks/${id}/runs/${run}/stop`),
   autopilot: (id: string, on: boolean) => post<{ on: boolean; running: string[]; queued: string[] }>(`/api/tasks/${id}/autopilot`, { on }),
 };
 

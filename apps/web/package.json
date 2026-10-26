@@ -10,20 +10,22 @@
     "test:ui": "vite build && playwright test"
   },
   "dependencies": {
+    "@base-ui/react": "1.9.0",
+    "@fontsource/geist-mono": "5.3.0",
+    "@fontsource/geist-sans": "5.3.0",
+    "@stint-dev/core": "workspace:*",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "cmdk": "1.1.1",
+    "lucide-react": "1.61.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "@stint-dev/core": "workspace:*",
-    "react-router": "7.18.4",
-    "cmdk": "1.1.1",
     "react-resizable-panels": "4.15.0",
+    "react-router": "7.18.4",
     "sonner": "2.0.8",
-    "lucide-react": "1.61.0",
-    "@base-ui/react": "1.9.0",
-    "clsx": "2.1.1",
-    "tailwind-merge": "3.7.0",
-    "class-variance-authority": "0.7.1",
-    "@fontsource/geist-sans": "5.3.0",
-    "@fontsource/geist-mono": "5.3.0"
+    "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

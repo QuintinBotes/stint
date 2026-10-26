@@ -7,6 +7,7 @@ import { ApprovalGate } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard, VerificationCard } from '../components/Cards';
 import { DiffView } from '../components/DiffView';
 import { MemoryPanel } from '../components/MemoryPanel';
+import { Terminal } from '../components/Terminal';
 import { Rail } from '../components/Rail';
 import { Button, CostMeter, EmptyState, StatusChip, cx } from '../components/ui';
 import { useEvents, useTask } from '../hooks';
@@ -166,7 +167,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-4" role="tabpanel">
         {tab === 'diff' ? <DiffView taskId={t.id} version={diffVersion} /> : null}
-        {tab === 'terminal' ? <EmptyState testId="empty-terminal">A shell in the run's worktree opens here once the task has a worktree. The terminal arrives in R-008.</EmptyState> : null}
+        {tab === 'terminal' ? <Terminal taskId={t.id} liveRun={bundle.runs.find((r) => !r.endedAt)?.run ?? null} /> : null}
         {tab === 'plan' ? <PlanCard plan={bundle.plan} /> : null}
         {tab === 'packet' ? (
           <div className="flex flex-col gap-3">

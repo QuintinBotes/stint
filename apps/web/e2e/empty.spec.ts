@@ -13,7 +13,7 @@ test('Every panel in an empty task shows its empty-state sentence', async ({ pag
   await expect(page.getByTestId('memory-panel').getByTestId('empty-memory')).toBeVisible();
   const expected: Record<string, string> = {
     diff: 'The diff appears here once a run commits to the task branch.',
-    terminal: "A shell in the run's worktree opens here",
+    terminal: 'No worktree to open a shell in.',
     plan: 'The plan arrives here when the planner finishes.',
     packet: 'The packet appears here when a run ends, however it ends.',
     review: 'The review appears here after a green verification.',
