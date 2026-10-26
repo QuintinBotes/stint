@@ -94,6 +94,8 @@ export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
   );
 }
 
+const LENS_NAMES: Record<string, string> = { general: 'General', security: 'Security', 'spec-fit': 'Spec fit' };
+
 export function ReviewCard({ review }: { review: Review | null }) {
   if (!review) return <EmptyState testId="empty-review">The review appears here after a green verification.</EmptyState>;
   return (
@@ -102,9 +104,32 @@ export function ReviewCard({ review }: { review: Review | null }) {
         <StatusChip label={review.verdict.replace('_', ' ')} tone={review.verdict === 'approve' ? 'good' : review.verdict === 'block' ? 'bad' : 'warn'} />
         {review.offline ? <StatusChip label="offline" tone="neutral" /> : null}
         <span className="text-muted">
-          {modelName(review.model)}, <CostMeter cost={review.cost} />
+          {review.lens === 'combined' ? 'combined from the reviews below' : modelName(review.model)}
+          {review.cost ? (
+            <>
+              , <CostMeter cost={review.cost} />
+            </>
+          ) : null}
         </span>
       </header>
+      {review.lenses?.length ? (
+        <ul className="flex flex-col gap-1 text-[12px]" data-testid="review-lenses">
+          {review.lenses.map((l, i) => (
+            <li key={`${l.lens}-${l.run ?? i}`} className="flex flex-wrap items-center gap-2" data-lens={l.lens}>
+              <span className="font-medium w-[72px]">{LENS_NAMES[l.lens] ?? l.lens}</span>
+              <StatusChip label={l.verdict.replace('_', ' ')} tone={l.verdict === 'approve' ? 'good' : l.verdict === 'block' ? 'bad' : 'warn'} />
+              <span className="text-muted">
+                {modelName(l.model)}, {l.findings} finding{l.findings === 1 ? '' : 's'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {review.disagreement ? (
+        <p data-testid="review-disagreement" className="text-[12px] text-warn">
+          The reviewers did not agree on the verdict. The strictest one counts; read their findings before you approve.
+        </p>
+      ) : null}
       {review.findings.length === 0 ? (
         <p data-testid="no-findings">No actionable findings.</p>
       ) : (
@@ -121,6 +146,8 @@ export function ReviewCard({ review }: { review: Review | null }) {
                   </code>
                 ) : null}
                 {f.contradictsDecision ? <StatusChip label={`contradicts ${f.contradictsDecision}, routed to the queue`} tone="warn" /> : null}
+                {review.lens === 'combined' && f.lens ? <StatusChip label={LENS_NAMES[f.lens] ?? f.lens} tone="neutral" /> : null}
+                {f.agreement && f.agreement > 1 ? <span className="text-muted">found by {f.agreement} reviewers</span> : null}
               </div>
               <p className="mt-1">{f.text}</p>
             </li>

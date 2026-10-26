@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { constrainsFiles, relayFromEvents, runsFromEvents, similar } from '@stint-dev/core/node';
+import { constrainsFiles, findingThemes, relayFromEvents, runsFromEvents, similar } from '@stint-dev/core/node';
 import {
   type Host,
   buildPlanPrompt,
@@ -185,29 +185,63 @@ export function ownReviewers(ctx: DaemonContext, events: StintEvent[]): string[]
   return model ? ctx.ws.config.routes.reviewer.filter((e) => e.split('/').slice(1).join('/') === model) : [];
 }
 
-export async function reviewTask(ctx: DaemonContext, id: string, host?: string): Promise<Review> {
-  const task = await ctx.ws.readTask(id);
-  if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'review runs after the run ends');
-  const v = await ctx.ws.verification(id).latest();
-  if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'review is offered only after a green verification', v ? `${v.failed} failed` : 'nothing verified yet');
-  const packet = await ctx.ws.handoffs(id).latest();
-  const decisions = (await ctx.ws.decisions(id).validAt()).map((d) => ({ id: d.id, text: d.text }));
-  const prompt = buildReviewPrompt({
-    packetPrompt: packet ? renderHandoff(packet) : `Task ${task.id}: ${task.goal}`,
-    diff: (await ctx.worktrees.diff(task, 'unified')) as string,
-    decisions,
-    skills: skillsFor(ctx.ws.root, 'reviewer'),
-  });
-  const r = await modelRun<Review>(ctx, id, 'reviewer', host, 'review.schema.json', ReviewSchema, prompt, ctx.ws.config.review?.crossVendor === false ? [] : ownReviewers(ctx, await ctx.ws.events(id).read()));
-  const review = await ctx.ws.writeReview(id, { ...r.value, run: r.run, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString() });
+type Lens = 'general' | 'security' | 'spec-fit';
+
+/** The queue name of a finding that would reverse a decision; a lens other than the general one keeps its own ids. */
+const contradictionId = (task: string, lens: string | undefined, finding: string) => (lens && lens !== 'general' && lens !== 'combined' ? `contradiction-${task}-${lens}-${finding}` : `contradiction-${task}-${finding}`);
+const SEVERITY = { blocker: 0, major: 1, minor: 2, note: 3 } as const;
+const VERDICT = { block: 0, request_changes: 1, approve: 2 } as const;
+const worst = (verdicts: Review['verdict'][]): Review['verdict'] => [...verdicts].sort((a, b) => VERDICT[a] - VERDICT[b])[0] ?? 'approve';
+
+/** The hosts of a chain in order, once each: best-of-n asks one reviewer per host (R-038). */
+function distinctHosts(chain: string[], skip: string[], n: number): string[] {
+  const out: string[] = [];
+  for (const e of chain) {
+    const h = e.split('/')[0] as string;
+    if (!skip.includes(e) && !out.includes(h)) out.push(h);
+  }
+  return out.slice(0, n);
+}
+
+/**
+ * Findings of several reviewers of one lens as one list: the same file and line, or two or more shared theme
+ * words, is one finding, counted once per reviewer that found it (R-038).
+ */
+export function mergeFindings(lists: Review['findings'][]): Review['findings'] {
+  const merged: Array<Review['findings'][number] & { agreement: number; themes: Set<string> }> = [];
+  for (const list of lists) {
+    const seen = new Set<number>();
+    for (const f of list) {
+      const themes = new Set(findingThemes({ text: f.text, ...(f.linksTo ? { linksTo: f.linksTo } : {}) }));
+      const i = merged.findIndex((m, k) => !seen.has(k) && ((f.file && f.line && m.file === f.file && m.line === f.line) || [...themes].filter((t) => m.themes.has(t)).length >= 2));
+      if (i >= 0) {
+        const m = merged[i] as (typeof merged)[number];
+        seen.add(i);
+        m.agreement += 1;
+        if (SEVERITY[f.severity] < SEVERITY[m.severity]) Object.assign(m, { severity: f.severity, text: f.text });
+        continue;
+      }
+      seen.add(merged.length);
+      merged.push({ ...f, agreement: 1, themes });
+    }
+  }
+  return merged.map(({ themes: _t, ...f }) => f);
+}
+
+/** One review by one lens on the chain (or one host of it); its contradictions go to the queue. */
+async function lensReview(ctx: DaemonContext, id: string, lens: Lens, host: string | undefined, skip: string[], base: { packetPrompt: string; diff: string; decisions: Array<{ id: string; text: string }>; acceptance: string[] }): Promise<Review> {
+  const prompt = buildReviewPrompt({ ...base, skills: skillsFor(ctx.ws.root, 'reviewer'), ...(lens === 'general' ? {} : { lens }) });
+  const r = await modelRun<Review>(ctx, id, 'reviewer', host, 'review.schema.json', ReviewSchema, prompt, skip);
+  const value = { ...r.value, findings: r.value.findings.map((f) => ({ ...f, lens })) };
+  const review = await ctx.ws.writeReview(id, { ...value, run: r.run, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString(), ...(lens === 'general' ? {} : { lens }) });
   // a finding that would reverse a decision is routed to the queue, never applied (non-negotiable 7)
-  const contradicting = findContradictions(review, decisions);
+  const contradicting = findContradictions(review, base.decisions);
   const queue = join(ctx.ws.cacheDir, 'queue');
   await mkdir(queue, { recursive: true });
   const queued: string[] = [];
   for (const f of contradicting) {
-    const name = `contradiction-${id}-${f.id}`;
-    const decision = decisions.find((d) => d.id === f.contradictsDecision) ?? null;
+    const name = contradictionId(id, lens, f.id);
+    const decision = base.decisions.find((d) => d.id === f.contradictsDecision) ?? null;
     await writeFile(join(queue, `${name}.json`), `${JSON.stringify({ kind: 'contradiction', task: id, run: r.run, agent: `${r.host}/${r.model}`, decision, finding: f, at: new Date().toISOString() }, null, 2)}\n`);
     queued.push(name);
   }
@@ -217,9 +251,83 @@ export async function reviewTask(ctx: DaemonContext, id: string, host?: string):
     adapter: 'openai-compatible',
     vendor: 'meta',
     type: 'review.recorded',
-    payload: { verdict: review.verdict, findings: review.findings.length, contradictions: contradicting.length, offline: review.offline, queued, review },
+    payload: { verdict: review.verdict, findings: review.findings.length, contradictions: contradicting.length, offline: review.offline, queued, review, lens },
     links: review.findings.map((f) => ({ kind: 'finding' as const, ref: f.id })),
   });
+  return review;
+}
+
+/**
+ * Reviews a task's change once its verification is green: one review per lens in `review.lenses` (default only
+ * the general one), and for the general lens `review.bestOf` reviewers on different hosts. When more than one
+ * review ran, a combined review is the verdict the gate reads: any block blocks, any request for changes asks.
+ */
+export async function reviewTask(ctx: DaemonContext, id: string, host?: string): Promise<Review> {
+  const task = await ctx.ws.readTask(id);
+  if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'review runs after the run ends');
+  const v = await ctx.ws.verification(id).latest();
+  if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'review is offered only after a green verification', v ? `${v.failed} failed` : 'nothing verified yet');
+  const packet = await ctx.ws.handoffs(id).latest();
+  const decisions = (await ctx.ws.decisions(id).validAt()).map((d) => ({ id: d.id, text: d.text }));
+  const base = { packetPrompt: packet ? renderHandoff(packet) : `Task ${task.id}: ${task.goal}`, diff: (await ctx.worktrees.diff(task, 'unified')) as string, decisions, acceptance: task.acceptance };
+  const skip = ctx.ws.config.review?.crossVendor === false ? [] : ownReviewers(ctx, await ctx.ws.events(id).read());
+  const lenses = (ctx.ws.config.review?.lenses ?? ['general']) as Lens[];
+  const bestOf = host ? 1 : (ctx.ws.config.review?.bestOf ?? 1);
+
+  const done: Array<{ lens: Lens; review: Review }> = [];
+  let disagreement = false;
+  for (const lens of lenses) {
+    if (lens === 'general' && bestOf > 1) {
+      const hosts = distinctHosts(ctx.ws.config.routes.reviewer, skip, bestOf);
+      const answers: Review[] = [];
+      for (const h of hosts) {
+        // a host that cannot answer leaves the others to decide; one answer is enough
+        const r = await lensReview(ctx, id, lens, h, skip, base).catch(() => null);
+        if (r) answers.push(r);
+      }
+      if (answers.length === 0) throw new DaemonError('adapter_unavailable', 'no reviewer could answer', hosts.join(', '));
+      disagreement ||= new Set(answers.map((a) => a.verdict)).size > 1;
+      for (const a of answers) done.push({ lens, review: a });
+      continue;
+    }
+    done.push({ lens, review: await lensReview(ctx, id, lens, host, skip, base) });
+  }
+
+  let review = done[0]?.review as Review;
+  if (done.length > 1) {
+    const byLens = new Map<Lens, Review[]>();
+    for (const d of done) byLens.set(d.lens, [...(byLens.get(d.lens) ?? []), d.review]);
+    const findings = [...byLens.entries()]
+      .flatMap(([lens, reviews]) => mergeFindings(reviews.map((r) => r.findings)).map((f) => ({ ...f, lens })))
+      .sort((a, b) => SEVERITY[a.severity] - SEVERITY[b.severity])
+      .slice(0, 20)
+      .map((f, i) => ({ ...f, id: `F${i + 1}` }));
+    const verdict = worst(done.map((d) => d.review.verdict));
+    const last = done.at(-1)?.review as Review;
+    review = await ctx.ws.writeReview(id, {
+      version: 'stint.review/1',
+      verdict: findings.length === 0 ? 'approve' : verdict,
+      summary: [...byLens.entries()].map(([lens, rs]) => `${lens}: ${worst(rs.map((r) => r.verdict)).replace('_', ' ')}`).join('; ').slice(0, 400),
+      findings,
+      blockers: [...new Set(done.flatMap((d) => d.review.blockers))].slice(0, 20),
+      model: [...new Set(done.map((d) => d.review.model))].join(', ').slice(0, 200),
+      offline: done.every((d) => d.review.offline),
+      ...(last.run ? { run: last.run } : {}),
+      createdAt: new Date().toISOString(),
+      lens: 'combined',
+      lenses: done.map((d) => ({ lens: d.lens, verdict: d.review.verdict, model: d.review.model, findings: d.review.findings.length, ...(d.review.run ? { run: d.review.run } : {}) })),
+      ...(disagreement ? { disagreement: true } : {}),
+    });
+    await ctx.ws.events(id).append({
+      task: id,
+      ...(last.run ? { run: last.run } : {}),
+      adapter: 'openai-compatible',
+      vendor: 'meta',
+      type: 'review.recorded',
+      payload: { verdict: review.verdict, findings: review.findings.length, contradictions: 0, offline: review.offline, queued: [], review, lens: 'combined', ...(disagreement ? { disagreement: true } : {}) },
+    });
+  }
+
   if (review.verdict === 'block') {
     await ctx.ws.writeTask(id, { status: 'building', pendingAsk: review.blockers.join('; ').slice(0, 400) || 'The review blocked this change.' });
   } else {
@@ -247,11 +355,12 @@ export async function pendingContradictions(ctx: DaemonContext): Promise<Pending
     const events = await ctx.ws.events(t.id).read();
     const settled = new Set(events.map((e) => e.payload.queue).filter((q): q is string => typeof q === 'string'));
     const decisions = new Map((await ctx.ws.decisions(t.id).read()).map((d) => [d.id, d.text]));
-    for (const e of events.filter((x) => x.type === 'review.recorded')) {
+    // a combined review repeats its lenses' findings; each contradiction is queued once, from the review that found it
+    for (const e of events.filter((x) => x.type === 'review.recorded' && x.payload.lens !== 'combined')) {
       const review = e.payload.review as { model?: string; findings?: PendingContradiction['finding'][] } | undefined;
       for (const f of review?.findings ?? []) {
         if (!f.contradictsDecision) continue;
-        const id = `contradiction-${t.id}-${f.id}`;
+        const id = contradictionId(t.id, e.payload.lens as string | undefined, f.id);
         if (settled.has(id) || out.some((o) => o.id === id)) continue;
         const text = decisions.get(f.contradictsDecision);
         out.push({ id, kind: 'contradiction', task: t.id, run: e.run ?? '', agent: review?.model ?? e.adapter ?? 'reviewer', decision: text ? { id: f.contradictsDecision, text } : null, finding: f, at: e.ts });

@@ -76,6 +76,9 @@ export function buildReviewPrompt(input: {
   diff: string;
   decisions: Array<{ id: string; text: string }>;
   skills?: SkillHint[];
+  /** One job for this review (R-038); the general review has none. */
+  lens?: 'general' | 'security' | 'spec-fit';
+  acceptance?: string[];
 }): string {
   const skills = [...(input.skills ?? [])].sort((a, b) => {
     const aVoice = a.name === 'review-voice-policy' ? 0 : 1;
@@ -90,7 +93,19 @@ export function buildReviewPrompt(input: {
     decisions,
     packet: input.packetPrompt,
     diff: capDiff(input.diff, 3000).text,
-  });
+  }) + lensAsk(input.lens, input.acceptance ?? []);
+}
+
+/** What a lens review looks for instead of everything (R-038). */
+function lensAsk(lens: string | undefined, acceptance: string[]): string {
+  if (lens === 'security') {
+    return '\n\n## Lens: security\nReview this diff for security only: injection (SQL, shell, path traversal), secrets in code, config or logs, missing authentication or authorization checks, unsafe handling of untrusted input, unsafe deserialization, server-side request forgery, and new network or file access the task does not need. Ignore style and design. Block on anything exploitable; request changes for a real weakness; approve when there is nothing.';
+  }
+  if (lens === 'spec-fit') {
+    const lines = acceptance.length ? acceptance.map((a, i) => `${i + 1}. ${a}`).join('\n') : '- none given';
+    return `\n\n## Lens: spec fit\nReview only whether the change does what the task asks. For each acceptance criterion below that the diff does not meet, add a finding (severity major) naming the criterion and what is missing. Do not add findings for criteria that are met. Request changes when any criterion is not met; approve when all are.\n\nAcceptance criteria:\n${lines}`;
+  }
+  return '';
 }
 
 /** The plan.md a human reads: numbered steps with files and tests, files to touch, risks. */

@@ -13,6 +13,9 @@ export const FindingSchema = z.strictObject({
   linksTo: z.string().optional(),
   contradictsDecision: z.string().regex(DECISION_ID).optional(),
   resolvedBy: z.string().optional(),
+  /** Which lens found it, and how many reviewers of that lens found the same thing (R-038). */
+  lens: z.enum(['general', 'security', 'spec-fit']).optional(),
+  agreement: z.int().min(1).optional(),
 });
 export type Finding = z.infer<typeof FindingSchema>;
 
@@ -30,6 +33,14 @@ export const ReviewSchema = z
     cost: CostSchema.optional(),
     run: z.string().regex(RUN_ID).optional(),
     createdAt: z.iso.datetime({ offset: true }).optional(),
+    /** The job this review did; `combined` is the verdict the gate reads when several reviews ran (R-038). */
+    lens: z.enum(['general', 'security', 'spec-fit', 'combined']).optional(),
+    lenses: z
+      .array(z.strictObject({ lens: z.enum(['general', 'security', 'spec-fit']), verdict: z.enum(['approve', 'request_changes', 'block']), model: z.string(), findings: z.int().min(0), run: z.string().regex(RUN_ID).optional() }))
+      .max(9)
+      .optional(),
+    /** Reviewers of the same lens gave different verdicts. */
+    disagreement: z.boolean().optional(),
   })
   .refine((r) => r.findings.length > 0 || r.verdict === 'approve', {
     path: ['verdict'],

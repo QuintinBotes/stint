@@ -9,7 +9,7 @@ export const REVIEW_JSON_SCHEMA = reviewKitSchema as unknown as JsonSchema;
 export const SKILL_PROPOSAL_JSON_SCHEMA = skillProposalKitSchema as unknown as JsonSchema;
 
 // Fields the daemon fills after the call, so the model is never asked for them.
-export const DAEMON_FIELDS = ['cost', 'run', 'createdAt', 'model', 'offline', 'constraints'] as const;
+export const DAEMON_FIELDS = ['cost', 'run', 'createdAt', 'model', 'offline', 'constraints', 'lens', 'lenses', 'disagreement'] as const;
 
 function stripNode(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(stripNode);

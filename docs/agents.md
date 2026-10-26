@@ -127,3 +127,19 @@ When a task is too big for one run, the plan can split it into up to six subtask
 - finishes the parent once every subtask is merged.
 
 Each subtask still stops at your approval. The board shows the parent with its subtasks in order, and what each one waits for.
+
+## Reviews with different jobs
+
+By default one reviewer reads each change. To give reviews separate jobs, set `review`:
+
+```json
+"review": { "lenses": ["general", "security", "spec-fit"], "bestOf": 2, "crossVendor": true }
+```
+
+- **general:** the normal review.
+- **security:** looks only for injection, secrets, missing access checks, unsafe input handling and network or file access the task doesn't need. It blocks on anything exploitable.
+- **spec-fit:** checks each acceptance criterion and adds a finding for every one the change misses.
+
+With `bestOf` above 1, the general review is asked of reviewers on different hosts in `routes.reviewer`. When two of them find the same thing (same file and line, or the same subject), it is shown once with how many found it. If they disagree on the verdict, the review says so.
+
+When more than one review ran, the gate reads a combined review: any block blocks, and any request for changes sends it back. The review tab shows each review with its verdict and model.

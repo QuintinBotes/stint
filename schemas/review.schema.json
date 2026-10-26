@@ -5,41 +5,199 @@
   "description": "A structured review. Produced by a reviewer adapter with JSON-schema output; also the shape of the build loop's own reviews in reviews/. A review never overrules a human decision: a finding that would is marked contradictsDecision and routed to the queue.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "verdict", "findings", "blockers", "model", "offline"],
+  "required": [
+    "version",
+    "verdict",
+    "findings",
+    "blockers",
+    "model",
+    "offline"
+  ],
   "properties": {
-    "version": { "const": "stint.review/1" },
-    "verdict": { "type": "string", "enum": ["approve", "request_changes", "block"] },
-    "summary": { "type": "string", "maxLength": 400, "description": "Exactly \"No actionable findings.\" when findings is empty." },
+    "version": {
+      "const": "stint.review/1"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "request_changes",
+        "block"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 400,
+      "description": "Exactly \"No actionable findings.\" when findings is empty."
+    },
     "findings": {
       "type": "array",
       "maxItems": 20,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "severity", "text"],
+        "required": [
+          "id",
+          "severity",
+          "text"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^F[0-9]+$" },
-          "severity": { "type": "string", "enum": ["blocker", "major", "minor", "note"] },
-          "file": { "type": "string" },
-          "line": { "type": "integer", "minimum": 1 },
-          "text": { "type": "string", "minLength": 1, "maxLength": 400, "description": "A concrete failure mode, under 40 words where possible." },
-          "linksTo": { "type": "string", "description": "A plan risk (R1) or decision (D3) this finding relates to." },
-          "contradictsDecision": { "type": "string", "pattern": "^D[0-9]+$", "description": "Set when the finding proposes reversing a recorded decision. The daemon routes it to the queue instead of applying it." },
-          "resolvedBy": { "type": "string", "description": "Run id that resolved it, set by the daemon." }
+          "id": {
+            "type": "string",
+            "pattern": "^F[0-9]+$"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocker",
+              "major",
+              "minor",
+              "note"
+            ]
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "A concrete failure mode, under 40 words where possible."
+          },
+          "linksTo": {
+            "type": "string",
+            "description": "A plan risk (R1) or decision (D3) this finding relates to."
+          },
+          "contradictsDecision": {
+            "type": "string",
+            "pattern": "^D[0-9]+$",
+            "description": "Set when the finding proposes reversing a recorded decision. The daemon routes it to the queue instead of applying it."
+          },
+          "resolvedBy": {
+            "type": "string",
+            "description": "Run id that resolved it, set by the daemon."
+          },
+          "lens": {
+            "type": "string",
+            "enum": [
+              "general",
+              "security",
+              "spec-fit"
+            ],
+            "description": "Which lens found it; the daemon fills it."
+          },
+          "agreement": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many reviewers of the lens found the same thing; the daemon fills it."
+          }
         }
       }
     },
-    "blockers": { "type": "array", "items": { "type": "string", "maxLength": 300 } },
-    "model": { "type": "string", "minLength": 1 },
-    "offline": { "type": "boolean" },
-    "cost": { "$ref": "handoff.schema.json#/$defs/cost" },
-    "run": { "type": "string", "pattern": "^r[0-9]+$" },
-    "createdAt": { "type": "string", "format": "date-time" }
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 300
+      }
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "offline": {
+      "type": "boolean"
+    },
+    "cost": {
+      "$ref": "handoff.schema.json#/$defs/cost"
+    },
+    "run": {
+      "type": "string",
+      "pattern": "^r[0-9]+$"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lens": {
+      "type": "string",
+      "enum": [
+        "general",
+        "security",
+        "spec-fit",
+        "combined"
+      ],
+      "description": "The job this review did; the daemon fills it."
+    },
+    "lenses": {
+      "type": "array",
+      "maxItems": 9,
+      "description": "The reviews a combined review is made of; the daemon fills it.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lens",
+          "verdict",
+          "model",
+          "findings"
+        ],
+        "properties": {
+          "lens": {
+            "type": "string",
+            "enum": [
+              "general",
+              "security",
+              "spec-fit"
+            ]
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "request_changes",
+              "block"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "run": {
+            "type": "string",
+            "pattern": "^r[0-9]+$"
+          }
+        }
+      }
+    },
+    "disagreement": {
+      "type": "boolean",
+      "description": "Reviewers of the same lens gave different verdicts; the daemon fills it."
+    }
   },
   "allOf": [
     {
-      "if": { "properties": { "findings": { "maxItems": 0 } } },
-      "then": { "properties": { "verdict": { "const": "approve" } } }
+      "if": {
+        "properties": {
+          "findings": {
+            "maxItems": 0
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "verdict": {
+            "const": "approve"
+          }
+        }
+      }
     }
   ]
 }
