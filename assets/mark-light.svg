@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Stint">
+  <title>Stint</title>
+  <!-- a run by Muse Code, ending in the handoff -->
+  <rect x="14" y="2" width="14" height="25" rx="7" fill="#facc15"/>
+  <!-- the packet the task passes through -->
+  <path d="M32 23.5 L40.5 32 L32 40.5 L23.5 32 Z" fill="#18181b"/>
+  <!-- the next agent, picking the task up -->
+  <rect x="36" y="37" width="14" height="25" rx="7" fill="#94a3b8"/>
+</svg>

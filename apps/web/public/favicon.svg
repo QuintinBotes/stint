@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>.p{fill:#18181b}@media (prefers-color-scheme: dark){.p{fill:#f4f4f5}}</style>
+  <rect x="14" y="2" width="14" height="25" rx="7" fill="#facc15"/>
+  <path class="p" d="M32 23.5 L40.5 32 L32 40.5 L23.5 32 Z"/>
+  <rect x="36" y="37" width="14" height="25" rx="7" fill="#94a3b8"/>
+</svg>
