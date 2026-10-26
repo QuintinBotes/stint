@@ -23,7 +23,7 @@ export const PACKET_TOKEN_LIMIT = 600;
 const LIST = 12;
 const ITEM = 200;
 
-type Source = 'events' | 'diff' | 'plan' | 'enrich';
+type Source = 'events' | 'diff' | 'plan' | 'enrich' | 'digest';
 export type HandoffMeta = { fields: Record<string, { from: Source; eventIds: string[] }>; reason: string; enriched: string[] };
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -58,7 +58,7 @@ function hostOf(v: unknown): HostId | undefined {
   return r.success ? r.data : undefined;
 }
 
-export type BuildOptions = { to?: { adapter: string; role: Role }; enrich?: Enrichment | null; reason?: string };
+export type BuildOptions = { to?: { adapter: string; role: Role }; enrich?: Enrichment | null; reason?: string; /** Who wrote the enrichment: the leaving agent, or a model reading the diff. */ enrichedBy?: 'agent' | 'digest' };
 
 /**
  * Derives the packet for one run from the event log, the plan and the diff. It reads agent messages and tool-call
@@ -184,7 +184,7 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     const tryField = (field: 'summary' | 'leftOut' | 'risks' | 'askOfNext', next: Omit<Handoff, 'hash'>) => {
       if (HandoffSchema.safeParse({ ...next, hash: `sha256:${'0'.repeat(64)}` }).success) {
         draft = next;
-        meta.fields[field] = { from: 'enrich', eventIds: [] };
+        meta.fields[field] = { from: opts.enrichedBy === 'digest' ? 'digest' : 'enrich', eventIds: [] };
         meta.enriched.push(field);
       }
     };

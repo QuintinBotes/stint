@@ -59,8 +59,9 @@ export async function afterRunPacket(ctx: DaemonContext, taskId: string, run: st
   const events = await ctx.ws.events(taskId).read();
   const adapter = events.find((e) => e.type === 'run.started' && e.run === run)?.adapter ?? '';
   const asked = result.endedBy === 'killed' ? null : await enrichFrom(ctx, taskId, run, adapter, result.sessionId);
-  const enrich = asked && Object.keys(asked).length ? asked : ctx.opts.digest ? await digestFrom(ctx, taskId) : null;
-  await buildHandoff(ctx, taskId, run, { enrich, reason: result.endedBy });
+  const fromAgent = !!asked && Object.keys(asked).length > 0;
+  const enrich = fromAgent ? asked : ctx.opts.digest ? await digestFrom(ctx, taskId) : null;
+  await buildHandoff(ctx, taskId, run, { enrich, reason: result.endedBy, enrichedBy: fromAgent ? 'agent' : 'digest' });
 }
 
 async function latestEndedRun(ctx: DaemonContext, taskId: string): Promise<string> {

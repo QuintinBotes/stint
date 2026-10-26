@@ -1,0 +1,20 @@
+{
+  "task": "bench-03-delete-tenant",
+  "mode": "packet",
+  "host": "meta-api",
+  "model": "muse-spark-1.3",
+  "inputTokens": 66077,
+  "cachedTokens": 36857,
+  "outputTokens": 5913,
+  "usd": 0.0716,
+  "wallMs": 26295,
+  "verified": true,
+  "promptTokens": 672,
+  "repeat": 1,
+  "commit": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+  "implementer": "muse-code",
+  "continuer": "stint-agent",
+  "implementerModel": "muse-spark-1.3",
+  "startedAt": "2026-10-26T18:19:53.191Z",
+  "finishedAt": "2026-10-26T18:20:19.486Z"
+}

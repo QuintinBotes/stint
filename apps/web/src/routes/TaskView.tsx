@@ -7,6 +7,7 @@ import { ApprovalGate } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard, VerificationCard } from '../components/Cards';
 import { DiffView } from '../components/DiffView';
 import { MemoryPanel } from '../components/MemoryPanel';
+import { PacketSources } from '../components/PacketSources';
 import { QuizPanel } from '../components/Quiz';
 import { Terminal } from '../components/Terminal';
 import { Rail } from '../components/Rail';
@@ -183,6 +184,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
               </div>
             ) : null}
             <HandoffCard handoff={packetName ? packet : bundle.handoff} />
+            {packetNames.length ? <PacketSources taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} onSelect={(seq) => setParam('ev', String(seq))} /> : null}
             {packetNames.length ? <QuizPanel taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} /> : null}
           </div>
         ) : null}

@@ -1,0 +1,59 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 8,
+      "path": "src/routes/events.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 25,
+      "path": "test/events.test.ts",
+      "removed": 0,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 173478,
+    "inputTokens": 203061,
+    "outputTokens": 1723,
+    "usd": 0.0716
+  },
+  "createdAt": "2026-10-26T18:18:18.571Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "a45fb2aae7c6d6bcb710ff0cf70bdf5f17443ae5"
+  },
+  "done": [
+    "Verification by the daemon: 31 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "capped",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r1",
+    "sessionId": "01a1796e-fa6c-75c0-857b-5a9c75320a05",
+    "vendor": "meta"
+  },
+  "hash": "sha256:2622c5ea4b0cca5596e6027c1a3d37fbfb30a8692b41e25b286013a71ffa3eed",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "src/routes/events.ts adds GET /:id in eventRoutes using deps.store.get with X-Tenant check, returning event JSON, 400 if header missing, 404 if missing or tenant mismatch. test/events.test.ts adds four tests for owner success, other tenant 404, unknown id 404, and missing header 400. No further work is visible in the diff.",
+  "task": "T-0001",
+  "verification": {
+    "command": "bun run test",
+    "durationMs": 688,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 31,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}
