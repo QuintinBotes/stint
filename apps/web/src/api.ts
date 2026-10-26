@@ -15,6 +15,18 @@ export type Health = {
   autopilot?: { running: string[]; queued: string[] };
 };
 export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number };
+export type QuizMiss = { id: string; text: string; truth: boolean; blocking: boolean; answer: string };
+export type QuizResult = {
+  name: string;
+  run: string;
+  total: number;
+  correct: number;
+  score: number;
+  blockingMisses: QuizMiss[];
+  advisoryMisses: QuizMiss[];
+  writer: { host: string; model: string; cost: Cost };
+  answerer: { host: string; model: string; cost: Cost };
+};
 export type ModelHealth = { host: string; model: string; roles: string[]; ready: boolean; reason: string | null; offline: boolean };
 
 export type RunSummary = {
@@ -124,6 +136,7 @@ export const api = {
   skills: () => request<SkillRecord[]>('/api/skills'),
   approveSkill: (id: string) => post<unknown>(`/api/skills/${id}/approve`),
   rejectSkill: (id: string, reason: string) => post<unknown>(`/api/skills/${id}/reject`, { reason }),
+  quiz: (id: string, name: string) => post<QuizResult>(`/api/tasks/${id}/handoffs/${name}/quiz`),
   stopRun: (id: string, run: string) => post<unknown>(`/api/tasks/${id}/runs/${run}/stop`),
   autopilot: (id: string, on: boolean) => post<{ on: boolean; running: string[]; queued: string[] }>(`/api/tasks/${id}/autopilot`, { on }),
 };
@@ -151,7 +164,7 @@ export function subscribe(path: string, onEvent: (e: StintEvent) => void, onFall
     'human.command', 'file.changed', 'decision.recorded', 'verification.ran', 'review.recorded', 'handoff.created', 'approval.requested',
     'approval.granted', 'approval.rejected', 'rule.blocked', 'skill.applied', 'skill.proposed', 'skill.approved', 'skill.rejected',
     'merge.completed', 'learn.skipped', 'provider.fallback', 'cost.unpriced', 'runtime.unclassified', 'autopilot.started', 'autopilot.step',
-    'autopilot.stopped',
+    'autopilot.stopped', 'handoff.quizzed',
   ];
   for (const t of types) es.addEventListener(t, handler as EventListener);
   es.onerror = () => {

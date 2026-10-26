@@ -29,6 +29,7 @@ export const EVENT_TYPES = [
   'autopilot.started',
   'autopilot.step',
   'autopilot.stopped',
+  'handoff.quizzed',
   'provider.fallback',
   'cost.unpriced',
   'runtime.unclassified',

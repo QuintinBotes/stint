@@ -2,7 +2,7 @@ import type { Config } from '@stint-dev/core';
 
 export type ModelHealth = { host: string; model: string; roles: string[]; ready: boolean; reason: string | null; offline: boolean };
 
-const ROLE_OF: Record<string, string> = { planner: 'plans', reviewer: 'reviews', agent: 'builds', learn: 'learns', summary: 'summarises' };
+const ROLE_OF: Record<string, string> = { planner: 'plans', reviewer: 'reviews', agent: 'builds', learn: 'learns', summary: 'summarises', quiz: 'checks packets', recall: 'checks packets' };
 
 let cache: { at: number; key: string; value: ModelHealth[] } | null = null;
 

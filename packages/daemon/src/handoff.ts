@@ -37,7 +37,7 @@ const SECRET = /\b([A-Z][A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)=\S+/g;
 const scrub = (s: string) => s.replace(SECRET, '$1=[redacted]');
 
 /** A run's events, and the events of the whole task up to its end. */
-function runSlice(events: StintEvent[], run: string) {
+export function runSlice(events: StintEvent[], run: string) {
   const started = events.find((e) => e.type === 'run.started' && e.run === run);
   if (!started) throw new DaemonError('not_found', `no run ${run}`);
   const finished = events.find((e) => e.type === 'run.finished' && e.run === run);

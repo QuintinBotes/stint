@@ -51,6 +51,9 @@ export const ConfigSchema = z.strictObject({
     embed: z.array(HostModelRef).optional(),
     /** The Stint agent's hosts, in order (R-013). */
     agent: z.array(HostModelRef).optional(),
+    /** The packet quiz: who writes facts from the full record, and who answers them from the packet alone. */
+    quiz: z.array(HostModelRef).optional(),
+    recall: z.array(HostModelRef).optional(),
   }),
   /** USD per million tokens, keyed by `host/model`. */
   prices: z.record(z.string(), PriceSchema),
@@ -131,6 +134,8 @@ export const DEFAULT_CONFIG: Config = {
     learn: ['baseten/muse-spark-open', 'meta-api/muse-spark-1.3', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
     summary: ['ollama/muse-glimmer:30b-mlx', 'baseten/muse-spark-open'],
     agent: ['meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
+    quiz: ['meta-api/muse-wonder-1.0', 'meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open'],
+    recall: ['ollama/muse-glimmer:30b-mlx', 'meta-api/muse-spark-1.3', 'baseten/muse-spark-open'],
   },
   prices: {
     'meta-api/muse-spark-1.3': { input: 1.25, cached: 0.15, output: 5 },

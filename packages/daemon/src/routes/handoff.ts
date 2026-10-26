@@ -3,6 +3,7 @@ import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { Enrichment, RunResult } from '../adapter';
 import type { DaemonContext } from '../app';
+import { quizPacket } from '../quiz';
 import { DaemonError } from '../errors';
 import { buildHandoff } from '../handoff';
 import { assign, stop } from '../lifecycle';
@@ -49,6 +50,9 @@ const HandBody = z.strictObject({
 });
 
 export function handoffRoutes(app: Hono, ctx: DaemonContext): void {
+  // the packet fidelity quiz: facts from the full record, answered from the packet alone
+  app.post('/api/tasks/:id/handoffs/:name/quiz', async (c) => c.json(await quizPacket(ctx, c.req.param('id'), c.req.param('name'))));
+
   app.post('/api/tasks/:id/handoff', async (c) => {
     const id = c.req.param('id');
     const body = HandoffBody.parse(await c.req.json().catch(() => ({})));

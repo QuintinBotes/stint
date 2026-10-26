@@ -10,7 +10,7 @@ test('model health: a cloud model is ready when its key is set, waits with the r
     const rows = await modelHealth(config, { META_API_KEY: 'k' });
     const find = (host: string, model: string) => rows.find((r) => r.host === host && r.model === model);
     expect(find('meta-api', 'muse-spark-1.3')).toMatchObject({ ready: true, roles: expect.arrayContaining(['builds']) });
-    expect(find('meta-api', 'muse-wonder-1.0')).toMatchObject({ ready: true, roles: ['plans'] });
+    expect(find('meta-api', 'muse-wonder-1.0')).toMatchObject({ ready: true, roles: ['checks packets', 'plans'] });
     expect(find('baseten', 'muse-spark-open')).toMatchObject({ ready: false, reason: 'BASETEN_API_KEY is not set' });
     expect(find('modal', 'muse-spark-open')).toMatchObject({ ready: false });
     expect(find('ollama', 'muse-glimmer:30b-mlx')).toMatchObject({ ready: true, offline: true, roles: expect.arrayContaining(['reviews']) });

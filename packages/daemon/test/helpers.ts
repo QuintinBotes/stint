@@ -73,7 +73,11 @@ export function fakeAdapter(behaviour: FakeBehaviour, roles: Array<'planner' | '
       seen.push(ctx);
       await ctx.emit({ type: 'agent.tool_call', payload: { tool: 'write_file', args: { path: 'src/lib/limiter.ts' }, callId: 'c1' } });
       if (behaviour === 'sleep') {
-        await new Promise<void>((resolve) => ctx.signal.addEventListener('abort', () => resolve(), { once: true }));
+        // a stop can land before the listener is attached; an already aborted signal never fires again
+        await new Promise<void>((resolve) => {
+          if (ctx.signal.aborted) resolve();
+          else ctx.signal.addEventListener('abort', () => resolve(), { once: true });
+        });
         return { endedBy: 'killed', cost: { inputTokens: 10, cachedTokens: 0, outputTokens: 2, usd: 0 }, inFlight: 'write_file src/lib/limiter.ts' };
       }
       await Bun.write(`${ctx.worktree}/src/lib/limiter.ts`, 'export const LIMIT = 60;\n');
