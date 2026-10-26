@@ -28,6 +28,14 @@ export function autopilotTail(events: StintEvent[]): StintEvent[] | null {
   return start < 0 ? null : events.slice(start);
 }
 
+/** What a board card shows: on or off, and the latest step or the reason it stopped. */
+export function autopilotCard(events: StintEvent[]): { on: boolean; step: string | null; reason: string | null; queued: boolean } | null {
+  const last = events.filter((e) => e.type.startsWith('autopilot.')).at(-1);
+  if (!last) return null;
+  if (last.type === 'autopilot.stopped') return { on: false, step: 'stopped', reason: String(last.payload.reason ?? ''), queued: false };
+  return { on: true, step: last.type === 'autopilot.step' ? String(last.payload.step) : 'starting', reason: last.type === 'autopilot.step' ? String(last.payload.reason ?? '') : null, queued: !!last.payload.queued };
+}
+
 /** A task holds a slot once it has taken a step that is not waiting in the queue. */
 export function holdsSlot(tail: StintEvent[]): boolean {
   return tail.some((e) => e.type === 'autopilot.step' && !e.payload.queued);

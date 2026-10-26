@@ -4,6 +4,7 @@ import { Dialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions 
 import { Kbd } from './components/ui';
 import { useHealth } from './hooks';
 import { Board } from './routes/Board';
+import { Factory } from './routes/Factory';
 import { Placeholder, TaskView } from './routes/TaskView';
 import { useTheme } from './theme';
 
@@ -55,7 +56,7 @@ export function App() {
         <Routes>
           <Route path="/" element={<Board />} />
           <Route path="/t/:id" element={<TaskView memoryOpen={memoryOpen} />} />
-          <Route path="/factory" element={<Placeholder title="Factory">Loops by state, cost per day by agent, the benchmark and the adjudication queue appear here. The Factory view arrives in R-019.</Placeholder>} />
+          <Route path="/factory" element={<Factory />} />
           <Route path="/skills" element={<Placeholder title="Skills">Skills the agents load, and the ones the learn step proposes, appear here. The skills registry arrives in R-020.</Placeholder>} />
           <Route path="*" element={<Placeholder title="Not found">There is nothing at this address. The board is at the top left.</Placeholder>} />
         </Routes>

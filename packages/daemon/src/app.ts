@@ -15,7 +15,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
-import { Autopilot } from './autopilot';
+import { Autopilot, autopilotCard } from './autopilot';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
@@ -178,6 +178,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
         lastRun: runs.at(-1) ?? null,
         lastEventAt: events.at(-1)?.ts ?? task.updatedAt,
         summary: typeof lastMessage?.payload.text === 'string' ? lastMessage.payload.text.slice(0, 200) : null,
+        autopilot: autopilotCard(events),
       });
     }
     return c.json({ tasks: cards });
@@ -212,7 +213,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
 
   app.get('/api/costs', async (c) => {
     const group = (c.req.query('group') ?? 'task') as CostGroup;
-    if (!['task', 'run', 'day', 'host'].includes(group)) throw new DaemonError('invalid', `unknown group ${group}`, 'task, run, day or host');
+    if (!['task', 'run', 'day', 'host', 'model', 'day-host'].includes(group)) throw new DaemonError('invalid', `unknown group ${group}`, 'task, run, day, host, model or day-host');
     const rows = await costs(ws, { group });
     if (group !== 'host') return c.json(rows);
     // credits left are derived: the balance the person entered minus what the daemon metered

@@ -28,9 +28,24 @@ export type RunSummary = {
 };
 
 export type Verification = { run: string; command: string; exitCode: number; passed: number; failed: number; durationMs: number; runBy: 'daemon'; status: 'green' | 'red'; at: string };
-export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost };
-export type TaskCardData = { task: Task; cost: Cost; lastRun: RunSummary | null; lastEventAt: string; summary: string | null };
-export type CostRow = Cost & { key: string; runs: number };
+export type MergeRecord = { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> };
+export type TaskBundle = { task: Task; plan: Plan | null; handoff: Handoff | null; review: Review | null; verification: Verification | null; runs: RunSummary[]; cost: Cost; merge?: MergeRecord | null };
+export type AutopilotCard = { on: boolean; step: string | null; reason: string | null; queued: boolean };
+export type TaskCardData = { task: Task; cost: Cost; lastRun: RunSummary | null; lastEventAt: string; summary: string | null; autopilot?: AutopilotCard | null };
+export type GraphNode = { id: string; type: string; label: string; data: Record<string, unknown> };
+export type GraphEdge = { id: string; from: string; to: string; type: string; recordedAt: string; validTo: string | null; eventId: string; data: Record<string, unknown> };
+export type GraphData = { nodes: GraphNode[]; edges: GraphEdge[]; asOf: string | null; total: number };
+export type PendingItem = {
+  id: string;
+  kind: 'contradiction';
+  task: string;
+  run: string;
+  agent: string;
+  decision: { id: string; text: string } | null;
+  finding: { id: string; text: string; file?: string };
+  at: string;
+};
+export type CostRow = Cost & { key: string; runs: number; roles?: string[] };
 export type DemoStatus = { playing: boolean; paused: boolean; at: number; total: number; title: string | null; live: boolean | null; recordedAt: string | null; done: boolean };
 export type ApiError = { code: string; message: string; hint: unknown };
 
@@ -85,13 +100,18 @@ export const api = {
   handoffNames: (id: string) => request<{ names: string[] }>(`/api/tasks/${id}/handoffs`).then((r) => r.names),
   handoff: (id: string, name: string) => request<{ name: string; packet: Handoff; meta: unknown }>(`/api/tasks/${id}/handoffs/${name}`),
   diffFiles: (id: string) => request<Array<{ path: string; added: number; removed: number }>>(`/api/tasks/${id}/diff?format=json`),
-  costs: (group: 'task' | 'run' | 'day' | 'host') => request<CostRow[]>(`/api/costs?group=${group}`),
+  costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
   demoStatus: () => request<DemoStatus>('/api/demo/status'),
   createTask: (t: { title: string; goal: string; acceptance: string[]; testCommand?: string }) => post<Task>('/api/tasks', t),
   verify: (id: string) => post<Verification>(`/api/tasks/${id}/verify`),
   approve: (id: string) => post<unknown>(`/api/tasks/${id}/approve`),
   reject: (id: string, reason: string) => post<unknown>(`/api/tasks/${id}/reject`, { reason }),
   requestChanges: (id: string, text: string) => post<unknown>(`/api/tasks/${id}/request-changes`, { text }),
+  graph: (id: string) => request<GraphData>(`/api/tasks/${id}/graph`),
+  graphQuery: <T>(params: Record<string, string>) => request<T[]>(`/api/graph/query?${new URLSearchParams(params)}`),
+  pending: () => request<PendingItem[]>('/api/graph/pending'),
+  settle: (name: string, action: 'keep' | 'supersede') => post<unknown>(`/api/graph/pending/${name}`, { action }),
+  autopilot: (id: string, on: boolean) => post<{ on: boolean; running: string[]; queued: string[] }>(`/api/tasks/${id}/autopilot`, { on }),
 };
 
 export type Unsubscribe = () => void;
@@ -116,7 +136,8 @@ export function subscribe(path: string, onEvent: (e: StintEvent) => void, onFall
     'task.created', 'task.status', 'run.started', 'run.finished', 'run.refused', 'agent.message', 'agent.tool_call', 'agent.tool_result',
     'human.command', 'file.changed', 'decision.recorded', 'verification.ran', 'review.recorded', 'handoff.created', 'approval.requested',
     'approval.granted', 'approval.rejected', 'rule.blocked', 'skill.applied', 'skill.proposed', 'skill.approved', 'skill.rejected',
-    'merge.completed', 'learn.skipped', 'provider.fallback', 'cost.unpriced', 'runtime.unclassified',
+    'merge.completed', 'learn.skipped', 'provider.fallback', 'cost.unpriced', 'runtime.unclassified', 'autopilot.started', 'autopilot.step',
+    'autopilot.stopped',
   ];
   for (const t of types) es.addEventListener(t, handler as EventListener);
   es.onerror = () => {

@@ -26,6 +26,12 @@ export function TaskCard({ card }: { card: TaskCardData }) {
           <CostMeter cost={card.cost} />
         </span>
       </div>
+      {card.autopilot?.on ? (
+        <p className="mt-2 flex items-center gap-2 text-[12px] min-w-0" data-testid="autopilot-chip">
+          <StatusChip label={card.autopilot.queued ? 'queued' : `autopilot: ${card.autopilot.step}`} tone={card.autopilot.queued ? 'neutral' : 'active'} />
+          {card.autopilot.reason ? <span className="text-muted truncate">{card.autopilot.reason}</span> : null}
+        </p>
+      ) : null}
       {card.summary ? <p className="mt-2 text-[12px] text-muted line-clamp-2">{card.summary}</p> : null}
     </Link>
   );

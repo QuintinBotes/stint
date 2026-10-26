@@ -263,7 +263,7 @@ export function usePaletteActions(extra: { newTask: () => void; setTheme: (t: Th
       { id: 'assign', label: 'Assign to an agent', cli: 'stint assign', arrivesIn: 'R-009' },
       { id: 'hand', label: 'Hand to another agent', cli: 'stint hand', arrivesIn: 'R-012' },
       { id: 'verify', label: 'Verify (the daemon runs the tests)', cli: 'stint verify', arrivesIn: 'R-016' },
-      { id: 'approve', label: 'Approve and merge', cli: 'stint approve', arrivesIn: 'R-017' },
+      { id: 'approve', label: 'Approve and merge', cli: 'stint approve' },
       { id: 'terminal', label: 'Open the terminal', cli: 'stint shell', arrivesIn: 'R-008' },
       {
         id: 'theme',

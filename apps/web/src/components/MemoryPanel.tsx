@@ -1,0 +1,354 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
+import { modelName } from '../agents';
+import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, api } from '../api';
+import type { LayoutIn, LayoutOut } from '../graph.worker';
+import { useTasks } from '../hooks';
+import { Button, EmptyState, cx } from './ui';
+
+const W = 328;
+const H = 260;
+
+const COLOUR: Record<string, string> = {
+  task: 'var(--accent)',
+  decision: 'var(--status-warn)',
+  skill: 'var(--status-good)',
+  finding: 'var(--status-bad)',
+  outcome: 'var(--status-good)',
+  file: 'var(--ink-faint)',
+  run: 'var(--ink-muted)',
+};
+const TYPE_NAMES: Array<[string, string]> = [
+  ['task', 'task'],
+  ['decision', 'decision'],
+  ['finding', 'finding'],
+  ['skill', 'skill'],
+  ['file', 'file'],
+  ['run', 'run'],
+];
+
+/** File basename, decision id, run, finding id: the shortest name that is still unambiguous on this graph. */
+export function shortLabel(n: GraphNode): string {
+  if (n.type === 'file') return n.label.split('/').at(-1) ?? n.label;
+  if (n.type === 'decision' || n.type === 'run') return n.id.split('/').at(-1) ?? n.label;
+  if (n.type === 'finding') return n.id.split('#').at(-1) ?? n.label;
+  if (n.type === 'task') return n.id.slice('task:'.length);
+  return n.label;
+}
+
+const at = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+type NodeState = 'on' | 'faded' | 'hidden';
+
+/** Which nodes stand at a moment: touched by an edge valid then, faded when every edge they had has ended. */
+export function stateAt(nodes: GraphNode[], edges: GraphEdge[], ts: number, centre: string): Map<string, NodeState> {
+  const state = new Map<string, NodeState>(nodes.map((n) => [n.id, n.id === centre ? 'on' : 'hidden']));
+  for (const e of edges) {
+    const from = Date.parse(e.recordedAt);
+    if (from > ts) continue;
+    const valid = e.validTo === null || ts < Date.parse(e.validTo);
+    for (const id of [e.from, e.to]) {
+      if (valid) state.set(id, 'on');
+      else if (state.get(id) === 'hidden') state.set(id, 'faded');
+    }
+  }
+  return state;
+}
+
+function useLayout(graph: GraphData | null, centre: string): Map<string, { x: number; y: number }> {
+  const [pos, setPos] = useState(new Map<string, { x: number; y: number }>());
+  useEffect(() => {
+    if (!graph) return;
+    const worker = new Worker(new URL('../graph.worker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (e: MessageEvent<LayoutOut>) => setPos(new Map(e.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }])));
+    const msg: LayoutIn = { type: 'layout', nodes: graph.nodes.map((n) => ({ id: n.id, pinned: n.id === centre })), edges: graph.edges, width: W, height: H };
+    worker.postMessage(msg);
+    return () => worker.terminate();
+  }, [graph, centre]);
+  return pos;
+}
+
+function Graph({ graph, centre, ts, onOpenFile }: { graph: GraphData; centre: string; ts: number; onOpenFile: (path: string) => void }) {
+  const pos = useLayout(graph, centre);
+  const state = useMemo(() => stateAt(graph.nodes, graph.edges, ts, centre), [graph, ts, centre]);
+  const firstEdge = useMemo(() => {
+    const m = new Map<string, GraphEdge>();
+    for (const e of [...graph.edges].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))) for (const id of [e.from, e.to]) if (!m.has(id)) m.set(id, e);
+    return m;
+  }, [graph]);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded-md border border-line bg-sunken" role="img" aria-label="Memory graph" data-testid="memory-graph">
+      {graph.edges.map((e) => {
+        const a = pos.get(e.from);
+        const b = pos.get(e.to);
+        if (!a || !b) return null;
+        const recorded = Date.parse(e.recordedAt) <= ts;
+        const valid = recorded && (e.validTo === null || ts < Date.parse(e.validTo));
+        if (!recorded) return null;
+        return <line key={e.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--border-strong)" strokeWidth={1} opacity={valid ? 0.9 : 0.25} />;
+      })}
+      {graph.nodes.map((n) => {
+        const p = pos.get(n.id);
+        const s = state.get(n.id) ?? 'hidden';
+        if (!p || s === 'hidden') return null;
+        const first = firstEdge.get(n.id);
+        const big = n.type === 'task' || n.type === 'decision' || n.type === 'skill';
+        const clickable = n.type === 'file';
+        return (
+          <g
+            key={n.id}
+            transform={`translate(${p.x},${p.y})`}
+            opacity={s === 'faded' ? 0.35 : 1}
+            data-node={n.id}
+            data-state={s}
+            className={cx(clickable && 'cursor-pointer')}
+            onClick={clickable ? () => onOpenFile(n.label) : undefined}
+          >
+            <title>{`${n.label}${first ? `, recorded at ${at(first.recordedAt)} by event ${first.eventId}` : ''}${s === 'faded' ? ', no longer in force' : ''}`}</title>
+            <circle r={n.id === centre ? 8 : big ? 6 : 4} fill={COLOUR[n.type] ?? 'var(--ink-faint)'} stroke="var(--surface)" strokeWidth={1.5} />
+            {big || n.type === 'finding' ? (
+              <text x={p.x > W - 110 ? -9 : 9} y={4} textAnchor={p.x > W - 110 ? 'end' : 'start'} fontSize={10} fill="var(--ink)" className="tabular select-none">
+                {shortLabel(n)}
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+const QUERY_TABS = [
+  ['similar', 'Similar'],
+  ['travels', 'Travels with'],
+  ['constrains', 'Constrains'],
+] as const;
+type QueryTab = (typeof QUERY_TABS)[number][0];
+
+type SimilarRow = { task: string; score: number; evidence: { files: string[]; themes: string[]; tags: string[] } };
+type ConstrainsRow = { kind: 'decision' | 'finding'; id: string; task: string; text: string; files: string[] };
+
+function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: string | null }) {
+  const [tab, setTab] = useState<QueryTab>('similar');
+  const [loaded, setLoaded] = useState<{ tab: QueryTab; rows: unknown[] } | null>(null);
+  // rows belong to the tab that asked for them; a switch shows nothing until its own rows arrive
+  const rows = loaded?.tab === tab ? loaded.rows : null;
+  const { data: cards } = useTasks();
+  const title = (t: string) => cards?.find((c) => c.task.id === t)?.task.title ?? t;
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      if (tab === 'similar') return api.graphQuery<SimilarRow>({ q: 'similar', task: id });
+      if (tab === 'constrains') return api.graphQuery<ConstrainsRow>({ q: 'constrains', task: id, ...(asOf ? { asOf } : {}) });
+      // the files this task touched, and what changes alongside each
+      const mine = graph.edges.filter((e) => e.type === 'touches' && e.from.startsWith(`run:${id}/`)).map((e) => e.to.slice('file:'.length));
+      const counts = new Map<string, number>();
+      for (const path of [...new Set(mine)].slice(0, 6)) {
+        for (const r of await api.graphQuery<{ path: string; count: number }>({ q: 'files-together', path })) if (!mine.includes(r.path)) counts.set(r.path, (counts.get(r.path) ?? 0) + r.count);
+      }
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([path, count]) => ({ path, count }));
+    };
+    load()
+      .then((r) => live && setLoaded({ tab, rows: r }))
+      .catch(() => live && setLoaded({ tab, rows: [] }));
+    return () => {
+      live = false;
+    };
+  }, [tab, id, graph, asOf]);
+
+  return (
+    <div className="mt-4">
+      <div role="tablist" className="flex gap-1 border-b border-line mb-2">
+        {QUERY_TABS.map(([k, name]) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={tab === k}
+            data-testid={`memory-tab-${k}`}
+            onClick={() => setTab(k)}
+            className={cx('h-7 px-2 -mb-px border-b-2 text-[12px]', tab === k ? 'border-accent text-ink font-medium' : 'border-transparent text-muted hover:text-ink')}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+      {rows === null ? <p className="text-faint text-[12px] py-2">Reading the graph.</p> : null}
+      {rows?.length === 0 ? (
+        <p className="text-faint text-[12px] py-2">
+          {tab === 'similar' ? 'No earlier task shares files, findings or tags with this one.' : tab === 'constrains' ? 'No decision or open finding applies to these files.' : 'These files have not changed alongside others yet.'}
+        </p>
+      ) : null}
+      <ul className="flex flex-col gap-2" data-testid={`memory-rows-${tab}`}>
+        {tab === 'similar'
+          ? (rows as SimilarRow[] | null)?.map((r) => (
+              <li key={r.task} className="text-[12px]">
+                <Link to={`/t/${r.task}`} className="font-medium text-ink hover:text-accent">
+                  {r.task} {title(r.task)}
+                </Link>
+                <p className="text-muted">
+                  {[
+                    r.evidence.files.length ? `shares ${r.evidence.files.join(', ')}` : null,
+                    r.evidence.themes.length ? `same findings on ${r.evidence.themes.slice(0, 3).join(', ')}` : null,
+                    r.evidence.tags.length ? `tagged ${r.evidence.tags.join(', ')}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join('; ')}
+                </p>
+              </li>
+            ))
+          : null}
+        {tab === 'constrains'
+          ? (rows as ConstrainsRow[] | null)?.map((r) => (
+              <li key={`${r.task}-${r.id}`} className="text-[12px]">
+                <span className={cx('font-medium', r.kind === 'decision' ? 'text-warn' : 'text-bad')}>
+                  {r.id}
+                  {r.task !== id ? ` (${r.task})` : ''}
+                </span>{' '}
+                <span className="text-ink">{r.text}</span>
+                <p className="text-faint">{r.files.slice(0, 3).join(', ')}{r.files.length > 3 ? `, ${r.files.length - 3} more` : ''}</p>
+              </li>
+            ))
+          : null}
+        {tab === 'travels'
+          ? (rows as Array<{ path: string; count: number }> | null)?.map((r) => (
+              <li key={r.path} className="text-[12px] flex justify-between gap-2">
+                <span className="font-mono text-ink truncate">{r.path}</span>
+                <span className="tabular text-muted shrink-0">{r.count === 1 ? 'once' : `${r.count} times`}</span>
+              </li>
+            ))
+          : null}
+      </ul>
+    </div>
+  );
+}
+
+/** Contradictions wait here for a person: a reviewer may not reverse a decision on its own. */
+export function Queue({ only, onSettled }: { only?: string; onSettled?: () => void }) {
+  const [items, setItems] = useState<PendingItem[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = useCallback(() => {
+    api
+      .pending()
+      .then((p) => setItems(only ? p.filter((x) => x.task === only) : p))
+      .catch(() => setItems([]));
+  }, [only]);
+  useEffect(load, [load]);
+  if (!items || items.length === 0) return null;
+  const settle = (name: string, action: 'keep' | 'supersede') => {
+    setBusy(name);
+    api
+      .settle(name, action)
+      .then(() => {
+        load();
+        onSettled?.();
+      })
+      .finally(() => setBusy(null));
+  };
+  return (
+    <section className="mb-4" aria-label="Waiting for you" data-testid="queue">
+      <h3 className="text-[12px] font-semibold text-warn mb-2">Waiting for you</h3>
+      <ul className="flex flex-col gap-2">
+        {items.map((p) => (
+          <li key={p.id} className="rounded-md border border-warn/40 bg-warn-tint p-3 text-[12px]" data-testid="queue-row">
+            <p className="text-muted mb-2">
+              {modelName(p.agent)}'s review of {p.task} would reverse {p.decision?.id ?? 'a decision'}. It is not applied until you decide.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div>
+                <p className="font-medium text-ink">{p.decision?.id ?? 'Decision'}</p>
+                <p className="text-ink">{p.decision?.text ?? 'Not found in decisions.md'}</p>
+              </div>
+              <div>
+                <p className="font-medium text-ink">{p.finding.id}</p>
+                <p className="text-ink">{p.finding.text}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button className="h-7" disabled={busy === p.id} onClick={() => settle(p.id, 'keep')}>
+                Keep {p.decision?.id ?? 'it'}
+              </Button>
+              <Button className="h-7" disabled={busy === p.id || !p.decision} onClick={() => settle(p.id, 'supersede')}>
+                Supersede {p.decision?.id ?? ''}
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function MemoryPanel({ id, asOf, setAsOf, onOpenFile, version }: { id: string; asOf: string | null; setAsOf: (v: string | null) => void; onOpenFile: (path: string) => void; version: number }) {
+  const [graph, setGraph] = useState<GraphData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    api
+      .graph(id)
+      .then((g) => {
+        setGraph(g);
+        setError(null);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, [id, version]);
+  const range = useMemo(() => {
+    if (!graph || graph.edges.length === 0) return null;
+    const times = graph.edges.map((e) => Date.parse(e.recordedAt));
+    return { from: Math.min(...times), to: Math.max(...times) };
+  }, [graph]);
+  const [draft, setDraft] = useState<number | null>(null);
+  const ts = draft ?? (asOf ? Date.parse(asOf) : (range?.to ?? Date.now()));
+  const centre = `task:${id}`;
+
+  return (
+    <aside className="h-full overflow-y-auto p-4 border-l border-line" aria-label="Memory" data-testid="memory-panel">
+      <h2 className="text-[13px] font-semibold mb-3">Memory</h2>
+      <Queue />
+      {error ? <EmptyState testId="empty-memory">The memory graph could not be read: {error}</EmptyState> : null}
+      {!error && graph && graph.nodes.length <= 1 ? (
+        <EmptyState testId="empty-memory">Similar past tasks, the decisions that constrain this task and the files that change together appear here once a run has touched something.</EmptyState>
+      ) : null}
+      {graph && graph.nodes.length > 1 && range ? (
+        <>
+          <Graph graph={graph} centre={centre} ts={ts} onOpenFile={onOpenFile} />
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-muted">
+            {TYPE_NAMES.map(([t, name]) => (
+              <span key={t} className="inline-flex items-center gap-1">
+                <span aria-hidden className="inline-block size-2 rounded-full" style={{ background: COLOUR[t] }} />
+                {name}
+              </span>
+            ))}
+          </div>
+          <div className="mt-3">
+            <label className="flex items-center justify-between text-[12px] text-muted mb-1" htmlFor="memory-scrubber">
+              <span>
+                As of <span className="tabular text-ink" data-testid="memory-asof">{at(new Date(ts).toISOString())}</span>
+              </span>
+              <Button className="h-6 px-2 text-[11px]" disabled={!asOf && draft === null} onClick={() => { setDraft(null); setAsOf(null); }}>
+                Now
+              </Button>
+            </label>
+            <input
+              id="memory-scrubber"
+              data-testid="memory-scrubber"
+              type="range"
+              min={range.from}
+              max={range.to}
+              step={Math.max(1, Math.round((range.to - range.from) / 400))}
+              value={Math.min(range.to, Math.max(range.from, ts))}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setDraft(v);
+                if (timer.current) clearTimeout(timer.current);
+                timer.current = setTimeout(() => setAsOf(v >= range.to ? null : new Date(v).toISOString()), 100);
+              }}
+              className="w-full accent-[var(--accent)]"
+            />
+          </div>
+          <Queries id={id} graph={graph} asOf={asOf} />
+        </>
+      ) : null}
+    </aside>
+  );
+}

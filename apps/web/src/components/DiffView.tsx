@@ -40,7 +40,7 @@ export function DiffView({ taskId, version }: { taskId: string; version: number 
   return (
     <div className="flex flex-col gap-4" data-testid="diff">
       {files.map((f) => (
-        <section key={f.path} data-testid="diff-file" className="rounded-md border border-line overflow-hidden">
+        <section key={f.path} id={`diff-${f.path}`} data-testid="diff-file" className="rounded-md border border-line overflow-hidden scroll-mt-4">
           <h3 className="px-3 py-1.5 bg-raised border-b border-line font-mono text-[12px]">{f.path}</h3>
           <pre className="font-mono text-[12px] leading-[18px] overflow-x-auto">
             {f.lines.map((l, i) => (

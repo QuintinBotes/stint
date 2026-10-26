@@ -6,9 +6,12 @@ import { api } from '../api';
 import { ApprovalGate } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard, VerificationCard } from '../components/Cards';
 import { DiffView } from '../components/DiffView';
+import { MemoryPanel } from '../components/MemoryPanel';
 import { Rail } from '../components/Rail';
 import { Button, CostMeter, EmptyState, StatusChip, cx } from '../components/ui';
 import { useEvents, useTask } from '../hooks';
+
+const GRAPH_EVENTS = new Set(['run.finished', 'decision.recorded', 'review.recorded', 'skill.applied', 'skill.approved', 'approval.granted', 'approval.rejected', 'merge.completed', 'human.command']);
 
 export const TABS = ['diff', 'terminal', 'plan', 'packet', 'review', 'verification'] as const;
 export type Tab = (typeof TABS)[number];
@@ -78,6 +81,20 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     };
   }, [id, packetName, handoffCount]);
   const diffVersion = useMemo(() => events.filter((e) => e.type === 'run.finished' || e.type === 'merge.completed').length, [events]);
+  const graphVersion = useMemo(() => events.filter((e) => GRAPH_EVENTS.has(e.type)).length, [events]);
+  const autopilot = useMemo(() => {
+    const last = events.filter((e) => e.type.startsWith('autopilot.')).at(-1);
+    if (!last) return { on: false, text: null as string | null };
+    return { on: last.type !== 'autopilot.stopped', text: typeof last.payload.reason === 'string' ? last.payload.reason : last.type === 'autopilot.started' ? 'Starting.' : null };
+  }, [events]);
+  const [autoBusy, setAutoBusy] = useState(false);
+  const toggleAutopilot = () => {
+    setAutoBusy(true);
+    api
+      .autopilot(id, !autopilot.on)
+      .catch(() => undefined)
+      .finally(() => setAutoBusy(false));
+  };
 
   if (error) return <p className="p-4 text-bad">This task could not be read: {error}</p>;
   if (!bundle) return <p className="p-4 text-faint">Reading the task.</p>;
@@ -101,7 +118,24 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
           <Button className="h-7" onClick={() => setShowAll((s) => !s)} aria-pressed={showAll} data-testid="show-all">
             {showAll ? 'Show what matters' : 'Show all'}
           </Button>
+          {t.status !== 'done' ? (
+            <Button
+              className={cx('h-7', autopilot.on && 'border-accent text-accent')}
+              onClick={toggleAutopilot}
+              disabled={autoBusy}
+              aria-pressed={autopilot.on}
+              data-testid="autopilot-switch"
+              title="Plan, build, verify and review on its own, handing off when a run fails; it stops at your approval"
+            >
+              {autopilot.on ? 'Autopilot on' : 'Autopilot'}
+            </Button>
+          ) : null}
         </div>
+        {autopilot.text ? (
+          <p className="mt-2 text-[12px] text-muted" data-testid="autopilot-step">
+            {autopilot.text}
+          </p>
+        ) : null}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
         <Rail events={events} runs={bundle.runs} showAll={showAll} selected={selected} onSelect={(s) => setParam('ev', String(s))} onOpenPacket={(name) => {
@@ -156,10 +190,16 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
   );
 
   const memory = (
-    <aside className="h-full overflow-y-auto p-4 border-l border-line" aria-label="Memory" data-testid="memory-panel">
-      <h2 className="text-[13px] font-semibold mb-2">Memory</h2>
-      <EmptyState testId="empty-memory">Similar past tasks, the decisions that constrain this task and the files that change together appear here. The memory graph arrives in R-018.</EmptyState>
-    </aside>
+    <MemoryPanel
+      id={t.id}
+      asOf={params.get('asOf')}
+      setAsOf={(v) => setParam('asOf', v)}
+      version={graphVersion}
+      onOpenFile={(path) => {
+        setTab('diff');
+        setTimeout(() => document.getElementById(`diff-${path}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      }}
+    />
   );
 
   if (!wide) {

@@ -26,7 +26,7 @@ export function ApprovalGate({ bundle, onDone }: { bundle: TaskBundle; onDone: (
       setText('');
       onDone();
     } catch (e) {
-      setError(e instanceof DaemonError ? `${e.error.message}${e.error.code === 'not_found' ? ' (the merge route arrives in R-017)' : ''}` : String(e));
+      setError(e instanceof DaemonError ? `${e.error.message}${e.error.hint ? `: ${typeof e.error.hint === 'string' ? e.error.hint : JSON.stringify(e.error.hint)}` : ''}` : String(e));
     }
   };
   return (
@@ -37,9 +37,21 @@ export function ApprovalGate({ bundle, onDone }: { bundle: TaskBundle; onDone: (
       </div>
       {reason ? <p className="text-[12px] text-muted">{reason}</p> : null}
       {bundle.task.status === 'done' ? (
-        <p className="text-[12px]" data-testid="signoff">
-          Merged into the base branch with the Stint-Task trailer. The sign-off record arrives with R-017.
-        </p>
+        <div className="text-[12px]" data-testid="signoff">
+          {bundle.merge ? (
+            <>
+              <p>
+                Approved by {!bundle.merge.by || bundle.merge.by === 'human' ? 'you' : bundle.merge.by} and merged into {bundle.merge.into ?? 'the base branch'} as <span className="font-mono">{bundle.merge.commit.slice(0, 10)}</span>.
+              </p>
+              <p className="text-muted mt-1">
+                The commit carries Stint-Task: {bundle.task.id}
+                {bundle.merge.trailers['Stint-Verified'] ? `, Stint-Verified: ${bundle.merge.trailers['Stint-Verified']}` : ''}.
+              </p>
+            </>
+          ) : (
+            <p>Merged into the base branch with the Stint-Task trailer.</p>
+          )}
+        </div>
       ) : asking ? (
         <form
           className="flex flex-col gap-2"

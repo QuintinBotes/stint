@@ -57,6 +57,11 @@ test('A review fixture with one finding contradictsDecision D3 leaves decisions.
       expect((await ws.readTask(t.id)).status).toBe('awaiting_approval');
       const pending = (await (await app.request('/api/graph/pending')).json()) as Array<{ id: string }>;
       expect(pending.map((p) => p.id)).toEqual([`contradiction-${t.id}-F2`]);
+      // superseding it records D4 over D3 and the item leaves the queue
+      const settle = await app.request(`/api/graph/pending/contradiction-${t.id}-F2`, { method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'supersede' }) });
+      expect(settle.status).toBe(200);
+      expect((await ws.decisions(t.id).validAt()).map((d) => d.id)).toEqual(['D1', 'D2', 'D4']);
+      expect(await (await app.request('/api/graph/pending')).json()).toEqual([]);
     });
   } finally {
     ollama.stop();

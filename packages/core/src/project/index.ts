@@ -28,6 +28,8 @@ export type TaskBundle = {
   verification: VerificationRecord | null;
   runs: RunSummary[];
   cost: Cost;
+  /** The sign-off, from the log: who approved, when, and the merge commit. */
+  merge?: { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> } | null;
 };
 
 const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
@@ -83,7 +85,13 @@ export function sumCosts(costs: Array<Cost | null | undefined>): Cost {
 
 export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle> {
   const task = await ws.readTask(id);
-  const runs = runsFromEvents(await ws.events(id).read());
+  const events = await ws.events(id).read();
+  const runs = runsFromEvents(events);
+  const merged = events.filter((e) => e.type === 'merge.completed').at(-1);
+  const granted = events.filter((e) => e.type === 'approval.granted').at(-1);
+  const merge = merged
+    ? { commit: str(merged.payload.commit) ?? '', into: str(merged.payload.into), by: str(granted?.payload.by), at: merged.ts, trailers: (merged.payload.trailers ?? {}) as Record<string, string> }
+    : null;
   return {
     task,
     plan: await ws.readPlan(id),
@@ -92,6 +100,7 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
     verification: await ws.verification(id).latest(),
     runs,
     cost: sumCosts(runs.map((r) => r.cost)),
+    merge,
   };
 }
 
@@ -99,28 +108,40 @@ export function latestHandoff(ws: Workspace, id: string): Promise<Handoff | null
   return ws.handoffs(id).latest();
 }
 
-export type CostRow = Cost & { key: string; runs: number; creditsLeft?: number; derived?: true };
+export type CostRow = Cost & { key: string; runs: number; creditsLeft?: number; derived?: true; roles?: string[] };
 
 /** Local CLIs (Muse Code) run Meta models billed to the Meta Model API (D-018). */
 export function billingHost(host: string | null): string {
   return host === 'local-cli' || host === null ? 'meta-api' : host;
 }
-export type CostGroup = 'task' | 'run' | 'day' | 'host';
+export type CostGroup = 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host';
 
 /** Cost rows across every task, from `run.finished` events. `day` is the UTC date of the run's end. */
 export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<CostRow[]> {
   const groups = new Map<string, Array<Cost | null>>();
+  const roles = new Map<string, Set<string>>();
   for (const task of await ws.listTasks()) {
     for (const r of runsFromEvents(await ws.events(task.id).read())) {
       if (!r.endedAt) continue;
       const key =
-        o.group === 'task' ? task.id : o.group === 'run' ? `${task.id}/${r.run}` : o.group === 'day' ? r.endedAt.slice(0, 10) : billingHost(r.host);
+        o.group === 'task'
+          ? task.id
+          : o.group === 'run'
+            ? `${task.id}/${r.run}`
+            : o.group === 'day'
+              ? r.endedAt.slice(0, 10)
+              : o.group === 'model'
+                ? `${billingHost(r.host)}/${r.model ?? 'unknown'}`
+                : o.group === 'day-host'
+                  ? `${r.endedAt.slice(0, 10)}|${billingHost(r.host)}`
+                  : billingHost(r.host);
       const list = groups.get(key) ?? [];
       list.push(r.cost);
       groups.set(key, list);
+      if (r.role) roles.set(key, new Set([...(roles.get(key) ?? []), r.role]));
     }
   }
   return [...groups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, list]) => ({ key, ...sumCosts(list), runs: list.length }));
+    .map(([key, list]) => ({ key, ...sumCosts(list), runs: list.length, ...(o.group === 'model' ? { roles: [...(roles.get(key) ?? [])].sort() } : {}) }));
 }

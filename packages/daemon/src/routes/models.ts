@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   type Host,
@@ -9,7 +9,6 @@ import {
   renderPlanMarkdown,
 } from '@stint-dev/adapter-openai-compatible';
 import { type Plan, PlanSchema, type Review, ReviewSchema, renderHandoff } from '@stint-dev/core';
-import { readJsonIfExists } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
@@ -132,6 +131,38 @@ export async function reviewTask(ctx: DaemonContext, id: string, host?: string):
   return review;
 }
 
+export type PendingContradiction = {
+  id: string;
+  kind: 'contradiction';
+  task: string;
+  run: string;
+  agent: string;
+  decision: { id: string; text: string } | null;
+  finding: { id: string; text: string; file?: string; severity?: string; contradictsDecision?: string };
+  at: string;
+};
+
+/** The queue is a projection of the logs: a finding that contradicts a decision waits until a person settles it. */
+export async function pendingContradictions(ctx: DaemonContext): Promise<PendingContradiction[]> {
+  const out: PendingContradiction[] = [];
+  for (const t of await ctx.ws.listTasks()) {
+    const events = await ctx.ws.events(t.id).read();
+    const settled = new Set(events.map((e) => e.payload.queue).filter((q): q is string => typeof q === 'string'));
+    const decisions = new Map((await ctx.ws.decisions(t.id).read()).map((d) => [d.id, d.text]));
+    for (const e of events.filter((x) => x.type === 'review.recorded')) {
+      const review = e.payload.review as { model?: string; findings?: PendingContradiction['finding'][] } | undefined;
+      for (const f of review?.findings ?? []) {
+        if (!f.contradictsDecision) continue;
+        const id = `contradiction-${t.id}-${f.id}`;
+        if (settled.has(id) || out.some((o) => o.id === id)) continue;
+        const text = decisions.get(f.contradictsDecision);
+        out.push({ id, kind: 'contradiction', task: t.id, run: e.run ?? '', agent: review?.model ?? e.adapter ?? 'reviewer', decision: text ? { id: f.contradictsDecision, text } : null, finding: f, at: e.ts });
+      }
+    }
+  }
+  return out;
+}
+
 export function modelRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/plan', async (c) => {
     const { host } = HostBody.parse(await c.req.json().catch(() => ({})));
@@ -143,12 +174,22 @@ export function modelRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json(await reviewTask(ctx, c.req.param('id'), host));
   });
 
-  app.get('/api/graph/pending', async (c) => {
-    const { readdir } = await import('node:fs/promises');
-    const queue = join(ctx.ws.cacheDir, 'queue');
-    const names = await readdir(queue).catch(() => [] as string[]);
-    const items = [];
-    for (const n of names.filter((x) => x.endsWith('.json')).sort()) items.push({ id: n.replace(/\.json$/, ''), ...(await readJsonIfExists<Record<string, unknown>>(join(queue, n))) });
-    return c.json(items);
+  // a contradiction is settled by a person: keep the decision, or supersede it with the finding's view
+  app.post('/api/graph/pending/:name', async (c) => {
+    const name = c.req.param('name');
+    const { action } = z.strictObject({ action: z.enum(['keep', 'supersede']) }).parse(await c.req.json());
+    const item = (await pendingContradictions(ctx)).find((p) => p.id === name);
+    if (!item) throw new DaemonError('not_found', `no queued item ${name}`);
+    const events = ctx.ws.events(item.task);
+    if (action === 'supersede' && item.decision) {
+      const d = await ctx.ws.decisions(item.task).append({ text: item.finding.text.slice(0, 200), by: 'you', supersedes: item.decision.id, evidence: [`${item.task}/${item.run}#${item.finding.id}`] });
+      await events.append({ task: item.task, vendor: 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by, supersedes: item.decision.id, queue: name }, links: [{ kind: 'decision', ref: d.id }] });
+    } else {
+      await events.append({ task: item.task, vendor: 'human', type: 'human.command', payload: { text: `Kept ${item.decision?.id ?? 'the decision'}; ${item.finding.id} is not applied.`, queue: name } });
+    }
+    await rm(join(ctx.ws.cacheDir, 'queue', `${name}.json`), { force: true });
+    return c.json({ ok: true, action });
   });
+
+  app.get('/api/graph/pending', async (c) => c.json(await pendingContradictions(ctx)));
 }
