@@ -43,7 +43,10 @@ async function seed(): Promise<Workspace> {
 
 test('taskBundle on a seeded task dir equals the expected JSON fixture', async () => {
   const ws = await seed();
-  const bundle = mask(await taskBundle(ws, 'T-0042'));
+  const full = await taskBundle(ws, 'T-0042');
+  // the packet is the example file itself; the fixture covers everything the projection derives
+  expect(full.handoff).toEqual(example('handoff-killed') as Handoff);
+  const bundle = mask({ ...full, handoff: '<handoff-killed example>' });
   if (!existsSync(EXPECTED) || process.env.UPDATE_FIXTURES === '1') writeFileSync(EXPECTED, `${JSON.stringify(bundle, null, 2)}\n`);
   expect(bundle).toEqual(JSON.parse(readFileSync(EXPECTED, 'utf8')));
   const rows = await costs(ws, { group: 'run' });

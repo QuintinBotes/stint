@@ -54,6 +54,8 @@ describe('replay', () => {
       const types = frames.map((f) => f.event);
       expect(types.indexOf('handoff.created')).toBeGreaterThan(types.indexOf('run.started'));
       expect(frames.filter((f) => f.event !== 'heartbeat').every((f) => JSON.parse(f.data).payload.replay === true)).toBe(true);
+      // let the replay finish before the fixture copy is removed
+      while (((await (await app.request('/api/demo/status')).json()) as { playing: boolean }).playing) await Bun.sleep(20);
       const health = (await (await app.request('/api/health')).json()) as { mode: string; replay: { live: boolean } };
       expect(health.mode).toBe('replay');
       expect(health.replay.live).toBe(false);

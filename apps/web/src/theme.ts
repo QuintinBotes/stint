@@ -40,4 +40,4 @@ export function useTheme(): [ThemeChoice, (t: ThemeChoice) => void] {
   return [theme, setTheme];
 }
 
-applyTheme(read());
+if (typeof document !== 'undefined') applyTheme(read());

@@ -19,7 +19,8 @@
     "test:ui": "bun run --cwd apps/web test:ui",
     "fixture": "bash scripts/fixture.sh",
     "bootstrap": "bash scripts/bootstrap.sh",
-    "dev:web": "bun run --cwd apps/web dev"
+    "dev:web": "bun run --cwd apps/web dev",
+    "check": "bash scripts/check.sh"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",
