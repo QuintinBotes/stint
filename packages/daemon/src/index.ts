@@ -2,3 +2,8 @@ export * from './adapter';
 export * from './app';
 export * from './errors';
 export * from './server';
+export * from './env';
+export * from './git';
+export * from './runs';
+export * from './verifier';
+export * from './worktree';

@@ -16,6 +16,10 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, adapterHealth } from './adapter';
 import { DaemonError, errorResponse } from './errors';
+import { workRoutes } from './routes/work';
+import { RunRegistry } from './runs';
+import { DaemonVerifier, type Verifier } from './verifier';
+import { Worktrees } from './worktree';
 
 export const DAEMON_VERSION = '0.1.0';
 
@@ -30,9 +34,20 @@ export type AppOptions = {
   pollMs?: number;
   /** Extra fields for `/api/health` contributed by later subsystems (replay mode, PTY backend, hosts). */
   health?: Array<() => Promise<Record<string, unknown>> | Record<string, unknown>>;
+  verifier?: Verifier;
+  /** How often a live run's worktree is snapshotted into file.changed (default 5 s). */
+  snapshotMs?: number;
 };
 
-export type DaemonContext = { ws: Workspace; adapters: Adapter[]; opts: Required<Omit<AppOptions, 'health'>> & Pick<AppOptions, 'health'> };
+export type DaemonContext = {
+  ws: Workspace;
+  adapters: Adapter[];
+  opts: Required<Omit<AppOptions, 'health' | 'verifier' | 'snapshotMs'>> & Pick<AppOptions, 'health'>;
+  runs: RunRegistry;
+  worktrees: Worktrees;
+  verifier: Verifier;
+  snapshotMs: number;
+};
 
 const NewTaskBody = z.strictObject({
   title: z.string().min(1).max(120),
@@ -52,6 +67,7 @@ function tokenMatches(header: string | undefined, token: string): boolean {
 }
 
 export function createApp(ws: Workspace, adapters: Adapter[], options: AppOptions): Hono {
+  const { verifier, snapshotMs, ...rest } = options;
   const opts = {
     version: DAEMON_VERSION,
     startedAt: new Date().toISOString(),
@@ -59,9 +75,18 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     quiet: false,
     heartbeatMs: 15_000,
     pollMs: 1_000,
-    ...options,
+    ...rest,
   };
-  const ctx: DaemonContext = { ws, adapters, opts };
+  const runs = new RunRegistry();
+  const ctx: DaemonContext = {
+    ws,
+    adapters,
+    opts,
+    runs,
+    worktrees: new Worktrees(ws, runs),
+    verifier: verifier ?? new DaemonVerifier(ws),
+    snapshotMs: snapshotMs ?? 5_000,
+  };
   const app = new Hono();
 
   app.onError((err, c) => errorResponse(c, err));
@@ -245,4 +270,6 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
 }
 
 /** Later specs (verify, assign, handoff, approve, graph, skills) add their routes here. */
-function registerRoutes(_app: Hono, _ctx: DaemonContext): void {}
+function registerRoutes(app: Hono, ctx: DaemonContext): void {
+  workRoutes(app, ctx);
+}
