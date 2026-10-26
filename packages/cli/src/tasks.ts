@@ -76,3 +76,17 @@ export const assignTask = defineCommand({
     process.stdout.write(`${args.task} ${r.run} started in ${r.worktree}\n`);
   },
 });
+
+export const runTask = defineCommand({
+  meta: { name: 'run', description: 'Put a task on autopilot: plan, build, verify and review, stopping at your approval' },
+  args: {
+    task: { type: 'positional', required: true, description: 'Task id' },
+    stop: { type: 'boolean', description: 'Take the task off autopilot (a live run keeps going)' },
+    ...repoArg,
+  },
+  async run({ args }) {
+    const r = await postDaemon<{ running: string[]; queued: string[] }>(repoRoot(args.repo), `/api/tasks/${args.task}/autopilot`, { on: !args.stop });
+    if (args.stop) process.stdout.write(`${args.task} is off autopilot.\n`);
+    else process.stdout.write(`${args.task} is on autopilot${r.queued.includes(args.task) ? ', queued behind ' + r.running.join(', ') : ''}. It stops at your approval.\n`);
+  },
+});

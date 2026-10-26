@@ -43,6 +43,8 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     ...(o.heartbeatMs ? { heartbeatMs: o.heartbeatMs } : {}),
     ...(o.health ? { health: o.health } : {}),
   });
+  // a task the log says is on autopilot picks up where it was
+  void daemonContext(app).autopilot.resume();
   const { websocket } = createBunWebSocket();
   const server = Bun.serve({
     hostname: '127.0.0.1',

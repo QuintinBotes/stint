@@ -20,11 +20,8 @@ import { skillsFor } from '../skills';
 const ROOT_SCHEMAS = join(import.meta.dir, '..', '..', '..', 'core', 'schemas');
 const HostBody = z.strictObject({ host: z.enum(['meta-api', 'fireworks', 'baseten', 'modal', 'ollama']).optional() });
 
-let hostCache: { hosts: Record<string, Host>; at: number } | null = null;
-function hosts(ctx: DaemonContext): Record<string, Host> {
-  if (!hostCache || Date.now() - hostCache.at > 60_000) hostCache = { hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>, at: Date.now() };
-  return hostCache.hosts;
-}
+// built per call: hosts come from this workspace's config, and building them makes no request
+const hosts = (ctx: DaemonContext): Record<string, Host> => hostsFromConfig(ctx.ws.config) as Record<string, Host>;
 
 /** The chain for a role, or only the entries on one host when the caller names it. */
 function chainFor(ctx: DaemonContext, role: 'planner' | 'reviewer', host?: string): string[] {
@@ -70,72 +67,80 @@ async function modelRun<T>(ctx: DaemonContext, taskId: string, role: 'planner' |
   }
 }
 
+/** Plans a task with the planner chain: a run on the timeline, plan.json and plan.md, and the plan's decisions recorded. */
+export async function planTask(ctx: DaemonContext, id: string, host?: string): Promise<Plan> {
+  const task = await ctx.ws.readTask(id);
+  const context = await ctx.ws.readDoc<unknown>(id, 'context.json');
+  const prompt = buildPlanPrompt({
+    task: { id: task.id, title: task.title, goal: task.goal, acceptance: task.acceptance },
+    ...(context ? { context } : {}),
+    skills: skillsFor(ctx.ws.root, 'planner'),
+  });
+  const r = await modelRun<Plan>(ctx, id, 'planner', host, 'plan.schema.json', PlanSchema, prompt);
+  const plan = await ctx.ws.writePlan(id, { ...r.value, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString() });
+  await writeFile(join(await ctx.ws.taskDir(id), 'plan.md'), renderPlanMarkdown(plan));
+  // a decision the plan states is recorded like any other, with the planner run as provenance
+  for (const d of plan.decisions ?? []) {
+    const entry = await ctx.ws.decisions(id).append({ text: d.text, by: `openai-compatible ${r.run}`, evidence: [`${id}/${r.run}`] });
+    await ctx.ws.events(id).append({ task: id, run: r.run, adapter: 'openai-compatible', vendor: 'meta', type: 'decision.recorded', payload: { id: entry.id, text: entry.text, by: entry.by }, links: [{ kind: 'decision', ref: entry.id }] });
+  }
+  return plan;
+}
+
+/** Reviews a task's change with the reviewer chain once its verification is green; contradictions go to the queue. */
+export async function reviewTask(ctx: DaemonContext, id: string, host?: string): Promise<Review> {
+  const task = await ctx.ws.readTask(id);
+  if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'review runs after the run ends');
+  const v = await ctx.ws.verification(id).latest();
+  if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'review is offered only after a green verification', v ? `${v.failed} failed` : 'nothing verified yet');
+  const packet = await ctx.ws.handoffs(id).latest();
+  const decisions = (await ctx.ws.decisions(id).validAt()).map((d) => ({ id: d.id, text: d.text }));
+  const prompt = buildReviewPrompt({
+    packetPrompt: packet ? renderHandoff(packet) : `Task ${task.id}: ${task.goal}`,
+    diff: (await ctx.worktrees.diff(task, 'unified')) as string,
+    decisions,
+    skills: skillsFor(ctx.ws.root, 'reviewer'),
+  });
+  const r = await modelRun<Review>(ctx, id, 'reviewer', host, 'review.schema.json', ReviewSchema, prompt);
+  const review = await ctx.ws.writeReview(id, { ...r.value, run: r.run, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString() });
+  // a finding that would reverse a decision is routed to the queue, never applied (non-negotiable 7)
+  const contradicting = findContradictions(review, decisions);
+  const queue = join(ctx.ws.cacheDir, 'queue');
+  await mkdir(queue, { recursive: true });
+  const queued: string[] = [];
+  for (const f of contradicting) {
+    const name = `contradiction-${id}-${f.id}`;
+    const decision = decisions.find((d) => d.id === f.contradictsDecision) ?? null;
+    await writeFile(join(queue, `${name}.json`), `${JSON.stringify({ kind: 'contradiction', task: id, run: r.run, agent: `${r.host}/${r.model}`, decision, finding: f, at: new Date().toISOString() }, null, 2)}\n`);
+    queued.push(name);
+  }
+  await ctx.ws.events(id).append({
+    task: id,
+    run: r.run,
+    adapter: 'openai-compatible',
+    vendor: 'meta',
+    type: 'review.recorded',
+    payload: { verdict: review.verdict, findings: review.findings.length, contradictions: contradicting.length, offline: review.offline, queued, review },
+    links: review.findings.map((f) => ({ kind: 'finding' as const, ref: f.id })),
+  });
+  if (review.verdict === 'block') {
+    await ctx.ws.writeTask(id, { status: 'building', pendingAsk: review.blockers.join('; ').slice(0, 400) || 'The review blocked this change.' });
+  } else {
+    await ctx.ws.writeTask(id, { status: 'awaiting_approval' });
+    await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'approval.requested', payload: { verification: { passed: v.passed, failed: v.failed, status: v.status }, review: review.verdict } });
+  }
+  return review;
+}
+
 export function modelRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/plan', async (c) => {
-    const id = c.req.param('id');
     const { host } = HostBody.parse(await c.req.json().catch(() => ({})));
-    const task = await ctx.ws.readTask(id);
-    const context = await ctx.ws.readDoc<unknown>(id, 'context.json');
-    const prompt = buildPlanPrompt({
-      task: { id: task.id, title: task.title, goal: task.goal, acceptance: task.acceptance },
-      ...(context ? { context } : {}),
-      skills: skillsFor(ctx.ws.root, 'planner'),
-    });
-    const r = await modelRun<Plan>(ctx, id, 'planner', host, 'plan.schema.json', PlanSchema, prompt);
-    const plan = await ctx.ws.writePlan(id, { ...r.value, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString() });
-    await writeFile(join(await ctx.ws.taskDir(id), 'plan.md'), renderPlanMarkdown(plan));
-    // a decision the plan states is recorded like any other, with the planner run as provenance
-    for (const d of plan.decisions ?? []) {
-      const entry = await ctx.ws.decisions(id).append({ text: d.text, by: `openai-compatible ${r.run}`, evidence: [`${id}/${r.run}`] });
-      await ctx.ws.events(id).append({ task: id, run: r.run, adapter: 'openai-compatible', vendor: 'meta', type: 'decision.recorded', payload: { id: entry.id, text: entry.text, by: entry.by }, links: [{ kind: 'decision', ref: entry.id }] });
-    }
-    return c.json(plan);
+    return c.json(await planTask(ctx, c.req.param('id'), host));
   });
 
   app.post('/api/tasks/:id/review', async (c) => {
-    const id = c.req.param('id');
     const { host } = HostBody.parse(await c.req.json().catch(() => ({})));
-    const task = await ctx.ws.readTask(id);
-    if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'review runs after the run ends');
-    const v = await ctx.ws.verification(id).latest();
-    if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'review is offered only after a green verification', v ? `${v.failed} failed` : 'nothing verified yet');
-    const packet = await ctx.ws.handoffs(id).latest();
-    const decisions = (await ctx.ws.decisions(id).validAt()).map((d) => ({ id: d.id, text: d.text }));
-    const prompt = buildReviewPrompt({
-      packetPrompt: packet ? renderHandoff(packet) : `Task ${task.id}: ${task.goal}`,
-      diff: (await ctx.worktrees.diff(task, 'unified')) as string,
-      decisions,
-      skills: skillsFor(ctx.ws.root, 'reviewer'),
-    });
-    const r = await modelRun<Review>(ctx, id, 'reviewer', host, 'review.schema.json', ReviewSchema, prompt);
-    const review = await ctx.ws.writeReview(id, { ...r.value, run: r.run, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString() });
-    // a finding that would reverse a decision is routed to the queue, never applied (non-negotiable 7)
-    const contradicting = findContradictions(review, decisions);
-    const queue = join(ctx.ws.cacheDir, 'queue');
-    await mkdir(queue, { recursive: true });
-    const queued: string[] = [];
-    for (const f of contradicting) {
-      const name = `contradiction-${id}-${f.id}`;
-      const decision = decisions.find((d) => d.id === f.contradictsDecision) ?? null;
-      await writeFile(join(queue, `${name}.json`), `${JSON.stringify({ kind: 'contradiction', task: id, run: r.run, agent: `${r.host}/${r.model}`, decision, finding: f, at: new Date().toISOString() }, null, 2)}\n`);
-      queued.push(name);
-    }
-    await ctx.ws.events(id).append({
-      task: id,
-      run: r.run,
-      adapter: 'openai-compatible',
-      vendor: 'meta',
-      type: 'review.recorded',
-      payload: { verdict: review.verdict, findings: review.findings.length, contradictions: contradicting.length, offline: review.offline, queued, review },
-      links: review.findings.map((f) => ({ kind: 'finding' as const, ref: f.id })),
-    });
-    if (review.verdict === 'block') {
-      await ctx.ws.writeTask(id, { status: 'building', pendingAsk: review.blockers.join('; ').slice(0, 400) || 'The review blocked this change.' });
-    } else {
-      await ctx.ws.writeTask(id, { status: 'awaiting_approval' });
-      await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'approval.requested', payload: { verification: { passed: v.passed, failed: v.failed, status: v.status }, review: review.verdict } });
-    }
-    return c.json(review);
+    return c.json(await reviewTask(ctx, c.req.param('id'), host));
   });
 
   app.get('/api/graph/pending', async (c) => {

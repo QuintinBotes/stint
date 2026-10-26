@@ -56,6 +56,14 @@ export const ConfigSchema = z.strictObject({
   prices: z.record(z.string(), PriceSchema),
   /** Partner and hackathon balances the human enters; metered spend is subtracted from them. */
   credits: z.record(z.string(), z.number().min(0)),
+  /** A task on autopilot drives itself to the approval gate (R-025). */
+  autopilot: z
+    .strictObject({
+      implementers: z.array(z.string().min(1)).min(1),
+      maxHops: z.int().min(0).max(10),
+      parallel: z.int().min(1).max(8),
+    })
+    .optional(),
   /** Other coding agents a person can hand a task to; off until enabled (R-026). */
   agents: z.record(z.string().regex(/^[a-z0-9-]+$/), AgentDefSchema).optional(),
   allowDirectEvents: z.boolean().optional(),
@@ -133,6 +141,7 @@ export const DEFAULT_CONFIG: Config = {
     'ollama/muse-glimmer:30b-mlx': { input: 0, cached: 0, output: 0 },
   },
   credits: { baseten: 100, fireworks: 25, modal: 100, 'meta-api': 150 },
+  autopilot: { implementers: ['muse-code', 'stint-agent'], maxHops: 3, parallel: 2 },
   // Meta's models are the default; these are here so a person can bring the agent they already use
   agents: {
     'claude-code': { command: ['claude', '-p', '--permission-mode', 'acceptEdits'], prompt: 'stdin', roles: ['implementer', 'reviewer'], vendor: 'anthropic', enabled: false },

@@ -1,0 +1,208 @@
+import type { Config, StintEvent, Task } from '@stint-dev/core';
+import { runsFromEvents } from '@stint-dev/core/node';
+import type { DaemonContext } from './app';
+import { DaemonError } from './errors';
+import { assign } from './lifecycle';
+import { planTask, reviewTask } from './routes/models';
+
+export type AutopilotSettings = NonNullable<Config['autopilot']>;
+export const AUTOPILOT_DEFAULTS: AutopilotSettings = { implementers: ['muse-code', 'stint-agent'], maxHops: 3, parallel: 2 };
+
+export type Step =
+  | { kind: 'idle' }
+  | { kind: 'wait'; reason: string }
+  | { kind: 'plan' }
+  | { kind: 'build'; adapter?: string; ask?: string; reason: string }
+  | { kind: 'hand'; after: string; handoffFrom: string | null; reason: string }
+  | { kind: 'review'; verified: string }
+  | { kind: 'stop'; reason: string; needsYou: boolean };
+
+/** The events since autopilot was last switched on, or null when it is off. */
+export function autopilotTail(events: StintEvent[]): StintEvent[] | null {
+  let start = -1;
+  for (let i = 0; i < events.length; i++) {
+    const t = (events[i] as StintEvent).type;
+    if (t === 'autopilot.started') start = i;
+    if (t === 'autopilot.stopped') start = -1;
+  }
+  return start < 0 ? null : events.slice(start);
+}
+
+/** A task holds a slot once it has taken a step that is not waiting in the queue. */
+export function holdsSlot(tail: StintEvent[]): boolean {
+  return tail.some((e) => e.type === 'autopilot.step' && !e.payload.queued);
+}
+
+const why = (endedBy: string | null, verdict: string | undefined) =>
+  endedBy && endedBy !== 'completed' ? `ended ${endedBy}` : `finished with a ${verdict ?? 'missing'} verification`;
+
+/**
+ * The next thing autopilot does, as a pure function of the task's log: a daemon restart resumes from the
+ * same place. It never approves; the furthest it goes on its own is the approval gate.
+ */
+export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean): Step {
+  const tail = autopilotTail(events);
+  if (!tail) return { kind: 'idle' };
+  if (live) return { kind: 'wait', reason: 'a run is live' };
+  if (task.status === 'done') return { kind: 'stop', reason: 'The task is merged.', needsYou: false };
+  const planned = events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
+  if (!planned) return { kind: 'plan' };
+
+  const impl = runsFromEvents(tail).filter((r) => r.role === 'implementer');
+  const last = impl.at(-1);
+  if (!last) return { kind: 'build', reason: 'Nothing is built yet.' };
+  if (!last.endedBy) return { kind: 'wait', reason: `${last.run} has not finished` };
+
+  const verification = tail.filter((e) => e.type === 'verification.ran' && e.run === last.run).at(-1);
+  const status = verification?.payload.status as string | undefined;
+  if (last.endedBy !== 'completed' || status !== 'green') {
+    const hops = tail.filter((e) => e.type === 'autopilot.step' && e.payload.step === 'hand').length;
+    const reason = `${last.adapter} ${last.run} ${why(last.endedBy, status)}`;
+    if (hops >= s.maxHops) return { kind: 'stop', reason: `Needs you: ${reason}, after ${hops} handoffs.`, needsYou: true };
+    const packet = tail.filter((e) => e.type === 'handoff.created' && e.run === last.run).at(-1);
+    return { kind: 'hand', after: last.adapter ?? '', handoffFrom: (packet?.payload.name as string | undefined) ?? null, reason };
+  }
+
+  // the reviews of this build: those recorded after its verification
+  const after = tail.slice(tail.indexOf(verification as StintEvent));
+  const review = after.filter((e) => e.type === 'review.recorded').at(-1);
+  if (!review) {
+    const failed = after.some((e) => e.type === 'run.finished' && e.payload.endedBy === 'failed' && tail.some((s2) => s2.type === 'run.started' && s2.run === e.run && s2.payload.role === 'reviewer'));
+    if (failed) return { kind: 'stop', reason: 'Waiting for your approval. No reviewer could answer, so read the diff yourself.', needsYou: false };
+    const v = verification?.payload as { command?: string; passed?: number; failed?: number };
+    return { kind: 'review', verified: `${v.command ?? 'tests'} ${v.passed ?? 0}/${(v.passed ?? 0) + (v.failed ?? 0)} green` };
+  }
+  const r = review.payload.review as { verdict: string; findings?: Array<{ text: string }>; blockers?: string[] } | undefined;
+  const verdict = (review.payload.verdict as string | undefined) ?? r?.verdict;
+  if (verdict === 'approve') return { kind: 'stop', reason: 'Waiting for your approval.', needsYou: false };
+  if (verdict === 'block') return { kind: 'stop', reason: `Needs you: the review blocked it: ${(r?.blockers ?? []).join('; ') || 'see the review'}`, needsYou: true };
+  const rounds = tail.filter((e) => e.type === 'autopilot.step' && e.payload.step === 'build' && e.payload.changes).length;
+  if (rounds >= 1) return { kind: 'stop', reason: 'Needs you: the review still asks for changes after one round.', needsYou: true };
+  const ask = (r?.findings ?? []).map((f) => f.text).join('\n').slice(0, 2000) || 'Address the review.';
+  return { kind: 'build', adapter: last.adapter ?? undefined, ask, reason: 'The review asked for changes.' };
+}
+
+/** Drives tasks on autopilot: one serialized tick per task, at most `parallel` tasks holding a slot. */
+export class Autopilot {
+  private readonly ticks = new Map<string, Promise<void>>();
+
+  constructor(private readonly ctx: DaemonContext) {}
+
+  private get settings(): AutopilotSettings {
+    return this.ctx.ws.config.autopilot ?? AUTOPILOT_DEFAULTS;
+  }
+
+  async start(id: string): Promise<void> {
+    const events = await this.ctx.ws.events(id).read();
+    if (!autopilotTail(events)) await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.started', payload: { settings: this.settings } });
+    this.kick(id);
+  }
+
+  async stop(id: string, reason: string, needsYou = false): Promise<void> {
+    if (!autopilotTail(await this.ctx.ws.events(id).read())) return;
+    await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.stopped', payload: { reason, needsYou } });
+    // a slot may have opened
+    for (const t of await this.ctx.ws.listTasks()) if (t.id !== id) this.kick(t.id);
+  }
+
+  /** Queues a tick for a task; the daemon's stop waits for it. */
+  kick(id: string): void {
+    const p = (this.ticks.get(id) ?? Promise.resolve())
+      .then(() => this.tick(id))
+      .catch((err: unknown) => {
+        process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `autopilot ${id}: ${err instanceof Error ? err.message : String(err)}` })}\n`);
+      });
+    this.ticks.set(id, p);
+    this.ctx.pending.add(p);
+    void p.finally(() => this.ctx.pending.delete(p));
+  }
+
+  /** Resumes every task the log says is on autopilot, after a daemon restart. */
+  async resume(): Promise<void> {
+    for (const t of await this.ctx.ws.listTasks()) if (autopilotTail(await this.ctx.ws.events(t.id).read())) this.kick(t.id);
+  }
+
+  async status(): Promise<{ running: string[]; queued: string[] }> {
+    const running: string[] = [];
+    const queued: string[] = [];
+    for (const t of await this.ctx.ws.listTasks()) {
+      const tail = autopilotTail(await this.ctx.ws.events(t.id).read());
+      if (tail) (holdsSlot(tail) ? running : queued).push(t.id);
+    }
+    return { running, queued };
+  }
+
+  private async step(id: string, step: string, reason: string, extra: Record<string, unknown> = {}): Promise<void> {
+    await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.step', payload: { step, reason, ...extra } });
+  }
+
+  private async firstAvailable(after?: string): Promise<string | null> {
+    const chain = this.settings.implementers.filter((a) => this.ctx.adapters.some((x) => x.id === a));
+    if (chain.length === 0) return null;
+    const from = after ? chain.indexOf(after) + 1 : 0;
+    for (let i = 0; i < chain.length; i++) {
+      const id = chain[(from + i) % chain.length] as string;
+      const adapter = this.ctx.adapters.find((x) => x.id === id);
+      if (adapter && (await adapter.available()).ok) return id;
+    }
+    return null;
+  }
+
+  private async tick(id: string): Promise<void> {
+    const ws = this.ctx.ws;
+    for (let guard = 0; guard < 8; guard++) {
+      const events = await ws.events(id).read();
+      const tail = autopilotTail(events);
+      const s = nextStep(events, await ws.readTask(id), this.settings, !!this.ctx.runs.get(id));
+      if (s.kind === 'idle' || s.kind === 'wait' || !tail) return;
+      if (s.kind === 'stop') return this.stop(id, s.reason, s.needsYou);
+
+      if (!holdsSlot(tail)) {
+        const holders: string[] = [];
+        for (const t of await ws.listTasks()) {
+          const other = t.id === id ? null : autopilotTail(await ws.events(t.id).read());
+          if (other && holdsSlot(other)) holders.push(t.id);
+        }
+        if (holders.length >= this.settings.parallel) {
+          const last = tail.at(-1) as StintEvent;
+          if (!(last.type === 'autopilot.step' && last.payload.queued)) await this.step(id, 'wait', `Queued behind ${holders.join(', ')}`, { queued: true });
+          return;
+        }
+      }
+
+      try {
+        if (s.kind === 'plan') {
+          await this.step(id, 'plan', 'No plan yet; asking the planner chain.');
+          await planTask(this.ctx, id).catch((err: unknown) => this.step(id, 'plan', `No planner could answer (${err instanceof Error ? err.message : String(err)}); building without a plan.`));
+          continue;
+        }
+        if (s.kind === 'review') {
+          await this.step(id, 'verify', s.verified);
+          await this.step(id, 'review', 'Asking the reviewer chain.');
+          await reviewTask(this.ctx, id).catch(async (err: unknown) => {
+            await ws.writeTask(id, { status: 'awaiting_approval' });
+            await this.stop(id, `Waiting for your approval. No reviewer could answer (${err instanceof Error ? err.message : String(err)}).`);
+          });
+          continue;
+        }
+        if (s.kind === 'build') {
+          const adapter = s.adapter ?? (await this.firstAvailable());
+          if (!adapter) return this.stop(id, `Needs you: no implementer in ${this.settings.implementers.join(', ')} is available.`, true);
+          await this.step(id, 'build', `${s.reason} ${adapter} builds it.`, { adapter, ...(s.ask ? { changes: true } : {}) });
+          await assign(this.ctx, id, { adapter, role: 'implementer', ...(s.ask ? { instruction: s.ask } : {}) });
+          return;
+        }
+        if (s.kind === 'hand') {
+          const next = await this.firstAvailable(s.after);
+          if (!next) return this.stop(id, `Needs you: ${s.reason}, and no other implementer is available.`, true);
+          await this.step(id, 'hand', `${s.reason}; handing ${s.handoffFrom ?? 'the task'} to ${next}.`, { from: s.after, to: next, handoffFrom: s.handoffFrom });
+          await assign(this.ctx, id, { adapter: next, role: 'implementer', ...(s.handoffFrom ? { handoffFrom: s.handoffFrom } : {}) });
+          return;
+        }
+      } catch (err) {
+        const message = err instanceof DaemonError ? `${err.code}: ${err.message}` : err instanceof Error ? err.message : String(err);
+        return this.stop(id, `Needs you: ${message}`, true);
+      }
+    }
+  }
+}

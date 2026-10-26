@@ -15,6 +15,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
+import { Autopilot } from './autopilot';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
@@ -61,6 +62,7 @@ export type DaemonContext = {
   afterRun?: (task: string, run: string, result: RunResult) => Promise<void>;
   /** Run endings still writing (commit, verify, packet); a stop waits for them. */
   pending: Set<Promise<unknown>>;
+  autopilot: Autopilot;
 };
 
 const NewTaskBody = z.strictObject({
@@ -112,8 +114,12 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     snapshotMs: snapshotMs ?? 5_000,
     replayer: new Replayer(ws),
     pending: new Set(),
+  } as Omit<DaemonContext, 'autopilot'> as DaemonContext;
+  ctx.autopilot = new Autopilot(ctx);
+  ctx.afterRun = async (task, run, result) => {
+    await afterRunPacket(ctx, task, run, result);
+    ctx.autopilot.kick(task);
   };
-  ctx.afterRun = (task, run, result) => afterRunPacket(ctx, task, run, result);
   const app = new Hono();
   contexts.set(app, ctx);
 
@@ -154,6 +160,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       pid: process.pid,
       adapters: await adapterHealth(adapters),
       pty: ptyHealth(),
+      autopilot: await ctx.autopilot.status(),
       ...replayHealth(ctx),
       ...Object.assign({}, ...extra),
     });

@@ -24,6 +24,15 @@ export function runRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json({ ok: true });
   });
 
+  app.post('/api/tasks/:id/autopilot', async (c) => {
+    const id = c.req.param('id');
+    const { on } = z.strictObject({ on: z.boolean() }).parse(await c.req.json());
+    await ctx.ws.readTask(id);
+    if (on) await ctx.autopilot.start(id);
+    else await ctx.autopilot.stop(id, 'Turned off by you.');
+    return c.json({ on, ...(await ctx.autopilot.status()) });
+  });
+
   app.post('/api/tasks/:id/assign', async (c) => {
     const body = AssignBody.parse(await c.req.json());
     const r = await assign(ctx, c.req.param('id'), body);

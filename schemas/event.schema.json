@@ -31,6 +31,9 @@
         "skill.applied", "skill.proposed", "skill.approved", "skill.rejected",
         "merge.completed",
         "learn.skipped",
+        "autopilot.started",
+        "autopilot.step",
+        "autopilot.stopped",
         "provider.fallback",
         "cost.unpriced",
         "runtime.unclassified"
