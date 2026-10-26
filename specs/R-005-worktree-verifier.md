@@ -1,6 +1,6 @@
 # R-005 · Worktree manager and verifier
 
-Day: 1 (27 Oct) · Owner: CC · Depends on: R-003 · Fallback: run in a repo copy instead of a worktree · Cut: never
+Day: 1 (27 Oct) · Owner: Q · Depends on: R-003 · Fallback: run in a repo copy instead of a worktree · Cut: never
 
 ## Goal
 Every run happens in its own git worktree on the task branch, the daemon snapshots the diff into events while the run lives, commits the worktree state when it ends, and verifies by running `testCommand` itself. This is the mechanism behind "the agent doesn't grade its own work" and the kill beat's "the packet is built from the tree, not the transcript".
@@ -15,7 +15,7 @@ Lifecycle in the spec doc's Runs section. Refusal cases are ported from an earli
 4. MUST commit the worktree state on `run.finished` as `wip(<task> <run>): <summary or endedBy>` so the branch always carries the history and `diff` never depends on a live process.
 5. MUST implement `packages/daemon/src/verifier.ts`: `verify(task, runId)` runs `task.testCommand` in the worktree with a 10-minute cap and the run's environment, captures exit code and output, parses `passed`/`failed` from Vitest (`Tests  N passed | M failed`) and `bun test` (`N pass`, `M fail`) with a generic exit-code fallback, writes `verification/<run>.json` `{ command, exitCode, passed, failed, durationMs, runBy: 'daemon', outputRef }` and emits `verification.ran`.
 6. MUST add routes `POST /api/tasks/:id/verify` and `GET /api/tasks/:id/diff?format=unified|json`, and a `runs` registry in the daemon so `run_active` is enforceable.
-7. SHOULD set `STINT_TASK`, `STINT_RUN`, `STINT_WORKTREE`, `TERM_PROGRAM=Stint` in the environment of anything the daemon spawns in a worktree, and strip `CLAUDECODE`, `CLAUDE_CODE_*`, `MUSE_*` session markers so a spawned agent starts clean.
+7. SHOULD set `STINT_TASK`, `STINT_RUN`, `STINT_WORKTREE`, `TERM_PROGRAM=Stint` in the environment of anything the daemon spawns in a worktree, and strip agent session markers (`MUSE_*`) so a spawned agent starts clean.
 
 ## Interfaces
 ```ts

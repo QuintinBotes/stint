@@ -27,7 +27,7 @@ case "$n" in
   2)
     common
     check "killed run yields a valid packet" bun test packages/daemon/test/handoff.kill.test.ts
-    check "live Muse Code to Claude Code continue passes verify (STINT_LIVE=1)" env STINT_LIVE=1 bun test packages/daemon/test/continue.live.test.ts
+    check "live Muse Code to Stint agent continue passes verify (STINT_LIVE=1)" env STINT_LIVE=1 bun test packages/daemon/test/continue.live.test.ts
     check "hook drafts a packet" bun test packages/daemon/test/hooks.test.ts
     ;;
   3)

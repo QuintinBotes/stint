@@ -55,9 +55,8 @@ if command -v muse >/dev/null 2>&1; then
 else
   say "  muse-code      unavailable: muse CLI not installed (https://dev.meta.ai/install.sh)"
 fi
-if ! command -v claude >/dev/null 2>&1; then say "  claude-code    unavailable: claude CLI not installed"
-elif has_key META_API_KEY; then say "  claude-code    available: the Claude Code harness on Meta's API ($(claude --version 2>/dev/null | head -1))"
-else say "  claude-code    unavailable: META_API_KEY not set (the harness runs on Meta's API)"; fi
+if has_key META_API_KEY || has_key FIREWORKS_API_KEY || has_key BASETEN_API_KEY; then say "  stint-agent    key set for Muse Spark (not checked here; stint up --check asks the host)"
+else say "  stint-agent    unavailable: no META_API_KEY, FIREWORKS_API_KEY or BASETEN_API_KEY"; fi
 if [ "$glimmer_ok" = 1 ]; then say "  ollama         available: $GLIMMER pulled (offline review, \$0)"
 elif [ "$ollama_ok" = 1 ]; then say "  ollama         unavailable: $GLIMMER not pulled yet (ollama pull $GLIMMER)"
 else say "  ollama         unavailable: ollama not installed"; fi

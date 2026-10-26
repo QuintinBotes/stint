@@ -1,6 +1,6 @@
 # F-001 · Demo repo fixture: a webhook service with 27 passing tests
 
-Day: before kickoff (fixture, not product code) · Owner: CC · Depends on: none · Fallback: a smaller service with 15 tests · Cut: never
+Day: before kickoff (fixture, not product code) · Owner: Q · Depends on: none · Fallback: a smaller service with 15 tests · Cut: never
 
 ## Goal
 A small, real TypeScript service that every demo task is run against: webhooks in, per-tenant handling, an audit log, an admin API. It must have enough surface for T-0040 (done in the past, seeded), T-0042 (rate-limit incoming webhooks, the live task) and T-0043 (rate-limit the admin API, the "it learned" task) to be natural one-hour tasks for a coding agent, and a test suite the daemon can parse.
@@ -13,7 +13,7 @@ Lives in `demo/repo/` with its own git history (a fixture tarball `demo/repo.tar
 2. MUST have exactly 27 passing Vitest tests across at least 5 files, under 3 seconds total, no network.
 3. MUST have no rate limiting anywhere (T-0042 and T-0043 add it) and a config module that reads env with defaults (so "configurable through env" is a natural change).
 4. MUST have a git history of at least 12 commits with sensible messages, including one commit whose message carries `Stint-Task: T-0040` and the trailer set from R-017 (the seeded past task "Add tenant header to audit log"), so the memory graph has history on day 1.
-5. MUST include `AGENTS.md` with the service's own conventions (so Muse Code and Claude Code read something real) and `.agents/skills/review-voice-policy/SKILL.md` copied from review-voice unchanged.
+5. MUST include `AGENTS.md` with the service's own conventions (so Muse Code and the Stint agent read something real) and `.agents/skills/review-voice-policy/SKILL.md` copied from review-voice unchanged.
 6. SHOULD have one deliberately recurring weakness that a reviewer will flag on T-0040's seeded review and again on T-0042 (limits hard-coded, no jitter on backoff), so the learn step's recurrence check fires.
 7. MUST be free of real names, emails and client material; `scripts/guard-identity.mjs` passes on it.
 

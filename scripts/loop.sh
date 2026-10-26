@@ -2,32 +2,31 @@
 # scripts/loop.sh: run the spec-driven build loop until GOAL.md is met or a human is needed.
 #
 # Each iteration starts a fresh agent session with LOOP.md as its prompt. After a build
-# iteration that marks a spec done, a review iteration (REVIEW.md) by the other vendor
-# checks it. A spec that a vendor hands off twice goes to the other vendor, the way the
-# product itself hands tasks between agents. The loop stops on: a new Blocked row, a gate
-# waiting for a human, MAX_ITER reached, MAX_USD exceeded (approximate), or every spec done.
+# iteration that marks a spec done, a review iteration (REVIEW.md) on a different model
+# checks it, so the generator is never its own judge. A spec handed off twice on one model
+# goes to the other model, the way the product hands a task between agents. The loop stops
+# on: a new Blocked row, a gate waiting for a human, MAX_ITER reached, MAX_USD exceeded
+# (approximate), or every spec done.
 #
-# Usage:  scripts/loop.sh [--builder muse|claude] [--reviewer claude|muse|none] [--once] [--self]
-# Env:    MAX_ITER (40) MAX_USD (25) ITER_TIMEOUT (90m) MUSE_STEPS (80) CLAUDE_TURNS (60)
-#         CLAUDE_PERMISSIONS (acceptEdits | bypass)   bypass only inside a sandbox or container
-#         META_API_KEY ANTHROPIC_API_KEY as the CLIs expect
+# Usage:  scripts/loop.sh [--reviewer muse|none] [--once] [--self]
+# Env:    MAX_ITER (40) MAX_USD (25) ITER_TIMEOUT (90m) MUSE_STEPS (80)
+#         BUILD_MODEL (muse-wonder-full-1.0) REVIEW_MODEL (muse-spark-1.3)
+#         META_API_KEY or a stored muse login
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
-BUILDER="${BUILDER:-muse}"
-REVIEWER="${REVIEWER:-claude}"
+REVIEWER="${REVIEWER:-muse}"
+BUILD_MODEL="${BUILD_MODEL:-muse-wonder-full-1.0}"
+REVIEW_MODEL="${REVIEW_MODEL:-muse-spark-1.3}"
 MAX_ITER="${MAX_ITER:-40}"
 MAX_USD="${MAX_USD:-25}"
 ITER_TIMEOUT="${ITER_TIMEOUT:-90m}"
 MUSE_STEPS="${MUSE_STEPS:-80}"
-CLAUDE_TURNS="${CLAUDE_TURNS:-60}"
-CLAUDE_PERMISSIONS="${CLAUDE_PERMISSIONS:-acceptEdits}"
 ONCE=0
 SELF=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --builder) BUILDER="$2"; shift 2 ;;
     --reviewer) REVIEWER="$2"; shift 2 ;;
     --once) ONCE=1; shift ;;
     --self) SELF=1; shift ;;
@@ -42,9 +41,11 @@ iter=0
 log() { printf '%s loop: %s\n' "$(date -u +%H:%M:%S)" "$*" >&2; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { log "missing: $1"; exit 2; }; }
-need git; need bun
-[ "$BUILDER" = muse ] || [ "$REVIEWER" = muse ] && need muse
-[ "$BUILDER" = claude ] || [ "$REVIEWER" = claude ] && need claude
+need git; need bun; need muse
+# macOS has no timeout(1); use coreutils' gtimeout when present, else run without a wall clock cap
+if command -v timeout >/dev/null 2>&1; then TIMEOUT=(timeout "$ITER_TIMEOUT")
+elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT=(gtimeout "$ITER_TIMEOUT")
+else TIMEOUT=(); log "no timeout(1): iterations run without the ${ITER_TIMEOUT} cap"; fi
 
 # ---------- helpers over PROGRESS.md ----------
 
@@ -85,31 +86,25 @@ append_spend() { # spec agent tokens usd wall
 
 # ---------- agent runners ----------
 
-run_muse() { # prompt-file, extra text, log
-  local pf="$1" extra="$2" out="$3" tmp
+run_muse() { # model, prompt-file, extra text, log
+  local model="$1" pf="$2" extra="$3" out="$4" tmp
   tmp="$(mktemp)"; { cat "$pf"; printf '\n\n%s\n' "$extra"; } > "$tmp"
-  timeout "$ITER_TIMEOUT" muse exec --json --prompt-file "$tmp" --disable-approval --max-model-steps "$MUSE_STEPS" > "$out" 2>&1 || true
+  "${TIMEOUT[@]}" muse exec --json --model "$model" --prompt-file "$tmp" --trust-workspace --max-model-steps "$MUSE_STEPS" > "$out" 2>&1 || true
   rm -f "$tmp"
-  # best-effort usage from the last JSON line that carries it
-  tail -200 "$out" | grep -E '"(usage|cost|total_cost_usd)"' | tail -1 || true
+  # best-effort usage from the run.usage record
+  grep -E '"run.usage"' "$out" | tail -1 || true
 }
 
-run_claude() { # prompt-file, extra text, log
-  local pf="$1" extra="$2" out="$3" perm
-  if [ "$CLAUDE_PERMISSIONS" = bypass ]; then perm=(--dangerously-skip-permissions); else perm=(--permission-mode acceptEdits --allowedTools "Bash,Read,Edit,Write,Glob,Grep"); fi
-  timeout "$ITER_TIMEOUT" claude -p "$(cat "$pf"; printf '\n\n%s\n' "$extra")" --output-format json --max-turns "$CLAUDE_TURNS" "${perm[@]}" > "$out" 2>&1 || true
-  grep -oE '"total_cost_usd":[0-9.]+' "$out" | tail -1 || true
+# USD for one Muse run from its run.usage record (input includes cached), at list prices per million
+price_usage() { # usage-line, model
+  local line="$1" model="$2" i c o rin rc rout
+  [ -n "$line" ] && command -v jq >/dev/null 2>&1 || { echo 0; return; }
+  read -r i c o < <(echo "$line" | jq -r '[.payload.models[]? | .input_tokens, .cached_tokens, .output_tokens] as $x | [($x | [.[range(0; length; 3)]] | add // 0), ($x | [.[range(1; length; 3)]] | add // 0), ($x | [.[range(2; length; 3)]] | add // 0)] | @tsv')
+  case "$model" in muse-wonder*) rin=4; rc=0.2; rout=20 ;; *) rin=1.25; rc=0.15; rout=5 ;; esac
+  awk -v i="$i" -v c="$c" -v o="$o" -v a="$rin" -v b="$rc" -v d="$rout" 'BEGIN{printf "%.4f", ((i-c)*a + c*b + o*d)/1000000}'
 }
 
-run_agent() { # agent prompt-file extra log
-  case "$1" in
-    muse) run_muse "$2" "$3" "$4" ;;
-    claude) run_claude "$2" "$3" "$4" ;;
-    *) log "unknown agent $1"; exit 2 ;;
-  esac
-}
-
-other_vendor() { [ "$1" = muse ] && echo claude || echo muse; }
+other_model() { [ "$1" = "$BUILD_MODEL" ] && echo "$REVIEW_MODEL" || echo "$BUILD_MODEL"; }
 
 # ---------- the loop ----------
 
@@ -124,14 +119,13 @@ while :; do
   spec="$(next_spec || true)"
   if [ -z "$spec" ]; then log "no eligible spec; check dependencies in PROGRESS.md"; break; fi
 
-  # cross-vendor continue: a spec handed off twice by one vendor goes to the other
-  agent="$BUILDER"
+  # cross-model continue: a spec handed off twice on one model goes to the other
+  model="$BUILD_MODEL"
   if [ "$(spec_status "$spec")" = handed ] && [ "$(spec_attempts "$spec")" -ge 2 ]; then
     case "$(spec_owner "$spec")" in
-      muse-code*|muse*) agent=claude ;;
-      claude*) agent=muse ;;
+      *"$BUILD_MODEL"*) model="$REVIEW_MODEL" ;;
     esac
-    log "$spec handed twice by $(spec_owner "$spec"); continuing with $agent"
+    log "$spec handed twice by $(spec_owner "$spec"); continuing on $model"
   fi
 
   if [ "$SELF" = 1 ] && [ "$(spec_status R-017)" = done ]; then
@@ -140,14 +134,14 @@ while :; do
     ./packages/cli/bin/stint new "$(grep -m1 '^# ' "specs/$spec"-*.md | sed 's/^# //')" --goal "Implement specs/$spec per LOOP.md" --test "bun test" --json > ".loop/$spec.task.json" || true
   fi
 
-  log "iteration $iter: $agent builds $spec"
-  out=".loop/logs/$(printf '%03d' "$iter")-build-$spec-$agent.log"
+  log "iteration $iter: muse-code/$model builds $spec"
+  out=".loop/logs/$(printf '%03d' "$iter")-build-$spec-$model.log"
   t0=$(date +%s)
-  usage="$(run_agent "$agent" LOOP.md "Spec to take this iteration: $spec. Your adapter/model for the Owner column: $agent." "$out")"
+  usage="$(run_muse "$model" LOOP.md "Spec to take this iteration: $spec. Your adapter/model for the Owner column: muse-code/$model." "$out")"
   wall=$(( $(date +%s) - t0 ))
-  usd="$(echo "$usage" | grep -oE '[0-9]+\.[0-9]+' | tail -1 || true)"; usd="${usd:-0}"
+  usd="$(price_usage "$usage" "$model")"
   spent_usd="$(awk -v a="$spent_usd" -v b="$usd" 'BEGIN{print a+b}')"
-  append_spend "$spec" "$agent" "see log" "$usd" "${wall}s"
+  append_spend "$spec" "muse-code/$model" "see log" "$usd" "${wall}s"
   git add -A; git commit -qm "loop: spend row for iteration $iter" || true
 
   row="$(changed_row || true)"
@@ -155,15 +149,15 @@ while :; do
 
   # review when the builder marked the spec done
   if [ "$REVIEWER" != none ] && echo "$row" | grep -q "| done |"; then
-    rev="$REVIEWER"; [ "$rev" = "$agent" ] && rev="$(other_vendor "$agent")"
-    log "iteration $iter: $rev reviews $spec"
+    rev="$(other_model "$model")"
+    log "iteration $iter: muse-code/$rev reviews $spec"
     rout=".loop/logs/$(printf '%03d' "$iter")-review-$spec-$rev.log"
     t0=$(date +%s)
-    usage="$(run_agent "$rev" REVIEW.md "Spec to review: $spec. Your adapter/model for the Reviewer column: $rev." "$rout")"
+    usage="$(run_muse "$rev" REVIEW.md "Spec to review: $spec. Your adapter/model for the Reviewer column: muse-code/$rev." "$rout")"
     wall=$(( $(date +%s) - t0 ))
-    usd="$(echo "$usage" | grep -oE '[0-9]+\.[0-9]+' | tail -1 || true)"; usd="${usd:-0}"
+    usd="$(price_usage "$usage" "$rev")"
     spent_usd="$(awk -v a="$spent_usd" -v b="$usd" 'BEGIN{print a+b}')"
-    append_spend "$spec" "review:$rev" "see log" "$usd" "${wall}s"
+    append_spend "$spec" "review:muse-code/$rev" "see log" "$usd" "${wall}s"
     git add -A; git commit -qm "loop: spend row for review $iter" || true
   fi
 

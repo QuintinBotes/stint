@@ -1,6 +1,6 @@
 # R-002 · Core schemas
 
-Day: 0 (26 Oct) · Owner: CC · Depends on: R-001 · Fallback: hand-written JSON Schema only · Cut: never
+Day: 0 (26 Oct) · Owner: Q · Depends on: R-001 · Fallback: hand-written JSON Schema only · Cut: never
 
 ## Goal
 The contracts of the product as code: zod schemas for task, event, handoff, plan, review, skill frontmatter and skill proposal, with `handoff.schema.json` emitted as the published spec and three rendered examples that validate. Everything downstream imports these types; nothing downstream redefines them.

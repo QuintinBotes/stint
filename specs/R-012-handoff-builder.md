@@ -1,6 +1,6 @@
 # R-012 · Handoff builder
 
-Day: 4 (30 Oct) · Owner: CC · Depends on: R-003, R-005, R-009 · Fallback: a hand-written packet for the demo · Cut: NEVER (the pitch)
+Day: 4 (30 Oct) · Owner: Q · Depends on: R-003, R-005, R-009 · Fallback: a hand-written packet for the demo · Cut: NEVER (the pitch)
 
 ## Goal
 The daemon derives a `stint.handoff/1` packet from `events.jsonl` and the diff for every ending (completed, capped, killed, failed, handed), lets the leaving adapter enrich four fields with one structured call, counts its tokens, renders it as the prompt the next agent reads, and keeps every packet. A run killed mid-edit still yields a complete, honest packet under 600 tokens with the in-flight step marked unknown. This is the artefact the whole product is named for.
@@ -31,7 +31,7 @@ Schema and rules in R-002 and `schemas/handoff.schema.json`. The prose rendering
 3. Enrichment that returns a 900-char `summary` is rejected and the daemon's summary kept, with `meta.fields.summary.from === 'events'`: `packages/daemon/test/handoff.enrich.test.ts`.
 4. A tool result containing a credential never appears in the packet or `prompt.md`: `packages/daemon/test/handoff.secrets.test.ts`.
 5. A third hop's prompt contains the first hop's refusals attributed to the first agent and none of its `done` items: `packages/daemon/test/handoff.multihop.test.ts`.
-6. `stint hand T-0042 claude-code --ask "…"` on a fake adapter creates `handoffs/h1.json`, emits `handoff.created` then `run.started` with `handoffFrom: 'h1'`: `packages/cli/test/hand.test.ts`.
+6. `stint hand T-0042 stint-agent --ask "…"` on a fake adapter creates `handoffs/h1.json`, emits `handoff.created` then `run.started` with `handoffFrom: 'h1'`: `packages/cli/test/hand.test.ts`.
 
 ## Verify
 ```
@@ -40,7 +40,7 @@ bun test packages/daemon packages/cli
 ```
 
 ## Out of scope
-The UI card (R-016), Claude's side (R-013), Muse hooks (R-014).
+The UI card (R-016), the Stint agent's side (R-013), Muse hooks (R-014).
 
 ## Notes
 The 600-token limit is a product rule, not a model limit: a packet that does not fit is a packet that says too much. Trim lists from the tail except `refusals`, which keep the last 12. Keep the rendering and the parser in `@stint-dev/core` (R-002); the daemon only composes. The demo's numbers (412 tokens, 1.4 KB) come from this code on the real run; do not fake them in the live path.

@@ -1,6 +1,6 @@
 # R-018 · Memory graph projection
 
-Day: 6 (1 Nov) · Owner: CC · Depends on: R-003, R-017 · Fallback: pre-built JSON for the demo tasks · Cut: never (the panel can be cut, the queries stay)
+Day: 6 (1 Nov) · Owner: Q · Depends on: R-003, R-017 · Fallback: pre-built JSON for the demo tasks · Cut: never (the panel can be cut, the queries stay)
 
 ## Goal
 The memory is a projection, not a store: nodes and edges computed from `events.jsonl`, `decisions.md` and git at read time, cached in SQLite that can be deleted, bitemporal for free because every event carries when it was recorded and every decision carries when it was superseded. Three named queries and an `asOf` filter are what the UI, the planner prompt and the handoff card consume.

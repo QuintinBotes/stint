@@ -1,6 +1,6 @@
 # R-004 · Daemon routes and SSE
 
-Day: 1 (27 Oct) · Owner: CC · Depends on: R-003 · Fallback: polling instead of SSE · Cut: never
+Day: 1 (27 Oct) · Owner: Q · Depends on: R-003 · Fallback: polling instead of SSE · Cut: never
 
 ## Goal
 One Hono app on Bun that is the only process touching `.stint/`: REST for every state change, SSE for every event, a bearer token, a health route that tells the truth about adapters, and static serving of the built web UI. The CLI and the UI are thin clients of exactly these routes.

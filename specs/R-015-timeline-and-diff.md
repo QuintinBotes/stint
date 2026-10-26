@@ -22,7 +22,7 @@ Design: the Task view artboard and the design-system `RunSegment` (vendor colour
 - Rail selection state and diff file selection are URL-addressable: `/t/T-0042?ev=183&file=src/webhooks/limiter.ts`.
 
 ## Acceptance
-1. After `stint demo --speed 0`, the T-0042 rail shows 4 segments (planner, r1 Muse, r2 Claude, r3 Glimmer review) with vendor colours and one joint labelled "412 tokens": `apps/web/e2e/timeline.spec.ts`.
+1. After `stint demo --speed 0`, the T-0042 rail shows 4 segments (r1 Wonder planner, r2 Muse Code, r3 Stint agent, r4 Glimmer review) with vendor colours and one joint labelled "412 tokens": `apps/web/e2e/timeline.spec.ts`.
 2. A synthetic 5,000-event task renders and scrolls without dropped frames (Playwright trace, frame budget assertion): `apps/web/e2e/timeline.perf.spec.ts`.
 3. The Diff tab shows three files, the hunk at `limiter.ts` attributed to r1 on hover, and "Left out" listing the packet's two entries: `apps/web/e2e/diff.spec.ts`.
 4. Adding a line comment writes `comments.json` through the daemon and `stint hand` includes it in `askOfNext`: `packages/daemon/test/comments.test.ts` and `apps/web/e2e/comments.spec.ts`.
@@ -38,4 +38,4 @@ bun run test:ui
 The handoff, verification and review cards' content (R-016), the memory panel (R-019).
 
 ## Notes
-Vendor colours only on marks and segments: Muse gold, Claude slate, local zinc, from the tokens. The rail must read the same in dark, light and stage; test stage once by eye at the end. Do not render agent text as markdown by default; it is evidence, not prose.
+Vendor colours only on marks and segments: Muse gold, Stint agent slate, local zinc, from the tokens. The rail must read the same in dark, light and stage; test stage once by eye at the end. Do not render agent text as markdown by default; it is evidence, not prose.

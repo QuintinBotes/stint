@@ -41,7 +41,7 @@ STINT_LIVE=${STINT_LIVE:-0} bun test packages/adapters/openai-compatible/test/ho
 ```
 
 ## Out of scope
-Implementing code (only Muse Code and Claude Code edit files), the learn prompt (R-020), the UI cards (R-016), embeddings (R-018 stretch), dedicated deployments on Baseten.
+Implementing code (only Muse Code and the Stint agent edit files), the learn prompt (R-020), the UI cards (R-016), embeddings (R-018 stretch), dedicated deployments on Baseten.
 
 ## Notes
 Keep both prompts in `packages/adapters/openai-compatible/prompts/*.md`. The offline review on stage stays on Ollama by design: the hosted Spark Open legs are for planning when Wonder is rate-limited, for the learn step, for the bench's throughput, and as the honest answer to "what if the laptop cannot run Glimmer". Attribution: because Spark Open is in the product, the README carries `Built with Muse Spark Open` (R-023). Treat partner rate limits as facts in `config.json` (`tpm`, `rpm`) so the bench can plan its concurrency; Baseten's 2M TPM is the reason the bench runs there.

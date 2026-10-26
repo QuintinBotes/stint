@@ -1,6 +1,6 @@
 # R-023 · Rehearsal, video, docs
 
-Day: 8 (3 Nov) · Owner: Q (video), CC (docs) · Depends on: R-022 · Fallback: video cut from the best rehearsal · Cut: never
+Day: 8 (3 Nov) · Owner: Q (video), Q (docs) · Depends on: R-022 · Fallback: video cut from the best rehearsal · Cut: never
 
 ## Goal
 Everything a judge reads or clicks is finished and honest: a README with a 90-second quick start, the packet spec, the support matrix, the benchmark chart and the write-up text; three live rehearsals timed; the video recorded from a live run, under 2:40, captions burned in. Agents write the docs; the human records the video and fills the form.
@@ -19,7 +19,7 @@ Submission checklist in the spec doc. Rubric precedent: Demo 30, Impact 25, Mode
 ## Requirements (human part, recorded in PROGRESS.md Gates)
 7. Three live rehearsals on the demo laptop with the network off for the review leg; timings in `docs/demo.md`.
 8. Video recorded from a live run (1080p, captions burned in, 2:30 target, 2:40 cap), "replay of a live run on <date>" on screen if any replay segment is used.
-9. Keys and credits checked the day before; Ollama model pulled; `ANTHROPIC_API_KEY` present only on the demo machine.
+9. Keys and credits checked the day before; Ollama model pulled; keys present only on the demo machine.
 
 ## Interfaces
 - README sections in this order: title line, the three proofs, quick start, what you see (one screenshot of the dark task view), the packet, benchmark, support, what is real, Meta tech, roadmap, licence.

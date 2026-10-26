@@ -1,12 +1,12 @@
 # R-011 · Cost meter
 
-Day: 3 (29 Oct) · Owner: CC · Depends on: R-009, R-010 · Fallback: manual numbers in the recording · Cut: never
+Day: 3 (29 Oct) · Owner: Q · Depends on: R-009, R-010 · Fallback: manual numbers in the recording · Cut: never
 
 ## Goal
 Every run carries its tokens and its price, the task view totals them, the board shows the week, and the budget check stops a run before it overspends. "The economics are on screen" is this spec. It is also what makes the $0.00 review hop and the under-one-dollar task provable.
 
 ## Context
-Prices per million tokens in `config.json` (R-003 defaults for Meta models; this spec adds Claude list prices and makes the table editable). Meta prices cached input far below fresh input, so the cache-stable prefix rule is where savings come from; the meter must show cached tokens separately.
+Prices per million tokens in `config.json` (R-003 defaults for Meta models; this spec makes the table editable). Meta prices cached input far below fresh input, so the cache-stable prefix rule is where savings come from; the meter must show cached tokens separately.
 
 ## Requirements
 1. MUST implement `packages/daemon/src/cost.ts`: `price(hostModel, usage: { inputTokens, cachedTokens, outputTokens })` → `usd` from `config.prices` keyed by `host/model` (unknown key → `usd: null` and a `cost.unpriced` warning event, never a crash); cached tokens are priced at the host's cached rate, which is where Fireworks and Baseten reward the cache-stable prefix; `runCost(task, run)`, `taskCost(task)`, `weekCost()`, `byDay()`.

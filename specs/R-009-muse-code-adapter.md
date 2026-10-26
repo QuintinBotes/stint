@@ -1,6 +1,6 @@
 # R-009 · Muse Code adapter (implement)
 
-Day: 3 (29 Oct) · Owner: CC, handed to MC · Depends on: R-004, R-005 · Fallback: plain `muse exec` without the JSON stream, events from the diff snapshots only · Cut: never
+Day: 3 (29 Oct) · Owner: Q, handed to MC · Depends on: R-004, R-005 · Fallback: plain `muse exec` without the JSON stream, events from the diff snapshots only · Cut: never
 
 ## Goal
 The hero adapter: Muse Code implements a task inside the worktree, its JSON event stream lands on the timeline one to one, a run can be capped by steps or budget, resumed by session id, and killed, and every ending yields the data the packet builder (R-012) needs. "Real worktree, real diff, real cost" is this spec.

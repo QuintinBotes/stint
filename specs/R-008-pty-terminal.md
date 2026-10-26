@@ -1,6 +1,6 @@
 # R-008 · PTY and terminal pane
 
-Day: 2 (28 Oct) · Owner: CC · Depends on: R-004, R-005 · Fallback: an "Open in terminal" button that copies `cd .stint/worktrees/<task>-<run>` · Cut order: 3
+Day: 2 (28 Oct) · Owner: Q · Depends on: R-004, R-005 · Fallback: an "Open in terminal" button that copies `cd .stint/worktrees/<task>-<run>` · Cut order: 3
 
 ## Goal
 A real shell in the run's worktree inside the task view, so the kill beat happens on camera from Stint itself and a person can type next to the agent. Daemon-owned PTY, one per task view, raw bytes over a WebSocket, xterm.js 6 in the UI.

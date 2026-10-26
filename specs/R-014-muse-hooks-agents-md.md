@@ -1,12 +1,12 @@
 # R-014 · Muse hooks and the AGENTS.md section
 
-Day: 4 (30 Oct) · Owner: CC · Depends on: R-004, R-012 · Fallback: daemon-only drafting on `run.finished` · Cut: never
+Day: 4 (30 Oct) · Owner: Q · Depends on: R-004, R-012 · Fallback: daemon-only drafting on `run.finished` · Cut: never
 
 ## Goal
 A packet is drafted at the moment context would be lost, not only when a run ends: Muse Code's `PreCompact` and `SubagentStop` hooks post to the daemon, and an agent started outside Stint still finds the active task because `AGENTS.md` carries a Stint section. This is the "Muse Code hooks" line in the Meta-tech write-up and the interop row that costs an hour.
 
 ## Context
-Muse Code hooks live in `.muse/hooks.json`; the hook events used are `PreCompact` and `SubagentStop`. The readership matrix (which of AGENTS.md, CLAUDE.md, `.cursorrules` each agent reads, with the version verified against) is ported from an earlier terminal project's `readership-matrix.json`; the Muse Code row starts as `unknown` until verified at kickoop and then recorded.
+Muse Code hooks live in `.muse/hooks.json`; the hook events used are `PreCompact` and `SubagentStop`. The readership matrix (which of AGENTS.md, `.agents/skills`, `.cursorrules` each agent reads, with the version verified against) is ported from an earlier terminal project's `readership-matrix.json`; the Muse Code row starts as `unknown` until verified at kickoop and then recorded.
 
 ## Requirements
 1. MUST ship `packages/adapters/muse-code/hooks/hooks.json.template` with `PreCompact` and `SubagentStop` entries that run `stint hook <event>` (the CLI reads `STINT_TASK`, `STINT_RUN` and `.stint/cache/daemon.json`, posts `{ event, sessionId, cwd }` to `POST /api/tasks/:id/handoff { enrich: false, reason: 'precompact' | 'subagentstop' }`) with a 5 s timeout; the daemon writes the hook file into the worktree's `.muse/` at assign time (never into the main tree) and removes it with the worktree.
@@ -33,7 +33,7 @@ bun test packages/cli packages/daemon
 ```
 
 ## Out of scope
-Claude SDK hooks (optional), the learn step.
+Hooks for other agents, the learn step.
 
 ## Notes
 The hook file goes in the worktree so the main tree is never modified by a run. Verify the exact hook event names against the installed Muse Code at kickoff and record them in a Decision; if `PreCompact` is not available, use `Stop` and say so in the write-up. The `decision:` convention is also added to the system framing in `renderPrompt` so agents know to use it.

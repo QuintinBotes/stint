@@ -4,7 +4,7 @@ Every spec in this folder has the same nine sections. An agent reads them in ord
 
 | Section | What it is | How the agent uses it |
 |---|---|---|
-| Header | id, title, day, owner (MC = Muse Code, CC = Claude Code, Q = human), depends on, fallback, cut order | Eligibility and ownership; a fallback is what to build if the main path fails twice |
+| Header | id, title, day, owner (MC = Muse Code, Q = the author), depends on, fallback, cut order | Eligibility and ownership; a fallback is what to build if the main path fails twice |
 | Goal | One paragraph: the outcome and the demo beat it serves | The reason; never implement something the Goal does not need |
 | Context | What already exists, where it is, which docs apply | Read before writing |
 | Requirements | Numbered MUST / SHOULD lines | The scope; MUST lines are all implemented, SHOULD lines are implemented unless a Deviation says why not |
