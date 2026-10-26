@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
-import { relative } from 'node:path';
+import { rm } from 'node:fs/promises';
+import { join, relative } from 'node:path';
 import { type Cost, type Role, type Task, countTokens, priceUsage } from '@stint-dev/core';
-import { runsFromEvents } from '@stint-dev/core/node';
+import { runsFromEvents, writeJsonAtomic } from '@stint-dev/core/node';
 import type { Adapter, RunResult } from './adapter';
 import type { DaemonContext } from './app';
 import { runEnv } from './env';
@@ -41,6 +42,33 @@ async function releaseWorktrees(ctx: DaemonContext, task: Task): Promise<void> {
     const path = worktreePath(ctx.ws, task.id, r.run);
     if (existsSync(path) && !ctx.runs.holds(path)) await ctx.worktrees.remove(task, r.run);
   }
+}
+
+const DECISION = /^decision:\s*(.+)$/i;
+const SUPERSEDES = /^supersedes:\s*(D[0-9]+)\s*$/i;
+
+/** An agent's `decision: ...` lines become entries in decisions.md, with the message as evidence (R-014). */
+export async function captureDecisions(ctx: DaemonContext, taskId: string, run: string, adapter: string, eventId: string, text: string): Promise<void> {
+  const lines = text.split('\n').map((l) => l.trim());
+  for (let i = 0; i < lines.length; i++) {
+    const m = DECISION.exec(lines[i] as string);
+    if (!m?.[1]) continue;
+    const sup = SUPERSEDES.exec(lines[i + 1] ?? '');
+    try {
+      const d = await ctx.ws.decisions(taskId).append({ text: m[1].slice(0, 200), by: `${adapter} ${run}`, evidence: [`${taskId}/${run}#${eventId}`], ...(sup?.[1] ? { supersedes: sup[1] } : {}) });
+      await ctx.ws.events(taskId).append({ task: taskId, run, adapter, vendor: 'daemon', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by, ...(d.supersedes ? { supersedes: d.supersedes } : {}) }, links: [{ kind: 'decision', ref: d.id }] });
+    } catch (err) {
+      // a supersedes naming no decision is reported, not recorded
+      await ctx.ws.events(taskId).append({ task: taskId, run, vendor: 'daemon', type: 'agent.message', payload: { text: `A decision line was not recorded: ${err instanceof Error ? err.message : String(err)}`, stderr: true } });
+    }
+  }
+}
+
+/** \`.stint/active\`: the live run, for agents started outside Stint (AGENTS.md points at it). */
+async function writeActive(ctx: DaemonContext, value: Record<string, string> | null): Promise<void> {
+  const path = join(ctx.ws.stintDir, 'active');
+  if (value) await writeJsonAtomic(path, value);
+  else await rm(path, { force: true });
 }
 
 /** Starts a run: worktree, skills, prompt, run.started, then the adapter in the background. */
@@ -111,6 +139,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     pendingAsk: null,
   });
 
+  await writeActive(ctx, { task: taskId, run, worktree: relative(ws.root, wt.path), adapter: adapter.id });
   const abort = new AbortController();
   const live = { task: taskId, run, adapter: adapter.id, worktree: wt.path, startedAt, abort, inFlight: null as string | null, done: Promise.resolve() as Promise<unknown> };
   const done = (async () => {
@@ -132,7 +161,8 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
           (live as { pgid?: number }).pgid = pid;
         },
         emit: async (e) => {
-          await events.append({ ...e, ...base, type: e.type, payload: e.payload });
+          const appended = await events.append({ ...e, ...base, type: e.type, payload: e.payload });
+          if (e.type === 'agent.message') await captureDecisions(ctx, taskId, run, adapter.id, appended.id, String(e.payload.text ?? ''));
         },
         transcript: (line) => ws.runs(taskId).appendTranscript(run, line),
       });
@@ -146,11 +176,16 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     const cost = priced(ctx, adapter.id, { ...result, model: result.model ?? model });
     if (cost.usd === null) await events.append({ task: taskId, run, vendor: 'daemon', type: 'cost.unpriced', payload: { key: priceKey(adapter.id, result.host, result.model ?? model) } });
     await ws.runs(taskId).updateMeta(run, { endedAt: new Date().toISOString(), endedBy: result.endedBy, cost, ...(result.sessionId ? { sessionId: result.sessionId } : {}) });
+    // Muse names the open tool without arguments; its PreToolUse hook adds them when it names the same tool
+    const own = result.endedBy === 'killed' ? (result.inFlight ?? null) : null;
+    const hooked = live.inFlight;
+    const inFlight = own && hooked?.startsWith(`${own} `) ? hooked : own;
     await events.append({
       ...base,
       type: 'run.finished',
-      payload: { endedBy: result.endedBy, cost, host: result.host ?? 'local-cli', model: result.model ?? model ?? null, inFlight: result.inFlight ?? null, commit, ...(result.sessionId ? { sessionId: result.sessionId } : {}) },
+      payload: { endedBy: result.endedBy, cost, host: result.host ?? 'local-cli', model: result.model ?? model ?? null, inFlight, commit, ...(result.sessionId ? { sessionId: result.sessionId } : {}) },
     });
+    await writeActive(ctx, null);
     ctx.runs.remove(taskId, run);
     await ws.writeTask(taskId, { status: 'verifying', assignee: null });
     const v = existsSync(wt.path) ? await ctx.verifier.verify(await ws.readTask(taskId), run, wt.path) : null;

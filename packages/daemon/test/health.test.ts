@@ -38,3 +38,17 @@ test('`/api/health` reports the PTY backend chosen', async () => {
     tmp.cleanup();
   }
 });
+
+test('/api/health shows reads AGENTS.md for muse-code with verifiedAgainst', async () => {
+  const { museCodeAdapter } = await import('@stint-dev/adapter-muse-code');
+  const tmp = tempDir();
+  try {
+    const { app } = await makeApp(tmp.dir, [museCodeAdapter]);
+    const health = (await (await app.request('/api/health')).json()) as { adapters: Array<{ id: string; reads?: Record<string, string>; verifiedAgainst?: string }> };
+    const muse = health.adapters.find((a) => a.id === 'muse-code');
+    expect(muse?.reads?.['AGENTS.md']).toBe('verified');
+    expect(muse?.verifiedAgainst).toMatch(/^muse \d+\.\d+\.\d+$/);
+  } finally {
+    tmp.cleanup();
+  }
+});

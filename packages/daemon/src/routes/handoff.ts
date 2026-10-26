@@ -54,6 +54,7 @@ export function handoffRoutes(app: Hono, ctx: DaemonContext): void {
     const body = HandoffBody.parse(await c.req.json().catch(() => ({})));
     const run = body.run ?? (await latestEndedRun(ctx, id));
     const built = await buildHandoff(ctx, id, run, { ...(body.to ? { to: body.to } : {}), reason: body.reason ?? 'rebuilt' });
+    if (body.reason === 'precompact' || body.reason === 'subagentstop') await ctx.ws.events(id).append({ task: id, run, vendor: 'daemon', type: 'agent.message', payload: { text: `Packet ${built.name} drafted by the agent's ${body.reason === 'precompact' ? 'PreCompact' : 'SubagentStop'} hook.`, hook: body.reason } });
     return c.json({ name: built.name, tokens: built.tokens, bytes: built.bytes, handoff: built.handoff });
   });
 

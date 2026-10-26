@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "name": "stint",
+  "displayName": "Stint",
+  "version": "0.1.0",
+  "description": "Tells the Stint daemon when Muse Code is about to lose context or run a tool, so a task's packet is drafted in time.",
+  "compat": {
+    "source": "native",
+    "manifestDir": ".muse-plugin"
+  },
+  "capabilities": {
+    "skills": [],
+    "commands": [],
+    "hooks": [
+      { "id": "pre-compact", "event": "PreCompact", "command": ["sh", "hooks/stint-hook.sh", "PreCompact"], "timeoutMs": 5000, "statusMessage": "Drafting the Stint packet" },
+      { "id": "subagent-stop", "event": "SubagentStop", "command": ["sh", "hooks/stint-subagent-stop.sh"], "timeoutMs": 5000, "statusMessage": "Drafting the Stint packet" },
+      { "id": "pre-tool-use", "event": "PreToolUse", "command": ["sh", "hooks/stint-pre-tool-use.sh"], "timeoutMs": 2000, "statusMessage": "Recording the step for Stint" }
+    ],
+    "mcpServers": [],
+    "reminders": []
+  }
+}

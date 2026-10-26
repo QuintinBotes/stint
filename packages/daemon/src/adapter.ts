@@ -1,4 +1,5 @@
 import type { Adapter, Availability, CapabilityLevel, GateStrength, Role, Vendor } from '@stint-dev/core';
+import readership from '../../core/src/readership.json';
 
 export type { Adapter, AdapterCapabilities, AdapterEvent, Availability, Enrichment, RunContext, RunResult } from '@stint-dev/core';
 
@@ -18,7 +19,12 @@ export type AdapterHealth = {
   gate: GateStrength;
   version?: string;
   reason?: string;
+  /** Which instruction files the agent reads, each verified or unknown, and against which version. */
+  reads?: Record<string, string>;
+  verifiedAgainst?: string;
 };
+
+const READS = readership as Record<string, { reads: Record<string, string>; verifiedAgainst: string }>;
 
 export async function adapterHealth(adapters: Adapter[]): Promise<AdapterHealth[]> {
   const out: AdapterHealth[] = [];
@@ -39,6 +45,7 @@ export async function adapterHealth(adapters: Adapter[]): Promise<AdapterHealth[
       gate: a.gate(),
       ...(av.version ? { version: av.version } : {}),
       ...(av.reason ? { reason: av.reason } : {}),
+      ...(READS[a.id] ? { reads: READS[a.id]?.reads, verifiedAgainst: READS[a.id]?.verifiedAgainst } : {}),
     });
   }
   for (const k of KNOWN_ADAPTERS) {
