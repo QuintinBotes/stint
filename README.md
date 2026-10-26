@@ -33,6 +33,8 @@ bun run dev
 
 `bun run dev` replays the recorded story through the real daemon and opens the UI at `http://127.0.0.1:<port>`: a real event log and hash chain, real git commits and a real merge. The UI says it is a replay. Chrome can install it as an app in its own window.
 
+`stint demo --live` runs the same story for real with your keys, beat by beat: Muse Wonder plans, Muse Code builds and is killed, the Stint agent continues, Glimmer reviews offline, you approve, and the factory learns. `stint demo record` turns that run into a recording anyone can replay.
+
 To run it on your own repository with your own keys:
 
 ```
