@@ -194,7 +194,8 @@ export class Autopilot {
     const queued: string[] = [];
     for (const t of await this.ctx.ws.listTasks()) {
       const tail = autopilotTail(await this.ctx.ws.events(t.id).read());
-      if (tail) (holdsSlot(tail) ? running : queued).push(t.id);
+      // queued means it took a queued step; a task that has not taken its first step yet is starting, not queued
+      if (tail) (tail.at(-1)?.type === 'autopilot.step' && tail.at(-1)?.payload.queued ? queued : running).push(t.id);
     }
     return { running, queued };
   }
