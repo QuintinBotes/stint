@@ -16,7 +16,9 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, adapterHealth } from './adapter';
 import { DaemonError, errorResponse } from './errors';
+import { demoRoutes } from './routes/demo';
 import { workRoutes } from './routes/work';
+import { Replayer } from './replay';
 import { RunRegistry } from './runs';
 import { DaemonVerifier, type Verifier } from './verifier';
 import { Worktrees } from './worktree';
@@ -47,6 +49,7 @@ export type DaemonContext = {
   worktrees: Worktrees;
   verifier: Verifier;
   snapshotMs: number;
+  replayer: Replayer;
 };
 
 const NewTaskBody = z.strictObject({
@@ -86,6 +89,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     worktrees: new Worktrees(ws, runs),
     verifier: verifier ?? new DaemonVerifier(ws),
     snapshotMs: snapshotMs ?? 5_000,
+    replayer: new Replayer(ws),
   };
   const app = new Hono();
 
@@ -116,6 +120,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       startedAt: opts.startedAt,
       pid: process.pid,
       adapters: await adapterHealth(adapters),
+      ...replayHealth(ctx),
       ...Object.assign({}, ...extra),
     });
   });
@@ -269,7 +274,15 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
   return app;
 }
 
+/** Once a recording is loaded the daemon says so: the UI shows "Replay of a live run on <date>". */
+function replayHealth(ctx: DaemonContext): Record<string, unknown> {
+  const rec = ctx.replayer.loaded;
+  if (!rec) return {};
+  return { mode: 'replay', replay: { title: rec.header.title, recordedAt: rec.header.recordedAt, live: rec.header.live } };
+}
+
 /** Later specs (verify, assign, handoff, approve, graph, skills) add their routes here. */
 function registerRoutes(app: Hono, ctx: DaemonContext): void {
   workRoutes(app, ctx);
+  demoRoutes(app, ctx);
 }

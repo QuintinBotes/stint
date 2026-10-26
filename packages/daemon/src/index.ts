@@ -7,3 +7,5 @@ export * from './git';
 export * from './runs';
 export * from './verifier';
 export * from './worktree';
+export * from './replay';
+export { DEFAULT_RECORDING } from './routes/demo';

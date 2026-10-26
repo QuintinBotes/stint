@@ -14,7 +14,7 @@ jobs:
     env:
       META_API_KEY: ${{ secrets.META_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4

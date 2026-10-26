@@ -15,15 +15,14 @@
     "adapter": "claude-code",
     "role": "implementer"
   },
-  "summary": "Reached the 60-step cap after adding the limiter and wiring it into POST /webhooks. The 429 tests were not started.",
+  "summary": "Reached the 60-step cap after adding the limiter and wiring it into POST /webhooks. No tests were written yet.",
   "done": [
     "Sliding window limiter in src/lib/limiter.ts",
     "Limiter wired into POST /webhooks"
   ],
   "open": [
     "Unit tests for the limiter",
-    "Tests for the 429 response and the Retry-After header",
-    "Read the limit from config"
+    "Tests for the 429 response and the Retry-After header"
   ],
   "leftOut": [
     "No tests were written for the limiter yet"
@@ -31,31 +30,45 @@
   "refusals": [],
   "decisions": [
     {
+      "id": "D1",
+      "text": "Count requests per tenant, not per source IP"
+    },
+    {
+      "id": "D2",
+      "text": "Answer 429 with a Retry-After header, never 503"
+    },
+    {
       "id": "D3",
       "text": "Sliding window over fixed window, so a burst at a window edge cannot double the limit"
     }
   ],
   "risks": [
     "Limiter state is in memory and resets on restart",
-    "The limit of 60 per minute is hard-coded in the limiter"
+    "The limit of 60 per minute is hard-coded"
   ],
   "changedFiles": [
     {
+      "path": "src/app.ts",
+      "added": 3,
+      "removed": 0,
+      "run": "r2"
+    },
+    {
       "path": "src/lib/limiter.ts",
-      "added": 39,
+      "added": 26,
       "removed": 0,
       "run": "r2"
     },
     {
       "path": "src/routes/webhooks.ts",
-      "added": 9,
-      "removed": 1,
+      "added": 6,
+      "removed": 0,
       "run": "r2"
     }
   ],
   "diffRef": {
     "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
-    "head": "a8d3f1c6e9b2a5d8f0c3e6b9a2d5f8c1e4b7a0d3"
+    "head": "64b0829208fd62a66045a389373353d6b2a068a5"
   },
   "verification": {
     "command": "bun run test",
@@ -66,13 +79,13 @@
     "runBy": "daemon",
     "status": "green"
   },
-  "askOfNext": "Add unit tests for the limiter first, then the 429 response tests, then read the limit from config.",
+  "askOfNext": "Add the limiter unit tests first, then the 429 response tests.",
   "cost": {
-    "inputTokens": 41200,
-    "cachedTokens": 30100,
-    "outputTokens": 6020,
-    "usd": 0.0484
+    "inputTokens": 612400,
+    "cachedTokens": 548200,
+    "outputTokens": 9840,
+    "usd": 0.2117
   },
-  "createdAt": "2026-11-02T14:41:07Z",
-  "hash": "sha256:9857cc3c2e7781e9d21596df62e77792626a57ac3feed39ca0b6500babc49e63"
+  "createdAt": "2026-10-26T15:01:07.500Z",
+  "hash": "sha256:ecf3e4204d304ae6e16b2b19c7cde1c28943169177dabfb4712d756e95de986a"
 }

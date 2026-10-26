@@ -55,9 +55,9 @@ if command -v muse >/dev/null 2>&1; then
 else
   say "  muse-code      unavailable: muse CLI not installed (https://dev.meta.ai/install.sh)"
 fi
-if has_key ANTHROPIC_API_KEY; then say "  claude-code    available: ANTHROPIC_API_KEY set"
-elif command -v claude >/dev/null 2>&1; then say "  claude-code    available: using the logged-in claude CLI ($(claude --version 2>/dev/null | head -1))"
-else say "  claude-code    unavailable: ANTHROPIC_API_KEY not set and no claude CLI"; fi
+if ! command -v claude >/dev/null 2>&1; then say "  claude-code    unavailable: claude CLI not installed"
+elif has_key META_API_KEY; then say "  claude-code    available: the Claude Code harness on Meta's API ($(claude --version 2>/dev/null | head -1))"
+else say "  claude-code    unavailable: META_API_KEY not set (the harness runs on Meta's API)"; fi
 if [ "$glimmer_ok" = 1 ]; then say "  ollama         available: $GLIMMER pulled (offline review, \$0)"
 elif [ "$ollama_ok" = 1 ]; then say "  ollama         unavailable: $GLIMMER not pulled yet (ollama pull $GLIMMER)"
 else say "  ollama         unavailable: ollama not installed"; fi
@@ -65,7 +65,7 @@ else say "  ollama         unavailable: ollama not installed"; fi
 say "Hosts for plan, review and learn:"
 for pair in "meta-api:META_API_KEY" "fireworks:FIREWORKS_API_KEY" "baseten:BASETEN_API_KEY" "modal:MODAL_API_KEY"; do
   host="${pair%%:*}"; key="${pair##*:}"
-  if has_key "$key"; then say "  $(printf '%-14s' "$host") available: $key set"
+  if has_key "$key"; then say "  $(printf '%-14s' "$host") key set (not checked here; stint up --check asks the host)"
   else say "  $(printf '%-14s' "$host") unavailable: $key not set"; fi
 done
 

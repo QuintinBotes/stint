@@ -1,0 +1,30 @@
+diff --git a/.agents/skills/limiter-config-via-env/SKILL.md b/.agents/skills/limiter-config-via-env/SKILL.md
+new file mode 100644
+index 0000000..298a8ca
+--- /dev/null
++++ b/.agents/skills/limiter-config-via-env/SKILL.md
+@@ -0,0 +1,14 @@
++---
++name: limiter-config-via-env
++description: "Use when adding a limit, threshold, window or cap: read it through loadConfig() with a default, never as a constant."
++roles: [implementer, reviewer]
++tags: [limits, config]
++version: 1.0.0
++origin: learn-loop
++evidence: ["T-0042/r4#F1", "T-0040/r3#F2"]
++status: active
++---
++
++# Limits come from config
++
++Every limit, threshold, window and cap is read through loadConfig() from an env var with a default. Add a config test for the default and one for the override. A reviewer flags a constant limit as a finding.
+diff --git a/.agents/skills/limiter-config-via-env/examples.md b/.agents/skills/limiter-config-via-env/examples.md
+new file mode 100644
+index 0000000..cbe157a
+--- /dev/null
++++ b/.agents/skills/limiter-config-via-env/examples.md
+@@ -0,0 +1,4 @@
++# Examples
++
++- T-0042 r3: `src/lib/limiter.ts` shipped with a constant limit of 60 per minute (review T-0042/r4#F1).
++- T-0040 r2: `src/lib/audit.ts` shipped with a constant export limit of 5000 rows (review T-0040/r3#F2).

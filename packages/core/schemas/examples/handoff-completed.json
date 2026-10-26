@@ -12,21 +12,29 @@
     "host": "local-cli"
   },
   "to": {
-    "adapter": "ollama",
+    "adapter": "openai-compatible",
     "role": "reviewer"
   },
-  "summary": "Rate-limited POST /webhooks per tenant with a sliding window and a 429 response with Retry-After. Four tests added; the suite is green.",
+  "summary": "Rate-limited POST /webhooks per tenant with a sliding window and a 429 response with Retry-After. The tests are green.",
   "done": [
     "Sliding window limiter in src/lib/limiter.ts",
-    "POST /webhooks answers 429 with Retry-After when a tenant is over the limit",
-    "Four tests for the limiter and the 429 response"
+    "POST /webhooks answers 429 with Retry-After over the limit",
+    "Limiter and 429 tests"
   ],
   "open": [],
   "leftOut": [
-    "src/config.ts was not changed: the limit is still a constant"
+    "Limiter state across restarts was not looked at"
   ],
   "refusals": [],
   "decisions": [
+    {
+      "id": "D1",
+      "text": "Count requests per tenant, not per source IP"
+    },
+    {
+      "id": "D2",
+      "text": "Answer 429 with a Retry-After header, never 503"
+    },
     {
       "id": "D3",
       "text": "Sliding window over fixed window, so a burst at a window edge cannot double the limit"
@@ -34,48 +42,54 @@
   ],
   "risks": [
     "Limiter state is in memory and resets on restart",
-    "The limit of 60 per minute is hard-coded in the limiter"
+    "The limit of 60 per minute is hard-coded"
   ],
   "changedFiles": [
     {
+      "path": "src/app.ts",
+      "added": 3,
+      "removed": 0,
+      "run": "r2"
+    },
+    {
       "path": "src/lib/limiter.ts",
-      "added": 44,
+      "added": 26,
       "removed": 0,
       "run": "r2"
     },
     {
       "path": "src/routes/webhooks.ts",
-      "added": 11,
-      "removed": 1,
+      "added": 6,
+      "removed": 0,
       "run": "r2"
     },
     {
       "path": "test/limiter.test.ts",
-      "added": 52,
+      "added": 23,
       "removed": 0,
       "run": "r2"
     }
   ],
   "diffRef": {
     "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
-    "head": "3f9a2c7e1b4d8f6a0c5e9b2d7f1a4c8e3b6d0f9a"
+    "head": "64b0829208fd62a66045a389373353d6b2a068a5"
   },
   "verification": {
     "command": "bun run test",
     "exitCode": 0,
     "passed": 31,
     "failed": 0,
-    "durationMs": 1710,
+    "durationMs": 1700,
     "runBy": "daemon",
     "status": "green"
   },
-  "askOfNext": "Review the limiter against the decisions and AGENTS.md; check that limits come from config.",
+  "askOfNext": "Review the limiter against D1 to D3 and AGENTS.md.",
   "cost": {
-    "inputTokens": 26180,
-    "cachedTokens": 17900,
-    "outputTokens": 5120,
-    "usd": 0.0386
+    "inputTokens": 612400,
+    "cachedTokens": 548200,
+    "outputTokens": 9840,
+    "usd": 0.2117
   },
-  "createdAt": "2026-11-02T14:41:07Z",
-  "hash": "sha256:3a477de61517466aa1a5cf536718c4fcd5c23211c21386ca7f22fdac976c41bf"
+  "createdAt": "2026-10-26T15:01:07.500Z",
+  "hash": "sha256:7815a74449d6800fdeebb99112bf5f5dcf15a4bdec73793152ae5918aca7bad0"
 }

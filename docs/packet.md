@@ -40,34 +40,36 @@ T-0042
 
 ## Where it got to
 muse-code (meta, muse-spark-1.3) ran r2 as implementer. The run ended: killed.
-Added a per-tenant sliding window limiter and wired it into POST /webhooks before the body is read. The run was killed while it was writing the tests for the 429 response.
+Added a per-tenant sliding window limiter and wired it into POST /webhooks. The run was killed while writing the 429 tests.
 Verification by the daemon: bun run test, 30 passed, 0 failed (exit 0).
-Changed: src/lib/limiter.ts +41 -0, src/routes/webhooks.ts +9 -1, test/limiter.test.ts +38 -0.
-Diff: be1bee8..7c41e0a.
+Changed: src/app.ts +3 -0, src/lib/limiter.ts +26 -0, src/routes/webhooks.ts +6 -0, test/limiter.test.ts +23 -0.
+Diff: be1bee8..64b0829.
 
 ## Done
 - Sliding window limiter in src/lib/limiter.ts
-- Limiter wired into POST /webhooks before the body is read
+- Limiter wired into POST /webhooks
 - Three limiter unit tests pass
 
 ## Open
 - Tests for the 429 response and the Retry-After header
-- Read the limit and the window from config
+- A test that other tenants are not affected
 
 ## Refused actions
 - none
 
 ## Decisions
+- D1: Count requests per tenant, not per source IP
+- D2: Answer 429 with a Retry-After header, never 503
 - D3: Sliding window over fixed window, so a burst at a window edge cannot double the limit
 
 ## Risks
 - Limiter state is in memory and resets on restart
-- The limit of 60 per minute is hard-coded in the limiter
+- The limit of 60 per minute is hard-coded
 
 ## Ask of next
-Check the unknown step first: test/ratelimit.test.ts may be half written. Then test the 429 response and Retry-After, and read the limit from config.
+Check the unknown step first: test/ratelimit.test.ts may be half written. Then test 429 and Retry-After.
 
 ## Not included
 - In-flight step unknown: write_file test/ratelimit.test.ts
-- src/config.ts was planned but not touched
+- Limiter state across restarts was not looked at
 ```

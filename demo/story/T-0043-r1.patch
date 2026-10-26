@@ -1,0 +1,116 @@
+diff --git a/src/app.ts b/src/app.ts
+index da68129..3d55d5e 100644
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -15,6 +15,7 @@ export interface Deps {
+   tenants: TenantRegistry;
+   audit: AuditLog;
+   limiter: SlidingWindowLimiter;
++  adminLimiter: SlidingWindowLimiter;
+ }
+ 
+ export function createDeps(config: Config = loadConfig()): Deps {
+@@ -27,6 +28,7 @@ export function createDeps(config: Config = loadConfig()): Deps {
+     ]),
+     audit: new AuditLog(),
+     limiter: new SlidingWindowLimiter(),
++    adminLimiter: new SlidingWindowLimiter(config.adminRateLimit, config.adminRateWindowMs),
+   };
+ }
+ 
+diff --git a/src/config.ts b/src/config.ts
+index 7816adc..f83bf18 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -3,6 +3,8 @@ export interface Config {
+   maxBodyBytes: number;
+   replayMaxAttempts: number;
+   replayBaseDelayMs: number;
++  adminRateLimit: number;
++  adminRateWindowMs: number;
+ }
+ 
+ type Env = Record<string, string | undefined>;
+@@ -19,5 +21,7 @@ export function loadConfig(env: Env = process.env): Config {
+     maxBodyBytes: positiveInt(env.MAX_BODY_BYTES, 65536),
+     replayMaxAttempts: positiveInt(env.REPLAY_MAX_ATTEMPTS, 5),
+     replayBaseDelayMs: positiveInt(env.REPLAY_BASE_DELAY_MS, 100),
++    adminRateLimit: positiveInt(env.ADMIN_RATE_LIMIT, 30),
++    adminRateWindowMs: positiveInt(env.ADMIN_RATE_WINDOW_MS, 60_000),
+   };
+ }
+diff --git a/src/routes/admin.ts b/src/routes/admin.ts
+index c5cb715..b016bc2 100644
+--- a/src/routes/admin.ts
++++ b/src/routes/admin.ts
+@@ -5,6 +5,15 @@ import { TenantError } from '../lib/tenants';
+ export function adminRoutes(deps: Deps): Hono {
+   const r = new Hono();
+ 
++  r.use('*', async (c, next) => {
++    const limit = deps.adminLimiter.check('admin');
++    if (!limit.allowed) {
++      c.header('Retry-After', String(Math.ceil(limit.retryAfterMs / 1000)));
++      return c.json({ error: 'rate limit exceeded for the admin API' }, 429);
++    }
++    await next();
++  });
++
+   r.get('/tenants', (c) => c.json({ tenants: deps.tenants.list() }));
+ 
+   r.post('/tenants', async (c) => {
+diff --git a/test/admin.test.ts b/test/admin.test.ts
+index c936e52..e75564f 100644
+--- a/test/admin.test.ts
++++ b/test/admin.test.ts
+@@ -35,3 +35,21 @@ describe('admin API', () => {
+     expect((await postWebhook('tenant-c', { type: 'hello' })).status).toBe(202);
+   });
+ });
++
++describe('admin rate limit', () => {
++  it('answers 429 with Retry-After over the configured admin limit', async () => {
++    const { send } = setup({ adminRateLimit: 2 });
++    await send('/admin/tenants');
++    await send('/admin/tenants');
++    const res = await send('/admin/tenants');
++    expect(res.status).toBe(429);
++    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
++  });
++
++  it('uses the window from config', async () => {
++    const { send } = setup({ adminRateLimit: 1, adminRateWindowMs: 1 });
++    await send('/admin/tenants');
++    await new Promise((r) => setTimeout(r, 5));
++    expect((await send('/admin/tenants')).status).toBe(200);
++  });
++});
+diff --git a/test/config.test.ts b/test/config.test.ts
+index dbec790..b74f66e 100644
+--- a/test/config.test.ts
++++ b/test/config.test.ts
+@@ -3,12 +3,12 @@ import { loadConfig } from '../src/config';
+ 
+ describe('config', () => {
+   it('uses defaults when the environment is empty', () => {
+-    expect(loadConfig({})).toEqual({ port: 3000, maxBodyBytes: 65536, replayMaxAttempts: 5, replayBaseDelayMs: 100 });
++    expect(loadConfig({})).toMatchObject({ port: 3000, maxBodyBytes: 65536, replayMaxAttempts: 5, replayBaseDelayMs: 100 });
+   });
+ 
+   it('reads values from the environment', () => {
+     const config = loadConfig({ PORT: '8080', MAX_BODY_BYTES: '1024', REPLAY_MAX_ATTEMPTS: '3', REPLAY_BASE_DELAY_MS: '50' });
+-    expect(config).toEqual({ port: 8080, maxBodyBytes: 1024, replayMaxAttempts: 3, replayBaseDelayMs: 50 });
++    expect(config).toMatchObject({ port: 8080, maxBodyBytes: 1024, replayMaxAttempts: 3, replayBaseDelayMs: 50 });
+   });
+ 
+   it('falls back on values that are not numbers', () => {
+@@ -20,4 +20,9 @@ describe('config', () => {
+     const config = loadConfig({ PORT: '0', MAX_BODY_BYTES: '-1', REPLAY_MAX_ATTEMPTS: '2.5' });
+     expect([config.port, config.maxBodyBytes, config.replayMaxAttempts]).toEqual([3000, 65536, 5]);
+   });
++
++  it('reads the admin rate limit from the environment with defaults', () => {
++    expect(loadConfig({})).toMatchObject({ adminRateLimit: 30, adminRateWindowMs: 60_000 });
++    expect(loadConfig({ ADMIN_RATE_LIMIT: '5', ADMIN_RATE_WINDOW_MS: '1000' })).toMatchObject({ adminRateLimit: 5, adminRateWindowMs: 1000 });
++  });
+ });

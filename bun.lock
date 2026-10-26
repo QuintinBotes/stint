@@ -66,6 +66,7 @@
         "@stint-dev/adapter-openai-compatible": "workspace:*",
         "@stint-dev/core": "workspace:*",
         "hono": "4.13.14",
+        "ulid": "3.0.2",
         "zod": "4.6.7",
       },
     },

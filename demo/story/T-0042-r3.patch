@@ -1,0 +1,41 @@
+diff --git a/test/ratelimit.test.ts b/test/ratelimit.test.ts
+new file mode 100644
+index 0000000..e637883
+--- /dev/null
++++ b/test/ratelimit.test.ts
+@@ -0,0 +1,35 @@
++import { describe, expect, it } from 'vitest';
++import { SlidingWindowLimiter } from '../src/lib/limiter';
++import { setup } from './helpers';
++
++const limited = (limit: number) => {
++  const s = setup();
++  s.deps.limiter = new SlidingWindowLimiter(limit, 60_000);
++  return s;
++};
++
++describe('rate limit on POST /webhooks', () => {
++  it('answers 429 with Retry-After when a tenant is over the limit', async () => {
++    const { postWebhook } = limited(2);
++    await postWebhook('tenant-a', { type: 'one' });
++    await postWebhook('tenant-a', { type: 'two' });
++    const res = await postWebhook('tenant-a', { type: 'three' });
++    expect(res.status).toBe(429);
++    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
++  });
++
++  it('does not limit other tenants', async () => {
++    const { postWebhook } = limited(1);
++    await postWebhook('tenant-a', { type: 'one' });
++    expect((await postWebhook('tenant-a', { type: 'two' })).status).toBe(429);
++    expect((await postWebhook('tenant-b', { type: 'one' })).status).toBe(202);
++  });
++
++  it('does not store or audit a rejected webhook', async () => {
++    const { postWebhook, deps } = limited(1);
++    await postWebhook('tenant-a', { type: 'one' });
++    await postWebhook('tenant-a', { type: 'two' });
++    expect(deps.store.listByTenant('tenant-a')).toHaveLength(1);
++    expect(deps.audit.list()).toHaveLength(1);
++  });
++});

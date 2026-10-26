@@ -15,22 +15,30 @@
     "adapter": "claude-code",
     "role": "implementer"
   },
-  "summary": "Added a per-tenant sliding window limiter and wired it into POST /webhooks before the body is read. The run was killed while it was writing the tests for the 429 response.",
+  "summary": "Added a per-tenant sliding window limiter and wired it into POST /webhooks. The run was killed while writing the 429 tests.",
   "done": [
     "Sliding window limiter in src/lib/limiter.ts",
-    "Limiter wired into POST /webhooks before the body is read",
+    "Limiter wired into POST /webhooks",
     "Three limiter unit tests pass"
   ],
   "open": [
     "Tests for the 429 response and the Retry-After header",
-    "Read the limit and the window from config"
+    "A test that other tenants are not affected"
   ],
   "leftOut": [
     "In-flight step unknown: write_file test/ratelimit.test.ts",
-    "src/config.ts was planned but not touched"
+    "Limiter state across restarts was not looked at"
   ],
   "refusals": [],
   "decisions": [
+    {
+      "id": "D1",
+      "text": "Count requests per tenant, not per source IP"
+    },
+    {
+      "id": "D2",
+      "text": "Answer 429 with a Retry-After header, never 503"
+    },
     {
       "id": "D3",
       "text": "Sliding window over fixed window, so a burst at a window edge cannot double the limit"
@@ -38,31 +46,37 @@
   ],
   "risks": [
     "Limiter state is in memory and resets on restart",
-    "The limit of 60 per minute is hard-coded in the limiter"
+    "The limit of 60 per minute is hard-coded"
   ],
   "changedFiles": [
     {
+      "path": "src/app.ts",
+      "added": 3,
+      "removed": 0,
+      "run": "r2"
+    },
+    {
       "path": "src/lib/limiter.ts",
-      "added": 41,
+      "added": 26,
       "removed": 0,
       "run": "r2"
     },
     {
       "path": "src/routes/webhooks.ts",
-      "added": 9,
-      "removed": 1,
+      "added": 6,
+      "removed": 0,
       "run": "r2"
     },
     {
       "path": "test/limiter.test.ts",
-      "added": 38,
+      "added": 23,
       "removed": 0,
       "run": "r2"
     }
   ],
   "diffRef": {
     "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
-    "head": "7c41e0a9d2b5f3c8e6a1d4b7f0c3e9a2d5b8f1c4"
+    "head": "64b0829208fd62a66045a389373353d6b2a068a5"
   },
   "verification": {
     "command": "bun run test",
@@ -73,13 +87,13 @@
     "runBy": "daemon",
     "status": "green"
   },
-  "askOfNext": "Check the unknown step first: test/ratelimit.test.ts may be half written. Then test the 429 response and Retry-After, and read the limit from config.",
+  "askOfNext": "Check the unknown step first: test/ratelimit.test.ts may be half written. Then test 429 and Retry-After.",
   "cost": {
-    "inputTokens": 18420,
-    "cachedTokens": 11200,
-    "outputTokens": 3910,
-    "usd": 0.0303
+    "inputTokens": 612400,
+    "cachedTokens": 548200,
+    "outputTokens": 9840,
+    "usd": 0.2117
   },
-  "createdAt": "2026-11-02T14:41:07Z",
-  "hash": "sha256:a8781652d9107f790d9c32685abb26aa3943abd45666bf45ce4cd3ee2e380ae8"
+  "createdAt": "2026-10-26T15:01:07.500Z",
+  "hash": "sha256:800f3fe4e8818adc9affefe179a6b76b7ba65057e6a606a5dd749cb7981fe0db"
 }

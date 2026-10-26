@@ -79,7 +79,8 @@ export class Workspace {
     return ws;
   }
 
-  async createTask(i: NewTask): Promise<Task> {
+  /** `emit: false` skips the task.created event, for the replayer, which appends the recorded one. */
+  async createTask(i: NewTask, o: { emit?: boolean } = {}): Promise<Task> {
     const id = i.id ?? (await this.nextTaskId());
     if (await this.findTaskDir(id)) throw new StoreError('exists', `${id} exists`);
     const baseCommit = i.baseCommit ?? headCommit(this.root);
@@ -110,6 +111,7 @@ export class Workspace {
     await mkdir(dir, { recursive: true });
     this.dirCache.set(id, dir);
     await writeJsonAtomic(join(dir, 'task.json'), task);
+    if (o.emit === false) return task;
     await this.events(id).append({
       task: id,
       vendor: 'daemon',
@@ -126,7 +128,7 @@ export class Workspace {
   }
 
   /** Merges `patch`, validates, writes atomically; a status change also appends `task.status`. */
-  async writeTask(id: string, patch: Partial<Task>, hooks?: AtomicHooks): Promise<Task> {
+  async writeTask(id: string, patch: Partial<Task>, hooks?: AtomicHooks, o: { emit?: boolean } = {}): Promise<Task> {
     const current = await this.readTask(id);
     const parsed = TaskSchema.safeParse({
       ...current,
@@ -138,7 +140,7 @@ export class Workspace {
     });
     if (!parsed.success) throw new StoreError('invalid', parsed.error.message);
     await writeJsonAtomic(join(await this.taskDir(id), 'task.json'), parsed.data, hooks);
-    if (patch.status && patch.status !== current.status) {
+    if (o.emit !== false && patch.status && patch.status !== current.status) {
       await this.events(id).append({
         task: id,
         vendor: 'daemon',
