@@ -39,8 +39,8 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 
 | Gate | After | Status | By | When | Note |
 |---|---|---|---|---|---|
-| 1 | R-008 | pending | | | replay plays end to end with no keys |
-| 2 | R-014 | pending | | | live Muse Code to Stint agent handoff passes verification |
+| 1 | R-008 | PASS | author | 2026-10-26 | replay plays end to end with no keys: `stint demo --speed 0` done at 2:35 in 3 s from a clean install; the CI quickstart job and 16 UI tests run against it |
+| 2 | R-014 | PASS | author | 2026-10-26 | live Muse Code to Stint agent handoff passes verification: Muse Code killed mid T-0042, the Stint agent continued from the packet on Muse Spark 1.3, the daemon's run passed 29 of 29 ($0.10); continue.live.test.ts with STINT_LIVE=1 |
 | 3 | R-019 | pending | | | full live demo incl. offline review and approve |
 | 4 | R-023 | pending | | | video recorded, repo public-ready |
 
