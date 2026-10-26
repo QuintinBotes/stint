@@ -1,0 +1,21 @@
+{
+  "name": "stint",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "engines": { "bun": ">=1.3.14" },
+  "workspaces": ["packages/*", "packages/adapters/*", "apps/*"],
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "bun test",
+    "build:web": "bun run --cwd apps/web build",
+    "dev": "bun run --cwd packages/daemon dev",
+    "test:ui": "bun run --cwd apps/web test:ui",
+    "fixture": "bash scripts/fixture.sh",
+    "bootstrap": "bash scripts/bootstrap.sh"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "typescript": "5.9.3"
+  }
+}

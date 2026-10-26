@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/plan/1",
+  "title": "stint.plan/1",
+  "description": "Planner output. Structured output from Muse Wonder (or local Glimmer); plan.md is rendered from it for humans.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "steps", "filesToTouch", "risks", "similarTasks", "model"],
+  "properties": {
+    "version": { "const": "stint.plan/1" },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "files"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "text": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "files": { "type": "array", "items": { "type": "string" } },
+          "test": { "type": "string", "maxLength": 200, "description": "The test that proves this step, if one is planned." }
+        }
+      }
+    },
+    "filesToTouch": { "type": "array", "items": { "type": "string" } },
+    "risks": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^R[0-9]+$" },
+          "text": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Decisions the plan asserts; the daemon records each as decision.recorded.",
+      "items": { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string", "maxLength": 200 }, "why": { "type": "string", "maxLength": 300 } } }
+    },
+    "similarTasks": { "type": "array", "items": { "type": "string", "pattern": "^T-[0-9]{4,}$" } },
+    "model": { "type": "string", "minLength": 1 },
+    "offline": { "type": "boolean" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

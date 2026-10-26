@@ -1,0 +1,14 @@
+node_modules
+dist
+.tsbuild
+*.tsbuildinfo
+.env
+.env.local
+.stint/worktrees/
+.stint/cache/
+scripts/guard-identity.denylist
+demo/repo/
+.loop/
+playwright-report/
+test-results/
+.DS_Store

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/handoff/1",
+  "title": "stint.handoff/1",
+  "description": "The handoff packet: everything the next agent needs to continue a task, derived by the daemon from the event log and the diff, optionally enriched by the leaving agent. Must render under 600 tokens.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "task", "from", "summary", "done", "open", "leftOut", "decisions", "risks", "changedFiles", "diffRef", "askOfNext", "cost", "createdAt", "hash"],
+  "properties": {
+    "version": { "const": "stint.handoff/1" },
+    "task": { "type": "string", "pattern": "^T-[0-9]{4,}$" },
+    "from": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "vendor", "model", "role", "run", "endedBy"],
+      "properties": {
+        "adapter": { "type": "string", "minLength": 1 },
+        "vendor": { "type": "string", "enum": ["meta", "anthropic", "openai", "local"] },
+        "model": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "enum": ["planner", "implementer", "reviewer"] },
+        "run": { "type": "string", "pattern": "^r[0-9]+$" },
+        "endedBy": { "type": "string", "enum": ["completed", "capped", "killed", "failed", "handed"] },
+        "sessionId": { "type": "string" },
+        "host": { "type": "string", "enum": ["meta-api", "baseten", "fireworks", "ollama", "local-cli"], "description": "Which host served the model: the Meta Model API, a hosting partner for Muse Spark Open, Ollama, or a local CLI (Muse Code, Claude Code)." }
+      }
+    },
+    "to": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "role"],
+      "properties": {
+        "adapter": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "enum": ["planner", "implementer", "reviewer"] }
+      }
+    },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "done": { "$ref": "#/$defs/shortList" },
+    "open": { "$ref": "#/$defs/shortList" },
+    "leftOut": {
+      "$ref": "#/$defs/shortList",
+      "description": "What the leaving agent did not do or did not look at. Required; may be empty, but the agent must say so."
+    },
+    "refusals": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "by"],
+        "properties": {
+          "action": { "type": "string", "maxLength": 200 },
+          "by": { "type": "string", "enum": ["stint-rules", "runtime", "unattributed"] },
+          "reason": { "type": "string", "maxLength": 200 },
+          "carriedFrom": { "type": "string", "description": "The agent the refusal happened to, when carried across a hop." }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^D[0-9]+$" },
+          "text": { "type": "string", "maxLength": 200 }
+        }
+      }
+    },
+    "risks": { "$ref": "#/$defs/shortList" },
+    "changedFiles": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "added", "removed"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "added": { "type": "integer", "minimum": 0 },
+          "removed": { "type": "integer", "minimum": 0 },
+          "run": { "type": "string", "pattern": "^r[0-9]+$" }
+        }
+      }
+    },
+    "diffRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "head"],
+      "properties": {
+        "base": { "type": "string", "minLength": 7 },
+        "head": { "type": "string", "minLength": 7 }
+      }
+    },
+    "verification": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["command", "exitCode", "passed", "failed", "durationMs", "runBy"],
+          "properties": {
+            "command": { "type": "string" },
+            "exitCode": { "type": "integer" },
+            "passed": { "type": "integer", "minimum": 0 },
+            "failed": { "type": "integer", "minimum": 0 },
+            "durationMs": { "type": "integer", "minimum": 0 },
+            "runBy": { "const": "daemon" },
+            "status": { "type": "string", "enum": ["green", "red", "not_run"] }
+          }
+        }
+      ]
+    },
+    "askOfNext": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "cost": { "$ref": "#/$defs/cost" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "shortList": {
+      "type": "array",
+      "maxItems": 12,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputTokens", "cachedTokens", "outputTokens", "usd"],
+      "properties": {
+        "inputTokens": { "type": "integer", "minimum": 0 },
+        "cachedTokens": { "type": "integer", "minimum": 0 },
+        "outputTokens": { "type": "integer", "minimum": 0 },
+        "usd": { "type": ["number", "null"], "minimum": 0 },
+        "estimated": { "type": "boolean" }
+      }
+    }
+  }
+}

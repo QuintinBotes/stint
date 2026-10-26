@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/event/1",
+  "title": "stint.event/1",
+  "description": "One line of events.jsonl. Append-only, seq monotonic per task, hash-chained. The timeline, the packet, the cost meter and the memory graph are projections of these lines.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "seq", "ts", "task", "type", "payload"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$", "description": "ULID" },
+    "seq": { "type": "integer", "minimum": 1 },
+    "ts": { "type": "string", "format": "date-time" },
+    "task": { "type": "string", "pattern": "^T-[0-9]{4,}$" },
+    "run": { "type": "string", "pattern": "^r[0-9]+$" },
+    "adapter": { "type": "string" },
+    "vendor": { "type": "string", "enum": ["meta", "anthropic", "openai", "local", "human", "daemon"] },
+    "type": {
+      "type": "string",
+      "enum": [
+        "task.created", "task.status",
+        "run.started", "run.finished", "run.refused",
+        "agent.message", "agent.tool_call", "agent.tool_result",
+        "human.command",
+        "file.changed",
+        "decision.recorded",
+        "verification.ran",
+        "review.recorded",
+        "handoff.created",
+        "approval.requested", "approval.granted", "approval.rejected",
+        "rule.blocked",
+        "skill.applied", "skill.proposed", "skill.approved", "skill.rejected",
+        "merge.completed",
+        "learn.skipped",
+        "provider.fallback",
+        "cost.unpriced",
+        "runtime.unclassified"
+      ]
+    },
+    "payload": { "type": "object" },
+    "raw": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "pointer", "byteLen", "redacted"],
+      "description": "Where the full source line lives (transcript.jsonl offset), so the log can truncate text to 2 KB without losing audit.",
+      "properties": {
+        "kind": { "type": "string", "enum": ["transcript", "stdout", "stderr", "file"] },
+        "pointer": { "type": "string" },
+        "byteLen": { "type": "integer", "minimum": 0 },
+        "redacted": { "type": "boolean" }
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "ref"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["file", "diffHunk", "decision", "finding", "run", "handoff", "commit", "skill", "url"] },
+          "ref": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "prev": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Hash of the previous line, or 64 zeros for the first." },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 over seq, ts, task, run, adapter, type, canonical payload and prev, NUL-separated." }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "run.finished" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["endedBy", "cost"],
+            "properties": {
+              "endedBy": { "type": "string", "enum": ["completed", "capped", "killed", "failed", "handed"] },
+              "cost": { "$ref": "handoff.schema.json#/$defs/cost" },
+              "sessionId": { "type": "string" },
+              "inFlight": { "type": ["string", "null"], "description": "The last tool call with no result when killed." }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "runtime.unclassified" } } },
+      "then": { "properties": { "payload": { "type": "object", "required": ["originalType"], "properties": { "originalType": { "type": "string" } } } } }
+    },
+    {
+      "if": { "properties": { "type": { "const": "file.changed" } } },
+      "then": { "properties": { "payload": { "type": "object", "required": ["path", "added", "removed"], "properties": { "path": { "type": "string" }, "added": { "type": "integer" }, "removed": { "type": "integer" } } } } }
+    }
+  ]
+}

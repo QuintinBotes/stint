@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/skill-proposal/1",
+  "title": "stint.skillProposal/1",
+  "description": "A skill proposed by the learn step from recurring findings or repeated rejection reasons. Lands in the adjudication queue; becomes .agents/skills/<id>/SKILL.md only when a person approves.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "id", "name", "description", "roles", "tags", "rule", "examples", "evidence", "confidence"],
+  "properties": {
+    "version": { "const": "stint.skillProposal/1" },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 300, "description": "The trigger text an agent reads to decide the skill applies." },
+    "roles": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["planner", "implementer", "reviewer"] } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "rule": { "type": "string", "minLength": 1, "maxLength": 4000, "description": "The SKILL.md body: the rule, the why, the test to add." },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["task", "run"],
+        "properties": {
+          "task": { "type": "string", "pattern": "^T-[0-9]{4,}$" },
+          "run": { "type": "string", "pattern": "^r[0-9]+$" },
+          "diff": { "type": "string", "description": "path@commit" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "type": "string", "pattern": "^T-[0-9]{4,}/r[0-9]+#(F[0-9]+|reject)$" },
+      "description": "Task/run#finding refs. At least two, from at least two tasks: the recurrence rule."
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "model": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

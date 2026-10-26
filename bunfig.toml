@@ -1,0 +1,6 @@
+[install]
+exact = true
+
+[test]
+# demo/repo is a fixture with its own Vitest suite; the daemon runs it, bun test must not.
+pathIgnorePatterns = ["demo/**", "**/node_modules/**", "apps/web/e2e/**", ".stint/**"]

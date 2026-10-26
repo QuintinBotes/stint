@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../../.tsbuild/web",
+    "rootDir": ".",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["bun", "vite/client"],
+    "jsx": "react-jsx"
+  },
+  "include": ["src", "test", "e2e", "vite.config.ts"],
+  "references": [{ "path": "../../tsconfig.packages.json" }]
+}
