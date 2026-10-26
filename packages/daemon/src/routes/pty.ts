@@ -211,7 +211,8 @@ export function ptyRoutes(app: Hono, ctx: DaemonContext): void {
       return {
         onOpen(_evt, ws) {
           ws.send(JSON.stringify({ ready: true, backend: ptyBackend(), cwd: wt.path }));
-          const env = { ...runEnv(taskId, wt.run, wt.path), TERM: 'xterm-256color', COLORTERM: 'truecolor' };
+          // the person's own terminal: their credentials stay, as in any shell they open
+          const env = { ...runEnv(taskId, wt.run, wt.path, { credentials: true }), TERM: 'xterm-256color', COLORTERM: 'truecolor' };
           try {
             handle = pty.spawn({ cwd: wt.path, env, cols, rows, shell: process.env.SHELL ?? '/bin/bash' });
           } catch (err) {

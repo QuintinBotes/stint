@@ -44,9 +44,11 @@ async function grep(root: string, pattern: string, under: string): Promise<strin
   return hits.length ? hits.join('\n') : 'no matches';
 }
 
-function bash(command: string, cwd: string, env: Record<string, string>, signal: AbortSignal): Promise<{ code: number | null; output: string }> {
+function bash(command: string, cwd: string, env: Record<string, string>, signal: AbortSignal, wrap?: (argv: string[]) => string[]): Promise<{ code: number | null; output: string }> {
   return new Promise((done) => {
-    const child = spawn('/bin/sh', ['-c', command], { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const argv = ['/bin/sh', '-c', command];
+    const [cmd, ...args] = (wrap?.(argv) ?? argv) as [string, ...string[]];
+    const child = spawn(cmd, args, { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     const add = (b: Buffer) => {
       if (output.length < OUTPUT_CAP * 2) output += b.toString();
@@ -71,14 +73,14 @@ function bash(command: string, cwd: string, env: Record<string, string>, signal:
 }
 
 /** Runs one tool call after the refusal set has checked it. Every path stays inside the worktree. */
-export async function runTool(name: string, raw: Record<string, unknown>, worktree: string, env: Record<string, string>, signal: AbortSignal): Promise<ToolOutcome> {
+export async function runTool(name: string, raw: Record<string, unknown>, worktree: string, env: Record<string, string>, signal: AbortSignal, wrap?: (argv: string[]) => string[]): Promise<ToolOutcome> {
   const args = raw;
   const refuse = (reason: string): ToolOutcome => ({ ok: false, refused: reason, output: `Refused by Stint: ${reason}.`, summary: `refused: ${reason}`, args });
   try {
     if (name === 'bash') {
       const r = checkCommand(args.command);
       if (r) return refuse(r.reason);
-      const res = await bash(String(args.command), worktree, env, signal);
+      const res = await bash(String(args.command), worktree, env, signal, wrap);
       const out = cap(res.output);
       const last = res.output.trim().split('\n').filter(Boolean).at(-1) ?? '';
       return { ok: res.code === 0, output: `exit ${res.code}\n${out}`, summary: `exit ${res.code}${last ? `: ${last.slice(0, 160)}` : ''}`, args };

@@ -29,6 +29,8 @@ export const AgentDefSchema = z.strictObject({
   vendor: z.enum(['meta', 'openai', 'anthropic', 'local', 'other']),
   model: z.string().optional(),
   enabled: z.boolean().default(false),
+  /** Credential variables this agent needs passed through, such as its API key. */
+  env: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)).max(20).optional(),
 });
 export type AgentDef = z.infer<typeof AgentDefSchema>;
 
@@ -107,6 +109,8 @@ export const ConfigSchema = z.strictObject({
     .strictObject({
       kind: z.enum(['none', 'docker', 'sandbox-exec']),
       image: z.string().optional(),
+      /** More paths an agent may write besides its worktree, temp and its own state. */
+      writable: z.array(z.string()).max(20).optional(),
       egress: z.strictObject({ mode: z.enum(['off', 'proxy']), allow: z.array(z.string()).max(100) }),
     })
     .optional(),

@@ -32,6 +32,8 @@ import { ptyRoutes } from './routes/pty';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
+import { egressProxy, sandboxHealth } from './sandbox';
+import type { EgressProxy } from './egress';
 import { DaemonVerifier, type Verifier } from './verifier';
 import { Worktrees } from './worktree';
 
@@ -69,6 +71,8 @@ export type DaemonContext = {
   /** Run endings still writing (commit, verify, packet); a stop waits for them. */
   pending: Set<Promise<unknown>>;
   autopilot: Autopilot;
+  /** The egress proxy, once a run with `sandbox.egress.mode: proxy` has started it (R-040). */
+  egress?: Promise<EgressProxy>;
 };
 
 const NewTaskBody = z.strictObject({
@@ -123,6 +127,8 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     pending: new Set(),
   } as Omit<DaemonContext, 'autopilot'> as DaemonContext;
   ctx.autopilot = new Autopilot(ctx);
+  // the daemon's own test runs reach the network through the same proxy as the agents
+  if (ctx.verifier instanceof DaemonVerifier) ctx.verifier.proxyUrl = async (t, r) => (ws.config.sandbox?.egress.mode === 'proxy' ? (await egressProxy(ctx)).url(t, r) : null);
   ctx.afterRun = async (task, run, result) => {
     await checkAcceptanceLock(ctx, task, run);
     await afterRunPacket(ctx, task, run, result);
@@ -170,6 +176,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       pty: ptyHealth(),
       autopilot: await ctx.autopilot.status(),
       models: await modelHealth(ws.config),
+      sandbox: await sandboxHealth(ctx),
       ...replayHealth(ctx),
       ...Object.assign({}, ...extra),
     });

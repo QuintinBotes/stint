@@ -31,6 +31,8 @@ export type RunContext = {
   model?: string;
   budget: { tokens: number; steps?: number; maxTurns?: number; timeoutMs?: number };
   env: Record<string, string>;
+  /** Wraps a command line in the run's sandbox (R-040); adapters apply it to every process they start. */
+  wrap?: (argv: string[]) => string[];
   signal: AbortSignal;
   emit: (e: AdapterEvent) => Promise<void>;
   transcript: (line: string) => Promise<{ pointer: string; byteLen: number }>;
@@ -60,6 +62,8 @@ export interface Adapter {
   /** `enforced` only once a gate has actually fired in this daemon's lifetime. */
   gate(): GateStrength;
   run(ctx: RunContext): Promise<RunResult>;
+  /** Credential variables the agent needs; every other key stays in the daemon (R-040). */
+  needsEnv?: string[];
   resume?(ctx: RunContext & { sessionId: string; instruction: string }): Promise<RunResult>;
   enrich?(ctx: { task: Task; run: string; sessionId?: string; worktree: string }): Promise<Enrichment>;
 }

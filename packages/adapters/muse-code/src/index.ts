@@ -57,7 +57,9 @@ async function museVersion(): Promise<string | null> {
 async function exec(ctx: RunContext, extra: { sessionId?: string } = {}): Promise<RunResult> {
   const model = ctx.model ?? DEFAULT_MODEL;
   const steps = ctx.budget.steps ?? 60;
-  const child = spawn('muse', museArgs({ promptPath: ctx.promptPath, model, steps, ...extra }), {
+  const argv = ['muse', ...museArgs({ promptPath: ctx.promptPath, model, steps, ...extra })];
+  const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
+  const child = spawn(cmd, args, {
     cwd: ctx.worktree,
     env: ctx.env,
     detached: true,

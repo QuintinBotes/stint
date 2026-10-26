@@ -20,7 +20,8 @@ export function agentArgv(def: AgentDef, ctx: Pick<RunContext, 'prompt' | 'promp
 /** Any coding agent with a command line, driven in the worktree; Stint observes it and verifies after (R-026). */
 export function cliAgent(name: string, def: AgentDef): Adapter {
   async function run(ctx: RunContext): Promise<RunResult> {
-    const [cmd, ...args] = agentArgv(def, ctx) as [string, ...string[]];
+    const argv = agentArgv(def, ctx);
+    const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
     const child = spawn(cmd, args, { cwd: ctx.worktree, env: ctx.env, detached: true, stdio: [def.prompt === 'stdin' ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
     if (child.pid) ctx.onSpawn?.(child.pid);
     let aborted = false;
@@ -70,6 +71,7 @@ export function cliAgent(name: string, def: AgentDef): Adapter {
     id: name,
     vendor: def.vendor,
     roles: def.roles,
+    ...(def.env ? { needsEnv: def.env } : {}),
     capabilities: { editsFiles: true, runsCommands: true, resumable: false, structuredOutput: false, offline: def.vendor === 'local' },
     async available(): Promise<Availability> {
       const bin = def.command[0] as string;

@@ -150,7 +150,7 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
           const tool = call.function.name;
           await ctx.emit({ type: 'agent.tool_call', payload: { tool, args, callId: call.id } });
           inFlight = `${tool} ${short(args)}`.trim();
-          const out = await runTool(tool, args, ctx.worktree, shellEnv, ctx.signal);
+          const out = await runTool(tool, args, ctx.worktree, shellEnv, ctx.signal, ctx.wrap);
           if (ctx.signal.aborted) return done('killed');
           inFlight = null;
           if (out.refused) {

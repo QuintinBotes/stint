@@ -36,7 +36,7 @@ The loop reads this file first and writes it last. Statuses: `todo`, `in_progres
 | R-037 | Held-out scenarios and coverage | R-029 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-038 | Review lenses and best-of-n reviews | R-010, R-035 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-039 | Risk tiers and an auto-approve lane earned in shadow mode | R-030, R-038 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
-| R-040 | A sandbox per run and a default-deny egress proxy | R-005 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
+| R-040 | A sandbox per run and a default-deny egress proxy | R-005 | done | egress.test.ts, sandbox.env.test.ts (sandbox-exec and docker live) | 8 | | built by the author; docs/sandbox.md |
 | R-041 | Intake from GitHub and Linear, with triage | R-018, R-032 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-042 | Release: pull requests, CI and production signals | R-017, R-030 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |
 | R-043 | OpenTelemetry export | R-011 | todo | | 0 | | added 26 Oct from the factory review (the full list, nothing cut) |

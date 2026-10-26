@@ -5,8 +5,8 @@ import { type Cost, type Role, type Task, countTokens, priceUsage } from '@stint
 import { runsFromEvents, writeJsonAtomic } from '@stint-dev/core/node';
 import type { Adapter, RunResult } from './adapter';
 import type { DaemonContext } from './app';
-import { runEnv } from './env';
 import { DaemonError } from './errors';
+import { drainDockerBlocked, prepareRun } from './sandbox';
 import { git } from './git';
 import { earlierHops } from './handoff';
 import { renderPrompt } from './prompt';
@@ -131,6 +131,11 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   const fromLog = runsFromEvents(await ws.events(taskId).read()).reduce((m, r) => Math.max(m, Number(r.run.slice(1)) + 1), 1);
   const run = `r${Math.max(fromDirs, fromLog)}`;
   const wt = await ctx.worktrees.create(task, run);
+  // a sandbox that is configured but cannot run refuses the run before anything is recorded
+  const sandbox = await prepareRun(ctx, taskId, run, wt.path, adapter).catch(async (err: unknown) => {
+    await ctx.worktrees.remove(task, run).catch(() => undefined);
+    throw err;
+  });
   const startedAt = new Date().toISOString();
   const model = input.model ?? (adapter.id === 'muse-code' ? (ws.config.adapters['muse-code']?.model as string | undefined) : undefined);
   await ws.runs(taskId).create({
@@ -177,7 +182,8 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
           ...(input.steps !== undefined ? { maxTurns: input.steps } : {}),
           timeoutMs: Number(ws.config.adapters[adapter.id]?.timeoutMs ?? 900_000),
         },
-        env: runEnv(taskId, run, wt.path),
+        env: sandbox.env,
+        ...(sandbox.wrap ? { wrap: sandbox.wrap } : {}),
         signal: abort.signal,
         onSpawn: (pid) => {
           (live as { pgid?: number }).pgid = pid;
@@ -194,6 +200,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
       result = { endedBy: abort.signal.aborted ? 'killed' : 'failed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true } };
     }
     await snaps.stop();
+    if (ws.config.sandbox?.kind === 'docker') await drainDockerBlocked(ctx);
     const commit = existsSync(wt.path) ? await ctx.worktrees.commit(task, run, wt.path, result.endedBy) : null;
     const cost = priced(ctx, adapter.id, { ...result, model: result.model ?? model });
     if (cost.usd === null) await events.append({ task: taskId, run, vendor: 'daemon', type: 'cost.unpriced', payload: { key: priceKey(adapter.id, result.host, result.model ?? model) } });

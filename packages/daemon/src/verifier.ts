@@ -68,13 +68,16 @@ export function execInGroup(command: string, cwd: string, env: Record<string, st
 
 /** The daemon runs the tests itself; an agent saying "tests pass" is a claim, this record is the fact. */
 export class DaemonVerifier implements Verifier {
+  /** The egress proxy URL for a run, when egress is on (R-040). */
+  proxyUrl?: (task: string, run: string) => Promise<string | null>;
+
   constructor(
     private readonly ws: Workspace,
     private readonly capMs = 10 * 60_000,
   ) {}
 
   async verify(task: Task, run: string, worktree: string): Promise<VerificationRecord> {
-    const env = { ...runEnv(task.id, run, worktree), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+    const env = { ...runEnv(task.id, run, worktree, { proxy: (await this.proxyUrl?.(task.id, run)) ?? null }), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
     const r = await execInGroup(task.testCommand, worktree, env, this.capMs);
     const parsed = parseTestSummary(r.output);
     const ok = r.exitCode === 0 && !r.timedOut;
