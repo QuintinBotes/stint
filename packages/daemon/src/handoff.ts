@@ -24,7 +24,38 @@ const LIST = 12;
 const ITEM = 200;
 
 type Source = 'events' | 'diff' | 'plan' | 'enrich' | 'digest';
-export type HandoffMeta = { fields: Record<string, { from: Source; eventIds: string[] }>; reason: string; enriched: string[] };
+export type HandoffMeta = { fields: Record<string, { from: Source; eventIds: string[] }>; reason: string; enriched: string[]; trimmed?: TrimLevel };
+
+type TrimLevel = { list: number; item: number; summary: number; files: number };
+const TRIM_LEVELS: TrimLevel[] = [
+  { list: 8, item: 160, summary: 320, files: 12 },
+  { list: 5, item: 120, summary: 240, files: 8 },
+  { list: 3, item: 90, summary: 180, files: 5 },
+  { list: 2, item: 70, summary: 140, files: 3 },
+];
+
+/** The packet with shorter lists: the first items stay (the in-flight step leads leftOut), the biggest file changes stay. */
+function trimDraft(d: Omit<Handoff, 'hash'>, level: TrimLevel): Omit<Handoff, 'hash'> {
+  const cut = (xs: string[]) => xs.slice(0, level.list).map((x) => clip(x, level.item));
+  const files = [...d.changedFiles].sort((a, b) => b.added + b.removed - (a.added + a.removed)).slice(0, level.files);
+  const dropped =
+    d.changedFiles.length - files.length +
+    [d.done, d.open, d.risks, d.leftOut].reduce((n, xs) => n + Math.max(0, xs.length - level.list), 0) +
+    Math.max(0, d.decisions.length - level.list) +
+    Math.max(0, (d.refusals ?? []).length - level.list);
+  const note = `Trimmed to fit ${PACKET_TOKEN_LIMIT} tokens: ${dropped} items and file entries are not listed; the diff and the task's log have them`;
+  return {
+    ...d,
+    summary: clip(d.summary, level.summary),
+    done: cut(d.done),
+    open: cut(d.open),
+    risks: cut(d.risks),
+    leftOut: [...cut(d.leftOut).slice(0, Math.max(1, level.list - 1)), note],
+    decisions: d.decisions.slice(0, level.list).map((x) => ({ ...x, text: clip(x.text, level.item) })),
+    refusals: (d.refusals ?? []).slice(-level.list).map((r) => ({ ...r, action: clip(r.action, level.item), ...(r.reason ? { reason: clip(r.reason, level.item) } : {}) })),
+    changedFiles: files,
+  };
+}
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
 const clip = (s: string, n: number) => {
@@ -194,8 +225,16 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     if (e.askOfNext) tryField('askOfNext', { ...draft, askOfNext: inFlight && !e.askOfNext.startsWith('Check the unknown step first.') ? `Check the unknown step first. ${scrub(e.askOfNext)}` : scrub(e.askOfNext) });
   }
 
-  const handoff = HandoffSchema.parse({ ...draft, hash: hashHandoff(draft) });
-  const tokens = countTokens(renderHandoff(handoff));
+  // a packet always fits: trim in steps (fewer items, shorter items, fewer files) and say so, before refusing
+  let handoff = HandoffSchema.parse({ ...draft, hash: hashHandoff(draft) });
+  let tokens = countTokens(renderHandoff(handoff));
+  for (const level of TRIM_LEVELS) {
+    if (tokens <= PACKET_TOKEN_LIMIT) break;
+    const trimmed = trimDraft(draft, level);
+    handoff = HandoffSchema.parse({ ...trimmed, hash: hashHandoff(trimmed) });
+    tokens = countTokens(renderHandoff(handoff));
+    meta.trimmed = level;
+  }
   if (tokens > PACKET_TOKEN_LIMIT) {
     const fields = Object.entries(draft)
       .filter(([, val]) => Array.isArray(val) || typeof val === 'string')
