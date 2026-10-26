@@ -37,7 +37,7 @@ async function spentByRole(ctx: DaemonContext, task: string, role: Role): Promis
 }
 
 /** Removes the task's earlier worktrees that no run holds, so the branch can be checked out again. Never forced. */
-async function releaseWorktrees(ctx: DaemonContext, task: Task): Promise<void> {
+export async function releaseWorktrees(ctx: DaemonContext, task: Task): Promise<void> {
   for (const r of runsFromEvents(await ctx.ws.events(task.id).read())) {
     const path = worktreePath(ctx.ws, task.id, r.run);
     if (existsSync(path) && !ctx.runs.holds(path)) await ctx.worktrees.remove(task, r.run);

@@ -14,3 +14,4 @@ export * from './lifecycle';
 export * from './prompt';
 export * from './skills';
 export * from './handoff';
+export { parseTrailers, type Trailers } from './routes/approve';

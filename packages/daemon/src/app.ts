@@ -18,6 +18,7 @@ import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
+import { approveRoutes } from './routes/approve';
 import { modelRoutes } from './routes/models';
 import { afterRunPacket, handoffRoutes } from './routes/handoff';
 import { runRoutes } from './routes/runs';
@@ -67,6 +68,7 @@ const NewTaskBody = z.strictObject({
   acceptance: z.array(z.string().min(1).max(300)).min(1).max(12),
   testCommand: z.string().min(1).optional(),
   tags: z.array(z.string()).optional(),
+  links: z.strictObject({ beadsId: z.string().max(80).nullable().optional(), issueUrl: z.url().nullable().optional() }).optional(),
 });
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -331,6 +333,7 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   runRoutes(app, ctx);
   handoffRoutes(app, ctx);
   modelRoutes(app, ctx);
+  approveRoutes(app, ctx);
   demoRoutes(app, ctx);
   ptyRoutes(app, ctx);
 }

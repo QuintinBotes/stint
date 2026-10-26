@@ -83,3 +83,16 @@ export function fakeAdapter(behaviour: FakeBehaviour, roles: Array<'planner' | '
     },
   };
 }
+
+/** A task the fake agent built on its branch, with a green verification on record: ready to approve. */
+export async function builtTask(repo: string, verification: 'green' | 'red' = 'green') {
+  const { app, ws } = await makeApp(repo, [fakeAdapter('edit')]);
+  const t = await ws.createTask(newTask);
+  await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'fake', role: 'implementer' });
+  for (let i = 0; i < 600 && !(await ws.events(t.id).read()).some((e) => e.type === 'verification.ran'); i++) await Bun.sleep(50);
+  for (let i = 0; i < 200 && !(await ws.events(t.id).read()).some((e) => e.type === 'handoff.created'); i++) await Bun.sleep(25);
+  const green = verification === 'green';
+  await ws.verification(t.id).write({ run: 'r1', command: 'bun run test', exitCode: green ? 0 : 1, passed: green ? 33 : 30, failed: green ? 0 : 3, durationMs: 1700, runBy: 'daemon', status: verification, outputRef: 'verification/r1.out.txt', at: new Date().toISOString() });
+  await ws.writeTask(t.id, { status: 'awaiting_approval' });
+  return { app, ws, t };
+}
