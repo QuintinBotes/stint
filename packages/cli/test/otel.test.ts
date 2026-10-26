@@ -1,10 +1,9 @@
 import { expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace, runsFromEvents } from '@stint-dev/core/node';
-import { startDaemon } from '@stint-dev/daemon';
 import { otelExport } from '../src/otel';
+import { withReplay } from './replay';
 
 type Attr = { key: string; value: Record<string, unknown> };
 type Span = { traceId: string; spanId: string; parentSpanId?: string; name: string; attributes: Attr[]; events: Array<{ name: string }> };
@@ -14,17 +13,7 @@ const attr = (s: Span, key: string) => {
 };
 
 test('stint otel export T-0042 on the replay writes spans whose attributes carry model and token counts, one span per run and tool call', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'stint-otel-'));
-  try {
-    expect(Bun.spawnSync(['git', 'clone', '-q', join(import.meta.dir, '..', '..', '..', 'demo', 'repo.bundle'), root]).exitCode).toBe(0);
-    const d = await startDaemon({ root, quiet: true });
-    try {
-      const play = await fetch(`${d.url}/api/demo/play`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ speed: 0 }) });
-      expect(play.status).toBe(202);
-      while (((await (await fetch(`${d.url}/api/demo/status`)).json()) as { playing: boolean }).playing) await Bun.sleep(50);
-    } finally {
-      await d.stop();
-    }
+  await withReplay(async (root) => {
     const out = join(root, 'trace.json');
     const r = await otelExport(root, 'T-0042', out);
     const body = JSON.parse(readFileSync(out, 'utf8')) as { resourceSpans: Array<{ resource: { attributes: Attr[] }; scopeSpans: Array<{ spans: Span[] }> }> };
@@ -56,7 +45,5 @@ test('stint otel export T-0042 on the replay writes spans whose attributes carry
     expect(runSpans.some((s) => s.events.some((e) => e.name === 'stint.verification'))).toBe(true);
     expect(toolSpans.every((s) => typeof attr(s, 'gen_ai.tool.name') === 'string')).toBe(true);
     expect(body.resourceSpans[0]?.resource.attributes).toContainEqual({ key: 'service.name', value: { stringValue: 'stint' } });
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
+  });
 }, 120_000);

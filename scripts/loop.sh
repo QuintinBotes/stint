@@ -128,10 +128,21 @@ while :; do
     log "$spec handed twice by $(spec_owner "$spec"); continuing on $model"
   fi
 
-  if [ "$SELF" = 1 ] && [ "$(spec_status R-017)" = done ]; then
-    # From R-017 on the repo builds itself with itself: the loop becomes a Stint task.
-    log "self mode: creating a Stint task for $spec"
-    ./packages/cli/bin/stint new "$(grep -m1 '^# ' "specs/$spec"-*.md | sed 's/^# //')" --goal "Implement specs/$spec per LOOP.md" --test "bun test" --json > ".loop/$spec.task.json" || true
+  if [ "$SELF" = 1 ]; then
+    # Stint builds Stint (R-047): the spec becomes a task, autopilot plans, builds, verifies and reviews it on
+    # Meta's models, and the loop stops at the approval gate. Approving is the person's; nothing here passes it.
+    [ -f .stint/cache/daemon.json ] || { log "self mode needs the daemon: run stint up in another terminal"; exit 2; }
+    spec_file="$(ls specs/"$spec"-*.md | head -1)"
+    task="$(./packages/cli/bin/stint new --spec "$spec_file")"
+    log "self mode: $spec is $task; autopilot runs it"
+    set +e
+    ./packages/cli/bin/stint run "$task" --wait
+    code=$?
+    set -e
+    ./packages/cli/bin/stint report --write >/dev/null && { git add PROGRESS.md; git commit -qm "loop: report for $spec ($task)" || true; }
+    if [ "$code" = 0 ]; then log "$task waits for your approval: stint show $task, then stint approve $task"
+    else log "$task needs you: stint show $task"; fi
+    break
   fi
 
   log "iteration $iter: muse-code/$model builds $spec"

@@ -26,3 +26,14 @@ export async function postDaemon<T>(root: string, path: string, body: unknown): 
   }
   return json;
 }
+
+/** GETs from the daemon; reads need no token. */
+export async function getDaemon<T>(root: string, path: string): Promise<T> {
+  const d = daemonFor(root);
+  const res = await fetch(`${d.url}${path}`);
+  if (!res.ok) {
+    process.stderr.write(`the daemon answered ${res.status} for ${path}\n`);
+    process.exit(1);
+  }
+  return (await res.json()) as T;
+}

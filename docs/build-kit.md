@@ -30,9 +30,14 @@ scripts/loop.sh
 # one iteration only, to watch it work
 scripts/loop.sh --once
 
-# from R-017 on: Stint builds itself (tasks, worktrees, packets, trailers)
+# Stint builds itself: the next spec becomes a Stint task on autopilot, and the loop stops at your approval
+stint up            # in another terminal
 scripts/loop.sh --self
 ```
+
+In self mode the loop runs `stint new --spec specs/R-0NN-*.md`, which makes a task from the spec's goal, acceptance lines and Verify command. It then runs `stint run <task> --wait`. Autopilot plans, builds, verifies and reviews the task on Meta's models in its own worktree, and the loop stops at the approval gate. It never approves: you read the change with `stint show`, then `stint approve` or `stint reject`.
+
+`stint report` prints the Reviews and Spend tables from the workspace's own events. `stint report --write` puts the rows for spec tasks into `PROGRESS.md` and leaves the loop's own rows alone, so the repository's `.stint/` history is the record of how Stint was built.
 
 The loop stops and tells you why when: a spec writes a question under Blocked; every spec before a gate is done (run `scripts/gate.sh n`, then write `GATE n: PASS` in PROGRESS.md); `MAX_ITER` (40) or `MAX_USD` (25, approximate) is reached; or everything is done. Restart it after you answer.
 

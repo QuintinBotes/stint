@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import type { StintEvent } from '@stint-dev/core';
 import { defineCommand } from 'citty';
-import { postDaemon } from './client';
+import { getDaemon, postDaemon } from './client';
 import { repoRoot } from './repo';
 
 const repoArg = { repo: { type: 'string', description: 'Repository root (default: the git top level)' } } as const;
@@ -15,6 +17,30 @@ export function fromBead(id: string, cwd: string): { title: string; description:
   return { title: String(issue.title ?? id).slice(0, 120), description: String(issue.description ?? issue.title ?? id).slice(0, 2000) };
 }
 
+/**
+ * A task from a spec file (R-047): its title, goal, acceptance lines and verify command. Stint building Stint
+ * starts here, so the spec is the task and the daemon's tests are the spec's own.
+ */
+export function taskFromSpec(text: string): { title: string; goal: string; acceptance: string[]; testCommand?: string; tags: string[] } {
+  const head = /^# (R-\d{3}) · (.+)$/m.exec(text);
+  if (!head) throw new Error('not a spec: the first heading should read "# R-0NN · Title"');
+  const section = (name: string) => new RegExp(`^## ${name}\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, 'm').exec(text)?.[1]?.trim() ?? '';
+  const acceptance = section('Acceptance')
+    .split('\n')
+    .map((l) => /^\d+\.\s+(.+)$/.exec(l.trim())?.[1])
+    .filter((l): l is string => !!l)
+    .map((l) => l.slice(0, 300))
+    .slice(0, 12);
+  const verify = /```\n([^\n]+)\n/.exec(section('Verify'))?.[1]?.trim();
+  return {
+    title: `${head[1]}: ${head[2]}`.slice(0, 120),
+    goal: (section('Goal') || head[2] as string).slice(0, 2000),
+    acceptance: acceptance.length ? acceptance : [head[2] as string],
+    ...(verify ? { testCommand: verify } : {}),
+    tags: ['spec', head[1] as string],
+  };
+}
+
 export const newTask = defineCommand({
   meta: { name: 'new', description: 'Create a task' },
   args: {
@@ -24,10 +50,23 @@ export const newTask = defineCommand({
     test: { type: 'string', description: 'The command Stint runs to verify (default: from config)' },
     'from-bead': { type: 'string', description: 'Copy the title and description from a Beads issue' },
     issue: { type: 'string', description: 'A link to the issue this task tracks' },
+    spec: { type: 'string', description: 'Make the task from a spec file: its title, goal, acceptance and verify command' },
     ...repoArg,
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
+    if (args.spec) {
+      let spec: ReturnType<typeof taskFromSpec>;
+      try {
+        spec = taskFromSpec(readFileSync(args.spec, 'utf8'));
+      } catch (err) {
+        process.stderr.write(`${args.spec}: ${err instanceof Error ? err.message : String(err)}\n`);
+        process.exit(1);
+      }
+      const t = await postDaemon<{ id: string }>(root, '/api/tasks', { ...spec, ...(args.test ? { testCommand: args.test } : {}) });
+      process.stdout.write(`${t.id}\n`);
+      return;
+    }
     let title = args.title;
     let goal = args.goal;
     if (args['from-bead']) {
@@ -82,11 +121,31 @@ export const runTask = defineCommand({
   args: {
     task: { type: 'positional', required: true, description: 'Task id' },
     stop: { type: 'boolean', description: 'Take the task off autopilot (a live run keeps going)' },
+    wait: { type: 'boolean', description: 'Stay until autopilot stops; exit 0 at your approval, 3 when it needs you' },
     ...repoArg,
   },
   async run({ args }) {
-    const r = await postDaemon<{ running: string[]; queued: string[] }>(repoRoot(args.repo), `/api/tasks/${args.task}/autopilot`, { on: !args.stop });
-    if (args.stop) process.stdout.write(`${args.task} is off autopilot.\n`);
-    else process.stdout.write(`${args.task} is on autopilot${r.queued.includes(args.task) ? ', queued behind ' + r.running.join(', ') : ''}. It stops at your approval.\n`);
+    const root = repoRoot(args.repo);
+    const r = await postDaemon<{ running: string[]; queued: string[] }>(root, `/api/tasks/${args.task}/autopilot`, { on: !args.stop });
+    if (args.stop) {
+      process.stdout.write(`${args.task} is off autopilot.\n`);
+      return;
+    }
+    process.stdout.write(`${args.task} is on autopilot${r.queued.includes(args.task) ? ', queued behind ' + r.running.join(', ') : ''}. It stops at your approval.\n`);
+    if (!args.wait) return;
+    const stop = await waitForStop(root, args.task);
+    process.stdout.write(`${args.task}: ${stop.reason}\n`);
+    // approval is the person's: waiting ends at the gate and never passes it
+    process.exit(stop.needsYou ? 3 : 0);
   },
 });
+
+/** Polls the task's log until autopilot has stopped, and returns why. */
+export async function waitForStop(root: string, task: string, everyMs = 2_000): Promise<{ reason: string; needsYou: boolean }> {
+  for (;;) {
+    const { events } = await getDaemon<{ events: StintEvent[] }>(root, `/api/tasks/${task}/events`);
+    const last = events.filter((e) => e.type === 'autopilot.started' || e.type === 'autopilot.stopped').at(-1);
+    if (last?.type === 'autopilot.stopped') return { reason: String(last.payload.reason ?? ''), needsYou: !!last.payload.needsYou };
+    await Bun.sleep(everyMs);
+  }
+}
