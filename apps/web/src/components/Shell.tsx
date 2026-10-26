@@ -1,7 +1,8 @@
 import { Command } from 'cmdk';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { type CostRow, type DemoStatus, type Health, api } from '../api';
+import { hostName, modelName } from '../agents';
+import { type CostRow, type DemoStatus, type Health, type ModelHealth, api } from '../api';
 import { localDate, money } from '../format';
 import { useTasks } from '../hooks';
 import { THEMES, type ThemeChoice } from '../theme';
@@ -10,7 +11,6 @@ import { Button, Kbd, StatusChip, cx } from './ui';
 const ADAPTER_NAMES: Record<string, string> = {
   'muse-code': 'Muse Code',
   'stint-agent': 'Stint agent',
-  'openai-compatible': 'Plan and review hosts',
   replay: 'Replay',
 };
 
@@ -33,6 +33,34 @@ function useWeekCost(): number | null {
   if (!rows) return null;
   const from = startOfWeek();
   return rows.filter((r) => r.key >= from).reduce((s, r) => s + (r.usd ?? 0), 0);
+}
+
+/** The Meta models that can answer right now, one chip each; the rest wait for a key and say why on hover. */
+function ModelChips({ models }: { models: ModelHealth[] }) {
+  const byName = new Map<string, ModelHealth[]>();
+  for (const m of models) byName.set(modelName(m.model), [...(byName.get(modelName(m.model)) ?? []), m]);
+  const ready = [...byName.entries()].filter(([, ms]) => ms.some((m) => m.ready));
+  const waiting = [...byName.entries()].filter(([, ms]) => !ms.some((m) => m.ready));
+  return (
+    <span className="flex items-center gap-1.5" data-testid="model-chips">
+      {ready.map(([name, ms]) => {
+        const up = ms.filter((m) => m.ready);
+        const roles = [...new Set(up.flatMap((m) => m.roles))].join(', ');
+        return (
+          <span key={name} title={`${roles} on ${up.map((m) => hostName(m.host)).join(', ')}`} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-sunken px-2 h-5 text-[11px] font-medium whitespace-nowrap" data-testid="model-chip">
+            <span aria-hidden className="size-1.5 rounded-full" style={{ background: 'var(--vendor-meta)' }} />
+            {name}
+            {up.every((m) => m.offline) ? <span className="text-faint">local</span> : null}
+          </span>
+        );
+      })}
+      {waiting.length ? (
+        <span title={waiting.map(([name, ms]) => `${name}: ${ms.map((m) => m.reason).filter(Boolean).join('; ')}`).join('\n')}>
+          <StatusChip label={`${waiting.length} more waiting for a key`} tone="neutral" />
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 export function TopBar({ health, theme, setTheme, onPalette }: { health: Health | null; theme: ThemeChoice; setTheme: (t: ThemeChoice) => void; onPalette: () => void }) {
@@ -68,13 +96,14 @@ export function TopBar({ health, theme, setTheme, onPalette }: { health: Health 
               <StatusChip label="No live agents configured" tone="neutral" />
             </>
           ) : health ? (
-            health.adapters.map((a) => (
-              <StatusChip
-                key={a.id}
-                label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.capability.level === 'supported' ? (a.gate === 'none' ? '' : `, gate ${a.gate}`) : ', unavailable'}`}
-                tone={a.capability.level === 'supported' ? 'good' : 'neutral'}
-              />
-            ))
+            <>
+              {health.adapters.map((a) => (
+                <span key={a.id} title={a.capability.level === 'supported' ? `${a.version ?? ''}${a.gate === 'none' ? '' : `; Stint's gate is ${a.gate}`}` : (a.reason ?? 'unavailable')}>
+                  <StatusChip label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.capability.level === 'supported' ? '' : ', unavailable'}`} tone={a.capability.level === 'supported' ? 'good' : 'neutral'} />
+                </span>
+              ))}
+              <ModelChips models={health.models ?? []} />
+            </>
           ) : (
             <StatusChip label="daemon not reachable" tone="bad" />
           )}

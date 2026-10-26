@@ -16,6 +16,7 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { Autopilot, autopilotCard } from './autopilot';
+import { modelHealth } from './hosts';
 import { DaemonError, errorResponse } from './errors';
 import { ptyHealth } from './pty';
 import { demoRoutes } from './routes/demo';
@@ -162,6 +163,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       adapters: await adapterHealth(adapters),
       pty: ptyHealth(),
       autopilot: await ctx.autopilot.status(),
+      models: await modelHealth(ws.config),
       ...replayHealth(ctx),
       ...Object.assign({}, ...extra),
     });

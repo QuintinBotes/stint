@@ -7,7 +7,6 @@ export type { Adapter, AdapterCapabilities, AdapterEvent, Availability, Enrichme
 export const KNOWN_ADAPTERS: Array<{ id: string; vendor: Vendor; roles: Role[]; arrivesIn: string }> = [
   { id: 'muse-code', vendor: 'meta', roles: ['planner', 'implementer', 'reviewer'], arrivesIn: 'R-009' },
   { id: 'stint-agent', vendor: 'meta', roles: ['implementer', 'reviewer'], arrivesIn: 'R-013' },
-  { id: 'openai-compatible', vendor: 'meta', roles: ['planner', 'reviewer'], arrivesIn: 'R-010' },
   { id: 'replay', vendor: 'local', roles: ['planner', 'implementer', 'reviewer'], arrivesIn: 'R-006' },
 ];
 

@@ -11,7 +11,10 @@ export type Health = {
   adapters: AdapterHealth[];
   replay?: { title: string; recordedAt: string; live: boolean };
   pty?: { backend: string };
+  models?: ModelHealth[];
+  autopilot?: { running: string[]; queued: string[] };
 };
+export type ModelHealth = { host: string; model: string; roles: string[]; ready: boolean; reason: string | null; offline: boolean };
 
 export type RunSummary = {
   run: string;
