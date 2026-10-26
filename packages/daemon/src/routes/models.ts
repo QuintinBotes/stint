@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { relayFromEvents, runsFromEvents } from '@stint-dev/core/node';
+import { constrainsFiles, relayFromEvents, runsFromEvents, similar } from '@stint-dev/core/node';
 import {
   type Host,
   buildPlanPrompt,
@@ -80,16 +80,67 @@ async function modelRun<T>(
 }
 
 /** Plans a task with the planner chain: a run on the timeline, plan.json and plan.md, and the plan's decisions recorded. */
+/** Paths a task names before it has touched any: its context files and the paths written in its goal and acceptance. */
+export function namedFiles(task: { goal: string; acceptance: string[] }, context: unknown): string[] {
+  const out = new Set<string>();
+  const files = (context as { files?: Array<{ path?: unknown }> } | null)?.files;
+  if (Array.isArray(files)) for (const f of files) if (typeof f.path === 'string') out.add(f.path);
+  for (const m of `${task.goal}\n${task.acceptance.join('\n')}`.matchAll(/(?:^|[\s`'"(])((?:[\w.-]+\/)*[\w.-]+\.[a-z]{1,5})(?=$|[\s`'"),.:;])/gim)) {
+    const path = m[1] as string;
+    if (path.includes('/') || /\.(ts|tsx|js|json|md|py|go|rs|sql|yml|yaml|toml)$/.test(path)) out.add(path);
+  }
+  return [...out];
+}
+
+/**
+ * What the memory says about a task before it is planned (R-036): the three most similar tasks with why, and
+ * the decisions and open findings on the files it names or that its similar tasks touched.
+ */
+export async function planMemory(ctx: DaemonContext, id: string, context: unknown): Promise<{ similar: Array<{ id: string; title: string; summary: string }>; constraints: NonNullable<Plan['constraints']> }> {
+  const task = await ctx.ws.readTask(id);
+  const rows = (await similar(ctx.ws, id).catch(() => [])).slice(0, 3);
+  const similarTasks = [];
+  for (const r of rows) {
+    const t = await ctx.ws.readTask(r.task).catch(() => null);
+    if (!t) continue;
+    const why = [r.evidence.files.length ? `shares ${r.evidence.files.slice(0, 3).join(', ')}` : '', r.evidence.themes.length ? `on ${r.evidence.themes.slice(0, 3).join(', ')}` : '', r.evidence.tags.length ? `tagged ${r.evidence.tags.join(', ')}` : ''].filter(Boolean).join('; ');
+    similarTasks.push({ id: t.id, title: t.title, summary: `${t.status}${why ? `; ${why}` : ''}. ${t.goal}`.slice(0, 300) });
+  }
+  const files = [...new Set([...namedFiles(task, context), ...rows.flatMap((r) => r.evidence.files)])];
+  const constraints = files.length
+    ? (await constrainsFiles(ctx.ws, id, files).catch(() => []))
+        .filter((c) => c.task !== id)
+        .slice(0, 20)
+        .map((c) => ({ kind: c.kind, id: c.id.slice(0, 80), task: c.task, text: c.text.slice(0, 400), files: c.files.slice(0, 20) }))
+    : [];
+  return { similar: similarTasks, constraints };
+}
+
 export async function planTask(ctx: DaemonContext, id: string, host?: string): Promise<Plan> {
   const task = await ctx.ws.readTask(id);
   const context = await ctx.ws.readDoc<unknown>(id, 'context.json');
+  const memory = await planMemory(ctx, id, context);
   const prompt = buildPlanPrompt({
     task: { id: task.id, title: task.title, goal: task.goal, acceptance: task.acceptance },
     ...(context ? { context } : {}),
+    similarTasks: memory.similar,
+    constraints: memory.constraints,
     skills: skillsFor(ctx.ws.root, 'planner'),
   });
   const r = await modelRun<Plan>(ctx, id, 'planner', host, 'plan.schema.json', PlanSchema, prompt);
-  const plan = await ctx.ws.writePlan(id, { ...r.value, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString() });
+  // the plan may name only the similar tasks it was shown; the constraints are the daemon's, never the model's
+  const offered = new Set(memory.similar.map((t) => t.id));
+  const subtasks = (r.value.subtasks ?? []).map((st, i) => ({ ...st, dependsOn: [...new Set(st.dependsOn.filter((d) => d < i))] }));
+  const plan = await ctx.ws.writePlan(id, {
+    ...r.value,
+    similarTasks: r.value.similarTasks.filter((t) => offered.has(t)),
+    constraints: memory.constraints,
+    ...(subtasks.length ? { subtasks } : {}),
+    model: `${r.host}/${r.model}`,
+    offline: r.host === 'ollama',
+    createdAt: new Date().toISOString(),
+  });
+  if ((plan.subtasks?.length ?? 0) >= 2) await decompose(ctx, id, plan, r.run);
   await writeFile(join(await ctx.ws.taskDir(id), 'plan.md'), renderPlanMarkdown(plan));
   // a decision the plan states is recorded like any other, with the planner run as provenance
   for (const d of plan.decisions ?? []) {
@@ -97,6 +148,28 @@ export async function planTask(ctx: DaemonContext, id: string, host?: string): P
     await ctx.ws.events(id).append({ task: id, run: r.run, adapter: 'openai-compatible', vendor: 'meta', type: 'decision.recorded', payload: { id: entry.id, text: entry.text, by: entry.by }, links: [{ kind: 'decision', ref: entry.id }] });
   }
   return plan;
+}
+
+/**
+ * Splits a task into the subtasks its plan named (R-036): one child task each, with the parent and the
+ * children it waits for, recorded as task.decomposed on the parent. Planning the same task again splits nothing.
+ */
+export async function decompose(ctx: DaemonContext, id: string, plan: Plan, run: string): Promise<string[]> {
+  const events = await ctx.ws.events(id).read();
+  const done = events.find((e) => e.type === 'task.decomposed');
+  if (done) return done.payload.children as string[];
+  const parent = await ctx.ws.readTask(id);
+  const children: string[] = [];
+  const edges: Array<[string, string]> = [];
+  for (const [i, st] of (plan.subtasks ?? []).entries()) {
+    const child = await ctx.ws.createTask({ title: st.title, goal: st.goal, acceptance: st.acceptance, testCommand: parent.testCommand, tags: [...new Set([...(parent.tags ?? []), 'subtask'])] });
+    const deps = st.dependsOn.map((d) => children[d] as string);
+    await ctx.ws.writeTask(child.id, { parent: id, dependsOn: deps });
+    for (const d of deps) edges.push([child.id, d]);
+    children.push(child.id);
+  }
+  await ctx.ws.events(id).append({ task: id, run, adapter: 'openai-compatible', vendor: 'meta', type: 'task.decomposed', payload: { children, dependsOn: edges } });
+  return children;
 }
 
 /** Reviews a task's change with the reviewer chain once its verification is green; contradictions go to the queue. */

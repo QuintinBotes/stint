@@ -184,6 +184,8 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
       void ctx.otel.task(id).catch(() => undefined);
       await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), { by, at, verificationHash: `sha256:${sha256Hex(canonicalJSON(v))}`, commit });
       await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
+      // only once it reads as done can a task waiting on it move
+      void ctx.autopilot.onDone(id).catch(() => undefined);
       // the merge has landed; a worktree that will not go away is reported, not turned into a failed approve
       let cleanup: string | null = null;
       try {

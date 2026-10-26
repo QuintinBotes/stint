@@ -683,9 +683,17 @@ function taskFiles(graph: Graph, taskId: string): Set<string> {
 export async function constrains(ws: Workspace, taskId: string, at?: string, o: GraphOptions = {}): Promise<ConstrainsRow[]> {
   await requireTask(ws, taskId);
   const full = await project(ws, o);
-  const graph = at ? asOf(full, at) : full;
-  const valid = (e: GraphEdge) => (at ? true : e.validTo === null);
-  const files = taskFiles(full, taskId);
+  return constrainsOn(full, at ? asOf(full, at) : full, taskFiles(full, taskId), taskId, !at);
+}
+
+/** The decisions and open findings on files a task names before it has touched any, such as for its plan (R-036). */
+export async function constrainsFiles(ws: Workspace, taskId: string, files: string[], o: GraphOptions = {}): Promise<ConstrainsRow[]> {
+  const full = await project(ws, o);
+  return constrainsOn(full, full, new Set(files), taskId, true);
+}
+
+function constrainsOn(full: Graph, graph: Graph, files: Set<string>, taskId: string, currentOnly: boolean): ConstrainsRow[] {
+  const valid = (e: GraphEdge) => (currentOnly ? e.validTo === null : true);
   const nodes = new Map(full.nodes.map((n) => [n.id, n]));
   const grouped = new Map<string, ConstrainsRow>();
   const add = (e: GraphEdge, kind: 'decision' | 'finding', path: string) => {

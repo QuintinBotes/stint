@@ -273,6 +273,7 @@ export async function refreshRelease(ctx: DaemonContext, id: string): Promise<Re
     }
     if (task.status !== 'done') {
       await ctx.ws.writeTask(id, { status: 'done', assignee: null, pendingAsk: null });
+      void ctx.autopilot.onDone(id).catch(() => undefined);
       try {
         await releaseWorktrees(ctx, await ctx.ws.readTask(id));
       } catch (err) {

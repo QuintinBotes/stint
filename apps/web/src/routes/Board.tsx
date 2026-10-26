@@ -18,6 +18,7 @@ export function Board() {
   const { data, error } = useTasks();
   if (error) return <p className="p-4 text-bad">The daemon did not answer: {error}</p>;
   const cards: TaskCardData[] = data ?? [];
+  const all = new Map(cards.map((c) => [c.task.id, c.task]));
   return (
     <main className="flex-1 min-h-0 overflow-auto">
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4 p-4" data-testid="board">
@@ -30,7 +31,7 @@ export function Board() {
                 <span className="tabular text-faint font-normal">{inLane.length}</span>
               </h2>
               <div className="flex flex-col gap-2">
-                {inLane.length === 0 ? <p className="text-faint text-[12px] py-2">{lane.empty}</p> : inLane.map((c) => <TaskCard key={c.task.id} card={c} />)}
+                {inLane.length === 0 ? <p className="text-faint text-[12px] py-2">{lane.empty}</p> : inLane.map((c) => <TaskCard key={c.task.id} card={c} all={all} />)}
               </div>
             </section>
           );

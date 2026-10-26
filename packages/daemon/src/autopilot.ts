@@ -27,6 +27,7 @@ export type Step =
   | { kind: 'bestof'; n: number }
   | { kind: 'bestof-wait'; candidates: string[] }
   | { kind: 'adopt'; candidate: string }
+  | { kind: 'children'; children: string[] }
   | { kind: 'review'; verified: string }
   | { kind: 'stop'; reason: string; needsYou: boolean };
 
@@ -125,6 +126,8 @@ const PickSchema = z.strictObject({ pick: z.string().regex(/^T-\d+$/), reason: z
 /** A task holds a slot once it has taken a step that is not waiting in the queue. */
 export function holdsSlot(tail: StintEvent[]): boolean {
   if (tail.some((e) => e.type === 'bestofn.started') && !tail.some((e) => e.type === 'bestofn.picked')) return false;
+  // a split task holds no slot of its own: its subtasks do the work
+  if (tail.some((e) => e.type === 'autopilot.step' && e.payload.split)) return false;
   return tail.some((e) => e.type === 'autopilot.step' && !e.payload.queued);
 }
 
@@ -167,6 +170,9 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   const candidate = !!task.parent && (task.tags ?? []).includes('candidate');
   const planned = candidate || events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
   if (!planned) return { kind: 'plan' };
+  // a task its plan split waits on its subtasks (R-036)
+  const split = events.find((e) => e.type === 'task.decomposed');
+  if (split) return { kind: 'children', children: (split.payload.children as string[]) ?? [] };
 
   // tests first (R-027): failing acceptance tests are written and locked before anything is built
   let fromLock = tail;
@@ -261,6 +267,12 @@ export class Autopilot {
     for (const t of await this.ctx.ws.listTasks()) if (t.id !== id) this.kick(t.id);
   }
 
+  /** A task merged: whatever waited on it (its dependents, its parent) may move now. */
+  async onDone(id: string): Promise<void> {
+    const parent = (await this.ctx.ws.readTask(id)).parent;
+    for (const t of await this.ctx.ws.listTasks()) if (t.id === parent || t.dependsOn?.includes(id)) this.kick(t.id);
+  }
+
   /** Queues a tick for a task; the daemon's stop waits for it. */
   kick(id: string): void {
     const p = (this.ticks.get(id) ?? Promise.resolve())
@@ -326,8 +338,17 @@ export class Autopilot {
       if (s.kind === 'idle' || s.kind === 'wait' || !tail) return;
       if (s.kind === 'stop') return this.stop(id, s.reason, s.needsYou);
 
-      // a parent waiting on its candidates takes no slot: the candidates hold them
-      if (s.kind !== 'bestof-wait' && !holdsSlot(tail)) {
+      // a subtask starts only once the tasks it depends on are merged (R-036)
+      const blocked: string[] = [];
+      for (const d of (await ws.readTask(id)).dependsOn ?? []) if ((await ws.readTask(d).catch(() => null))?.status !== 'done') blocked.push(d);
+      if (blocked.length && s.kind !== 'children') {
+        const last = tail.at(-1) as StintEvent;
+        if (!(last.type === 'autopilot.step' && last.payload.queued && String(last.payload.blocked) === String(blocked))) await this.step(id, 'wait', `Waiting for ${blocked.join(', ')} to be merged first.`, { queued: true, blocked });
+        return;
+      }
+
+      // a parent waiting on its candidates or subtasks takes no slot: they hold them
+      if (s.kind !== 'bestof-wait' && s.kind !== 'children' && !holdsSlot(tail)) {
         const holders: string[] = [];
         for (const t of await ws.listTasks()) {
           const other = t.id === id ? null : autopilotTail(await ws.events(t.id).read());
@@ -426,6 +447,21 @@ export class Autopilot {
           await gitOk(ws.root, ['branch', '-f', parent.branch, picked.branch]);
           await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'bestofn.picked', payload: { pick, reason, candidates: states.map((x) => ({ id: x.id, green: x.green })) } });
           continue;
+        }
+        if (s.kind === 'children') {
+          const kids = await Promise.all(s.children.map((c) => ws.readTask(c)));
+          if (!tail.some((e) => e.type === 'autopilot.step' && e.payload.split)) {
+            const order = kids.map((k) => (k.dependsOn?.length ? `${k.id} after ${k.dependsOn.join(' and ')}` : k.id)).join(', ');
+            await this.step(id, 'build', `Split into ${kids.length} subtasks: ${order}. Each goes through autopilot and your approval.`, { split: s.children });
+            for (const k of kids) await this.start(k.id);
+          }
+          const stuck = kids.find((k) => k.status === 'abandoned');
+          if (stuck) return this.stop(id, `Needs you: subtask ${stuck.id} was abandoned.`, true);
+          if (kids.every((k) => k.status === 'done')) {
+            await ws.writeTask(id, { status: 'done', pendingAsk: null });
+            return this.stop(id, `All ${kids.length} subtasks are merged.`);
+          }
+          return;
         }
         if (s.kind === 'adopt') {
           await this.step(id, 'build', `Adopting ${s.candidate}: the daemon verifies the chosen work again on this task's branch, then it is reviewed.`, { adopt: s.candidate });

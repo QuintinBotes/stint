@@ -56,3 +56,18 @@ By default autopilot picks agents in the order of `autopilot.implementers`. With
 ## One set of instructions for every agent
 
 `AGENTS.md` and `.agents/skills` are the only source. When you enable an agent that reads its own file, `stint init` links that file to `AGENTS.md`: `CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI. Where symlinks don't work it copies the file instead, and it never overwrites a file you already have. With Claude Code enabled, an approved skill is also written to `.claude/skills/<id>/SKILL.md` in the same commit, and removed again when the skill is retired. With only Meta's agents enabled, none of these files appear.
+
+## Big tasks split into parts
+
+The planner sees what the factory remembers before it plans:
+- the three tasks most like this one, and why they match;
+- every decision and open finding on the files the task names, or on files its similar tasks touched.
+
+The plan records which similar tasks it used and the constraints it was given. A plan that would reverse a decision has to say so as a decision of its own.
+
+When a task is too big for one run, the plan can split it into up to six subtasks, each with its own goal and acceptance, and say which ones must be merged first. Stint creates them as tasks under the parent. Autopilot then:
+- runs the ones with nothing to wait for, up to `autopilot.parallel` at a time;
+- holds back the others until what they need is merged;
+- finishes the parent once every subtask is merged.
+
+Each subtask still stops at your approval. The board shows the parent with its subtasks in order, and what each one waits for.

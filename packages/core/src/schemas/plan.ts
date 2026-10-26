@@ -21,6 +21,23 @@ export const PlanSchema = z.strictObject({
     .max(8)
     .optional(),
   similarTasks: z.array(z.string().regex(TASK_ID)),
+  /** Decisions and open findings on the files this task names, from the memory graph; the daemon fills it (R-036). */
+  constraints: z
+    .array(z.strictObject({ kind: z.enum(['decision', 'finding']), id: z.string().max(80), task: z.string().regex(TASK_ID), text: z.string().max(400), files: z.array(z.string()).max(20) }))
+    .max(20)
+    .optional(),
+  /** A task too large for one run, split; dependsOn names earlier subtasks by their index (R-036). */
+  subtasks: z
+    .array(
+      z.strictObject({
+        title: z.string().min(1).max(120),
+        goal: z.string().min(1).max(2000),
+        acceptance: z.array(z.string().min(1).max(300)).min(1).max(8),
+        dependsOn: z.array(z.int().min(0)).max(5),
+      }),
+    )
+    .max(6)
+    .optional(),
   model: z.string().min(1),
   offline: z.boolean().optional(),
   createdAt: z.iso.datetime({ offset: true }).optional(),

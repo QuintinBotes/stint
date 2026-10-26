@@ -9,7 +9,7 @@ export type SimilarTaskInput = { id: string; title: string; summary: string };
 
 const FALLBACK_PLAN = [
   'You are the planner for Stint. Return only JSON matching the schema given with this prompt.',
-  '## Skills\n{{skills}}\n\n## Similar tasks\n{{similarTasks}}\n\n## Context\n{{context}}\n\n## The task\n{{task}}\n\n## Ask\nWrite the plan for this task now. Set version to "stint.plan/1".',
+  '## Skills\n{{skills}}\n\n## Similar tasks\n{{similarTasks}}\n\n## Constraints on the files this task touches\n{{constraints}}\n\n## Context\n{{context}}\n\n## The task\n{{task}}\n\n## Ask\nWrite the plan for this task now. Set version to "stint.plan/1". Follow every decision under Constraints. Return subtasks only for a task too large for one run.',
 ].join('\n\n');
 
 const FALLBACK_REVIEW = [
@@ -47,6 +47,7 @@ export function buildPlanPrompt(input: {
   task: PlanTaskInput;
   context?: unknown;
   similarTasks?: SimilarTaskInput[];
+  constraints?: Array<{ kind: 'decision' | 'finding'; id: string; task: string; text: string; files: string[] }>;
   skills?: SkillHint[];
 }): string {
   const taskLines = [
@@ -63,6 +64,7 @@ export function buildPlanPrompt(input: {
   return fill(loadTemplate('plan.md', FALLBACK_PLAN), {
     skills: renderSkills(input.skills, false),
     similarTasks: similar,
+    constraints: input.constraints?.length ? input.constraints.map((c) => `- ${c.kind} ${c.id} (${c.task}, on ${c.files.join(', ')}): ${c.text}`).join('\n') : '- none',
     context,
     task: taskLines.join('\n'),
   });
