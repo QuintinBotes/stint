@@ -11,4 +11,6 @@ export * from './schemas/config';
 export { renderHandoff, parseHandoffPrompt, HANDOFF_PREAMBLE, HEADINGS } from './render';
 export type { ParsedHandoffPrompt, RenderOptions } from './render';
 export { countTokens } from './tokens';
+export { priceUsage } from './cost';
+export type { Usage } from './cost';
 export { formatIssues } from './issues';
