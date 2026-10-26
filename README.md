@@ -117,6 +117,10 @@ About 160 tests run in CI, plus Playwright tests for the UI. `PROGRESS.md` recor
 
 Everything in this repository was built from 26 October 2026 onward, for the Meta Global AI Developer Hackathon. [`docs/timeline.md`](docs/timeline.md) lists the part committed on 26 October before the kickoff session. The specs in `specs/` and the build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) are the plan, written before the event; [`docs/build-kit.md`](docs/build-kit.md) says what they are. Parts of the code were written by Muse Code on Muse Wonder Full from a brief. Those commits carry a `Model:` trailer, and `PROGRESS.md` names them.
 
+## Ideas borrowed
+
+Stint's stuck detection, its packet quiz, the packet's source list and tests first re-implement ideas from earlier work on agent factories. No code was taken.
+
 ## Support
 
 macOS and Linux. Windows through WSL is untested. Bun 1.3.14 or later and git 2.40 or later; Ollama for the offline review. See [`docs/support.md`](docs/support.md).

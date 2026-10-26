@@ -10,11 +10,11 @@ Coding agents are good at a task until the session ends: the context fills up, t
 
 | Claim | Evidence |
 |---|---|
-| A killed agent's work survives | Muse Code is killed mid-edit with `pkill -9`; the daemon still builds a valid packet from the log and the diff, marks the in-flight step unknown, and a different agent finishes from it. Packet size and tokens: from the live recording. |
-| The daemon, not the agent, says whether it works | Every run ends with the daemon running the test command in the run's worktree; the verification card reads "run by the daemon". |
-| Review costs nothing and needs no network | Muse Glimmer 30B reviews on the laptop through Ollama with Wi-Fi off, at $0.00; a finding that would reverse a recorded decision goes to a queue instead of being applied. |
-| It learns | A finding that recurs across tasks becomes a skill proposal with evidence; once approved, the next task runs with it and the reviewer finds nothing on that point. |
-| It is cheap | The whole task, plan to merge, costs under one dollar at list prices; the cost meter prices every run per host, with cached tokens at the cached rate. |
+| A killed agent's work survives | Live, 26 October: Muse Code was killed mid-task on T-0042. The daemon built the packet from the log and the diff alone, and Stint's own agent continued from it on Muse Spark 1.3. The daemon's test run passed 29 of 29, and the continued run cost $0.10. |
+| The packet is enough, and we measured it | `stint bench`, five live tasks: the packet is 728 to 797 tokens against 4,418 for the transcript, and every continued run passed. The first run cost about the same as the transcript, because the agent re-read code. The packet quiz found the gap, a diff digest closed it, and the second run used 25% fewer tokens: 1.25 times cheaper than the transcript. |
+| The daemon, not the agent, says whether it works | Every run ends with the daemon running the tests in the run's worktree. With tests first on, the acceptance tests are written and locked before the build, and a build that edits them is stopped. |
+| Review costs nothing and needs no network | Muse Glimmer 30B reviews on the laptop through Ollama, at $0.00. A finding that would reverse a recorded decision waits for a person instead of being applied. |
+| It learns | A finding that recurs across tasks becomes a skill proposal with evidence. Once a person approves it, the next task runs with it and the reviewer finds nothing on that point. |
 
 ## Real and replayed
 

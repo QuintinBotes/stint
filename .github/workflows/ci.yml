@@ -37,3 +37,23 @@ jobs:
         run: |
           curl -fsSL https://dev.meta.ai/install.sh | sh
           muse --version
+
+  quickstart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: From a clean clone, bootstrap and replay the demo without keys in under 90 seconds
+        run: |
+          start=$(date +%s)
+          bash scripts/bootstrap.sh --check-only
+          bun install --frozen-lockfile
+          bun run fixture
+          bun run build:web
+          bun packages/cli/bin/stint demo --speed 0 --json | tail -1
+          elapsed=$(( $(date +%s) - start ))
+          echo "quickstart took ${elapsed}s"
+          test "$elapsed" -lt 90
