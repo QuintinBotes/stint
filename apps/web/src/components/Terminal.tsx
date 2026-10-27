@@ -4,17 +4,32 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useRef, useState } from 'react';
 import { api, ptyUrl } from '../api';
-import { Button, EmptyState } from './ui';
+import { Button, EmptyState, Kbd } from './ui';
 
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 type State = { kind: 'connecting' } | { kind: 'open'; cwd: string } | { kind: 'closed'; reason: string };
 
 /** A shell in the task's worktree. What the person types is recorded beside what the agents did. */
+/** This tab, to the daemon: opening the terminal again replaces its shell rather than adding one. */
+const CLIENT = crypto.randomUUID();
+
 export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string | null }) {
   const host = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<State>({ kind: 'connecting' });
   const [copied, setCopied] = useState(false);
+
+  // ⌘. kills the live run, even while the terminal has the keyboard (capture phase, before xterm sees it)
+  useEffect(() => {
+    if (!liveRun) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '.' || !(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+      void api.stopRun(taskId, liveRun).catch(() => undefined);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [taskId, liveRun]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -39,7 +54,7 @@ export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string 
     }
     fit.fit();
 
-    const ws = new WebSocket(ptyUrl(taskId));
+    const ws = new WebSocket(ptyUrl(taskId, CLIENT));
     ws.binaryType = 'arraybuffer';
     const encoder = new TextEncoder();
     let ready = false;
@@ -107,8 +122,8 @@ export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string 
             </Button>
           ) : null}
           {liveRun ? (
-            <Button tone="danger" className="h-7" onClick={() => void api.stopRun(taskId, liveRun).catch(() => undefined)} data-testid="kill-run">
-              Kill {liveRun}
+            <Button tone="danger" className="h-7" title={`Kill ${liveRun}`} onClick={() => void api.stopRun(taskId, liveRun).catch(() => undefined)} data-testid="kill-run">
+              Kill run <Kbd>⌘.</Kbd>
             </Button>
           ) : null}
         </span>

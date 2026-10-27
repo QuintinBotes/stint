@@ -1,6 +1,6 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { constrainsFiles, findingThemes, relayFromEvents, runsFromEvents, similar } from '@stint-dev/core/node';
+import { constrainsFiles, findingThemes, relayFromEvents, runsFromEvents, similar, writeFileAtomic, writeJsonAtomic } from '@stint-dev/core/node';
 import {
   type Host,
   buildPlanPrompt,
@@ -134,7 +134,7 @@ export async function planTask(ctx: DaemonContext, id: string, host?: string): P
   if ((plan.subtasks?.length ?? 0) >= 2) await decompose(ctx, id, plan, r.run);
   // the tests the plan will be judged by are locked now, before any builder can touch them (R-029)
   await lockPlanTests(ctx, id, { run: r.run, plan });
-  await writeFile(join(await ctx.ws.taskDir(id), 'plan.md'), renderPlanMarkdown(plan));
+  await writeFileAtomic(join(await ctx.ws.taskDir(id), 'plan.md'), renderPlanMarkdown(plan));
   // a decision the plan states is recorded like any other, with the planner run as provenance
   for (const d of plan.decisions ?? []) {
     const entry = await ctx.ws.decisions(id).append({ text: d.text, by: `openai-compatible ${r.run}`, evidence: [`${id}/${r.run}`] });
@@ -235,7 +235,7 @@ async function lensReview(ctx: DaemonContext, id: string, lens: Lens, host: stri
   for (const f of contradicting) {
     const name = contradictionId(id, lens, f.id);
     const decision = base.decisions.find((d) => d.id === f.contradictsDecision) ?? null;
-    await writeFile(join(queue, `${name}.json`), `${JSON.stringify({ kind: 'contradiction', task: id, run: r.run, agent: `${r.host}/${r.model}`, decision, finding: f, at: new Date().toISOString() }, null, 2)}\n`);
+    await writeJsonAtomic(join(queue, `${name}.json`), { kind: 'contradiction', task: id, run: r.run, agent: `${r.host}/${r.model}`, decision, finding: f, at: new Date().toISOString() });
     queued.push(name);
   }
   await ctx.ws.events(id).append({

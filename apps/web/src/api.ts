@@ -213,9 +213,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** The address of a task's terminal: same origin, with the daemon token as the query parameter. */
-export function ptyUrl(id: string): string {
+export function ptyUrl(id: string, client?: string): string {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${location.host}${base}/api/tasks/${id}/pty${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  const q = new URLSearchParams({ ...(token ? { token } : {}), ...(client ? { client } : {}) }).toString();
+  return `${proto}//${location.host}${base}/api/tasks/${id}/pty${q ? `?${q}` : ''}`;
 }
 
 const post = <T>(path: string, body: unknown = {}) => request<T>(path, { method: 'POST', body: JSON.stringify(body) });

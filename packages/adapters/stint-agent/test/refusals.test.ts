@@ -51,3 +51,71 @@ test('the Stint agent runs its shell without keys, so an env call cannot print o
     host.stop();
   }
 });
+
+describe('refusals hold against chains, git options, paths and links (R-053)', () => {
+  const { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } = require('node:fs') as typeof import('node:fs');
+  const { join } = require('node:path') as typeof import('node:path');
+  const { tmpdir } = require('node:os') as typeof import('node:os');
+
+  test('every part of a chain is checked, and git options cannot hide a subcommand', () => {
+    const wt = mkdtempSync(join(tmpdir(), 'stint-refuse-'));
+    try {
+      for (const c of [
+        'git checkout main && ls',
+        'git switch x; ls',
+        'git -C . push origin',
+        'ls $(git push origin)',
+        'echo `git push`',
+        'true || git reset --hard HEAD~1',
+        'git -c core.x=1 push',
+        'git remote add evil https://example.com/r.git',
+        'git branch -D main',
+        'git -C /etc status',
+        'cat /etc/hosts',
+        'echo leak > /tmp/stint-refuse-out',
+        'ls ..',
+        'cat ~/projects',
+      ]) {
+        expect(checkCommand(c, wt), c).not.toBeNull();
+      }
+      for (const c of [
+        'bun run test 2>&1 | tail -20',
+        'grep -rn "/api/webhooks" src',
+        'git -C . status',
+        'git log --oneline -5',
+        'git checkout -- src/app.ts',
+        '/usr/bin/env node -e "console.log(1)"',
+        'curl -s http://localhost:3000/health',
+        'cat src/../src/app.ts',
+        'bun run build > /dev/null',
+      ]) {
+        expect(checkCommand(c, wt), c).toBeNull();
+      }
+    } finally {
+      rmSync(wt, { recursive: true, force: true });
+    }
+  });
+
+  test('the run temp folder is allowed, and a link inside the worktree cannot lead out of it', () => {
+    const wt = mkdtempSync(join(tmpdir(), 'stint-refuse-'));
+    const runTmp = mkdtempSync(join(tmpdir(), 'stint-run-tmp-'));
+    const outside = mkdtempSync(join(tmpdir(), 'stint-outside-'));
+    try {
+      writeFileSync(join(outside, 'secret.txt'), 'x');
+      mkdirSync(join(wt, 'src'));
+      writeFileSync(join(wt, 'src', 'app.ts'), 'x');
+      symlinkSync(outside, join(wt, 'escape'));
+      symlinkSync(join(wt, 'src'), join(wt, 'alias'));
+      expect(checkCommand(`echo x > ${join(runTmp, 'out.txt')}`, wt, runTmp)).toBeNull();
+      expect(checkCommand(`echo x > ${join(outside, 'out.txt')}`, wt, runTmp)).not.toBeNull();
+      expect(checkPath(wt, 'escape/secret.txt')).toHaveProperty('reason');
+      expect(checkPath(wt, 'escape/new-file.txt')).toHaveProperty('reason');
+      expect(checkPath(wt, 'alias/app.ts')).toEqual({ path: 'alias/app.ts' });
+      expect(checkCommand('cat escape/secret.txt', wt)).not.toBeNull();
+      expect(checkCommand('echo x > escape/new.txt', wt)).not.toBeNull();
+      expect(checkCommand('cat alias/app.ts', wt)).toBeNull();
+    } finally {
+      for (const d of [wt, runTmp, outside]) rmSync(d, { recursive: true, force: true });
+    }
+  });
+});

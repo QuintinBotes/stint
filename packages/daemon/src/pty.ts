@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 /** A shell attached to a real pseudo terminal: spawn, write, resize, data, kill. */
 export interface PtyHandle {
   write(data: Uint8Array): void;
@@ -224,3 +225,37 @@ export function createPty(): Pty {
 
 /** The shared `Pty` the daemon routes spawn through; every handle joins the live set regardless. */
 export const pty: Pty = createPty();
+
+/** Open terminals by worktree path and client: one per client, and all of them closed with their worktree (R-053). */
+const terminals = new Map<string, Map<string, () => void>>();
+
+/** Registers an open terminal; one already open for the same worktree and client is closed first. Returns the unregister. */
+export function trackTerminal(worktree: string, client: string, close: () => void): () => void {
+  const path = realPath(worktree);
+  const byClient = terminals.get(path) ?? new Map<string, () => void>();
+  terminals.set(path, byClient);
+  // the new one goes in first: closing the old one runs its unregister, which must not find the map empty
+  const old = byClient.get(client);
+  byClient.set(client, close);
+  old?.();
+  return () => {
+    if (byClient.get(client) === close) byClient.delete(client);
+    if (byClient.size === 0 && terminals.get(path) === byClient) terminals.delete(path);
+  };
+}
+
+/** Closes every terminal open in a worktree, before the worktree is removed. */
+export function closeTerminalsIn(worktree: string): void {
+  const path = realPath(worktree);
+  for (const close of [...(terminals.get(path)?.values() ?? [])]) close();
+  terminals.delete(path);
+}
+
+/** One key per folder however it was reached: on macOS the temp folders live under /var, a link to /private/var. */
+function realPath(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}

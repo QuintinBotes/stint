@@ -1,7 +1,8 @@
 // A sandbox per run (R-040). A worktree is a place to write, not a boundary, so an agent can be run where it can
 // write only its worktree and the git data its commits need, and reach the network only through the egress proxy.
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { writeFileAtomic } from '@stint-dev/core/node';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Adapter, Config } from '@stint-dev/core';
@@ -192,7 +193,7 @@ export async function drainDockerBlocked(ctx: DaemonContext): Promise<void> {
       break;
     }
   }
-  writeFileSync(mark, String(text.length));
+  await writeFileAtomic(mark, String(text.length));
 }
 
 /**

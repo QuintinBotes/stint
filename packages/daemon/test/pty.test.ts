@@ -40,8 +40,8 @@ async function withDaemon<T>(repo: string, fn: (daemon: RunningDaemon) => Promis
   }
 }
 
-async function connectPty(daemon: RunningDaemon, taskId: string): Promise<PtyClient> {
-  const ws = new WebSocket(`ws://127.0.0.1:${daemon.port}/api/tasks/${taskId}/pty?token=${encodeURIComponent(daemon.token)}`);
+async function connectPty(daemon: RunningDaemon, taskId: string, client?: string): Promise<PtyClient> {
+  const ws = new WebSocket(`ws://127.0.0.1:${daemon.port}/api/tasks/${taskId}/pty?token=${encodeURIComponent(daemon.token)}${client ? `&client=${client}` : ''}`);
   ws.binaryType = 'arraybuffer';
   const decoder = new TextDecoder();
   let out = '';
@@ -336,5 +336,30 @@ describe('pty fallback', () => {
       else process.env.STINT_PTY = prev;
       tmp.cleanup();
     }
+  });
+});
+
+describe('terminal lifecycle (R-053)', () => {
+  test.skipIf(!hasTerminal)('a second terminal from the same client replaces the first, and removing the worktree closes the terminal', async () => {
+    await withFixtureRepo(async (repo) => {
+      const { taskId } = await setupWorktree(repo);
+      await withDaemon(repo, async (daemon) => {
+        const first = await connectPty(daemon, taskId, 'tab-1');
+        const second = await connectPty(daemon, taskId, 'tab-1');
+        await first.waitClosed(3000);
+        const other = await connectPty(daemon, taskId, 'tab-2');
+        try {
+          second.sendBytes('echo still-here\n');
+          await second.waitFor('still-here', 3000);
+          const ws = await Workspace.open(repo);
+          await new Worktrees(ws, new RunRegistry()).remove(await ws.readTask(taskId), 'r1');
+          await second.waitClosed(3000);
+          await other.waitClosed(3000);
+        } finally {
+          second.close();
+          other.close();
+        }
+      });
+    });
   });
 });

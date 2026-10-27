@@ -105,7 +105,7 @@ export async function runTool(name: string, raw: Record<string, unknown>, worktr
   const refuse = (reason: string): ToolOutcome => ({ ok: false, refused: reason, output: `Refused by Stint: ${reason}.`, summary: `refused: ${reason}`, args });
   try {
     if (name === 'bash') {
-      const r = checkCommand(args.command);
+      const r = checkCommand(args.command, worktree, env.TMPDIR);
       if (r) return refuse(r.reason);
       const res = await bash(String(args.command), worktree, env, signal, wrap);
       const out = cap(res.output);

@@ -80,6 +80,21 @@ export class Workspace {
     return ws;
   }
 
+  /**
+   * Changes `.stint/config.json` as written (defaults stay implicit): the edit runs on the raw object, the result is
+   * validated, written atomically with stable keys, and the live config follows. An invalid edit changes nothing.
+   */
+  async writeConfig(edit: (raw: Record<string, unknown>) => void): Promise<Config> {
+    const path = join(this.stintDir, 'config.json');
+    const raw = ((await readJsonIfExists<Record<string, unknown>>(path)) ?? structuredClone(DEFAULT_CONFIG)) as Record<string, unknown>;
+    edit(raw);
+    const parsed = ConfigSchema.safeParse(raw);
+    if (!parsed.success) throw new StoreError('invalid', `the edited config is invalid: ${parsed.error.message}`);
+    await writeJsonAtomic(path, raw);
+    Object.assign(this.config, parsed.data);
+    return this.config;
+  }
+
   /** `emit: false` skips the task.created event, for the replayer, which appends the recorded one. */
   async createTask(i: NewTask, o: { emit?: boolean } = {}): Promise<Task> {
     const id = i.id ?? (await this.nextTaskId());

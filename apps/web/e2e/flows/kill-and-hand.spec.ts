@@ -30,3 +30,15 @@ test('Killing a run from the Terminal tab leaves a packet with the step in fligh
   await page.goto(`/t/${t.id}?tab=verification`);
   await expect(page.getByTestId('verification-summary')).toBeVisible();
 });
+
+test('In the Terminal tab the kill button reads Kill run and Command-period kills the live run', async ({ page, request }) => {
+  const d = daemon(request);
+  const t = await d.create('Flow: kill from the keyboard');
+  await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'sleeper', role: 'implementer' });
+  await page.goto(`/t/${t.id}?tab=terminal`);
+  await expect(page.getByTestId('kill-run')).toContainText('Kill run');
+  await page.locator('.xterm').click();
+  await page.keyboard.press('Meta+Period');
+  const events = await d.until(t.id, (ev) => ev.some((e) => e.type === 'run.finished'));
+  expect(events.find((e) => e.type === 'run.finished')?.payload.endedBy).toBe('killed');
+});

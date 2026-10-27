@@ -19,13 +19,14 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
-export type AtomicHooks = { beforeRename?: () => void | Promise<void> };
+/** `mode` is set on the temp file before anything is written to it, so a secret is never readable by others. */
+export type AtomicHooks = { beforeRename?: () => void | Promise<void>; mode?: number };
 
 /** Write a temp file beside the target, fsync it, then rename over the target. */
 export async function writeFileAtomic(path: string, text: string, hooks: AtomicHooks = {}): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmp = join(dirname(path), `.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
-  const fh = await open(tmp, 'w');
+  const fh = await open(tmp, 'w', hooks.mode ?? 0o666);
   try {
     await fh.writeFile(text);
     await fh.sync();

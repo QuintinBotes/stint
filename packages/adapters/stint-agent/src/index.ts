@@ -171,6 +171,8 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
             await ctx.emit({ type: 'rule.blocked', payload: { action: tool === 'bash' ? String(args.command) : `${tool} ${short(args)}`, reason: out.refused, by: 'stint-rules', tool, gate: 'enforced' } });
           }
           await ctx.emit({ type: 'agent.tool_result', payload: { tool, callId: call.id, ok: out.ok, args: out.args, summary: out.summary } });
+          // the timeline keeps the summary; the transcript keeps the whole output the model saw
+          await ctx.transcript(JSON.stringify({ kind: 'tool_result', tool, callId: call.id, ok: out.ok, output: out.output }));
           messages.push({ role: 'tool', tool_call_id: call.id, content: out.output });
         }
       }

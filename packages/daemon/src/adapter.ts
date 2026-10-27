@@ -43,17 +43,34 @@ function manifestCapabilities(def: AgentDef | undefined, adapter?: Adapter): Age
   return undefined;
 }
 
+const checked = new WeakMap<Adapter, { at: number; av: Availability }>();
+const AVAILABILITY_TTL_MS = 10_000;
+
+/** available() at most once per adapter per 10 s: health is read every few seconds, and some checks start a CLI. */
+async function availability(a: Adapter): Promise<Availability> {
+  const hit = checked.get(a);
+  if (hit && Date.now() - hit.at < AVAILABILITY_TTL_MS) return hit.av;
+  let av: Availability;
+  try {
+    av = await a.available();
+  } catch (err) {
+    av = { ok: false, reason: `availability check failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  checked.set(a, { at: Date.now(), av });
+  return av;
+}
+
+/** Checks every adapter once, so the first health read after start is already warm (R-004). */
+export async function warmAvailability(adapters: Adapter[]): Promise<void> {
+  await Promise.all(adapters.map(availability));
+}
+
 export async function adapterHealth(adapters: Adapter[], config?: Pick<Config, 'agents' | 'adapters'>): Promise<AdapterHealth[]> {
   const out: AdapterHealth[] = [];
   const seen = new Set<string>();
   for (const a of adapters) {
     seen.add(a.id);
-    let av: Availability;
-    try {
-      av = await a.available();
-    } catch (err) {
-      av = { ok: false, reason: `availability check failed: ${err instanceof Error ? err.message : String(err)}` };
-    }
+    const av = await availability(a);
     const def = config?.agents?.[a.id];
     const model = def?.model ?? (typeof config?.adapters?.[a.id]?.model === 'string' ? (config.adapters[a.id]?.model as string) : null);
     out.push({
@@ -65,7 +82,7 @@ export async function adapterHealth(adapters: Adapter[], config?: Pick<Config, '
       harness: def?.harness ?? (a.id === 'muse-code' || a.id === 'stint-agent' || a.id === 'replay' ? a.id : 'cli'),
       host: def?.host ?? null,
       model,
-      enabled: def ? def.enabled : true,
+      enabled: def ? def.enabled : (config?.adapters?.[a.id]?.enabled ?? true),
       available: av.ok,
       capabilities: manifestCapabilities(def, a),
       ...(av.version ? { version: av.version } : {}),
@@ -95,6 +112,14 @@ export async function adapterHealth(adapters: Adapter[], config?: Pick<Config, '
       reason,
       ...(onPath ? { version: bin } : {}),
     });
+  }
+  // a built-in adapter turned off in config is listed as off, with how to turn it on
+  for (const [id, a] of Object.entries(config?.adapters ?? {})) {
+    if (seen.has(id) || a.enabled !== false) continue;
+    seen.add(id);
+    const known = KNOWN_ADAPTERS.find((k) => k.id === id);
+    const reason = `disabled in config; set adapters.${id}.enabled to true to use it`;
+    out.push({ id, vendor: known?.vendor ?? 'meta', roles: known?.roles ?? ['implementer'], capability: { level: 'unsupported', reason }, gate: 'none', reason, harness: id, host: null, model: typeof a.model === 'string' ? a.model : null, enabled: false, available: false });
   }
   for (const k of KNOWN_ADAPTERS) {
     if (seen.has(k.id)) continue;

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { Workspace } from '@stint-dev/core/node';
+import { Workspace, writeJsonAtomic } from '@stint-dev/core/node';
 import { createBunWebSocket } from 'hono/bun';
 import { acpAgent } from '@stint-dev/adapter-acp';
 import { cliAgent } from '@stint-dev/adapter-cli-agent';
@@ -10,7 +10,7 @@ import { codex } from '@stint-dev/adapter-codex';
 import { museCodeAdapter } from '@stint-dev/adapter-muse-code';
 import { createStintAgent } from '@stint-dev/adapter-stint-agent';
 import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
-import { type Adapter, replayAdapter } from './adapter';
+import { type Adapter, replayAdapter, warmAvailability } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
 import { gardenTick } from './gardening';
 import { scheduledPull } from './intake';
@@ -29,7 +29,9 @@ export function defaultAdapters(config?: Config): Adapter[] {
     else if (harness === 'acp') agents.push(acpAgent(name, def));
     else agents.push(cliAgent(name, def));
   }
-  return [replayAdapter, museCodeAdapter, createStintAgent(config), ...agents];
+  // the built-ins follow adapters.<id>.enabled like any agent; the replay adapter is how the demo plays, so it stays
+  const on = (id: string) => cfg.adapters?.[id]?.enabled !== false;
+  return [replayAdapter, ...(on('muse-code') ? [museCodeAdapter] : []), ...(on('stint-agent') ? [createStintAgent(config)] : []), ...agents];
 }
 
 export type DaemonInfo = { port: number; token: string; pid: number; startedAt: string; version: string };
@@ -51,6 +53,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   const token = randomBytes(24).toString('hex');
   const startedAt = new Date().toISOString();
   const adapters = o.adapters ?? defaultAdapters(ws.config);
+  void warmAvailability(adapters);
   const app = createApp(ws, adapters, {
     token,
     startedAt,
@@ -90,8 +93,8 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   const info: DaemonInfo = { port, token, pid: process.pid, startedAt, version: DAEMON_VERSION };
   mkdirSync(ws.cacheDir, { recursive: true });
   const infoPath = join(ws.cacheDir, 'daemon.json');
-  writeFileSync(infoPath, `${JSON.stringify(info, null, 2)}\n`, { mode: 0o600 });
-  chmodSync(infoPath, 0o600);
+  // the token is in this file: created 0600 before it holds anything, renamed into place whole
+  await writeJsonAtomic(infoPath, info, { mode: 0o600 });
 
   let stopped = false;
   const stop = async () => {

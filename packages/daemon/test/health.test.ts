@@ -53,3 +53,32 @@ test('/api/health shows reads AGENTS.md for muse-code with verifiedAgainst', asy
     tmp.cleanup();
   }
 });
+
+test('a built-in adapter turned off in config is not registered and health lists it as off; availability is checked once, warm at start', async () => {
+  const { DEFAULT_CONFIG } = await import('@stint-dev/core');
+  const { defaultAdapters, warmAvailability } = await import('../src/index');
+  const config = structuredClone(DEFAULT_CONFIG);
+  config.adapters['stint-agent'] = { ...(config.adapters['stint-agent'] ?? {}), enabled: false };
+  expect(defaultAdapters(config).map((a) => a.id)).not.toContain('stint-agent');
+
+  const tmp = tempDir();
+  try {
+    let calls = 0;
+    const counted = { ...(await import('../src/index')).replayAdapter, id: 'counted', available: async () => {
+      calls++;
+      return { ok: true, version: 'v1' };
+    } };
+    const { app, ws } = await makeApp(tmp.dir, [counted]);
+    await ws.writeConfig((raw) => {
+      raw.adapters = { ...((raw.adapters as Record<string, unknown>) ?? {}), 'stint-agent': { enabled: false } };
+    });
+    await warmAvailability([counted]);
+    const read = async () => (await (await app.request('/api/health')).json()) as { adapters: Array<{ id: string; enabled?: boolean; reason?: string }> };
+    const first = await read();
+    await read();
+    expect(calls).toBe(1);
+    expect(first.adapters.find((a) => a.id === 'stint-agent')).toMatchObject({ enabled: false, reason: expect.stringContaining('adapters.stint-agent.enabled') });
+  } finally {
+    tmp.cleanup();
+  }
+});

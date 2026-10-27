@@ -9,7 +9,8 @@ export async function otelExport(root: string, task: string, out?: string): Prom
   const ws = await Workspace.open(root);
   const t = await ws.readTask(task);
   const spans = taskSpans(t, await ws.events(task).read(), { withTask: true });
-  const path = resolve(out ?? join(ws.cacheDir, 'otel', `${task}.json`));
+  // beside the person, like stint export's zip: only the daemon writes under .stint/
+  const path = resolve(out ?? `${task}.otel.json`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(otlpBody(spans, ws.config.otel?.serviceName ?? 'stint', '0.1.0'), null, 2)}\n`);
   return { path, spans: spans.length };
@@ -19,7 +20,7 @@ const exportCommand = defineCommand({
   meta: { name: 'export', description: "Write a task's runs and tool calls as OpenTelemetry spans (OTLP JSON)" },
   args: {
     task: { type: 'positional', description: 'Task id, such as T-0042', required: true },
-    out: { type: 'string', description: 'Where to write it (default .stint/cache/otel/<task>.json)' },
+    out: { type: 'string', description: 'Where to write it (default ./<task>.otel.json)' },
     repo: { type: 'string', description: 'Repository root (default: the git top level)' },
   },
   async run({ args }) {

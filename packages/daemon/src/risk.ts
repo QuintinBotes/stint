@@ -1,8 +1,6 @@
 // Risk tiers and the auto-approve lane (R-039). Every reviewed change gets a tier; every human decision is
 // compared with what the policy would have done (shadow mode, always on); and the lane approves by policy only
 // when a person turned it on and the shadow record for that tier is long and clean.
-import { existsSync, readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { StintEvent, Task } from '@stint-dev/core';
 import type { Hono } from 'hono';
@@ -212,11 +210,12 @@ export function riskRoutes(app: Hono, ctx: DaemonContext): void {
 
   app.post('/api/risk/autoapprove', async (c) => {
     const body = z.strictObject({ enabled: z.literal(false) }).parse(await c.req.json());
-    const path = join(ctx.ws.root, '.stint', 'config.json');
-    const raw = (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}) as { risk?: { autoApprove?: { enabled?: boolean } } };
-    if (raw.risk?.autoApprove) raw.risk.autoApprove.enabled = body.enabled;
+    await ctx.ws.writeConfig((raw) => {
+      const lane = (raw.risk as { autoApprove?: { enabled?: boolean } } | undefined)?.autoApprove;
+      if (lane) lane.enabled = body.enabled;
+    });
+    // a lane on by default lives only in the parsed config; turning it off there holds until the next start
     if (ctx.ws.config.risk) ctx.ws.config.risk.autoApprove.enabled = body.enabled;
-    await writeFile(path, `${JSON.stringify(raw, null, 2)}\n`);
     process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'info', message: 'the auto-approve lane was turned off from the Factory' })}\n`);
     return c.json({ enabled: false });
   });

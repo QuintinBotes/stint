@@ -4,7 +4,7 @@ import { createBunWebSocket } from 'hono/bun';
 import type { DaemonContext } from '../app';
 import { runEnv } from '../env';
 import { DaemonError } from '../errors';
-import { pty, ptyBackend, ptyHealth, type PtyHandle } from '../pty';
+import { pty, ptyBackend, ptyHealth, type PtyHandle, trackTerminal } from '../pty';
 import { currentWorktree } from './work';
 
 const { upgradeWebSocket } = createBunWebSocket();
@@ -161,6 +161,9 @@ export function ptyRoutes(app: Hono, ctx: DaemonContext): void {
       const taskId = c.req.param('id');
       if (!taskId) throw new DaemonError('not_found', 'no task on this route');
       const wt = await currentWorktree(ctx, taskId);
+      // a tab sends its client id, so opening the terminal again replaces its old shell instead of adding one
+      const client = c.req.query('client') || crypto.randomUUID();
+      let untrack: (() => void) | undefined;
       let handle: PtyHandle | undefined;
       let cols = 80;
       let rows = 24;
@@ -220,6 +223,14 @@ export function ptyRoutes(app: Hono, ctx: DaemonContext): void {
             ws.close(1011, 'pty unavailable');
             return;
           }
+          untrack = trackTerminal(wt.path, client, () => {
+            shutdown();
+            try {
+              ws.close(1000, 'replaced or the worktree is gone');
+            } catch {
+              // The client is already gone.
+            }
+          });
           handle.onData((d) => {
             try {
               ws.send(new Uint8Array(d));
@@ -249,9 +260,11 @@ export function ptyRoutes(app: Hono, ctx: DaemonContext): void {
         },
         onClose() {
           shutdown();
+          untrack?.();
         },
         onError() {
           shutdown();
+          untrack?.();
         },
       };
     }),

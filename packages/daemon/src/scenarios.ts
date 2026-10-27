@@ -1,6 +1,6 @@
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import type { Workspace } from '@stint-dev/core/node';
+import { type Workspace, writeFileAtomic } from '@stint-dev/core/node';
 import { DaemonError } from './errors';
 
 /** Where a task's held-out scenarios live: `config.scenarios.dir/<task>/`, under `.stint/scenarios` by default (R-037). */
@@ -46,6 +46,6 @@ export async function storeScenario(ws: Workspace, taskId: string, name: string,
   const clean = scenarioName(name);
   const path = join(scenariosDir(ws, taskId), clean);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, content);
+  await writeFileAtomic(path, content);
   return clean;
 }

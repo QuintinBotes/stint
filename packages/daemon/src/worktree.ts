@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Task } from '@stint-dev/core';
+import { closeTerminalsIn } from './pty';
 import type { Workspace } from '@stint-dev/core/node';
 import { DaemonError, type ErrorCode } from './errors';
 import { type NumstatEntry, git, gitOk, identityArgs, parseNumstat } from './git';
@@ -67,6 +68,7 @@ export class Worktrees implements WorktreeManager {
       throw new DaemonError('run_active', `${task.id} ${run} is still running in ${path}`, 'stop the run first');
     }
     if (!existsSync(path)) return;
+    closeTerminalsIn(path);
     // never --force: a worktree with uncommitted changes stays, and git says why
     const r = await git(this.ws.root, ['worktree', 'remove', path]);
     if (r.code !== 0) throw new DaemonError('dirty_tree', `git refused to remove ${path}: ${r.stderr.trim()}`, 'commit the run first');
