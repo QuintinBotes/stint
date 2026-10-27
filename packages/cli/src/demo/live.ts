@@ -39,7 +39,7 @@ export async function checkOnline(): Promise<boolean> {
   }
 }
 
-type Ev = { type: string; run?: string; payload: Record<string, unknown> };
+export type Ev = { type: string; run?: string; payload: Record<string, unknown> };
 
 async function events(client: DemoClient, task: string): Promise<Ev[]> {
   return ((await client.get(`/api/tasks/${task}/events`)) as { events: Ev[] }).events;
@@ -128,6 +128,32 @@ export type LiveSummary = {
   learnSkipped: string | null;
 };
 
+/**
+ * Hands the task on until a run's verification is green, at most `hops` runs. Each run starts from the packet the one
+ * before it left, which names its failing tests: a relay, not a retry from scratch. Returns the runs it handed.
+ */
+export async function handOn(o: {
+  client: DemoClient;
+  task: string;
+  adapter: string;
+  hops: number;
+  out: (line: string) => void;
+  waitFor: (pred: (es: Ev[]) => boolean, what: string) => Promise<Ev[]>;
+}): Promise<string[]> {
+  const runs: string[] = [];
+  for (let hop = 1; hop <= o.hops; hop++) {
+    const handed = (await o.client.post(`/api/tasks/${o.task}/hand`, { adapter: o.adapter })) as { run: string; packet: string };
+    runs.push(handed.run);
+    o.out(`Handed ${o.task} to ${o.adapter} as ${handed.run} from packet ${handed.packet}.`);
+    const es = await o.waitFor((e) => e.some((x) => x.type === 'verification.ran' && x.run === handed.run), `verification of ${handed.run}`);
+    await o.waitFor((e) => e.some((x) => x.type === 'handoff.created' && x.run === handed.run), `the packet from ${handed.run}`);
+    const verified = es.filter((x) => x.type === 'verification.ran' && x.run === handed.run).at(-1);
+    if (verified?.payload.status === 'green') break;
+    if (hop < o.hops) o.out(`${handed.run} ended with ${String(verified?.payload.failed ?? 'some')} tests failing; handing on from its packet.`);
+  }
+  return runs;
+}
+
 /** Beats 2 to 8 against a seeded workspace with a daemon up. Beat 1 (seed) runs before the daemon starts. */
 export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
   const out = o.out ?? ((s: string) => process.stdout.write(`${s}\n`));
@@ -177,10 +203,7 @@ export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
 
   // Beat 4: a different agent finishes from the packet.
   await pause('hand', 'Beat: a different agent finishes. Press Enter. ');
-  const handed = (await o.client.post('/api/tasks/T-0042/hand', { adapter: continuer })) as { run: string; packet: string };
-  out(`Handed T-0042 to ${continuer} as ${handed.run} from packet ${handed.packet}.`);
-  await waitFor('T-0042', has('verification.ran', handed.run), `verification of ${handed.run}`);
-  await waitFor('T-0042', has('handoff.created', handed.run), `the packet from ${handed.run}`);
+  await handOn({ client: o.client, task: 'T-0042', adapter: continuer, hops: 3, out, waitFor: (pred, what) => waitFor('T-0042', pred, what) });
 
   // Beat 5: review offline.
   await pause('review', 'Beat: review offline. Press Enter. ');

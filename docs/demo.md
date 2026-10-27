@@ -64,6 +64,7 @@ Anyone can replay that file with no keys. Replaying the recording made from the 
 | The network is still on at the review beat | the runner asks for it off and refuses to review while online | turn Wi-Fi off and press Enter, or restart with `--allow-online` |
 | The Meta API rate-limits the planner | the planner chip says it fell back to another host | nothing: the chain handles it, and that is worth saying on stage |
 | Muse Code is slow to start | the segment stays "running" with no events | keep talking through the plan; the kill waits for the first `src/` change |
-| Glimmer is cold | the review takes longer than 20 s | run one review before the show |
+| The continued run ends red | "r3 ended with 2 tests failing; handing on from its packet." | nothing: the runner hands on from the packet that names the failing tests, up to three runs, and the review waits for a green one. Say so: it is the relay doing its job |
+| Glimmer is cold | the review takes longer than 20 s | preload it before the show (a short `/api/generate` with `keep_alive` of 60m) and check `ollama ps`; a program that keeps another model loaded can push it out on a 32 GB machine |
 | The live run misbehaves | anything unexpected | switch to `stint demo --from <beat>`: the replay of the rehearsal, labelled as a replay on screen |
 | Wi-Fi does not come back | hosted legs show unavailable | the rest of the demo needs no network |
