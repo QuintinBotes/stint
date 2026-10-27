@@ -73,5 +73,5 @@ export interface Adapter {
   /** Credential variables the agent needs; every other key stays in the daemon (R-040). */
   needsEnv?: string[];
   resume?(ctx: RunContext & { sessionId: string; instruction: string }): Promise<RunResult>;
-  enrich?(ctx: { task: Task; run: string; sessionId?: string; worktree: string }): Promise<Enrichment>;
+  enrich?(ctx: { task: Task; run: string; sessionId?: string; worktree: string; model?: string }): Promise<Enrichment>;
 }

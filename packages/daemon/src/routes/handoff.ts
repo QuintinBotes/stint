@@ -14,11 +14,11 @@ import { worktreePath } from '../worktree';
 const ENRICH_CAP_MS = 20_000;
 
 /** Asks the leaving agent to improve four fields, only while its session is alive, capped at 20 s; never throws. */
-async function enrichFrom(ctx: DaemonContext, taskId: string, run: string, adapterId: string, sessionId: string | undefined): Promise<Enrichment | null> {
+async function enrichFrom(ctx: DaemonContext, taskId: string, run: string, adapterId: string, sessionId: string | undefined, model: string | undefined): Promise<Enrichment | null> {
   const adapter = ctx.adapters.find((a) => a.id === adapterId);
   if (!adapter?.enrich || !adapter.capabilities.resumable || !sessionId) return null;
   const task = await ctx.ws.readTask(taskId);
-  const ask = adapter.enrich({ task, run, sessionId, worktree: worktreePath(ctx.ws, taskId, run) }).catch(() => ({}));
+  const ask = adapter.enrich({ task, run, sessionId, worktree: worktreePath(ctx.ws, taskId, run), ...(model ? { model } : {}) }).catch(() => ({}));
   return Promise.race([ask, Bun.sleep(ENRICH_CAP_MS).then(() => ({}))]);
 }
 
@@ -58,7 +58,7 @@ ${diff}`;
 export async function afterRunPacket(ctx: DaemonContext, taskId: string, run: string, result: RunResult): Promise<void> {
   const events = await ctx.ws.events(taskId).read();
   const adapter = events.find((e) => e.type === 'run.started' && e.run === run)?.adapter ?? '';
-  const asked = result.endedBy === 'killed' ? null : await enrichFrom(ctx, taskId, run, adapter, result.sessionId);
+  const asked = result.endedBy === 'killed' ? null : await enrichFrom(ctx, taskId, run, adapter, result.sessionId, result.model ?? undefined);
   const fromAgent = !!asked && Object.keys(asked).length > 0;
   const enrich = fromAgent ? asked : ctx.opts.digest ? await digestFrom(ctx, taskId) : null;
   await buildHandoff(ctx, taskId, run, { enrich, reason: result.endedBy, enrichedBy: fromAgent ? 'agent' : 'digest' });

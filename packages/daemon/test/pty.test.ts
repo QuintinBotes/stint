@@ -299,3 +299,42 @@ describe('pty module', () => {
     }
   });
 });
+
+describe('pty fallback', () => {
+  test('With STINT_PTY=bun-pty the daemon reports and uses bun-pty: a shell answers, a character split across writes arrives whole, and kill ends it', async () => {
+    const prev = process.env.STINT_PTY;
+    process.env.STINT_PTY = 'bun-pty';
+    const tmp = tempDir();
+    try {
+      expect(ptyBackend()).toBe('bun-pty');
+      const env: Record<string, string> = { TERM: 'xterm-256color' };
+      for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
+      const handle = createPty().spawn({ cwd: tmp.dir, env, cols: 80, rows: 24, shell: '/bin/bash' });
+      expect(handle.pid).toBeGreaterThan(0);
+      const decoder = new TextDecoder();
+      let out = '';
+      handle.onData((d) => {
+        out += decoder.decode(d, { stream: true });
+      });
+      const exited = new Promise<number | null>((resolve) => handle.onExit(resolve));
+      // "é" is two bytes; send them in separate writes
+      const bytes = new TextEncoder().encode('echo fallback-café\n');
+      const cut = bytes.indexOf(0xc3) + 1;
+      handle.write(bytes.slice(0, cut));
+      handle.write(bytes.slice(cut));
+      handle.resize(100, 30);
+      const deadline = Date.now() + 5000;
+      while (!out.includes('fallback-café\r\n') && Date.now() < deadline) await Bun.sleep(15);
+      expect(out).toContain('fallback-café\r\n');
+
+      handle.kill();
+      const code = await Promise.race([exited, Bun.sleep(5000).then(() => 'timeout' as const)]);
+      expect(code).not.toBe('timeout');
+      expect(activePtyCount()).toBe(0);
+    } finally {
+      if (prev === undefined) delete process.env.STINT_PTY;
+      else process.env.STINT_PTY = prev;
+      tmp.cleanup();
+    }
+  });
+});

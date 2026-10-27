@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal as XTerm } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useRef, useState } from 'react';
@@ -21,11 +22,21 @@ export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string 
       fontFamily: '"Geist Mono", ui-monospace, monospace',
       fontSize: 12.5,
       cursorBlink: true,
+      // the WebGL renderer draws to a canvas; this keeps the rows readable by screen readers
+      screenReaderMode: true,
       theme: { background: token('--terminal-ground'), foreground: token('--terminal-ink'), cursor: token('--terminal-ink') },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.open(host.current);
+    // WebGL draws faster; without it (no context, or the context is lost) xterm keeps its DOM renderer
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch {
+      // the DOM renderer stays
+    }
     fit.fit();
 
     const ws = new WebSocket(ptyUrl(taskId));

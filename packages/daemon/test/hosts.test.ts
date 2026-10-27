@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { DEFAULT_CONFIG } from '@stint-dev/core';
-import { modelHealth } from '../src/index';
+import { chainHealth, modelHealth } from '../src/index';
 
 test('model health: a cloud model is ready when its key is set, waits with the reason when not, and a local model must be pulled', async () => {
   const ollama = Bun.serve({ port: 0, fetch: () => Response.json({ models: [{ name: 'muse-glimmer:30b-mlx' }] }) });
@@ -14,6 +14,25 @@ test('model health: a cloud model is ready when its key is set, waits with the r
     expect(find('baseten', 'muse-spark-open')).toMatchObject({ ready: false, reason: 'BASETEN_API_KEY is not set' });
     expect(find('modal', 'muse-spark-open')).toMatchObject({ ready: false });
     expect(find('ollama', 'muse-glimmer:30b-mlx')).toMatchObject({ ready: true, offline: true, roles: expect.arrayContaining(['reviews']) });
+  } finally {
+    ollama.stop(true);
+  }
+});
+
+test("health's chains walk each role in config order with each entry's readiness; a local host has a measured latency, a cloud host none", async () => {
+  const ollama = Bun.serve({ port: 0, fetch: () => Response.json({ models: [{ name: 'muse-glimmer:30b-mlx' }] }) });
+  try {
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.hosts.ollama = { ...(config.hosts.ollama as NonNullable<(typeof config.hosts)['ollama']>), baseURL: `http://127.0.0.1:${ollama.port}/v1#chains` };
+    const rows = await modelHealth(config, { META_API_KEY: 'k' });
+    const chains = chainHealth(config, rows);
+    expect(chains.reviewer?.map((c) => c.entry)).toEqual(config.routes.reviewer as string[]);
+    expect(chains.reviewer?.find((c) => c.entry === 'ollama/muse-glimmer:30b-mlx')).toEqual({ entry: 'ollama/muse-glimmer:30b-mlx', ready: true, reason: null });
+    expect(chains.reviewer?.find((c) => c.entry.startsWith('baseten/'))).toMatchObject({ ready: false, reason: 'BASETEN_API_KEY is not set' });
+    const local = rows.find((r) => r.host === 'ollama');
+    expect(local?.latencyMs).toBeNumber();
+    expect(local?.structuredOutput).toBe(config.hosts.ollama?.structuredOutput ?? null);
+    expect(rows.find((r) => r.host === 'meta-api')?.latencyMs).toBeNull();
   } finally {
     ollama.stop(true);
   }

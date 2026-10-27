@@ -14,7 +14,7 @@ test('The Terminal tab opens a shell in the run worktree; a typed line runs ther
   await page.locator('.xterm').click();
   await page.keyboard.type('echo stint-$((40+2))');
   await page.keyboard.press('Enter');
-  await expect(page.locator('.xterm-rows')).toContainText('stint-42');
+  await expect(page.locator('.xterm-accessibility-tree')).toContainText('stint-42');
   await expect
     .poll(async () => {
       const events = ((await (await request.get(`/api/tasks/${id}/events`)).json()) as { events: Array<{ type: string; payload: { command?: string } }> }).events;

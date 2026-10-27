@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { checkAcceptanceLock } from './acceptance';
 import { Autopilot, autopilotCard } from './autopilot';
-import { modelHealth } from './hosts';
+import { chainHealth, modelHealth } from './hosts';
 import { DaemonError, errorResponse } from './errors';
 import { outcomeRoutes } from './outcomes';
 import { ptyHealth } from './pty';
@@ -193,6 +193,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
 
   app.get('/api/health', async (c) => {
     const extra = await Promise.all((opts.health ?? []).map((h) => h()));
+    const models = await modelHealth(ws.config);
     return c.json({
       ok: true,
       version: opts.version,
@@ -203,7 +204,8 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       adapters: await adapterHealth(adapters, ws.config),
       pty: ptyHealth(),
       autopilot: await ctx.autopilot.status(),
-      models: await modelHealth(ws.config),
+      models,
+      chains: chainHealth(ws.config, models),
       sandbox: await sandboxHealth(ctx),
       ...replayHealth(ctx),
       ...Object.assign({}, ...extra),

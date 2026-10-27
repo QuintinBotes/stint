@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { SECTION_END, SECTION_START } from '@stint-dev/core';
 import { gitOk, parseTrailers, worktreePath } from '../src/index';
 import { builtTask, post, withFixtureRepo } from './helpers';
 
@@ -41,5 +42,22 @@ test('Approve with a red verification returns 409 verification_red and changes n
     expect((await gitOk(repo, ['rev-parse', 'HEAD'])).trim()).toBe(head);
     expect((await ws.events(t.id).read()).length).toBe(eventsBefore);
     expect((await ws.readTask(t.id)).status).toBe('awaiting_approval');
+  });
+}, 120_000);
+
+test("Approve names the merged task in AGENTS.md's Stint section inside the merge commit, so the tree stays clean", async () => {
+  await withFixtureRepo(async (repo) => {
+    const path = join(repo, 'AGENTS.md');
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\n${SECTION_START}\n## Stint\n\nTasks live in .stint/tasks.\n${SECTION_END}\n`);
+    await gitOk(repo, ['commit', '-qam', 'Add the Stint section']);
+    const { app, t } = await builtTask(repo);
+    const res = await post(app, `/api/tasks/${t.id}/approve`, {});
+    expect(res.status).toBe(200);
+    const merged = await gitOk(repo, ['show', 'HEAD:AGENTS.md']);
+    expect(merged).toContain(`- The latest merged task: ${t.id}, Rate-limit incoming webhooks.`);
+    expect(merged.indexOf('The latest merged task')).toBeLessThan(merged.indexOf(SECTION_END));
+    expect(merged).toContain('# Webhook service: notes for coding agents');
+    expect(readFileSync(path, 'utf8')).toBe(merged);
+    expect((await gitOk(repo, ['status', '--porcelain', '--untracked-files=no'])).trim()).toBe('');
   });
 }, 120_000);

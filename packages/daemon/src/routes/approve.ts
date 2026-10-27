@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { canonicalJSON, runsFromEvents, sha256Hex, writeJsonAtomic } from '@stint-dev/core/node';
+import { canonicalJSON, latestMergedLine, runsFromEvents, sha256Hex, withLatestMerged, writeJsonAtomic } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
@@ -36,6 +36,40 @@ export function parseTrailers(body: string): Partial<Trailers> {
 
 /** One line: a newline in a title or summary could otherwise start a trailer block of its own. */
 const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+/**
+ * The AGENTS.md `## Stint` section names the task that merged last. The change is written into the merged tree,
+ * so it lands in the merge commit and the fast-forward leaves nothing uncommitted. A tree without the section
+ * (no AGENTS.md, a symlink, or a repository that never ran `stint init`) comes back unchanged.
+ */
+async function withLatestTask(ctx: DaemonContext, tree: string, id: string, title: string): Promise<string> {
+  const root = ctx.ws.root;
+  const entry = /^(100644|100755) blob ([0-9a-f]+)\t/.exec((await gitOk(root, ['ls-tree', tree, 'AGENTS.md'])).trim());
+  if (!entry) return tree;
+  const [, mode, blob] = entry;
+  const text = await gitOk(root, ['cat-file', 'blob', blob as string]);
+  const next = withLatestMerged(text, latestMergedLine(id, title));
+  if (next === text) return tree;
+  const file = join(ctx.ws.cacheDir, `agents-${id}.md`);
+  const index = join(ctx.ws.cacheDir, `index-${id}`);
+  try {
+    await writeFile(file, next);
+    const sha = (await gitOk(root, ['hash-object', '-w', file])).trim();
+    // a private index, so the person's staging area is never touched
+    const env = { ...(process.env as Record<string, string>), GIT_INDEX_FILE: index };
+    const step = async (args: string[]) => {
+      const r = await git(root, args, env);
+      if (r.code !== 0) throw new Error(`git ${args[0]} failed: ${r.stderr.trim()}`);
+      return r.stdout.trim();
+    };
+    await step(['read-tree', tree]);
+    await step(['update-index', '--cacheinfo', `${mode},${sha},AGENTS.md`]);
+    return await step(['write-tree']);
+  } finally {
+    await rm(file, { force: true });
+    await rm(index, { force: true });
+  }
+}
 
 /**
  * Approval is a real merge into the branch checked out in the main tree, of exactly the commit the daemon
@@ -88,8 +122,9 @@ async function merge(ctx: DaemonContext, id: string, squash: boolean, verifiedCo
   const msgFile = join(ctx.ws.cacheDir, `merge-${id}.txt`);
   await mkdir(ctx.ws.cacheDir, { recursive: true });
   await writeFile(msgFile, message);
+  const merged = await withLatestTask(ctx, tree, id, task.title);
   const parents = squash ? ['-p', baseSha] : ['-p', baseSha, '-p', branchHead];
-  const commit = (await gitOk(root, [...(await identityArgs(root)), 'commit-tree', tree, ...parents, '-F', msgFile])).trim();
+  const commit = (await gitOk(root, [...(await identityArgs(root)), 'commit-tree', merged, ...parents, '-F', msgFile])).trim();
   await rm(msgFile, { force: true });
   // the person may have switched branches while the merge was computed; never move a different branch
   const now = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();

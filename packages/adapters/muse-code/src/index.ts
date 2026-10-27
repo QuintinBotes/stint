@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { Adapter, Availability, EndedBy, Enrichment, RunContext, RunResult } from '@stint-dev/core';
 import { MuseMapper } from './mapper';
@@ -50,6 +53,56 @@ async function museVersion(): Promise<string | null> {
     return (await p.exited) === 0 ? out.trim() : null;
   } catch {
     return null;
+  }
+}
+
+const ENRICH_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'leftOut', 'risks', 'askOfNext'],
+  properties: { summary: { type: 'string' }, leftOut: { type: 'array', items: { type: 'string' } }, risks: { type: 'array', items: { type: 'string' } }, askOfNext: { type: 'string' } },
+};
+const ENRICH_PROMPT = `Your run on this task is over and another agent will continue from a short packet. Do not change files or run commands. Answer in JSON:
+- summary: where the work stands, in at most two sentences.
+- leftOut: what you did not finish or did not check, one short item each.
+- risks: what could be wrong in what you did, one short item each.
+- askOfNext: the one thing the next agent should do first.`;
+const ENRICH_TIMEOUT_MS = 20_000;
+
+const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim().slice(0, 200)).slice(0, 8) : []);
+
+/**
+ * The one structured question for the leaving session (R-009): resumed by id, a few steps, the four fields the
+ * packet takes from an agent. Anything malformed or late comes back as `{}`, and the daemon builds the packet
+ * from events alone. shortcut: the call's tokens are not added to the run's cost; count them when enrich is metered.
+ */
+export async function askSession(sessionId: string, worktree: string, model: string): Promise<Enrichment> {
+  const dir = mkdtempSync(join(tmpdir(), 'stint-enrich-'));
+  try {
+    const promptPath = join(dir, 'prompt.md');
+    const outputSchema = join(dir, 'schema.json');
+    writeFileSync(promptPath, ENRICH_PROMPT);
+    writeFileSync(outputSchema, JSON.stringify(ENRICH_SCHEMA));
+    // resolved on the current PATH, as the daemon resolves gh, so a test can put a fake first
+    const bin = Bun.which('muse', { PATH: process.env.PATH ?? '' });
+    if (!bin) return {};
+    const p = Bun.spawn([bin, ...museArgs({ promptPath, model, steps: 3, sessionId, outputSchema })], { cwd: worktree, stdout: 'pipe', stderr: 'ignore', timeout: ENRICH_TIMEOUT_MS });
+    const mapper = new MuseMapper();
+    for (const line of (await new Response(p.stdout).text()).split('\n')) if (line.trim()) mapper.map(line);
+    if ((await p.exited) !== 0 || mapper.terminal?.kind !== 'completed') return {};
+    const a = JSON.parse(mapper.terminal.text) as Record<string, unknown>;
+    const out: Enrichment = {};
+    if (typeof a.summary === 'string' && a.summary.trim()) out.summary = a.summary.trim().slice(0, 400);
+    if (typeof a.askOfNext === 'string' && a.askOfNext.trim()) out.askOfNext = a.askOfNext.trim().slice(0, 400);
+    const leftOut = strings(a.leftOut);
+    const risks = strings(a.risks);
+    if (leftOut.length) out.leftOut = leftOut;
+    if (risks.length) out.risks = risks;
+    return out;
+  } catch {
+    return {};
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -127,8 +180,5 @@ export const museCodeAdapter: Adapter = {
   gate: () => 'observed',
   run: (ctx) => exec(ctx),
   resume: (ctx) => exec(ctx, { sessionId: ctx.sessionId }),
-  async enrich(): Promise<Enrichment> {
-    // A killed session cannot be asked; R-012 calls this only for a live, resumable session.
-    return {};
-  },
+  enrich: (ctx) => (ctx.sessionId ? askSession(ctx.sessionId, ctx.worktree, ctx.model ?? DEFAULT_MODEL) : Promise.resolve({})),
 };

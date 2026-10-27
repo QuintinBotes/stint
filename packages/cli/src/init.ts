@@ -1,11 +1,9 @@
 import { copyFileSync, existsSync, lstatSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { Workspace } from '@stint-dev/core/node';
+import { LATEST_MERGED, SECTION_END as END, SECTION_START as START, Workspace, withLatestMerged } from '@stint-dev/core/node';
 import { defineCommand } from 'citty';
 import { repoRoot } from './repo';
 
-const START = '<!-- stint:start -->';
-const END = '<!-- stint:end -->';
 const IGNORES = ['.stint/worktrees/', '.stint/cache/'];
 
 export const SECTION = `${START}
@@ -31,8 +29,12 @@ const isLink = (path: string) => {
   }
 };
 
-/** Writes the config, the ignore entries, the AGENTS.md section and the links for enabled agents; running it twice changes nothing. */
-export async function init(root: string): Promise<string[]> {
+/**
+ * Writes the config, the ignore entries, the AGENTS.md section and the links for enabled agents; running it twice
+ * changes nothing. A section someone edited by hand (or an older Stint wrote) is kept unless `force` is set; the
+ * latest-merged line approve maintains is not an edit and survives a refresh.
+ */
+export async function init(root: string, { force = false }: { force?: boolean } = {}): Promise<{ changed: string[]; kept: boolean }> {
   const changed: string[] = [];
   const hadConfig = existsSync(join(root, '.stint', 'config.json'));
   const ws = await Workspace.open(root);
@@ -46,9 +48,15 @@ export async function init(root: string): Promise<string[]> {
   }
   const agents = join(root, 'AGENTS.md');
   const text = existsSync(agents) ? readFileSync(agents, 'utf8') : '';
-  const next = text.includes(START)
-    ? text.replace(new RegExp(`${START}[\\s\\S]*?${END}`), SECTION)
-    : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${text ? '\n' : ''}${SECTION}\n`;
+  const current = new RegExp(`${START}[\\s\\S]*?${END}`).exec(text)?.[0];
+  const latest = current ? LATEST_MERGED.exec(current)?.[0] : undefined;
+  const fresh = latest ? withLatestMerged(SECTION, latest.trimEnd()) : SECTION;
+  const kept = !!current && current.replace(LATEST_MERGED, '') !== SECTION && !force;
+  const next = kept
+    ? text
+    : current
+      ? text.replace(current, fresh)
+      : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${text ? '\n' : ''}${SECTION}\n`;
   if (next !== text) {
     writeFileSync(agents, next);
     changed.push('AGENTS.md');
@@ -65,16 +73,20 @@ export async function init(root: string): Promise<string[]> {
     }
     changed.push(file);
   }
-  return changed;
+  return { changed, kept };
 }
 
 export const initCommand = defineCommand({
   meta: { name: 'init', description: 'Make this repository a Stint workspace' },
-  args: { repo: { type: 'string', description: 'Repository root (default: the git top level)' } },
+  args: {
+    repo: { type: 'string', description: 'Repository root (default: the git top level)' },
+    force: { type: 'boolean', description: "Replace AGENTS.md's Stint section even when it was edited by hand" },
+  },
   async run({ args }) {
     const root = repoRoot(args.repo);
-    const changed = await init(root);
+    const { changed, kept } = await init(root, { force: args.force });
     process.stdout.write(changed.length ? `Wrote ${changed.join(', ')}\n` : 'Already a Stint workspace; nothing changed.\n');
+    if (kept) process.stdout.write("Kept AGENTS.md's Stint section: it differs from this version's text (edited by hand, or written by an older Stint). Run stint init --force to replace it.\n");
     const plugin = relative(process.cwd(), join(import.meta.dir, '..', '..', 'adapters', 'muse-code', 'plugin'));
     process.stdout.write(`For Muse Code's hooks, install and approve the Stint plugin once:\n  muse plugins install ${plugin} --scope user\n  muse plugins approve stint\n`);
   },

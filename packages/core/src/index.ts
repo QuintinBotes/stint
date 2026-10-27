@@ -14,4 +14,5 @@ export { countTokens } from './tokens';
 export { priceUsage } from './cost';
 export type { Usage } from './cost';
 export { formatIssues } from './issues';
+export { LATEST_MERGED, SECTION_END, SECTION_START, latestMergedLine, withLatestMerged } from './agentsSection';
 export type { Adapter, AdapterCapabilities, AdapterEvent, Availability, Enrichment, PermissionOption, PermissionRequest, RunContext, RunResult } from './adapter';
