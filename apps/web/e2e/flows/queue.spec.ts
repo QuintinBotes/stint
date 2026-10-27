@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { daemon, stopped } from './daemon';
 
-test('A skill the learn step proposed waits in the memory panel queue; Approve calls the daemon and the row leaves the queue', async ({ page, request }) => {
+test('A skill the learn step proposed waits in the memory panel queue; Approve calls the daemon, the row leaves the queue, and an open Skills page shows it without a reload', async ({ page, context, request }) => {
   const d = daemon(request);
   const t = await d.post<{ id: string }>('/api/tasks', { title: 'Flow: [learn] [queue] a limit approved from the panel', goal: 'Add a limit, as a flow test.', acceptance: ['the task file exists'], tags: ['limits'] });
   await d.post(`/api/tasks/${t.id}/autopilot`, { on: true });
@@ -11,6 +11,9 @@ test('A skill the learn step proposed waits in the memory panel queue; Approve c
   const proposed = (await d.events(t.id)).find((e) => e.type === 'skill.proposed');
   expect(proposed, JSON.stringify((await d.events(t.id)).find((e) => e.type === 'learn.skipped')?.payload)).toBeTruthy();
 
+  const skillsPage = await context.newPage();
+  await skillsPage.goto('/skills');
+  await skillsPage.getByRole('heading', { name: 'Skills' }).waitFor();
   await page.goto(`/t/${t.id}`);
   const row = page.getByTestId('memory-panel').locator('[data-testid="queue-skill"][data-skill="limits-live-in-one-place"]');
   await expect(row).toContainText('Nothing is written until you approve it');
@@ -19,4 +22,6 @@ test('A skill the learn step proposed waits in the memory panel queue; Approve c
   await approve;
   await expect(row).toHaveCount(0);
   await expect.poll(async () => (await d.get<Array<{ id: string; status: string }>>('/api/skills')).find((s) => s.id === 'limits-live-in-one-place')?.status).toBe('probation');
+  // the Skills page opened before the approval follows it from the event stream
+  await expect(skillsPage.locator('[data-list-skill="limits-live-in-one-place"]')).toContainText('probation');
 });

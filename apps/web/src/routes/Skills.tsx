@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { type SkillRecord, api } from '../api';
+import { type SkillRecord, api, subscribe } from '../api';
 import { Button, EmptyState, StatusChip, cx } from '../components/ui';
 
 const ORIGIN: Record<string, string> = { 'learn-loop': 'learned from reviews', human: 'written by a person' };
@@ -115,6 +115,8 @@ export function Skills() {
       .catch(() => setSkills([]));
   }, []);
   useEffect(load, [load]);
+  // a skill proposed, approved or retired anywhere (the queue, the CLI, autopilot) shows here without a reload
+  useEffect(() => subscribe('/api/stream', (e) => e.type.startsWith('skill.') && load(), load), [load]);
   const order = (s: SkillRecord) => (s.status === 'proposed' ? 0 : s.retireProposed ? 1 : s.status === 'probation' ? 2 : s.status === 'active' ? 3 : 4);
   const sorted = [...(skills ?? [])].sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id));
   // what needs a decision comes first, and is what the page opens on

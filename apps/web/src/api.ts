@@ -288,28 +288,51 @@ export const api = {
 
 export type Unsubscribe = () => void;
 
+type Subscriber = { onEvent: (e: StintEvent) => void; onFallback?: () => void };
+type Stream = { es: EventSource; subscribers: Set<Subscriber>; poll: ReturnType<typeof setInterval> | null };
+const streams = new Map<string, Stream>();
+
 /**
- * Subscribes to an SSE route. EventSource resumes with Last-Event-ID on its own; when the stream cannot be
- * opened at all, `onFallback` polls once a second instead.
+ * Subscribes to an SSE route. Subscribers to the same route share one EventSource: a browser keeps about six
+ * connections per host, and one stream per subscriber let two open tabs take them all and stall every request.
+ * Every subscriber loads its starting state itself; the stream only brings what happens next. EventSource resumes
+ * with Last-Event-ID on its own; when the stream cannot be opened at all, the subscribers' fallbacks poll once a second.
  */
 export function subscribe(path: string, onEvent: (e: StintEvent) => void, onFallback?: () => void): Unsubscribe {
-  let poll: ReturnType<typeof setInterval> | null = null;
-  const es = new EventSource(`${base}${path}`);
-  es.onmessage = () => undefined;
-  const handler = (m: MessageEvent<string>) => {
-    try {
-      onEvent(JSON.parse(m.data) as StintEvent);
-    } catch {
-      /* heartbeat or partial frame */
-    }
-  };
-  // every event type arrives as its own SSE event name
-  for (const t of EVENT_TYPES) es.addEventListener(t, handler as EventListener);
-  es.onerror = () => {
-    if (es.readyState === EventSource.CLOSED && onFallback && !poll) poll = setInterval(onFallback, 1000);
-  };
+  let stream = streams.get(path);
+  if (!stream) {
+    const es = new EventSource(`${base}${path}`);
+    const opened: Stream = { es, subscribers: new Set(), poll: null };
+    es.onmessage = () => undefined;
+    const handler = (m: MessageEvent<string>) => {
+      let e: StintEvent;
+      try {
+        e = JSON.parse(m.data) as StintEvent;
+      } catch {
+        return; // heartbeat or partial frame
+      }
+      for (const s of opened.subscribers) s.onEvent(e);
+    };
+    // every event type arrives as its own SSE event name
+    for (const t of EVENT_TYPES) es.addEventListener(t, handler as EventListener);
+    es.onerror = () => {
+      if (es.readyState !== EventSource.CLOSED || opened.poll) return;
+      opened.poll = setInterval(() => {
+        for (const s of opened.subscribers) s.onFallback?.();
+      }, 1000);
+    };
+    streams.set(path, opened);
+    stream = opened;
+  }
+  const shared = stream;
+  // an entry per call, so two subscribers passing the same function do not unsubscribe each other
+  const me: Subscriber = { onEvent, ...(onFallback ? { onFallback } : {}) };
+  shared.subscribers.add(me);
   return () => {
-    es.close();
-    if (poll) clearInterval(poll);
+    shared.subscribers.delete(me);
+    if (shared.subscribers.size > 0) return;
+    shared.es.close();
+    if (shared.poll) clearInterval(shared.poll);
+    if (streams.get(path) === shared) streams.delete(path);
   };
 }
