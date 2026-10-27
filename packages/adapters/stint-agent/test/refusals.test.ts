@@ -119,3 +119,56 @@ describe('refusals hold against chains, git options, paths and links (R-053)', (
     }
   });
 });
+
+describe('the grep walk and the review findings (R-053)', () => {
+  const { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } = require('node:fs') as typeof import('node:fs');
+  const { join } = require('node:path') as typeof import('node:path');
+  const { tmpdir } = require('node:os') as typeof import('node:os');
+
+  test('grep never reads a credential file or follows a link out of the worktree; a .env template is searched', async () => {
+    const { runTool } = await import('../src/tools');
+    const wt = mkdtempSync(join(tmpdir(), 'stint-grep-'));
+    const outside = mkdtempSync(join(tmpdir(), 'stint-grep-out-'));
+    try {
+      writeFileSync(join(wt, '.env'), 'SECRET_TOKEN=real\n');
+      writeFileSync(join(wt, '.env.example'), 'SECRET_TOKEN=\n');
+      writeFileSync(join(outside, 'leak.txt'), 'SECRET_TOKEN=outside\n');
+      symlinkSync(join(outside, 'leak.txt'), join(wt, 'linked.txt'));
+      mkdirSync(join(wt, 'src'));
+      writeFileSync(join(wt, 'src', 'config.ts'), 'export const SECRET_TOKEN_NAME = "x";\n');
+      const out = await runTool('grep', { pattern: 'SECRET_TOKEN', path: '.' }, wt, { PATH: process.env.PATH ?? '' }, new AbortController().signal);
+      expect(out.output).toContain('.env.example:1');
+      expect(out.output).toContain('src/config.ts:1');
+      expect(out.output).not.toContain('=real');
+      expect(out.output).not.toContain('outside');
+    } finally {
+      rmSync(wt, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  test('a wrapper cannot hide git options, a file checkout is told how, and toolchains may be read', () => {
+    const wt = mkdtempSync(join(tmpdir(), 'stint-refuse-'));
+    const home = mkdtempSync(join(tmpdir(), 'stint-home-'));
+    const prevHome = process.env.HOME;
+    try {
+      mkdirSync(join(home, '.bun', 'bin'), { recursive: true });
+      writeFileSync(join(home, '.bun', 'bin', 'bun'), '');
+      writeFileSync(join(home, 'notes.txt'), '');
+      process.env.HOME = home;
+      expect(checkCommand('env git -C . push origin', wt)).not.toBeNull();
+      expect(checkCommand('command git -C . push', wt)).not.toBeNull();
+      expect(checkCommand('git checkout package.json', wt)?.reason).toContain('git checkout -- <file>');
+      expect(checkCommand('cat .env.example', wt)).toBeNull();
+      expect(checkCommand('cat .env', wt)).not.toBeNull();
+      expect(checkCommand('ls /usr/lib', wt)).toBeNull();
+      expect(checkCommand('~/.bun/bin/bun --version', wt)).toBeNull();
+      expect(checkCommand('cat ~/notes.txt', wt)).not.toBeNull();
+      expect(checkPath(wt, '.env.example')).toEqual({ path: '.env.example' });
+    } finally {
+      process.env.HOME = prevHome;
+      rmSync(wt, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});

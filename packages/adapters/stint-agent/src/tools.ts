@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { checkCommand, checkPath } from './refusals';
+import { checkCommand, checkPath, isCredentialPath } from './refusals';
 
 export const OUTPUT_CAP = 8 * 1024;
 const BASH_CAP_MS = 120_000;
@@ -58,6 +58,8 @@ async function grep(root: string, pattern: string, under: string): Promise<strin
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (hits.length >= 200 || SKIP.has(entry.name)) continue;
       const full = join(dir, entry.name);
+      // a link could lead out of the worktree, and a credential file is never read, whatever the pattern
+      if (entry.isSymbolicLink() || isCredentialPath(full.slice(root.length + 1))) continue;
       if (entry.isDirectory()) await walk(full);
       else if ((await stat(full)).size < 512_000) {
         const lines = (await readFile(full, 'utf8')).split('\n');
