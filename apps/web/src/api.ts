@@ -154,7 +154,7 @@ export type TaskCardData = {
 export type GraphNode = { id: string; type: string; label: string; data: Record<string, unknown> };
 export type GraphEdge = { id: string; from: string; to: string; type: string; recordedAt: string; validTo: string | null; eventId: string; data: Record<string, unknown> };
 export type GraphData = { nodes: GraphNode[]; edges: GraphEdge[]; asOf: string | null; total: number };
-export type PendingItem = {
+export type PendingContradictionItem = {
   id: string;
   kind: 'contradiction';
   task: string;
@@ -164,6 +164,12 @@ export type PendingItem = {
   finding: { id: string; text: string; file?: string };
   at: string;
 };
+/** The adjudication queue beside contradictions (R-052): unsettled skill proposals and rename merges. */
+export type PendingSkillItem = { id: string; kind: 'skill'; task: string; skill: string; run: string; agent: string; at: string };
+export type PendingRenameItem = { id: string; kind: 'rename-merge'; task: string; run: string; agent: string; from: string; to: string; commit: string; at: string };
+export type PendingItem = PendingContradictionItem | PendingSkillItem | PendingRenameItem;
+/** One changed file, with the run behind each range of its new lines when blame could say (R-052). */
+export type DiffBlameFile = { path: string; added: number; removed: number; hunks?: Array<{ start: number; end: number; run: string }> };
 export type PermissionOptionData = { optionId: string; name: string; kind: string };
 export type PendingPermission = { task: string; run: string; requestId: string; tool: string; title: string; options: PermissionOptionData[] };
 export type CostRow = Cost & { key: string; runs: number; roles?: string[]; creditsLeft?: number; derived?: true };
@@ -230,6 +236,8 @@ export const api = {
   handoffNames: (id: string) => request<{ names: string[] }>(`/api/tasks/${id}/handoffs`).then((r) => r.names),
   handoff: (id: string, name: string) => request<{ name: string; packet: Handoff; meta: unknown }>(`/api/tasks/${id}/handoffs/${name}`),
   diffFiles: (id: string) => request<Array<{ path: string; added: number; removed: number }>>(`/api/tasks/${id}/diff?format=json`),
+  diffBlame: (id: string) => request<DiffBlameFile[]>(`/api/tasks/${id}/diff?format=json&blame=1`),
+  workspaceGraph: () => request<GraphData>('/api/graph'),
   comments: (id: string) => request<LineComment[]>(`/api/tasks/${id}/comments`),
   addComment: (id: string, comment: { file: string; line: number; text: string }) => post<LineComment[]>(`/api/tasks/${id}/comments`, comment),
   costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),

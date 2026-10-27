@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { modelName } from '../agents';
 import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, type SkillRecord, api } from '../api';
 import { PermissionRows } from './Permissions';
@@ -17,6 +17,8 @@ const COLOUR: Record<string, string> = {
   finding: 'var(--status-bad)',
   outcome: 'var(--status-good)',
   merge: 'var(--status-good)',
+  model: 'var(--vendor-meta)',
+  rule: 'var(--status-warn)',
   file: 'var(--ink-faint)',
   run: 'var(--ink-muted)',
 };
@@ -27,6 +29,7 @@ const TYPE_NAMES: Array<[string, string]> = [
   ['skill', 'skill'],
   ['file', 'file'],
   ['run', 'run'],
+  ['model', 'model'],
 ];
 
 /** File basename, decision id, run, finding id: the shortest name that is still unambiguous on this graph. */
@@ -42,13 +45,16 @@ const at = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digi
 
 type NodeState = 'on' | 'faded' | 'hidden';
 
-/** Which nodes stand at a moment: touched by an edge valid then, faded when every edge they had has ended. */
+/**
+ * Which nodes stand at a moment: on when an edge of theirs is valid then, faded (35%) when they
+ * are not in force at that moment, whether superseded or not yet recorded, hidden only when no
+ * edge ever touches them (R-052: scrubbing to the start fades D3 rather than removing it).
+ */
 export function stateAt(nodes: GraphNode[], edges: GraphEdge[], ts: number, centre: string): Map<string, NodeState> {
   const state = new Map<string, NodeState>(nodes.map((n) => [n.id, n.id === centre ? 'on' : 'hidden']));
   for (const e of edges) {
     const from = Date.parse(e.recordedAt);
-    if (from > ts) continue;
-    const valid = e.validTo === null || ts < Date.parse(e.validTo);
+    const valid = from <= ts && (e.validTo === null || ts < Date.parse(e.validTo));
     for (const id of [e.from, e.to]) {
       if (valid) state.set(id, 'on');
       else if (state.get(id) === 'hidden') state.set(id, 'faded');
@@ -71,7 +77,7 @@ function useLayout(graph: GraphData | null, centre: string): { pos: Map<string, 
   return layout;
 }
 
-function Graph({ graph, centre, ts, onOpenFile }: { graph: GraphData; centre: string; ts: number; onOpenFile: (path: string) => void }) {
+function Graph({ graph, centre, ts, onOpenFile, onSelectNode }: { graph: GraphData; centre: string; ts: number; onOpenFile?: (path: string) => void; onSelectNode?: (node: GraphNode) => void }) {
   const { pos, done } = useLayout(graph, centre);
   const state = useMemo(() => stateAt(graph.nodes, graph.edges, ts, centre), [graph, ts, centre]);
   const firstEdge = useMemo(() => {
@@ -80,7 +86,7 @@ function Graph({ graph, centre, ts, onOpenFile }: { graph: GraphData; centre: st
     return m;
   }, [graph]);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded-md border border-line bg-sunken" role="img" aria-label="Memory graph" data-testid="memory-graph" data-layout={done ? 'done' : 'running'}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded-md border border-line bg-sunken" role="group" aria-label="Memory graph" tabIndex={-1} data-testid="memory-graph" data-layout={done ? 'done' : 'running'}>
       {graph.edges.map((e) => {
         const a = pos.get(e.from);
         const b = pos.get(e.to);
@@ -96,7 +102,10 @@ function Graph({ graph, centre, ts, onOpenFile }: { graph: GraphData; centre: st
         if (!p || s === 'hidden') return null;
         const first = firstEdge.get(n.id);
         const big = n.type === 'task' || n.type === 'decision' || n.type === 'skill';
-        const clickable = n.type === 'file';
+        const labelled = big || n.type === 'finding' || n.type === 'file' || n.type === 'run';
+        // a file opens in the diff; a decision or a run selects its place on the timeline (R-052)
+        const activate = n.type === 'file' && onOpenFile ? () => onOpenFile(n.label) : (n.type === 'decision' || n.type === 'run') && onSelectNode ? () => onSelectNode(n) : undefined;
+        const fadedNote = s === 'faded' ? (first && Date.parse(first.recordedAt) > ts ? ', not yet in force' : ', no longer in force') : '';
         return (
           <g
             key={n.id}
@@ -104,13 +113,26 @@ function Graph({ graph, centre, ts, onOpenFile }: { graph: GraphData; centre: st
             opacity={s === 'faded' ? 0.35 : 1}
             data-node={n.id}
             data-state={s}
-            className={cx(clickable && 'cursor-pointer')}
-            onClick={clickable ? () => onOpenFile(n.label) : undefined}
+            className={cx(activate && 'cursor-pointer')}
+            onClick={activate}
+            {...(activate
+              ? {
+                  role: 'button' as const,
+                  tabIndex: 0,
+                  'aria-label': n.type === 'file' ? `Open ${n.label} in the diff` : n.type === 'decision' ? `Show ${shortLabel(n)} on the timeline` : `Show run ${shortLabel(n)} on the timeline`,
+                  onKeyDown: (e: React.KeyboardEvent) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      activate();
+                    }
+                  },
+                }
+              : {})}
           >
-            <title>{`${n.label}${first ? `, recorded at ${at(first.recordedAt)} by event ${first.eventId}` : ''}${s === 'faded' ? ', no longer in force' : ''}`}</title>
+            <title>{`${n.label}${first ? `, recorded at ${at(first.recordedAt)} by event ${first.eventId}` : ''}${fadedNote}`}</title>
             <circle r={n.id === centre ? 8 : big ? 6 : 4} fill={COLOUR[n.type] ?? 'var(--ink-faint)'} stroke="var(--surface)" strokeWidth={1.5} />
-            {big || n.type === 'finding' ? (
-              <text x={p.x > W - 110 ? -9 : 9} y={4} textAnchor={p.x > W - 110 ? 'end' : 'start'} fontSize={10} fill="var(--ink)" className="tabular select-none">
+            {labelled ? (
+              <text x={p.x > W - 110 ? -9 : 9} y={4} textAnchor={p.x > W - 110 ? 'end' : 'start'} fontSize={n.type === 'file' ? 9 : 10} fill="var(--ink)" className="tabular select-none">
                 {shortLabel(n)}
               </text>
             ) : null}
@@ -307,6 +329,9 @@ export function Queue({ only, onSettled }: { only?: string; onSettled?: () => vo
     return () => clearInterval(t);
   }, [load]);
   if ((!items || items.length === 0) && permissions.length === 0 && skills.length === 0) return null;
+  // the queue carries contradictions, rename merges and skill proposals (R-052); proposals render from the skills list below, which carries their evidence
+  const contradictions = (items ?? []).filter((p) => p.kind === 'contradiction');
+  const renames = (items ?? []).filter((p) => p.kind === 'rename-merge');
   const settle = (name: string, action: 'keep' | 'supersede') => {
     setBusy(name);
     api
@@ -322,7 +347,7 @@ export function Queue({ only, onSettled }: { only?: string; onSettled?: () => vo
       <h3 className="text-[12px] font-semibold text-warn mb-2">Waiting for you</h3>
       <ul className="flex flex-col gap-2">
         <PermissionRows permissions={permissions} onDecided={load} />
-        {(items ?? []).map((p) => (
+        {contradictions.map((p) => (
           <li key={p.id} className="rounded-md border border-warn/40 bg-warn-tint p-3 text-[12px]" data-testid="queue-row">
             <p className="text-muted mb-2">
               {modelName(p.agent)}'s review of {p.task} would reverse {p.decision?.id ?? 'a decision'}. It is not applied until you decide.
@@ -347,6 +372,17 @@ export function Queue({ only, onSettled }: { only?: string; onSettled?: () => vo
             </div>
           </li>
         ))}
+        {renames.map((p) => (
+          <li key={p.id} className="rounded-md border border-line bg-raised p-3 text-[12px]" data-testid="queue-rename">
+            <p className="text-muted mb-1">The merge of {p.task} renamed a file other work touches by its old name, so the memory graph has it twice until you note it.</p>
+            <p className="font-mono text-ink mb-2">
+              {p.from} is now {p.to}
+            </p>
+            <Button className="h-7" disabled={busy === p.id} onClick={() => settle(p.id, 'keep')}>
+              Note it as the same file
+            </Button>
+          </li>
+        ))}
         {skills.map((s) => (
           <SkillProposal
             key={s.id}
@@ -363,6 +399,8 @@ export function Queue({ only, onSettled }: { only?: string; onSettled?: () => vo
 }
 
 export function MemoryPanel({ id, asOf, setAsOf, onOpenFile, version }: { id: string; asOf: string | null; setAsOf: (v: string | null) => void; onOpenFile: (path: string) => void; version: number }) {
+  const [, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -384,6 +422,37 @@ export function MemoryPanel({ id, asOf, setAsOf, onOpenFile, version }: { id: st
   const ts = draft ?? (asOf ? Date.parse(asOf) : (range?.to ?? Date.now()));
   const centre = `task:${id}`;
 
+  // A decision opens its decision.recorded row; a run opens its segment, both through the ev the rail reads (R-052).
+  const openNode = useCallback(
+    async (n: GraphNode) => {
+      const task = typeof n.data.task === 'string' ? n.data.task : id;
+      const events = await api.events(task).catch(() => []);
+      const select = (seq: number) => {
+        if (task === id) {
+          setParams(
+            (p) => {
+              const next = new URLSearchParams(p);
+              next.set('ev', String(seq));
+              return next;
+            },
+            { replace: true },
+          );
+        } else navigate(`/t/${task}?ev=${seq}`);
+      };
+      if (n.type === 'decision') {
+        const decision = typeof n.data.decision === 'string' ? n.data.decision : shortLabel(n);
+        const ev = events.find((e) => e.type === 'decision.recorded' && e.payload.id === decision);
+        if (ev) select(ev.seq);
+      } else if (n.type === 'run') {
+        const run = typeof n.data.run === 'string' ? n.data.run : shortLabel(n);
+        const ev = events.find((e) => e.type === 'run.started' && e.run === run);
+        if (ev) select(ev.seq);
+        if (task === id) setTimeout(() => document.querySelector(`[data-testid="run-segment"][data-run="${run}"]`)?.scrollIntoView({ block: 'nearest' }), 60);
+      }
+    },
+    [id, navigate, setParams],
+  );
+
   return (
     <aside className="h-full overflow-y-auto p-4 border-l border-line" aria-label="Memory" data-testid="memory-panel">
       <h2 className="text-[13px] font-semibold mb-3">Memory</h2>
@@ -394,7 +463,7 @@ export function MemoryPanel({ id, asOf, setAsOf, onOpenFile, version }: { id: st
       ) : null}
       {graph && graph.nodes.length > 1 && range ? (
         <>
-          <Graph graph={graph} centre={centre} ts={ts} onOpenFile={onOpenFile} />
+          <Graph graph={graph} centre={centre} ts={ts} onOpenFile={onOpenFile} onSelectNode={(n) => void openNode(n)} />
           {graph.total > graph.nodes.length ? (
             <p className="mt-1 text-[11px] text-faint tabular" data-testid="memory-count">
               {graph.nodes.length} of {graph.total} nodes, the closest to this task
@@ -438,5 +507,74 @@ export function MemoryPanel({ id, asOf, setAsOf, onOpenFile, version }: { id: st
         </>
       ) : null}
     </aside>
+  );
+}
+
+/** The same graph and scrubber over the whole workspace, for the Factory view (R-052). */
+export function WorkspaceMemory() {
+  const [graph, setGraph] = useState<GraphData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<number | null>(null);
+  useEffect(() => {
+    api
+      .workspaceGraph()
+      .then((g) => {
+        setGraph(g);
+        setError(null);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
+  const range = useMemo(() => {
+    if (!graph || graph.edges.length === 0) return null;
+    const times = graph.edges.map((e) => Date.parse(e.recordedAt));
+    return { from: Math.min(...times), to: Math.max(...times) };
+  }, [graph]);
+  const ts = draft ?? range?.to ?? Date.now();
+  const centre = graph?.nodes.find((n) => n.type === 'task')?.id ?? '';
+  if (error) return <EmptyState testId="factory-memory">The memory graph could not be read: {error}</EmptyState>;
+  if (!graph || graph.nodes.length <= 1 || !range) {
+    return <EmptyState testId="factory-memory">The memory graph of the whole workspace appears here once a run has touched something.</EmptyState>;
+  }
+  return (
+    <div data-testid="factory-memory">
+      <Graph graph={graph} centre={centre} ts={ts} />
+      {graph.total > graph.nodes.length ? (
+        <p className="mt-1 text-[11px] text-faint tabular">
+          {graph.nodes.length} of {graph.total} nodes, the most connected
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-muted">
+        {TYPE_NAMES.map(([t, name]) => (
+          <span key={t} className="inline-flex items-center gap-1">
+            <span aria-hidden className="inline-block size-2 rounded-full" style={{ background: COLOUR[t] }} />
+            {name}
+          </span>
+        ))}
+      </div>
+      <div className="mt-3">
+        <label className="flex items-center justify-between text-[12px] text-muted mb-1" htmlFor="factory-memory-scrubber">
+          <span>
+            As of{' '}
+            <span className="tabular text-ink" data-testid="factory-memory-asof">
+              {at(new Date(ts).toISOString())}
+            </span>
+          </span>
+          <Button className="h-6 px-2 text-[11px]" disabled={draft === null} onClick={() => setDraft(null)}>
+            Now
+          </Button>
+        </label>
+        <input
+          id="factory-memory-scrubber"
+          data-testid="factory-memory-scrubber"
+          type="range"
+          min={range.from}
+          max={range.to}
+          step={Math.max(1, Math.round((range.to - range.from) / 400))}
+          value={Math.min(range.to, Math.max(range.from, ts))}
+          onChange={(e) => setDraft(Number(e.target.value))}
+          className="w-full accent-[var(--accent)]"
+        />
+      </div>
+    </div>
   );
 }

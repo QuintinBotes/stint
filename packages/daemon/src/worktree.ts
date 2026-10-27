@@ -7,10 +7,15 @@ import { DaemonError, type ErrorCode } from './errors';
 import { type NumstatEntry, git, gitOk, identityArgs, parseNumstat } from './git';
 import type { RunRegistry } from './runs';
 
+/** Lines on the new side of one file that one run last wrote (R-052). */
+export type BlameRange = { start: number; end: number; run: string };
+export type DiffBlameEntry = NumstatEntry & { hunks?: BlameRange[] };
+
 export interface WorktreeManager {
   create(task: Task, run: string): Promise<{ path: string; branch: string }>;
   remove(task: Task, run: string): Promise<void>;
   diff(task: Task, format: 'unified' | 'json'): Promise<string | NumstatEntry[]>;
+  diffBlame(task: Task, commitToRun: ReadonlyMap<string, string>): Promise<DiffBlameEntry[]>;
 }
 
 export function worktreePath(ws: Workspace, task: string, run: string): string {
@@ -82,6 +87,39 @@ export class Worktrees implements WorktreeManager {
     }
     if (format === 'unified') return gitOk(this.ws.root, ['diff', range]);
     return parseNumstat(await gitOk(this.ws.root, ['diff', '--numstat', range]));
+  }
+
+  /**
+   * The task's change with each new-side line range attributed to the run whose commit last wrote it
+   * (R-052): `git blame` on the task branch in the main repository, so it still works after the
+   * run's worktree is gone. A file git cannot blame (binary, vanished) keeps no ranges and the
+   * caller falls back to per-file attribution.
+   */
+  async diffBlame(task: Task, commitToRun: ReadonlyMap<string, string>): Promise<DiffBlameEntry[]> {
+    const files = (await this.diff(task, 'json')) as NumstatEntry[];
+    if (files.length === 0 || commitToRun.size === 0) return files;
+    const out: DiffBlameEntry[] = [];
+    for (const f of files) {
+      const r = await git(this.ws.root, ['blame', '--porcelain', task.branch, '--', f.path]);
+      if (r.code !== 0) {
+        out.push(f);
+        continue;
+      }
+      const hunks: BlameRange[] = [];
+      for (const line of r.stdout.split('\n')) {
+        // porcelain headers repeat per line; only the first line of a group carries the group size
+        const m = /^\^?([0-9a-f]{40}) \d+ (\d+)(?: \d+)?$/.exec(line);
+        if (!m) continue;
+        const run = commitToRun.get(m[1] as string);
+        if (!run) continue;
+        const at = Number(m[2]);
+        const last = hunks.at(-1);
+        if (last && last.run === run && last.end === at - 1) last.end = at;
+        else hunks.push({ start: at, end: at, run });
+      }
+      out.push(hunks.length ? { ...f, hunks } : f);
+    }
+    return out;
   }
 
   /** The live state of a worktree against the base, untracked files included. */

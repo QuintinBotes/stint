@@ -9,6 +9,9 @@ import type { Task } from '../schemas/task';
 import type { Decision } from '../store/decisions';
 import { KeyedQueue } from '../store/files';
 import type { Workspace } from '../store/workspace';
+import { EMBED_SIMILARITY_THRESHOLD, cosine, embedTexts } from './embed';
+
+export { embeddingsCachePath } from './embed';
 
 /**
  * The memory graph: a projection, not a store. Nodes and edges are computed from each
@@ -18,13 +21,15 @@ import type { Workspace } from '../store/workspace';
  * graph as of a moment is a filter, never a second data structure.
  */
 
-export type GraphNodeType = 'task' | 'run' | 'decision' | 'file' | 'finding' | 'skill' | 'outcome' | 'merge';
+export type GraphNodeType = 'task' | 'run' | 'decision' | 'file' | 'finding' | 'skill' | 'outcome' | 'merge' | 'model' | 'rule';
 export type GraphEdgeType =
   | 'touches'
   | 'produced'
+  | 'cost'
   | 'constrains'
   | 'supersedes'
   | 'co_changed'
+  | 'links_to'
   | 'open_against'
   | 'applied_in'
   | 'proposed_from'
@@ -84,6 +89,8 @@ const findingNodeId = (task: string, run: string, id: string) => `finding:${task
 const skillNodeId = (skill: string) => `skill:${skill}`;
 const outcomeNodeId = (outcome: string) => `outcome:${outcome}`;
 const mergeNodeId = (commit: string) => `merge:${commit}`;
+const modelNodeId = (model: string) => `model:${model}`;
+const ruleNodeId = (rule: string) => `rule:${rule}`;
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -132,6 +139,7 @@ type RunInfo = {
   task: string;
   run: string;
   first: At;
+  finished: At | null;
   startedAt: string | null;
   endedAt: string | null;
   data: Record<string, unknown>;
@@ -190,7 +198,7 @@ function ensureRun(c: Collected, task: string, run: string, at: At): RunInfo {
   const key = `${task}/${run}`;
   let info = c.runs.get(key);
   if (!info) {
-    info = { task, run, first: at, startedAt: null, endedAt: null, data: {} };
+    info = { task, run, first: at, finished: null, startedAt: null, endedAt: null, data: {} };
     c.runs.set(key, info);
   }
   return info;
@@ -233,7 +241,8 @@ async function collectTask(ws: Workspace, task: Task, c: Collected): Promise<voi
         if (!e.run) break;
         const r = ensureRun(c, task.id, e.run, at);
         r.endedAt = e.ts;
-        r.data = { ...r.data, endedBy: str(p.endedBy), cost: obj(p.cost), ...(str(p.host) ? { host: str(p.host) } : {}) };
+        r.finished = at;
+        r.data = { ...r.data, endedBy: str(p.endedBy), cost: obj(p.cost), ...(str(p.host) ? { host: str(p.host) } : {}), ...(str(p.model) ? { model: str(p.model) } : {}) };
         break;
       }
       case 'file.changed': {
@@ -379,7 +388,7 @@ function resolvedAt(c: Collected, fi: FindingInfo): string | null {
   return carrier.recordedAt;
 }
 
-function build(c: Collected): Graph {
+function build(c: Collected, derived?: Map<string, number> | null): Graph {
   const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
   const edgeIds = new Map<string, number>();
@@ -399,6 +408,27 @@ function build(c: Collected): Graph {
   for (const r of c.runs.values()) {
     addNode({ id: runNodeId(r.task, r.run), type: 'run', label: `${r.task}/${r.run}`, data: { task: r.task, run: r.run, ...r.data, startedAt: r.startedAt, endedAt: r.endedAt } });
     addEdge('produced', taskNodeId(r.task), runNodeId(r.task, r.run), r.startedAt ?? r.first.ts, null, r.first.eventId, { task: r.task, run: r.run });
+    // What the run cost, hung from the model it ran on (R-052): tokens are input plus output, cached is a share of input.
+    const cost = obj(r.data.cost);
+    const model = str(r.data.model);
+    if (cost && model) {
+      const host = str(r.data.host);
+      const key = host && host !== 'local-cli' && !model.includes('/') ? `${host}/${model}` : model;
+      addNode({ id: modelNodeId(key), type: 'model', label: key, data: { model: key, ...(host ? { host } : {}) } });
+      const inputTokens = num(cost.inputTokens);
+      const outputTokens = num(cost.outputTokens);
+      addEdge('cost', runNodeId(r.task, r.run), modelNodeId(key), r.finished?.ts ?? r.endedAt ?? r.first.ts, null, r.finished?.eventId ?? r.first.eventId, {
+        task: r.task,
+        run: r.run,
+        model: key,
+        ...(host ? { host } : {}),
+        usd: typeof cost.usd === 'number' ? cost.usd : null,
+        tokens: inputTokens + outputTokens,
+        inputTokens,
+        cachedTokens: num(cost.cachedTokens),
+        outputTokens,
+      });
+    }
   }
   const fileTasks = new Map<string, Set<string>>();
   for (const t of c.tasks) for (const path of t.files.keys()) (fileTasks.get(path) ?? fileTasks.set(path, new Set()).get(path))?.add(t.task.id);
@@ -442,6 +472,20 @@ function build(c: Collected): Graph {
     if (f.file) {
       if (!nodes.has(fileNodeId(f.file))) addNode({ id: fileNodeId(f.file), type: 'file', label: f.file, data: { path: f.file, tasks: [fi.task] } });
       addEdge('open_against', fi.node, fileNodeId(f.file), fi.recordedAt, resolvedAt(c, fi), fi.eventId, { task: fi.task, run: fi.run, finding: f.id, path: f.file });
+    }
+    // A finding cites what it was checked against: the decision it contradicts, or the rule it names (R-052).
+    const citeDecision = (decision: string) => {
+      const target = decisionNodeId(fi.task, decision);
+      if (!nodes.has(target)) addNode({ id: target, type: 'decision', label: decision, data: { task: fi.task, decision, text: '', recordedAt: fi.recordedAt } });
+      addEdge('links_to', fi.node, target, fi.recordedAt, null, fi.eventId, { task: fi.task, run: fi.run, finding: f.id, decision });
+    };
+    if (f.contradictsDecision) citeDecision(f.contradictsDecision);
+    if (f.linksTo) {
+      if (/^D[0-9]+$/.test(f.linksTo)) citeDecision(f.linksTo);
+      else {
+        addNode({ id: ruleNodeId(f.linksTo), type: 'rule', label: f.linksTo, data: { rule: f.linksTo } });
+        addEdge('links_to', fi.node, ruleNodeId(f.linksTo), fi.recordedAt, null, fi.eventId, { task: fi.task, run: fi.run, finding: f.id, rule: f.linksTo });
+      }
     }
   }
 
@@ -505,6 +549,15 @@ function build(c: Collected): Graph {
     for (let j = i + 1; j < c.tasks.length; j++) {
       const a = c.tasks[i] as TaskInfo;
       const b = c.tasks[j] as TaskInfo;
+      if (derived) {
+        // Embeddings answered: the edge is the cosine, marked derived, with whatever plain evidence also overlaps.
+        const score = derived.get(`${a.task.id}\0${b.task.id}`);
+        if (score === undefined) continue;
+        const rounded = Math.round(score * 1000) / 1000;
+        const at = later(a.created, b.created);
+        addEdge('similar_to', taskNodeId(a.task.id), taskNodeId(b.task.id), at.ts, null, at.eventId, { score: rounded, cosine: rounded, derived: true, evidence: similarity(a, b)?.evidence ?? { files: [], themes: [], tags: [] } });
+        continue;
+      }
       const sim = similarity(a, b);
       if (sim) addEdge('similar_to', taskNodeId(a.task.id), taskNodeId(b.task.id), sim.at.ts, null, sim.at.eventId, { score: sim.score, evidence: sim.evidence });
     }
@@ -522,10 +575,25 @@ async function buildGraph(ws: Workspace, only?: string[]): Promise<Graph> {
   const c = emptyCollected();
   for (const task of tasks) await collectTask(ws, task, c);
   c.tasks.sort((a, b) => cmpStr(a.task.id, b.task.id));
-  return build(c);
+  // With routes.embed set, similarity comes from the embedding host; without it nothing changes (R-052).
+  let derived: Map<string, number> | null = null;
+  if (ws.config.routes.embed?.length && c.tasks.length > 1) {
+    const texts = c.tasks.map((t) => `${t.task.title}\n${t.task.goal}${t.tags.length ? `\n${t.tags.join(' ')}` : ''}`);
+    const vectors = await embedTexts(ws, texts);
+    if (vectors) {
+      derived = new Map();
+      for (let i = 0; i < c.tasks.length; i++) {
+        for (let j = i + 1; j < c.tasks.length; j++) {
+          const score = cosine(vectors[i] as number[], vectors[j] as number[]);
+          if (score >= EMBED_SIMILARITY_THRESHOLD) derived.set(`${(c.tasks[i] as TaskInfo).task.id}\0${(c.tasks[j] as TaskInfo).task.id}`, score);
+        }
+      }
+    }
+  }
+  return build(c, derived);
 }
 
-const GRAPH_VERSION = 2;
+const GRAPH_VERSION = 3;
 const META_NODE = 'meta:cache-key';
 const cacheQueue = new KeyedQueue();
 
@@ -555,7 +623,7 @@ async function cacheKey(ws: Workspace): Promise<string> {
     rows.push({ task: task.id, seq, decisions });
   }
   rows.sort((a, b) => cmpStr(a.task, b.task));
-  return sha256Hex(canonicalJSON({ version: GRAPH_VERSION, rows }));
+  return sha256Hex(canonicalJSON({ version: GRAPH_VERSION, rows, embed: ws.config.routes.embed ?? [] }));
 }
 
 function readCache(ws: Workspace, key: string): Graph | null {

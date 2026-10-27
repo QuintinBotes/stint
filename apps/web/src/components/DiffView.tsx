@@ -1,7 +1,7 @@
 import type { StintEvent } from '@stint-dev/core';
 import { type ComponentType, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { agentOf } from '../agents';
-import { type LineComment, type RunSummary, api } from '../api';
+import { type DiffBlameFile, type LineComment, type RunSummary, api } from '../api';
 import { type CommentAnnotation, CommentEditor, CommentNote } from './DiffComments';
 import { type DiffFileEntry, DiffFileTree } from './DiffFileTree';
 import { Button, EmptyState } from './ui';
@@ -123,7 +123,8 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
   const [comments, setComments] = useState<LineComment[]>([]);
   const [PatchDiff, setPatchDiff] = useState<PatchDiffComponent | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
-  const [hoverLine, setHoverLine] = useState<number | null>(null);
+  const [blame, setBlame] = useState<Map<string, NonNullable<DiffBlameFile['hunks']>> | null>(null);
+  const [hover, setHover] = useState<{ line: number; side: 'additions' | 'deletions' } | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const [editing, setEditing] = useState<{ line: number; side: 'additions' | 'deletions' } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -146,6 +147,11 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
       .diff(taskId)
       .then((d) => live && setPatches(splitPatch(d)))
       .catch((e: unknown) => live && setError(String(e)));
+    // per-hunk attribution from git blame; when it cannot answer the per-file writers below stand in
+    api
+      .diffBlame(taskId)
+      .then((files) => live && setBlame(new Map(files.filter((f) => f.hunks?.length).map((f) => [f.path, f.hunks as NonNullable<DiffBlameFile['hunks']>]))))
+      .catch(() => live && setBlame(null));
     api
       .comments(taskId)
       .then((c) => live && setComments(c))
@@ -180,11 +186,11 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
   useEffect(() => {
     setEditing(null);
     setSaveError(null);
-    setHoverLine(null);
+    setHover(null);
     setCursor(null);
   }, [selected]);
 
-  // shortcut: attribution is per file (the runs whose file.changed named it, in order), not per hunk.
+  // Per-file attribution (the runs whose file.changed named it, in order): the fallback when blame has no range for a line.
   const writers = useMemo(() => {
     const byPath = new Map<string, string[]>();
     for (const e of events) {
@@ -197,17 +203,22 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
     }
     return byPath;
   }, [events]);
+  const runName = useCallback(
+    (run: string) => {
+      const summary = runs.find((r) => r.run === run);
+      return `${agentOf(summary?.adapter, summary?.host, summary?.model).name} ${run}`;
+    },
+    [runs],
+  );
   const attribution = useMemo(() => {
     if (!selected) return null;
     const list = writers.get(selected) ?? [];
     if (list.length === 0) return null;
-    return list
-      .map((run) => {
-        const summary = runs.find((r) => r.run === run);
-        return `${agentOf(summary?.adapter, summary?.host, summary?.model).name} ${run}`;
-      })
-      .join(', ');
-  }, [writers, selected, runs]);
+    return list.map(runName).join(', ');
+  }, [writers, selected, runName]);
+  // The run whose commit last wrote the hovered new-side line, from blame where it answered (R-052).
+  const blameRanges = selected ? blame?.get(selected) : undefined;
+  const hoverRun = hover && hover.side === 'additions' && blameRanges ? blameRanges.find((r) => hover.line >= r.start && hover.line <= r.end)?.run : undefined;
 
   const pickLayout = (next: DiffLayout) => {
     setLayout(next);
@@ -224,8 +235,8 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
     (props: LineClick) => openEditor(props.lineNumber, props.annotationSide ?? 'additions'),
     [openEditor],
   );
-  const onLineEnter = useCallback((props: LineClick) => setHoverLine(props.lineNumber), []);
-  const onLineLeave = useCallback(() => setHoverLine(null), []);
+  const onLineEnter = useCallback((props: LineClick) => setHover({ line: props.lineNumber, side: props.annotationSide ?? 'additions' }), []);
+  const onLineLeave = useCallback(() => setHover(null), []);
 
   const saveComment = (text: string) => {
     if (!selected || !editing) return;
@@ -347,13 +358,19 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             </Button>
           </div>
           <p aria-live="polite" data-testid="diff-attribution" className="px-3 py-1 min-h-6 border-b border-line text-[11px] text-faint">
-            {hoverLine !== null
-              ? attribution
-                ? `Written by ${attribution}`
-                : 'No run is recorded as writing this file.'
+            {hover !== null
+              ? hoverRun
+                ? `Written by ${runName(hoverRun)}`
+                : blameRanges && hover.side === 'additions'
+                  ? 'This line was already here before the task branch.'
+                  : attribution
+                    ? `Written by ${attribution}`
+                    : 'No run is recorded as writing this file.'
               : cursor !== null
                 ? `Line ${cursor} selected. Press Enter to comment.`
-                : 'Hover a line to see which run wrote this file.'}
+                : blameRanges
+                  ? 'Hover a line to see which run wrote it.'
+                  : 'Hover a line to see which run wrote this file.'}
           </p>
           <div
             data-testid="diff-pane"

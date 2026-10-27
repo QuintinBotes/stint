@@ -122,6 +122,14 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
   app.get('/api/tasks/:id/diff', async (c) => {
     const task = await ctx.ws.readTask(c.req.param('id'));
     const format = c.req.query('format') === 'json' ? 'json' : 'unified';
+    // blame=1 attributes each range of lines to the run whose ending commit last wrote it (R-052)
+    if (format === 'json' && c.req.query('blame') === '1') {
+      const commitToRun = new Map<string, string>();
+      for (const e of await ctx.ws.events(task.id).read()) {
+        if (e.type === 'run.finished' && e.run && typeof e.payload.commit === 'string') commitToRun.set(e.payload.commit, e.run);
+      }
+      return c.json(await ctx.worktrees.diffBlame(task, commitToRun));
+    }
     const out = await ctx.worktrees.diff(task, format);
     return format === 'json' ? c.json(out) : c.text(out as string);
   });

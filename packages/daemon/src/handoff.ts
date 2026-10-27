@@ -13,7 +13,7 @@ import {
   countTokens,
   renderHandoff,
 } from '@stint-dev/core';
-import { hashHandoff } from '@stint-dev/core/node';
+import { constrains, hashHandoff } from '@stint-dev/core/node';
 import type { Enrichment } from './adapter';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
@@ -160,15 +160,33 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     })
     .slice(-LIST);
 
-  const decisions = (await ws.decisions(taskId).validAt()).slice(0, LIST).map((d) => ({ id: d.id, text: clip(d.text, ITEM) }));
-  const risks = list((plan?.risks ?? []).map((r) => r.text));
+  // the last fact the packet covers, so a rebuild of the same log has the same hash
+  const createdAt = (upto.filter((e) => e.type !== 'handoff.created').at(-1) ?? started).ts;
+  let decisions = (await ws.decisions(taskId).validAt()).slice(0, LIST).map((d) => ({ id: d.id, text: clip(d.text, ITEM) }));
+  // Decisions of other tasks on these files constrain this one too, and open findings on them are
+  // carried as risks (a finding has no decision id to carry it under); both as of the packet's
+  // time, after this task's own decisions, inside the same list and token caps (R-052).
+  let findingRisks: string[] = [];
+  try {
+    for (const row of await constrains(ws, taskId, createdAt)) {
+      if (row.kind === 'decision' && row.task !== taskId) {
+        const carried = { id: row.id, text: clip(row.text, ITEM) };
+        if (!decisions.some((d) => d.id === carried.id && d.text === carried.text)) decisions.push(carried);
+      } else if (row.kind === 'finding') {
+        findingRisks.push(`Open finding ${row.id} (${row.task}): ${row.text}`);
+      }
+    }
+    decisions = decisions.slice(0, LIST);
+  } catch (err) {
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'warn', message: `constraining decisions were NOT added to the packet for ${taskId}: ${err instanceof Error ? err.message : String(err)}` })}\n`);
+    findingRisks = [];
+  }
+  const risks = list([...(plan?.risks ?? []).map((r) => r.text), ...findingRisks]);
   const lastMessage = str(messages.at(-1)?.payload.text);
   const summary = clip(scrub(lastMessage || `${started.adapter ?? 'The agent'} ${endedBy} after ${toolCalls.length} tool calls.`), 400);
   const nextStep = open[0] ? `Next: ${open[0]}.` : green ? 'Review the change against the plan, the decisions and AGENTS.md.' : 'Run the tests and make them pass.';
   const askOfNext = clip(inFlight ? `Check the unknown step first. ${nextStep}` : nextStep, 400);
   const cost = (finished?.payload.cost as Cost | undefined) ?? { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true };
-  // the last fact the packet covers, so a rebuild of the same log has the same hash
-  const createdAt = (upto.filter((e) => e.type !== 'handoff.created').at(-1) ?? started).ts;
 
   const v = verified?.payload;
   let draft: Omit<Handoff, 'hash'> = {
@@ -208,7 +226,7 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     leftOut: { from: 'events', eventIds: ids(finished ? [finished] : []) },
     refusals: { from: 'events', eventIds: ids(upto.filter((e) => e.type === 'rule.blocked' || e.type === 'run.refused')) },
     decisions: { from: 'events', eventIds: ids(upto.filter((e) => e.type === 'decision.recorded')) },
-    risks: { from: 'plan', eventIds: [] },
+    risks: { from: findingRisks.length ? 'events' : 'plan', eventIds: [] },
     changedFiles: { from: 'diff', eventIds: ids(changes.slice(-LIST)) },
     verification: { from: 'events', eventIds: ids(verified ? [verified] : []) },
     askOfNext: { from: 'events', eventIds: ids(finished ? [finished] : []) },

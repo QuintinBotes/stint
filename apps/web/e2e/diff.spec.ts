@@ -38,3 +38,22 @@ test('The Diff tab lists the changed files, names who wrote a file on hover, swi
   await expect(page.getByTestId('diff-layout-split')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('viewed-count')).toContainText('1 of 5 viewed');
 });
+
+test('Hovering a hunk names the run whose commit last wrote its lines, from blame (R-052)', async ({ page }) => {
+  await page.goto('/t/T-0042');
+  const tree = page.getByTestId('diff-tree');
+  await expect(tree).toBeVisible();
+  const attribution = page.getByTestId('diff-attribution');
+
+  // the limiter was written by the killed Muse Code run r2; with blame the hint speaks of lines, not files
+  await tree.locator('[data-testid="diff-tree-file"][data-path="src/lib/limiter.ts"]').click();
+  await expect(attribution).toContainText('Hover a line to see which run wrote it.');
+  const pane = page.getByTestId('diff-pane');
+  await pane.getByText('SlidingWindowLimiter').first().hover();
+  await expect(attribution).toContainText('Written by Muse Code r2');
+
+  // the rate limit tests were added by the Stint agent continuing as r3, so their lines name r3
+  await tree.locator('[data-testid="diff-tree-file"][data-path="test/ratelimit.test.ts"]').click();
+  await pane.getByText('answers 429 with Retry-After').first().hover();
+  await expect(attribution).toContainText('Written by Stint agent r3');
+});

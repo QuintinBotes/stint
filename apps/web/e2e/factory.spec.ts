@@ -13,6 +13,33 @@ test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost b
   await expect(page.getByTestId('queue-row').first()).toContainText('would reverse D3');
 });
 
+test('The Factory shows the workspace graph with its scrubber, the transcript-share KPI and a 7-day funnel (R-052)', async ({ page }) => {
+  await page.goto('/factory');
+  const memory = page.getByTestId('factory-memory');
+  await expect(memory.locator('[data-node="decision:T-0042/D3"]')).toBeVisible();
+  const scrubber = page.getByTestId('factory-memory-scrubber');
+  await scrubber.fill(String(await scrubber.getAttribute('min')));
+  await expect(memory.locator('[data-node="decision:T-0042/D3"]')).toHaveAttribute('data-state', 'faded');
+
+  const share = page.getByTestId('kpi-transcript-share');
+  await expect(share).toContainText('Fed forward as transcripts');
+  await expect(share).toContainText('0%');
+  await expect(share).toContainText('all in');
+
+  const loops = page.getByTestId('loops');
+  await expect(page.getByRole('heading', { name: /last 7 days/ })).toBeVisible();
+  await expect(loops.locator('li').filter({ hasText: 'Done' }).locator('span').last()).not.toHaveText('0');
+  await expect(loops.locator('li').filter({ hasText: 'Planned' }).locator('span').last()).not.toHaveText('0');
+});
+
+test('The Factory shows credits left per host with the derived mark (R-054)', async ({ page }) => {
+  await page.goto('/factory');
+  const credits = page.getByTestId('credits-left');
+  await expect(credits.locator('[data-testid="credits-row"][data-host="baseten"]')).toContainText('≈');
+  await expect(credits.locator('[data-testid="credits-row"][data-host="baseten"]')).toContainText('left');
+  await expect(credits).toContainText('Derived from metered spend, not read from the provider.');
+});
+
 test('The Factory shows the phase gates with their reasons', async ({ page }) => {
   await page.goto('/factory');
   const gates = page.getByTestId('phase-gates');

@@ -17,6 +17,7 @@ import { DaemonError } from '../errors';
 import { namedFiles } from '../paths';
 import { afterReview } from '../risk';
 import { lockPlanTests } from '../acceptance';
+import { git } from '../git';
 import { ChainExhaustedError, walkChain } from '../route';
 import { skillsFor } from '../skills';
 
@@ -343,6 +344,12 @@ export type PendingContradiction = {
   at: string;
 };
 
+/** A skill the learn step proposed and no person has settled yet, waiting in the same queue (R-052). */
+export type PendingSkillProposal = { id: string; kind: 'skill'; task: string; skill: string; run: string; agent: string; at: string };
+/** A merge that renamed a file other work already touches by its old name: one file, two graph nodes, until a person notes it (R-052). */
+export type PendingRenameMerge = { id: string; kind: 'rename-merge'; task: string; run: string; agent: string; from: string; to: string; commit: string; at: string };
+export type PendingQueueItem = PendingContradiction | PendingSkillProposal | PendingRenameMerge;
+
 /** The queue is a projection of the logs: a finding that contradicts a decision waits until a person settles it. */
 export async function pendingContradictions(ctx: DaemonContext): Promise<PendingContradiction[]> {
   const out: PendingContradiction[] = [];
@@ -365,6 +372,60 @@ export async function pendingContradictions(ctx: DaemonContext): Promise<Pending
   return out;
 }
 
+/**
+ * Everything waiting for a person (R-052, SHOULD): contradictions first, then the skill proposals
+ * no one has settled and the file-rename merges the projection detects, each until a person
+ * settles it by name (the choice is recorded as an event, so it is not raised again).
+ */
+export async function pendingQueue(ctx: DaemonContext): Promise<PendingQueueItem[]> {
+  const out: PendingQueueItem[] = await pendingContradictions(ctx);
+  const extras: PendingQueueItem[] = [];
+  const taskEvents = new Map<string, StintEvent[]>();
+  const touched = new Set<string>();
+  for (const t of await ctx.ws.listTasks()) {
+    const events = await ctx.ws.events(t.id).read();
+    taskEvents.set(t.id, events);
+    for (const e of events) if (e.type === 'file.changed' && typeof e.payload.path === 'string') touched.add(e.payload.path);
+  }
+  for (const [task, events] of taskEvents) {
+    const settled = new Set(events.map((e) => e.payload.queue).filter((q): q is string => typeof q === 'string'));
+    const decided = new Set<string>();
+    for (const e of events) {
+      if (e.type !== 'skill.approved' && e.type !== 'skill.rejected') continue;
+      const skill = typeof e.payload.id === 'string' ? e.payload.id : typeof e.payload.skill === 'string' ? e.payload.skill : null;
+      if (skill) decided.add(skill);
+    }
+    for (const e of events) {
+      if (e.type !== 'skill.proposed') continue;
+      const proposal = e.payload.proposal as { id?: unknown } | undefined;
+      const skill = typeof e.payload.id === 'string' ? e.payload.id : typeof proposal?.id === 'string' ? proposal.id : typeof e.payload.skill === 'string' ? e.payload.skill : null;
+      if (!skill || decided.has(skill)) continue;
+      const id = `skill-${skill}`;
+      if (settled.has(id) || extras.some((x) => x.id === id)) continue;
+      extras.push({ id, kind: 'skill', task, skill, run: e.run ?? '', agent: e.adapter ?? 'learn step', at: e.ts });
+    }
+    for (const e of events) {
+      if (e.type !== 'merge.completed' || typeof e.payload.commit !== 'string') continue;
+      const commit = e.payload.commit;
+      const r = await git(ctx.ws.root, ['diff', '-M', '--name-status', `${commit}^1`, commit]).catch(() => null);
+      if (!r || r.code !== 0) continue;
+      let n = 0;
+      for (const line of r.stdout.split('\n')) {
+        const m = /^R[0-9]*\t(.+)\t(.+)$/.exec(line);
+        if (!m) continue;
+        n += 1;
+        const [from, to] = [m[1] as string, m[2] as string];
+        if (!touched.has(from)) continue;
+        const id = `rename-${task}-${commit.slice(0, 8)}-${n}`;
+        if (settled.has(id) || extras.some((x) => x.id === id)) continue;
+        extras.push({ id, kind: 'rename-merge', task, run: e.run ?? '', agent: 'daemon', from, to, commit, at: e.ts });
+      }
+    }
+  }
+  extras.sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+  return [...out, ...extras];
+}
+
 export function modelRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/plan', async (c) => {
     const { host } = HostBody.parse(await c.req.json().catch(() => ({})));
@@ -381,7 +442,13 @@ export function modelRoutes(app: Hono, ctx: DaemonContext): void {
     const name = c.req.param('name');
     const { action } = z.strictObject({ action: z.enum(['keep', 'supersede']) }).parse(await c.req.json());
     const item = (await pendingContradictions(ctx)).find((p) => p.id === name);
-    if (!item) throw new DaemonError('not_found', `no queued item ${name}`);
+    if (!item) {
+      // a noted rename leaves the queue the same way: the person's word, recorded on the task
+      const extra = (await pendingQueue(ctx)).find((p): p is PendingRenameMerge => p.id === name && p.kind === 'rename-merge');
+      if (!extra) throw new DaemonError('not_found', `no queued item ${name}`);
+      await ctx.ws.events(extra.task).append({ task: extra.task, vendor: 'human', type: 'human.command', payload: { text: `${extra.from} and ${extra.to} are the same file; the rename in ${extra.commit.slice(0, 8)} is noted.`, queue: name } });
+      return c.json({ ok: true, action });
+    }
     const events = ctx.ws.events(item.task);
     if (action === 'supersede' && item.decision) {
       const d = await ctx.ws.decisions(item.task).append({ text: item.finding.text.slice(0, 200), by: 'you', supersedes: item.decision.id, evidence: [`${item.task}/${item.run}#${item.finding.id}`] });
@@ -393,7 +460,7 @@ export function modelRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json({ ok: true, action });
   });
 
-  app.get('/api/graph/pending', async (c) => c.json(await pendingContradictions(ctx)));
+  app.get('/api/graph/pending', async (c) => c.json(await pendingQueue(ctx)));
 
   // the whole floor: every run on its agent's lane, with the packets and skills that connect them
   app.get('/api/relay', async (c) => {

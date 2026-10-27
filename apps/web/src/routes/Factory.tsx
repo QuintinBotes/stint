@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ADAPTER_NAMES, ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
 import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
-import { Queue } from '../components/MemoryPanel';
+import { Queue, WorkspaceMemory } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
 import { Button, EmptyState, StatusChip, VendorMark, cx } from '../components/ui';
 import { money, tokens } from '../format';
@@ -233,6 +233,25 @@ function CostByDay({ rows }: { rows: CostRow[] }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Credits left per host (R-054): the balance a person entered minus metered spend, so the figure carries ≈. */
+function CreditsLeft({ rows }: { rows: CostRow[] }) {
+  const left = rows.filter((r) => typeof r.creditsLeft === 'number');
+  if (left.length === 0) return <EmptyState>Credits left appear here once a host balance is entered in the config.</EmptyState>;
+  return (
+    <div data-testid="credits-left">
+      <ul className="flex flex-col gap-1.5 text-[13px]">
+        {left.map((r) => (
+          <li key={r.key} className="flex items-baseline justify-between gap-2" data-testid="credits-row" data-host={r.key}>
+            <span className="text-muted">{hostName(r.key)}</span>
+            <span className="tabular">≈ ${(r.creditsLeft as number).toFixed(2)} left</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[12px] text-faint mt-3">Derived from metered spend, not read from the provider.</p>
     </div>
   );
 }
@@ -556,6 +575,7 @@ export function Factory() {
   const { data: health } = useHealth();
   const byModel = useLoad(() => api.costs('model'), []);
   const byDayHost = useLoad(() => api.costs('day-host'), []);
+  const byHost = useLoad(() => api.costs('host'), []);
   const byTask = useLoad(() => api.costs('task'), []);
   const helped = useLoad(() => api.graphQuery<Helped>({ q: 'skills-helped' }), []);
   const scores = useLoad(() => api.scoreboard(), []);
@@ -567,6 +587,8 @@ export function Factory() {
   const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
   const [outcomeRows, setOutcomeRows] = useState<OutcomeRow[] | null>(null);
+  const [fedForward, setFedForward] = useState<{ packetTokens: number; hops: number } | null>(null);
+  const [funnel, setFunnel] = useState<Record<string, number> | null>(null);
   useEffect(() => {
     if (!cards) return;
     let live = true;
@@ -574,6 +596,32 @@ export function Factory() {
       .then((all) => {
         if (!live) return;
         setHandoffs(all.flat().filter((e) => e.type === 'run.started' && e.payload.handoffFrom).length);
+        // What was fed forward into continued runs, counted from the packets those runs started from (R-052).
+        // Transcripts are kept for audit and never fed forward, so every fed-forward token here is packet tokens.
+        let packetTokens = 0;
+        let hops = 0;
+        // The loops funnel: distinct tasks that entered each stage in the 7 days up to the last event (R-052).
+        const latest = Math.max(0, ...all.flat().map((e) => Date.parse(e.ts)));
+        const since = latest - 7 * 86_400_000;
+        const entered = new Map<string, Set<string>>();
+        const enter = (state: string, task: string) => (entered.get(state) ?? entered.set(state, new Set()).get(state))?.add(task);
+        for (const [i, events] of all.entries()) {
+          const task = cards[i]?.task.id ?? events[0]?.task ?? '';
+          const packets = new Map<string, number>();
+          for (const e of events) if (e.type === 'handoff.created' && typeof e.payload.name === 'string') packets.set(e.payload.name, Number(e.payload.tokens) || 0);
+          for (const e of events) {
+            if (e.type === 'run.started' && typeof e.payload.handoffFrom === 'string') {
+              hops += 1;
+              packetTokens += packets.get(e.payload.handoffFrom) ?? 0;
+            }
+            const t = Date.parse(e.ts);
+            if (t < since || t > latest) continue;
+            if (e.type === 'task.created') enter('planned', task);
+            else if (e.type === 'task.status' && typeof e.payload.to === 'string') enter(e.payload.to, task);
+          }
+        }
+        setFedForward({ packetTokens, hops });
+        setFunnel(Object.fromEntries([...entered.entries()].map(([state, tasks]) => [state, tasks.size])));
         // learned means proposed by the learn step and approved by a person, not written by hand
         setLearned(new Set(all.flat().filter((e) => e.type === 'skill.approved').map((e) => String(e.payload.id ?? e.payload.skill))).size);
         const rows = new Map<string, OutcomeRow>();
@@ -605,11 +653,7 @@ export function Factory() {
     };
   }, [cards]);
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    for (const card of cards ?? []) c[card.task.status] = (c[card.task.status] ?? 0) + 1;
-    return c;
-  }, [cards]);
+  const counts = funnel ?? {};
   const costByTask = useMemo(() => new Map((byTask ?? []).map((r) => [r.key, r])), [byTask]);
   const week = (byModel ?? []).reduce((s, r) => s + (r.usd ?? 0), 0);
   const input = (byModel ?? []).reduce((s, r) => s + r.inputTokens, 0);
@@ -636,16 +680,26 @@ export function Factory() {
           </p>
         </header>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="kpis">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" data-testid="kpis">
           <Figure label="Tasks in flight" value={String(inFlight)} detail={live.length ? live.slice(0, 2).map((c) => `${c.task.id} ${c.task.status.replace('_', ' ')}`).join(', ') : auto?.queued.length ? `${auto.queued.length} queued` : 'nothing running'} testId="kpi-in-flight" />
           <Figure label="Runs and hand-offs" value={`${runs} run${runs === 1 ? '' : 's'}${handoffs ? `, ${handoffs} hop${handoffs === 1 ? '' : 's'}` : ''}`} detail={handoffs === null ? undefined : handoffs ? `${handoffs} continued from a packet, no work lost` : 'every run was the first on its task'} />
           <Figure label="Spend this week" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task, list prices` : undefined} />
           <Figure label="Input from cache" value={input ? `${Math.round((cached / input) * 100)}%` : 'none'} detail={`${tokens(cached)} of ${tokens(input)} tokens`} />
+          <Figure
+            label="Fed forward as transcripts"
+            value="0%"
+            detail={fedForward ? `${tokens(fedForward.packetTokens)} tokens fed forward, all in ${fedForward.hops} packet${fedForward.hops === 1 ? '' : 's'}` : 'packets, never transcripts'}
+            testId="kpi-transcript-share"
+          />
           <Figure label="Skills learned" value={String(learned)} detail={learned ? 'approved by you, now mounted' : 'none proposed yet'} />
         </div>
 
         <Panel title="The relay: who carried each task, and what they handed on" testId="panel-relay">
           <Relay />
+        </Panel>
+
+        <Panel title="Memory: the whole workspace" testId="panel-memory">
+          <WorkspaceMemory />
         </Panel>
 
         <Panel title="Meta models at work" testId="panel-models">
@@ -654,11 +708,15 @@ export function Factory() {
 
         <div className="grid lg:grid-cols-2 gap-4">
           <div className="flex flex-col gap-4 min-w-0">
-            <Panel title="Loops: tasks by stage">
+            <Panel title="Loops: tasks entering each stage, last 7 days">
               <Loops counts={counts} />
+              <p className="text-[12px] text-faint mt-3">Tasks that entered each stage in the 7 days up to the last event, from each task's status history. A task counts once per stage.</p>
             </Panel>
             <Panel title="Cost per day, by host">
               <CostByDay rows={byDayHost ?? []} />
+            </Panel>
+            <Panel title="Credits left, by host">
+              <CreditsLeft rows={byHost ?? []} />
             </Panel>
           </div>
           <div className="flex flex-col gap-4 min-w-0">

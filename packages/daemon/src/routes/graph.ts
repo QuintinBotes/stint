@@ -4,6 +4,7 @@ import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
 
 const MAX_NODES = 60;
+const MAX_WORKSPACE_NODES = 120;
 const QUERIES = ['similar', 'files-together', 'constrains', 'open-findings', 'skills-helped'];
 
 function checkedTime(raw: string | undefined, name: string): string | null {
@@ -43,7 +44,27 @@ function around(graph: Graph, centre: string): { nodes: Graph['nodes']; edges: G
   return { nodes: kept, edges: graph.edges.filter((e) => keptIds.has(e.from) && keptIds.has(e.to)), total: ranked.length };
 }
 
+/** The workspace graph, kept readable: the most connected nodes first when it outgrows the panel. */
+function capped(graph: Graph): { nodes: Graph['nodes']; edges: Graph['edges']; total: number } {
+  if (graph.nodes.length <= MAX_WORKSPACE_NODES) return { nodes: graph.nodes, edges: graph.edges, total: graph.nodes.length };
+  const degree = new Map<string, number>();
+  for (const e of graph.edges) {
+    degree.set(e.from, (degree.get(e.from) ?? 0) + 1);
+    degree.set(e.to, (degree.get(e.to) ?? 0) + 1);
+  }
+  const kept = [...graph.nodes].sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.id.localeCompare(b.id)).slice(0, MAX_WORKSPACE_NODES);
+  const keptIds = new Set(kept.map((n) => n.id));
+  return { nodes: kept, edges: graph.edges.filter((e) => keptIds.has(e.from) && keptIds.has(e.to)), total: graph.nodes.length };
+}
+
 export function graphRoutes(app: Hono, ctx: DaemonContext): void {
+  // the whole workspace's memory, for the Factory view (R-052)
+  app.get('/api/graph', async (c) => {
+    const at = checkedTime(c.req.query('asOf'), 'asOf');
+    const full = await project(ctx.ws);
+    const { nodes, edges, total } = capped(at ? asOf(full, at) : full);
+    return c.json({ nodes, edges, asOf: at, total });
+  });
   app.get('/api/tasks/:id/graph', async (c) => {
     const id = c.req.param('id');
     await ctx.ws.readTask(id);
