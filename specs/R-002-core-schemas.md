@@ -6,7 +6,7 @@ Day: 0 (26 Oct) · Owner: Q · Depends on: R-001 · Fallback: hand-written JSON 
 The contracts of the product as code: zod schemas for task, event, handoff, plan, review, skill frontmatter and skill proposal, with `handoff.schema.json` emitted as the published spec and three rendered examples that validate. Everything downstream imports these types; nothing downstream redefines them.
 
 ## Context
-`schemas/*.json` are the reference JSON Schemas (draft 2020-12). `AGENTS.md` section 5 is the one-page summary. an earlier terminal project's `events.rs` is the prior art for the event envelope (`raw` pointer, `links`, cost snapshot with disjoint token classes) and `capability.rs` for the capability enum.
+`schemas/*.json` are the reference JSON Schemas (draft 2020-12). `AGENTS.md` section 5 is the one-page summary. An earlier terminal project's event envelope is the prior art for this one (`raw` pointer, `links`, cost snapshot with disjoint token classes) and `capability.rs` for the capability enum.
 
 ## Requirements
 1. MUST implement in `packages/core/src/schemas/`: `task.ts`, `event.ts`, `handoff.ts`, `plan.ts`, `review.ts`, `skill.ts` (frontmatter), `skillProposal.ts`, `capability.ts`, `config.ts`, each exporting the zod schema and its inferred type, with the exact field names and enums in `schemas/`.
@@ -16,7 +16,7 @@ The contracts of the product as code: zod schemas for task, event, handoff, plan
 5. MUST provide `CapabilityLevel` = `{ level: 'supported' } | { level: 'partial', note } | { level: 'unsupported', reason } | { level: 'unknown' }` and `GateStrength` = `'enforced' | 'observed' | 'none'`.
 6. MUST emit `packages/core/schemas/handoff.schema.json` from zod (`zod-to-json-schema`) with a build script, and keep `plan`, `review`, `task`, `event`, `skill-proposal` emitted beside it; a test asserts each emitted file deep-equals the corresponding file in `schemas/` (ignoring `$id`).
 7. MUST ship `packages/core/schemas/examples/handoff-{completed,killed,capped}.json` that validate, plus `docs/packet.md`: one page, the fields, the rules, the rendered prompt of the killed example.
-8. SHOULD export `parseSkillFrontmatter(md)` tolerant of an empty leading `---\n---` pair (review-voice quirk) and of files with only `name` and `description`.
+8. SHOULD export `parseSkillFrontmatter(md)` tolerant of an empty leading `---\n---` pair (a quirk some skill files have) and of files with only `name` and `description`.
 
 ## Interfaces
 - `import { HandoffSchema, type Handoff, renderHandoff, parseHandoffPrompt, countTokens } from '@stint-dev/core'`.

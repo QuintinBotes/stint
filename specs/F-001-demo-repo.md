@@ -13,7 +13,7 @@ Lives in `demo/repo/` with its own git history (a fixture tarball `demo/repo.tar
 2. MUST have exactly 27 passing Vitest tests across at least 5 files, under 3 seconds total, no network.
 3. MUST have no rate limiting anywhere (T-0042 and T-0043 add it) and a config module that reads env with defaults (so "configurable through env" is a natural change).
 4. MUST have a git history of at least 12 commits with sensible messages, including one commit whose message carries `Stint-Task: T-0040` and the trailer set from R-017 (the seeded past task "Add tenant header to audit log"), so the memory graph has history on day 1.
-5. MUST include `AGENTS.md` with the service's own conventions (so Muse Code and the Stint agent read something real) and `.agents/skills/review-voice-policy/SKILL.md` copied from review-voice unchanged.
+5. MUST include `AGENTS.md` with the service's own conventions (so Muse Code and the Stint agent read something real) and `.agents/skills/review-voice-policy/SKILL.md`, a human-written skill kept unchanged.
 6. SHOULD have one deliberately recurring weakness that a reviewer will flag on T-0040's seeded review and again on T-0042 (limits hard-coded, no jitter on backoff), so the learn step's recurrence check fires.
 7. MUST be free of real names, emails and client material; `scripts/guard-identity.mjs` passes on it.
 

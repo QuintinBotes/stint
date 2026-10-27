@@ -6,7 +6,7 @@ Day: 6 (1 Nov) · Owner: Q · Depends on: R-003, R-017 · Fallback: pre-built JS
 The memory is a projection, not a store: nodes and edges computed from `events.jsonl`, `decisions.md` and git at read time, cached in SQLite that can be deleted, bitemporal for free because every event carries when it was recorded and every decision carries when it was superseded. Three named queries and an `asOf` filter are what the UI, the planner prompt and the handoff card consume.
 
 ## Context
-Node and edge types in `packages/core/src/graph/index.ts`. an earlier memory project's three ideas (bitemporal facts, decision ledger, adjudication queue) are kept as behaviours, not as a dependency. The `similar_to` embedding edge is a stretch; the shared-files-and-decisions score is the baseline.
+Node and edge types in `packages/core/src/graph/index.ts`. An earlier memory project's three ideas (bitemporal facts, decision ledger, adjudication queue) are kept as behaviours, not as a dependency. The `similar_to` embedding edge is a stretch; the shared-files-and-decisions score is the baseline.
 
 ## Requirements
 1. MUST implement `packages/core/src/graph/`: `project(ws, { tasks?: string[] })` builds nodes `task`, `run`, `decision`, `file`, `finding`, `skill`, `outcome` and edges `touches`, `produced`, `cost`, `constrains`, `supersedes`, `co_changed`, `links_to`, `open_against`, `applied_in`, `proposed_from`, `resulted_in`, `similar_to`, every edge carrying `recordedAt` and `validTo` (null while valid) and the `eventId` that created it.
@@ -35,7 +35,7 @@ bun test packages/core packages/daemon
 ```
 
 ## Out of scope
-The force-layout panel and the scrubber UI (R-019), an earlier memory project ingest.
+The force-layout panel and the scrubber UI (R-019), importing from an earlier memory project.
 
 ## Notes
 `bun:sqlite` is built in; keep the schema to two tables (nodes, edges) with JSON data columns. Bitemporality costs nothing here because the inputs already carry both times; do not add a third timestamp. Keep the embedding path behind a config flag so CI never needs a model.

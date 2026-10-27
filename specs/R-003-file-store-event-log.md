@@ -6,7 +6,7 @@ Day: 1 (27 Oct) · Owner: Q · Depends on: R-002 · Fallback: skip atomic rename
 The `.stint/` workspace as a library: create and read tasks, append events with a monotonic `seq` and a hash chain, write JSON atomically, and project the basic views (task bundle, latest packet, cost totals) from the log. The daemon (R-004) is the only caller; everything a user later sees is derived from these files.
 
 ## Context
-Layout in `AGENTS.md` section 5. The hash chain is ported from an earlier terminal project's `block-engine/src/run.rs` (rows sealed with SHA-256 over NUL-separated canonical fields plus the previous hash, genesis = 64 zeros, `verify()` names the first broken row), into append-only JSONL instead of SQLite triggers.
+Layout in `AGENTS.md` section 5. The hash chain follows an earlier terminal project (rows sealed with SHA-256 over NUL-separated canonical fields plus the previous hash, genesis = 64 zeros, `verify()` names the first broken row), into append-only JSONL instead of SQLite triggers.
 
 ## Requirements
 1. MUST implement `packages/core/src/store/`: `Workspace.open(repoRoot)` (creates `.stint/` with `config.json` defaults if missing), `createTask({title, goal, acceptance, testCommand?})` returning `T-00NN` (zero-padded, next free), `readTask(id)`, `writeTask(id, patch)` (atomic: write temp, fsync, rename), `listTasks()`.

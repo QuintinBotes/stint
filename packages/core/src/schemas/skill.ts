@@ -26,7 +26,7 @@ const FENCE = /^---[ \t]*\r?\n/;
 
 /**
  * Reads the YAML frontmatter of a SKILL.md. Tolerates an empty leading `---\n---` pair before the
- * real block (a review-voice quirk) and files with only `name` and `description`.
+ * real block (a quirk some skill files have) and files with only `name` and `description`.
  * Applies the schema defaults: origin `human`, status `active`.
  */
 export function parseSkillFrontmatter(md: string): ParsedSkill {

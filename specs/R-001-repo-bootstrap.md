@@ -6,7 +6,7 @@ Day: 0 (26 Oct) · Owner: Q · Depends on: F-001 · Fallback: none needed · Cut
 A Bun workspace that is green on macOS and Linux from the first commit, with one script that takes a fresh clone to a running daemon and UI in under 90 seconds. Everything later builds on this skeleton; nothing later touches its shape.
 
 ## Context
-Layout, pins and CI are in `AGENTS.md` sections 4 and 6. The identity guard idea comes from review-voice's `scripts/guard-identity.mjs`. The hackathon write-up will quote "CI green on two OSes from the first commit".
+Layout, pins and CI are in `AGENTS.md` sections 4 and 6. The hackathon write-up will quote "CI green on two OSes from the first commit".
 
 ## Requirements
 1. MUST create the workspace: root `package.json` with `"workspaces": ["packages/*", "apps/*"]`, `bunfig.toml`, `tsconfig.base.json` (strict, `noUncheckedIndexedAccess`), packages `core`, `daemon`, `adapters/muse-code`, `adapters/stint-agent`, `adapters/openai-compatible`, `cli`, and `apps/web` each with a `package.json` named `@stint-dev/<name>` (web is private) and an empty passing test.

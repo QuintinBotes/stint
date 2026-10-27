@@ -6,7 +6,7 @@ Day: 1 (27 Oct) · Owner: Q · Depends on: R-003 · Fallback: run in a repo copy
 Every run happens in its own git worktree on the task branch, the daemon snapshots the diff into events while the run lives, commits the worktree state when it ends, and verifies by running `testCommand` itself. This is the mechanism behind "the agent doesn't grade its own work" and the kill beat's "the packet is built from the tree, not the transcript".
 
 ## Context
-Lifecycle in `docs/verify.md` and `docs/sandbox.md`. Refusal cases are ported from an earlier terminal project's `git-service` and AGENTS.md "Where a Thread works": never `--force` on cleanup, refuse repos with no commits and untracked directories in the way.
+Lifecycle in `docs/verify.md` and `docs/sandbox.md`. Refusal cases follow an earlier terminal project's git service and AGENTS.md "Where a Thread works": never `--force` on cleanup, refuse repos with no commits and untracked directories in the way.
 
 ## Requirements
 1. MUST implement `packages/daemon/src/worktree.ts`: `create(task, runId)` → `git worktree add .stint/worktrees/<task>-<run> -b stint/<task> <baseCommit>` on the first run, `git worktree add … stint/<task>` on later runs after the previous worktree is removed; `remove(task, runId)` never passes `--force` and refuses (`run_active`) while a process holds the directory; `diff(task)` → `git diff <baseCommit>..stint/<task>` as unified and as `--numstat` JSON.

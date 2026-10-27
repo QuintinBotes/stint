@@ -11,7 +11,7 @@ const queue = new KeyedQueue();
 const instances = new Map<string, EventLog>();
 const anyListeners = new Set<(e: StintEvent) => void>();
 
-/** The hash chain (ported from an earlier terminal project's run.rs): NUL-separated canonical fields plus the previous hash. */
+/** The hash chain: NUL-separated canonical fields plus the previous hash. */
 export function eventHash(e: Pick<StintEvent, 'seq' | 'ts' | 'task' | 'run' | 'adapter' | 'type' | 'payload'>, prev: string): string {
   return sha256Hex(
     [String(e.seq), e.ts, e.task, e.run ?? '', e.adapter ?? '', e.type, canonicalJSON(e.payload), prev].join('\0'),

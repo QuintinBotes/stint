@@ -34,7 +34,7 @@ bun run test:ui
 ```
 
 ## Out of scope
-Graph editing, an earlier memory project, embeddings UI.
+Graph editing, importing from an earlier memory project, embeddings UI.
 
 ## Notes
 The scrubber is one route parameter and one filter; keep it that simple. Cap the panel at 60 nodes by edge count from the task; show "31 of 58 nodes" so the cap is honest. Load d3-force only in the worker to keep the main bundle small.

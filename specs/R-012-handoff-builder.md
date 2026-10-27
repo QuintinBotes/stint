@@ -6,7 +6,7 @@ Day: 4 (30 Oct) · Owner: Q · Depends on: R-003, R-005, R-009 · Fallback: a ha
 The daemon derives a `stint.handoff/1` packet from `events.jsonl` and the diff for every ending (completed, capped, killed, failed, handed), lets the leaving adapter enrich four fields with one structured call, counts its tokens, renders it as the prompt the next agent reads, and keeps every packet. A run killed mid-edit still yields a complete, honest packet under 600 tokens with the in-flight step marked unknown. This is the artefact the whole product is named for.
 
 ## Context
-Schema and rules in R-002 and `schemas/handoff.schema.json`. The prose rendering and multi-hop rules are ported from an earlier terminal project's Context Bundle: fixed headings parsed back by exact string; only the task, the refusals and the origin cross a hop; limits 600-character excerpts, 12 items per list, 4,000-character carried briefing; the packet reads command excerpts, never tool-output summaries, which is how a test proves credentials never reach it.
+Schema and rules in R-002 and `schemas/handoff.schema.json`. The prose rendering and multi-hop rules are ported from an earlier terminal project's context bundle: fixed headings parsed back by exact string; only the task, the refusals and the origin cross a hop; limits 600-character excerpts, 12 items per list, 4,000-character carried briefing; the packet reads command excerpts, never tool-output summaries, which is how a test proves credentials never reach it.
 
 ## Requirements
 1. MUST implement `packages/daemon/src/handoff.ts` `buildHandoff(task, run, { to?, enrich? })`:

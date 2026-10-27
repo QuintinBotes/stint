@@ -6,7 +6,7 @@ Day: 2 (28 Oct) · Owner: Q · Depends on: R-004, R-005 · Fallback: an "Open in
 A real shell in the run's worktree inside the task view, so the kill beat happens on camera from Stint itself and a person can type next to the agent. Daemon-owned PTY, one per task view, raw bytes over a WebSocket, xterm.js 6 in the UI.
 
 ## Context
-an earlier terminal project's PTY pipeline (`terminal-core/src/pty.rs`, `osc.rs`) is the prior art; Stint re-implements the minimal design: spawn, write, resize, data, kill. The coalescing pump, DEC 2026 hold and OSC tap are post-hackathon. D-004: `TERM_PROGRAM=Stint`, no OSC 7373.
+An earlier terminal project's PTY pipeline is the prior art; Stint re-implements the minimal design: spawn, write, resize, data, kill. The coalescing pump, DEC 2026 hold and OSC tap are post-hackathon. D-004: `TERM_PROGRAM=Stint`, no OSC 7373.
 
 ## Requirements
 1. MUST implement `packages/daemon/src/pty.ts` with one interface `Pty { spawn(opts: { cwd, env, cols, rows, shell? }): PtyHandle; }` and `PtyHandle { write(data: Uint8Array): void; resize(cols, rows): void; onData(cb): void; onExit(cb): void; kill(signal?): void; pid: number }`, backed by `Bun.Terminal` first and `bun-pty` as a fallback chosen at runtime with the choice reported in `/api/health`.
