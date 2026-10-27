@@ -1,7 +1,10 @@
+import { existsSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
+import { gitOk } from '../git';
 import { assign } from '../lifecycle';
 
 const AssignBody = z.strictObject({
@@ -13,6 +16,24 @@ const AssignBody = z.strictObject({
 });
 
 export function runRoutes(app: Hono, ctx: DaemonContext): void {
+  // a checkpoint is the commit a run ended on; its code opens in a detached worktree of its own, so neither the task
+  // branch nor the run's worktree moves. The conversation cannot be restored yet; the packet carries it forward.
+  app.post('/api/tasks/:id/runs/:run/restore', async (c) => {
+    const id = c.req.param('id');
+    const run = c.req.param('run');
+    if (!/^r[0-9]+$/.test(run)) throw new DaemonError('invalid', `${run} is not a run id`, 'runs are r1, r2, ...');
+    const { what } = z.strictObject({ what: z.enum(['code', 'conversation', 'both']) }).parse(await c.req.json());
+    if (what !== 'code') throw new DaemonError('invalid', 'restoring the conversation is not built yet', 'restore the code; the packet carries the conversation forward');
+    await ctx.ws.readTask(id);
+    const finished = (await ctx.ws.events(id).read()).find((e) => e.type === 'run.finished' && e.run === run);
+    const commit = typeof finished?.payload.commit === 'string' && /^[0-9a-f]{7,40}$/.test(finished.payload.commit) ? finished.payload.commit : null;
+    if (!commit) throw new DaemonError('not_found', `${run} left no commit to restore`, 'only a run that changed files ends on a checkpoint');
+    const path = join(ctx.ws.worktreesDir, `${id}-${run}-checkpoint`);
+    if (!existsSync(path)) await gitOk(ctx.ws.root, ['worktree', 'add', '--detach', '-q', path, commit]);
+    return c.json({ path: relative(ctx.ws.root, path), commit });
+  });
+
+
   // the agent's PreToolUse hook names the step about to run, so a kill can name it too
   app.post('/api/tasks/:id/runs/:run/inflight', async (c) => {
     const body = z.strictObject({ tool: z.string().min(1).max(80), args: z.record(z.string(), z.unknown()).optional() }).parse(await c.req.json());

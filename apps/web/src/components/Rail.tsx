@@ -1,9 +1,11 @@
 import type { StintEvent } from '@stint-dev/core';
-import { type ReactNode, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
-import type { RunSummary } from '../api';
+import { type RunSummary, api } from '../api';
 import { duration, localTime } from '../format';
-import { CostMeter, EmptyState, StatusChip, VendorMark, cx } from './ui';
+import { Button, CostMeter, EmptyState, StatusChip, VendorMark, cx } from './ui';
 
 /** What raises attention on the rail when collapsed: what the agent did, what changed, what was decided or refused. */
 const NOTABLE = new Set([
@@ -195,17 +197,84 @@ export function describe(e: StintEvent): ReactNode {
   }
 }
 
-function EventRow({ e, selected, onSelect }: { e: StintEvent; selected: boolean; onSelect: (seq: number) => void }) {
+/** Below this many rows everything renders, so find-in-page works on an ordinary task; above it only what is on screen. */
+const VIRTUAL_FROM = 400;
+
+type Seg = Extract<Block, { kind: 'segment' }>;
+type Item =
+  | { kind: 'head'; key: string; seg: Seg; live: boolean }
+  | { kind: 'event'; key: string; e: StintEvent; seg: Seg | null; live: boolean }
+  | { kind: 'note'; key: string; seg: Seg; live: boolean; text: string; warn: boolean }
+  | { kind: 'joint'; key: string; e: StintEvent }
+  | { kind: 'checkpoint'; key: string; seg: Seg; commit: string };
+
+/** The rail as one flat list, so it can be windowed: a segment is its header, its rows, its notes and its checkpoint. */
+function items(events: StintEvent[], runs: RunSummary[], showAll: boolean): Item[] {
+  const out: Item[] = [];
+  for (const b of blocks(events, runs)) {
+    if (b.kind === 'segment') {
+      const finished = b.events.find((e) => e.type === 'run.finished');
+      const live = !finished;
+      out.push({ kind: 'head', key: `h-${b.run}`, seg: b, live });
+      const shown = showAll ? b.events : b.events.filter((e) => NOTABLE.has(e.type));
+      for (const e of shown) if (e.type !== 'run.finished') out.push({ kind: 'event', key: `e-${e.seq}`, e, seg: b, live });
+      if (finished && str(finished.payload.endedBy) === 'killed') {
+        out.push({ kind: 'note', key: `k-${b.run}`, seg: b, live, text: `Killed. In-flight step unknown: ${str(finished.payload.inFlight) || 'none recorded'}`, warn: true });
+      }
+      const hidden = b.events.length - shown.length;
+      if (hidden > 0 && !showAll) out.push({ kind: 'note', key: `m-${b.run}`, seg: b, live, text: `${hidden} more, including messages`, warn: false });
+      const commit = finished ? str(finished.payload.commit) : '';
+      if (commit) out.push({ kind: 'checkpoint', key: `c-${b.run}`, seg: b, commit });
+      continue;
+    }
+    if (b.kind === 'joint') {
+      out.push({ kind: 'joint', key: `j-${b.event.seq}`, e: b.event });
+      continue;
+    }
+    if (!showAll && !NOTABLE.has(b.event.type) && b.event.type !== 'task.created') continue;
+    out.push({ kind: 'event', key: `r-${b.event.seq}`, e: b.event, seg: null, live: false });
+  }
+  return out;
+}
+
+/** Where the rail starts inside its scroller, which the windowing needs; offsetTop would measure from the wrong box. */
+function offsetIn(el: HTMLElement | null, scroller: HTMLElement | null): number {
+  if (!el || !scroller) return 0;
+  return el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+}
+
+const segAgent = (seg: Seg) => agentOf(seg.started.adapter, str(seg.started.payload.host), str(seg.started.payload.model));
+
+/** The run's coloured spine, drawn beside every row of its segment. */
+function Spine({ seg, live, children }: { seg: Seg; live: boolean; children: ReactNode }) {
+  return (
+    <div className="relative pl-4">
+      <span aria-hidden className={cx('absolute left-0 top-0 bottom-0 w-[3px]', live && 'live-spine')} style={{ background: markColor[segAgent(seg).mark] }} />
+      {children}
+    </div>
+  );
+}
+
+/** What an expanded row shows: the agent's words in full, or the event's payload. */
+function detail(e: StintEvent): string {
+  if (e.type === 'agent.message') return str(e.payload.text);
+  const text = JSON.stringify(e.payload, null, 2);
+  return text.length > 4000 ? `${text.slice(0, 4000)}\n...` : text;
+}
+
+function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; selected: boolean; expanded: boolean; onActivate: (seq: number, keyboard: boolean) => void }) {
   const human = e.type === 'human.command' || e.vendor === 'human';
   const marked = e.type === 'verification.ran' || e.type === 'review.recorded' || e.type === 'rule.blocked';
   return (
-    <li>
+    <>
       <button
         type="button"
         data-testid="event-row"
         data-seq={e.seq}
         data-type={e.type}
-        onClick={() => onSelect(e.seq)}
+        aria-expanded={selected ? expanded : undefined}
+        // a click made by Enter or Space has detail 0
+        onClick={(ev) => onActivate(e.seq, ev.detail === 0)}
         className={cx(
           'w-full text-left grid grid-cols-[1fr_auto] gap-2 px-2 py-1 rounded-sm text-[12.5px] leading-[18px]',
           selected ? 'bg-accent-tint' : 'hover:bg-sunken',
@@ -218,62 +287,53 @@ function EventRow({ e, selected, onSelect }: { e: StintEvent; selected: boolean;
           {storyClock(e.payload) ?? localTime(e.ts)}
         </time>
       </button>
-    </li>
+      {selected && expanded ? (
+        <pre className="mx-2 mb-1 max-h-60 overflow-auto rounded-sm bg-sunken p-2 font-mono text-[11.5px] leading-[16px] whitespace-pre-wrap break-words" data-testid="event-detail" tabIndex={0}>
+          {detail(e)}
+        </pre>
+      ) : null}
+    </>
   );
 }
 
-function Segment({ b, showAll, selected, onSelect, live }: { b: Extract<Block, { kind: 'segment' }>; showAll: boolean; selected: number | null; onSelect: (seq: number) => void; live: boolean }) {
-  const s = b.summary;
-  const finished = b.events.find((e) => e.type === 'run.finished');
-  const host = str(b.started.payload.host);
-  const model = str(b.started.payload.model);
-  const agent = agentOf(b.started.adapter, host, model);
-  const role = str(b.started.payload.role);
-  const isCall = b.started.adapter === 'openai-compatible';
-  const startAt = b.started.payload.replayAt;
+function SegmentHead({ seg }: { seg: Seg }) {
+  const s = seg.summary;
+  const finished = seg.events.find((e) => e.type === 'run.finished');
+  const host = str(seg.started.payload.host);
+  const model = str(seg.started.payload.model);
+  const agent = segAgent(seg);
+  const role = str(seg.started.payload.role);
+  const isCall = seg.started.adapter === 'openai-compatible';
+  const startAt = seg.started.payload.replayAt;
   const endAt = finished?.payload.replayAt;
   const took =
     typeof startAt === 'number' && (typeof endAt === 'number' || !finished)
       ? `${Math.round(((typeof endAt === 'number' ? endAt : startAt) - startAt) / 1000)}s`
-      : duration(b.started.ts, finished?.ts ?? null);
+      : duration(seg.started.ts, finished?.ts ?? null);
   const endedBy = finished ? str(finished.payload.endedBy) : 'running';
-  const shown = showAll ? b.events : b.events.filter((e) => NOTABLE.has(e.type));
-  const hidden = b.events.length - shown.length;
   return (
-    <section data-testid="run-segment" data-run={b.run} data-adapter={b.started.adapter} className="relative pl-4">
-      <span aria-hidden className={cx('absolute left-0 top-0 bottom-0 w-[3px] rounded-full', live && 'live-spine')} style={{ background: markColor[agent.mark] }} />
-      <header className="flex items-start justify-between gap-2 py-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[13px]">
-            <VendorMark agent={agent} showName={false} />
-            <span className="font-semibold truncate" data-testid="segment-model">
-              {modelName(model)}
-            </span>
-            <span className="text-faint shrink-0">{b.run}</span>
-          </div>
-          <div className="text-[12px] text-muted mt-0.5 truncate">
-            {isCall
-              ? `${ROLE_NAMES[role] ?? role} ${host === 'ollama' ? 'offline on this machine' : `on ${hostName(host)}`}`
-              : `${agent.name} ${b.started.payload.handoffFrom ? `continues from packet ${str(b.started.payload.handoffFrom)}` : ROLE_NAMES[role] ?? role}`}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <StatusChip status={endedBy} />
-          <span className="text-[11px] text-faint tabular">
-            {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
+    <header data-testid="run-segment" data-run={seg.run} data-adapter={seg.started.adapter} className="flex items-start justify-between gap-2 py-2">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 text-[13px]">
+          <VendorMark agent={agent} showName={false} />
+          <span className="font-semibold truncate" data-testid="segment-model">
+            {modelName(model)}
           </span>
+          <span className="text-faint shrink-0">{seg.run}</span>
         </div>
-      </header>
-      <ol className="flex flex-col gap-px pb-2">
-        {shown.filter((e) => e.type !== 'run.finished').map((e) => (
-          <EventRow key={e.seq} e={e} selected={selected === e.seq} onSelect={onSelect} />
-        ))}
-        {finished && endedBy === 'killed' ? (
-          <li className="px-2 py-1 text-[12.5px] text-warn">Killed. In-flight step unknown: {str(finished.payload.inFlight) || 'none recorded'}</li>
-        ) : null}
-        {hidden > 0 && !showAll ? <li className="px-2 text-[11px] text-faint">{hidden} more, including messages</li> : null}
-      </ol>
-    </section>
+        <div className="text-[12px] text-muted mt-0.5 truncate">
+          {isCall
+            ? `${ROLE_NAMES[role] ?? role} ${host === 'ollama' ? 'offline on this machine' : `on ${hostName(host)}`}`
+            : `${agent.name} ${seg.started.payload.handoffFrom ? `continues from packet ${str(seg.started.payload.handoffFrom)}` : ROLE_NAMES[role] ?? role}`}
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <StatusChip status={endedBy} />
+        <span className="text-[11px] text-faint tabular">
+          {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
+        </span>
+      </div>
+    </header>
   );
 }
 
@@ -297,6 +357,58 @@ function Joint({ e, onOpen }: { e: StintEvent; onOpen: (name: string) => void })
   );
 }
 
+const LATER = 'Restoring the conversation comes in a later release; the packet carries it forward today.';
+
+/** A run boundary: the commit the run ended on, which can be opened in a worktree of its own. */
+function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
+  const { id = '' } = useParams();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ path: string } | { error: string } | null>(null);
+  const restore = () => {
+    setBusy(true);
+    api
+      .restoreCheckpoint(id, seg.run)
+      .then((r) => setResult({ path: r.path }))
+      .catch((e: unknown) => setResult({ error: e instanceof Error ? e.message : String(e) }))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="py-1 text-[11.5px]" data-testid="checkpoint" data-run={seg.run}>
+      <div className="flex items-center gap-2 text-faint">
+        <span aria-hidden className="h-px flex-1 bg-line" />
+        <span>
+          Checkpoint after {seg.run}, <code className="font-mono">{commit.slice(0, 7)}</code>
+        </span>
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-sm px-1.5 text-muted hover:text-ink border border-line hover:border-line-strong">
+          Restore
+        </button>
+        <span aria-hidden className="h-px flex-1 bg-line" />
+      </div>
+      {open ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2 justify-center" role="group" aria-label={`Restore the checkpoint after ${seg.run}`}>
+          <Button className="h-7" disabled={busy} onClick={restore}>
+            Code
+          </Button>
+          <Button className="h-7" disabled title={LATER}>
+            Conversation
+          </Button>
+          <Button className="h-7" disabled title={LATER}>
+            Both
+          </Button>
+          <span className="w-full text-center text-faint">{LATER}</span>
+        </div>
+      ) : null}
+      {result && 'path' in result ? (
+        <p className="mt-1 text-center text-muted" data-testid="checkpoint-restored">
+          {seg.run}'s code at <code className="font-mono">{commit.slice(0, 7)}</code> is in <code className="font-mono text-ink">{result.path}</code>
+        </p>
+      ) : null}
+      {result && 'error' in result ? <p className="mt-1 text-center text-bad">{result.error}</p> : null}
+    </div>
+  );
+}
+
 export function Rail({
   events,
   runs,
@@ -312,23 +424,155 @@ export function Rail({
   onSelect: (seq: number) => void;
   onOpenPacket: (name: string) => void;
 }) {
-  const bs = useMemo(() => blocks(events, runs), [events, runs]);
+  const list = useMemo(() => items(events, runs, showAll), [events, runs, showAll]);
+  const virtual = list.length >= VIRTUAL_FROM;
+  const live = list.some((it) => it.kind === 'head' && it.live);
+  const root = useRef<HTMLOListElement>(null);
+  // the rail scrolls inside the task view's column, its parent
+  const scroller = () => root.current?.parentElement ?? null;
+  const v = useVirtualizer({
+    count: virtual ? list.length : 0,
+    getScrollElement: scroller,
+    estimateSize: (i) => (list[i]?.kind === 'head' ? 58 : list[i]?.kind === 'joint' ? 48 : list[i]?.kind === 'checkpoint' ? 28 : 26),
+    getItemKey: (i) => list[i]?.key ?? i,
+    overscan: 12,
+    scrollMargin: offsetIn(root.current, scroller()),
+  });
+
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const toggle = (seq: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(seq)) next.add(seq);
+      return next;
+    });
+  // Enter on a row selects and opens it in one press; a mouse click selects, and a second click opens
+  const activate = (seq: number, keyboard: boolean) => {
+    if (keyboard) {
+      onSelect(seq);
+      toggle(seq);
+    } else if (seq === selected) toggle(seq);
+    else onSelect(seq);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || selected === null || e.metaKey || e.ctrlKey) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) return;
+      toggle(selected);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected]);
+
+  // pinned to the newest row while a run is live, unless the person scrolled up; then a pill offers the way back
+  const atEnd = useRef(true);
+  const [behind, setBehind] = useState(false);
+  useEffect(() => {
+    const el = scroller();
+    if (!el) return;
+    const onScroll = () => {
+      atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+      if (atEnd.current) setBehind(false);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [events.length === 0]);
+  const toEnd = () => {
+    if (virtual) v.scrollToIndex(list.length - 1, { align: 'end' });
+    else {
+      const el = scroller();
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+    atEnd.current = true;
+    setBehind(false);
+  };
+  const seen = useRef(0);
+  useLayoutEffect(() => {
+    if (list.length > seen.current && live) {
+      if (atEnd.current) toEnd();
+      else setBehind(true);
+    }
+    seen.current = list.length;
+  }, [list.length, live]);
+
+  // j, k and a linked ?ev= bring the selection on screen once, when it changes or first loads, never on later events
+  const broughtIn = useRef<number | null>(null);
+  useEffect(() => {
+    if (selected === null || broughtIn.current === selected) return;
+    const i = list.findIndex((it) => it.kind === 'event' && it.e.seq === selected);
+    if (i < 0) return;
+    broughtIn.current = selected;
+    if (virtual) v.scrollToIndex(i, { align: 'auto' });
+    else root.current?.querySelector(`[data-seq="${selected}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [selected, list]);
+
   if (events.length === 0) return <EmptyState testId="empty-rail">Runs appear here, one segment per agent, as soon as the task is assigned.</EmptyState>;
-  return (
-    <div className="flex flex-col gap-1" data-testid="rail">
-      {bs.map((b) => {
-        if (b.kind === 'segment') {
-          const live = !b.events.some((e) => e.type === 'run.finished');
-          return <Segment key={`s-${b.run}`} b={b} showAll={showAll} selected={selected} onSelect={onSelect} live={live} />;
-        }
-        if (b.kind === 'joint') return <Joint key={`j-${b.event.seq}`} e={b.event} onOpen={onOpenPacket} />;
-        if (!showAll && !NOTABLE.has(b.event.type) && b.event.type !== 'task.created') return null;
+
+  const render = (it: Item) => {
+    switch (it.kind) {
+      case 'head':
         return (
-          <ol key={`r-${b.event.seq}`} className="pl-4">
-            <EventRow e={b.event} selected={selected === b.event.seq} onSelect={onSelect} />
-          </ol>
+          <Spine seg={it.seg} live={it.live}>
+            <SegmentHead seg={it.seg} />
+          </Spine>
         );
-      })}
-    </div>
+      case 'event': {
+        const row = <EventRow e={it.e} selected={selected === it.e.seq} expanded={expanded.has(it.e.seq)} onActivate={activate} />;
+        return it.seg ? (
+          <Spine seg={it.seg} live={it.live}>
+            {row}
+          </Spine>
+        ) : (
+          <div className="pl-4">{row}</div>
+        );
+      }
+      case 'note':
+        return (
+          <Spine seg={it.seg} live={it.live}>
+            <p className={cx('px-2 py-1', it.warn ? 'text-[12.5px] text-warn' : 'text-[11px] text-faint')}>{it.text}</p>
+          </Spine>
+        );
+      case 'joint':
+        return <Joint e={it.e} onOpen={onOpenPacket} />;
+      case 'checkpoint':
+        return <Checkpoint seg={it.seg} commit={it.commit} />;
+    }
+  };
+
+  const pill = behind ? (
+    <button
+      type="button"
+      data-testid="jump-latest"
+      onClick={toEnd}
+      className="sticky bottom-2 left-full z-10 mt-2 block rounded-full border border-accent bg-accent-tint px-3 py-1 text-[12px] text-ink shadow-sm"
+    >
+      Jump to latest
+    </button>
+  ) : null;
+
+  if (!virtual) {
+    return (
+      <>
+        <ol ref={root} className="flex flex-col" data-testid="rail" aria-label="Timeline">
+          {list.map((it) => (
+            <li key={it.key}>{render(it)}</li>
+          ))}
+        </ol>
+        {pill}
+      </>
+    );
+  }
+  const margin = v.options.scrollMargin;
+  return (
+    <>
+      <ol ref={root} className="relative" style={{ height: v.getTotalSize() }} data-testid="rail" data-virtual="true" aria-label="Timeline">
+        {v.getVirtualItems().map((row) => (
+          <li key={row.key} data-index={row.index} ref={v.measureElement} className="absolute left-0 right-0 top-0" style={{ transform: `translateY(${row.start - margin}px)` }}>
+            {render(list[row.index] as Item)}
+          </li>
+        ))}
+      </ol>
+      {pill}
+    </>
   );
 }
