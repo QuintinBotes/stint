@@ -78,6 +78,8 @@ test('the live golden eval grades by the daemon verification plus scenarios, k t
           goal: 'Write src/lib/limiter.ts.',
           acceptance: ['the limiter file exists'],
           testCommand: 'true',
+          // pinned like every real golden task, so the run starts from a checked-out commit
+          fixtureCommit: 'be1bee8d153659647701b8f5886f0a5c73cf276a',
           scenarios: [{ name: 'limiter file written', command: 'test -f src/lib/limiter.ts' }],
         },
       ],

@@ -201,7 +201,8 @@ export async function runGoldenLive(opts: GoldenLiveOptions): Promise<GoldenRow[
       const fixture = (opts.makeFixture ?? freshFixture)();
       try {
         if (golden.fixtureCommit) {
-          const co = Bun.spawnSync(['git', 'checkout', '-q', golden.fixtureCommit], { cwd: fixture, stderr: 'pipe' });
+          // on a branch, not detached: the daemon starts a task only from a branch it can merge back into
+          const co = Bun.spawnSync(['git', 'checkout', '-q', '-B', 'golden', golden.fixtureCommit], { cwd: fixture, stderr: 'pipe' });
           if (co.exitCode !== 0) throw new Error(`golden task ${golden.name}: fixture commit ${golden.fixtureCommit} does not check out: ${co.stderr.toString().trim()}`);
         }
         const def: EvalTaskDef = { id: golden.name, title: golden.title, goal: golden.goal, acceptance: golden.acceptance, testCommand: golden.testCommand };
