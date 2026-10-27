@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import {
   type Role,
@@ -159,14 +159,6 @@ export function scanSkillFiles(root: string): SkillFile[] {
     }
   }
   return out;
-}
-
-/** Writes bytes where writeFileAtomic (text only) cannot: assets may be binary. */
-async function writeBytesAtomic(path: string, bytes: Uint8Array): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = join(dirname(path), `.skill-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
-  await writeFile(tmp, bytes);
-  await rename(tmp, path);
 }
 
 /** Every file of one skill folder, paths relative to the folder and sorted. Links are not followed. */
@@ -955,7 +947,7 @@ export async function importSkill(ws: Workspace, input: ImportSkillInput): Promi
   };
   const dir = importedProposalDir(ws, id);
   await rm(dir, { recursive: true, force: true });
-  for (const file of check.files) await writeBytesAtomic(join(dir, file.path), file.bytes);
+  for (const file of check.files) await writeFileAtomic(join(dir, file.path), file.bytes);
   await writeJsonAtomic(join(dir, 'proposal.json'), proposal);
   await emitWorkspaceEvent(
     ws,
@@ -1004,7 +996,7 @@ async function approveImported(ws: Workspace, id: string, by: string, imported: 
   if (imported.update) await rm(dir, { recursive: true, force: true });
   for (const file of held) {
     if (file.path === 'SKILL.md') await writeFileAtomic(join(dir, 'SKILL.md'), skillMd);
-    else await writeBytesAtomic(join(dir, file.path), file.bytes);
+    else await writeFileAtomic(join(dir, file.path), file.bytes);
   }
   const written = held.map((f) => `.agents/skills/${id}/${f.path}`);
   const { committed, commit } = await commitSkillFiles(ws, id, [...new Set([...written, ...previousPaths])], imported.update ? `Update skill ${id}` : `Add skill ${id}`, imported.source);

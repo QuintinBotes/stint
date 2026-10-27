@@ -23,7 +23,7 @@ function sortKeys(value: unknown): unknown {
 export type AtomicHooks = { beforeRename?: () => void | Promise<void>; mode?: number };
 
 /** Write a temp file beside the target, fsync it, then rename over the target. */
-export async function writeFileAtomic(path: string, text: string, hooks: AtomicHooks = {}): Promise<void> {
+export async function writeFileAtomic(path: string, text: string | Uint8Array, hooks: AtomicHooks = {}): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmp = join(dirname(path), `.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
   const fh = await open(tmp, 'w', hooks.mode ?? 0o666);

@@ -23,13 +23,15 @@ const ALLOWED: Record<string, string> = {
   'packages/cli/src/eval/live.ts': 'fixtures in a temp clone, and recorded runs in bench/',
   'packages/cli/src/approve.ts': 'stint export writes where the person asks',
   'packages/cli/src/otel.ts': 'stint otel export writes beside the person',
+  'packages/cli/src/skills.ts': 'stint skills export writes the zip where the person asks',
   'packages/adapters/stint-agent/src/tools.ts': "the agent's own edits in its worktree",
   'packages/adapters/acp/src/index.ts': "an ACP agent's writes in its worktree",
   'packages/adapters/muse-code/src/index.ts': 'the enrich prompt and schema in a temp folder',
 };
 
 test('every raw file write in the daemon, CLI and adapters is on the list with its reason; .stint writes are atomic', () => {
-  const hits = Bun.spawnSync(['git', 'grep', '-l', '-E', '\\b(writeFile|writeFileSync|appendFile|appendFileSync)\\(', '--', 'packages/daemon/src', 'packages/cli/src', 'packages/adapters/*/src'], { cwd: root, stdout: 'pipe' })
+  // no \b: macOS git's regex has none, and the check then matched nothing there
+  const hits = Bun.spawnSync(['git', 'grep', '-l', '-E', '(^|[^A-Za-z0-9_])(writeFile|writeFileSync|appendFile|appendFileSync)\\(', '--', 'packages/daemon/src', 'packages/cli/src', 'packages/adapters/*/src'], { cwd: root, stdout: 'pipe' })
     .stdout.toString()
     .split('\n')
     .filter(Boolean);
