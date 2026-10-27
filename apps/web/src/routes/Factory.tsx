@@ -93,10 +93,10 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
 
 function Figure({ label, value, detail, testId }: { label: string; value: string; detail?: string; testId?: string }) {
   return (
-    <div className="min-w-0" data-testid={testId}>
+    <div className="min-w-0 rounded-lg border border-line bg-raised p-4" data-testid={testId}>
       <p className="text-[12px] text-muted">{label}</p>
-      <p className="text-[22px] font-semibold tabular leading-tight">{value}</p>
-      {detail ? <p className="text-[12px] text-faint">{detail}</p> : null}
+      <p className="mt-1 text-[22px] font-semibold tabular leading-tight tracking-[-0.01em]">{value}</p>
+      {detail ? <p className="mt-1 text-[12px] text-muted truncate" title={detail}>{detail}</p> : null}
     </div>
   );
 }
@@ -550,20 +550,30 @@ export function Factory() {
   const inFlight = (cards ?? []).filter((c) => !['done', 'abandoned', 'planned'].includes(c.task.status)).length;
   const auto = (health as { autopilot?: { running: string[]; queued: string[] } } | null)?.autopilot;
 
+  const monday = new Date();
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const merged = (cards ?? []).filter((c) => c.task.status === 'done').length;
+  // the headline says what the week came to: rules learned first, else merges, else that it has not started
+  const headline = learned ? `The factory learned ${learned === 1 ? 'one rule' : `${learned} rules`} this week` : merged ? `The factory merged ${merged === 1 ? 'one task' : `${merged} tasks`} this week` : 'The factory is ready for its first task';
+  const live = (cards ?? []).filter((c) => !['done', 'abandoned', 'planned'].includes(c.task.status));
   return (
     <main className="flex-1 min-h-0 overflow-y-auto" data-testid="factory">
-      <div className="max-w-[1180px] mx-auto px-4 py-6 flex flex-col gap-4">
+      <div className="px-4 py-6 flex flex-col gap-4 max-w-[1600px] mx-auto">
         <header>
-          <h1 className="text-[20px] font-semibold">Factory</h1>
-          <p className="text-muted text-[13px] mt-1">Which model did the work, what it cost, and what the factory learned.</p>
+          <h1 className="text-[28px] leading-[34px] font-semibold tracking-[-0.02em]" data-testid="factory-headline">
+            {headline}
+          </h1>
+          <p className="text-muted text-[13px] mt-1">
+            {monday.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' })} to today. Every figure is computed by the daemon from each task's events.jsonl; derived figures carry ≈.
+          </p>
         </header>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 rounded-lg border border-line bg-raised p-4" data-testid="kpis">
-          <Figure label="In flight" value={String(inFlight)} detail={auto ? `${auto.running.length} on autopilot${auto.queued.length ? `, ${auto.queued.length} queued` : ''}` : undefined} testId="kpi-in-flight" />
-          <Figure label="Runs" value={String(runs)} detail={handoffs === null ? undefined : `${handoffs} continued from a packet`} />
-          <Figure label="Spent" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task` : undefined} />
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3" data-testid="kpis">
+          <Figure label="Tasks in flight" value={String(inFlight)} detail={live.length ? live.slice(0, 2).map((c) => `${c.task.id} ${c.task.status.replace('_', ' ')}`).join(', ') : auto?.queued.length ? `${auto.queued.length} queued` : 'nothing running'} testId="kpi-in-flight" />
+          <Figure label="Runs and hand-offs" value={`${runs} run${runs === 1 ? '' : 's'}${handoffs ? `, ${handoffs} hop${handoffs === 1 ? '' : 's'}` : ''}`} detail={handoffs === null ? undefined : handoffs ? `${handoffs} continued from a packet, no work lost` : 'every run was the first on its task'} />
+          <Figure label="Spend this week" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task, list prices` : undefined} />
           <Figure label="Input from cache" value={input ? `${Math.round((cached / input) * 100)}%` : 'none'} detail={`${tokens(cached)} of ${tokens(input)} tokens`} />
-          <Figure label="Skills learned" value={String(learned)} detail="each approved by you" />
+          <Figure label="Skills learned" value={String(learned)} detail={learned ? 'approved by you, now mounted' : 'none proposed yet'} />
         </div>
 
         <Panel title="The relay: who carried each task, and what they handed on" testId="panel-relay">
@@ -574,48 +584,58 @@ export function Factory() {
           <ModelsAtWork rows={byModel ?? []} />
         </Panel>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <Panel title="Tasks by stage">
-            <Loops counts={counts} />
-          </Panel>
-          <Panel title="Cost per day, by host">
-            <CostByDay rows={byDayHost ?? []} />
-          </Panel>
+        <div className="grid lg:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-4 min-w-0">
+            <Panel title="Loops: tasks by stage">
+              <Loops counts={counts} />
+            </Panel>
+            <Panel title="Cost per day, by host">
+              <CostByDay rows={byDayHost ?? []} />
+            </Panel>
+          </div>
+          <div className="flex flex-col gap-4 min-w-0">
+            <Panel title="It learned" className="border-good/40">
+              <ItLearned helped={helped ?? []} costByTask={costByTask} />
+            </Panel>
+            <Panel title="Adjudication queue: decisions waiting for you">
+              <Queue />
+              <p className="text-[12px] text-faint">A reviewer can propose reversing a decision, but only you can accept it.</p>
+            </Panel>
+          </div>
         </div>
-
-        <Panel title="Outcomes after merge, per agent" testId="panel-outcomes">
-          <Outcomes rows={outcomeRows} />
-        </Panel>
 
         <Panel title="Scoreboard: how each agent has done" testId="panel-scoreboard">
           <Scoreboard data={scores} />
         </Panel>
 
-        <Panel title={`Upkeep${upkeep && upkeep.schedule !== 'off' ? `, ${upkeep.schedule}` : ''}`} testId="panel-upkeep">
-          <Upkeep data={upkeep} />
-        </Panel>
-
-        <Panel title="Auto-approve: earned in shadow, off unless you turn it on" testId="panel-auto-approve">
-          <AutoApprove state={risk} onChanged={() => setRiskVersion((v) => v + 1)} />
-        </Panel>
-
-        <Panel title="Phase gates: the golden tasks and the shadow record" testId="panel-phase-gates">
-          <PhaseGatePanel gates={gates} />
-        </Panel>
-
-        <Panel title="Any harness, any model, one packet" testId="panel-any-harness">
-          <AnyHarness health={health as Health | null} />
-        </Panel>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <Panel title="It learned">
-            <ItLearned helped={helped ?? []} costByTask={costByTask} />
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Panel title="Outcomes after merge, per agent" testId="panel-outcomes">
+            <Outcomes rows={outcomeRows} />
           </Panel>
-          <Panel title="Decisions waiting for you">
-            <Queue />
-            <p className="text-[12px] text-faint">A reviewer can propose reversing a decision, but only you can accept it.</p>
+          <Panel title="Phase gates: the golden tasks and the shadow record" testId="panel-phase-gates">
+            <PhaseGatePanel gates={gates} />
           </Panel>
         </div>
+
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Panel title="Auto-approve: earned in shadow, off unless you turn it on" testId="panel-auto-approve">
+            <AutoApprove state={risk} onChanged={() => setRiskVersion((v) => v + 1)} />
+          </Panel>
+          <Panel title={`Upkeep${upkeep && upkeep.schedule !== 'off' ? `, ${upkeep.schedule}` : ''}`} testId="panel-upkeep">
+            <Upkeep data={upkeep} />
+          </Panel>
+        </div>
+
+        <section id="any-harness" className="scroll-mt-4">
+          <Panel title="Any harness, any model, one packet" testId="panel-any-harness">
+            <AnyHarness health={health as Health | null} />
+          </Panel>
+        </section>
+
+        <footer className="pt-3 border-t border-line flex flex-wrap justify-between gap-2 text-[12px] text-faint">
+          <span>Prices from config.json, per host. Credits left are derived from metered spend, not read from the provider.</span>
+          <span>Built on Meta's Muse models</span>
+        </footer>
       </div>
     </main>
   );

@@ -14,81 +14,157 @@ function List({ items, empty }: { items: string[]; empty: string }) {
   );
 }
 
+/** One cell of the packet grid: a small label over its content. */
+function Cell({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cx('p-3 min-w-0', className)}>
+      <p className="text-[12px] text-muted mb-1">{label}</p>
+      <div className="text-[13px]">{children}</div>
+    </div>
+  );
+}
+
+/** Left-out items, with the step that was in flight when a run was killed called out first. */
+function LeftOut({ items }: { items: string[] }) {
+  if (items.length === 0) return <p className="text-faint">The agent said it left nothing out.</p>;
+  return (
+    <ul className="flex flex-col gap-1">
+      {items.map((i) => {
+        const inFlight = /^In-flight step unknown:\s*/.exec(i);
+        return (
+          <li key={i}>
+            {inFlight ? (
+              <>
+                <span className="font-semibold text-warn">In-flight step unknown:</span> {i.slice(inFlight[0].length)}
+              </>
+            ) : (
+              i
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
   const [view, setView] = useState<'packet' | 'prompt' | 'json'>('packet');
   if (!handoff) return <EmptyState testId="empty-packet">The packet appears here when a run ends, however it ends.</EmptyState>;
   const prompt = renderHandoff(handoff);
   const bytes = new TextEncoder().encode(prompt).length;
-  const from = agentOf(handoff.from.adapter, handoff.from.host);
+  const from = agentOf(handoff.from.adapter, handoff.from.host, handoff.from.model);
+  // a packet for a planner or reviewer call names the role; there is no harness to name
+  const to = handoff.to ? (handoff.to.adapter === 'openai-compatible' ? { name: `The ${handoff.to.role}`, mark: 'meta' as const, letter: handoff.to.role === 'reviewer' ? 'RV' : 'PL' } : agentOf(handoff.to.adapter)) : null;
   return (
-    <article data-testid="handoff-card" className="flex flex-col gap-1 max-w-[72ch]">
-      <header className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-line">
-        <div className="flex items-center gap-2">
-          <VendorMark agent={from} />
-          <span className="text-muted">
-            {handoff.from.run}, {modelName(handoff.from.model)}
-          </span>
-          <StatusChip status={handoff.from.endedBy} />
+    <article data-testid="handoff-card" className="flex flex-col gap-3 max-w-[80ch]">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[17px] font-semibold tracking-[-0.01em]">
+            Packet from {handoff.from.run}
+            {to ? ` to ${to.name.replace(/^The /, 'the ')}` : ''}
+          </h2>
+          <p className="text-[12px] text-muted tabular" data-testid="packet-size">
+            {countTokens(prompt)} tokens, {(bytes / 1024).toFixed(1)} KB.{' '}
+            <span className="font-mono text-faint" title={handoff.hash}>
+              {handoff.hash.slice(7, 19)}
+            </span>
+          </p>
         </div>
-        <div className="flex items-center gap-3 text-[12px] text-muted tabular" data-testid="packet-size">
-          <span>{countTokens(prompt)} tokens</span>
-          <span>{(bytes / 1024).toFixed(1)} KB</span>
-          <span className="font-mono text-faint" title={handoff.hash}>
-            {handoff.hash.slice(7, 19)}
-          </span>
+        <div className="flex gap-1" role="tablist" aria-label="Packet view">
+          {(['packet', 'prompt', 'json'] as const).map((v) => (
+            <Button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cx('h-7', view === v && 'border-accent text-accent')}>
+              {v === 'packet' ? 'Packet' : v === 'prompt' ? 'As prompt' : 'Raw JSON'}
+            </Button>
+          ))}
         </div>
       </header>
-      <div className="flex gap-1 pt-2" role="tablist" aria-label="Packet view">
-        {(['packet', 'prompt', 'json'] as const).map((v) => (
-          <Button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cx('h-7', view === v && 'border-accent text-accent')}>
-            {v === 'packet' ? 'Packet' : v === 'prompt' ? 'As prompt' : 'Raw JSON'}
-          </Button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 rounded-lg border border-line bg-raised px-3 py-2 min-w-[200px]">
+          <VendorMark agent={from} showName={false} size={22} />
+          <div className="leading-tight">
+            <p className="text-[13px] font-medium">{from.name}</p>
+            <p className={cx('text-[12px]', handoff.from.endedBy === 'killed' || handoff.from.endedBy === 'failed' ? 'text-warn' : 'text-muted')}>
+              {handoff.from.run}, ended by {handoff.from.endedBy}
+              {handoff.from.model ? `, ${modelName(handoff.from.model)}` : ''}
+            </p>
+          </div>
+        </div>
+        <span aria-hidden className="text-faint">→</span>
+        <div className={cx('flex items-center gap-2 rounded-lg border px-3 py-2 min-w-[200px]', to ? 'border-accent/60 bg-accent-tint' : 'border-dashed border-line')}>
+          {to ? <VendorMark agent={to} showName={false} size={22} /> : null}
+          <div className="leading-tight">
+            <p className="text-[13px] font-medium">{to ? to.name : 'The next agent'}</p>
+            <p className="text-[12px] text-muted">{to ? `${handoff.to?.role ?? 'implementer'}, reads this packet` : 'whoever you hand it to, below'}</p>
+          </div>
+        </div>
       </div>
       {view === 'prompt' ? (
-        <pre className="font-mono text-[12px] leading-[18px] whitespace-pre-wrap bg-sunken rounded-md p-3 mt-2">{prompt}</pre>
+        <pre className="font-mono text-[12px] leading-[18px] whitespace-pre-wrap bg-sunken rounded-md p-3">{prompt}</pre>
       ) : view === 'json' ? (
-        <pre className="font-mono text-[12px] leading-[18px] whitespace-pre-wrap bg-sunken rounded-md p-3 mt-2">{JSON.stringify(handoff, null, 2)}</pre>
+        <pre className="font-mono text-[12px] leading-[18px] whitespace-pre-wrap bg-sunken rounded-md p-3">{JSON.stringify(handoff, null, 2)}</pre>
       ) : (
-        <>
-          <Section title="Ask of next">
-            <p data-testid="ask-of-next" className="rounded-md border border-accent/50 bg-accent-tint px-3 py-2 text-ink">
-              {handoff.askOfNext}
-            </p>
-          </Section>
-          <Section title="Where it got to">
+        <div className="rounded-lg border border-line bg-raised divide-y divide-line">
+          <Cell label="Summary">
             <p>{handoff.summary}</p>
-          </Section>
-          <Section title="Done">
-            <List items={handoff.done} empty="Nothing recorded as done." />
-          </Section>
-          <Section title="Open">
-            <List items={handoff.open} empty="Nothing open." />
-          </Section>
-          <Section title="Left out">
-            <List items={handoff.leftOut} empty="The agent said it left nothing out." />
-          </Section>
-          <Section title="Refused actions">
-            <List items={(handoff.refusals ?? []).map((r) => `${r.action} (${r.reason ?? r.by})`)} empty="No action was refused." />
-          </Section>
-          <Section title="Decisions">
-            <List items={handoff.decisions.map((d) => `${d.id}: ${d.text}`)} empty="No decisions yet." />
-          </Section>
-          <Section title="Risks">
-            <List items={handoff.risks} empty="No risks named." />
-          </Section>
-          <Section title="Changed files" aside={<CostMeter cost={handoff.cost} detail className="text-[12px] text-muted" />}>
-            <ul className="font-mono text-[12px] flex flex-col gap-0.5">
-              {handoff.changedFiles.map((f) => (
-                <li key={f.path} className="flex gap-3">
-                  <span className="truncate">{f.path}</span>
-                  <span className="tabular text-good">+{f.added}</span>
-                  <span className="tabular text-bad">-{f.removed}</span>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        </>
+          </Cell>
+          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
+            <Cell label="Done">
+              <List items={handoff.done} empty="Nothing recorded as done." />
+            </Cell>
+            <Cell label="Open">
+              <List items={handoff.open} empty="Nothing open." />
+            </Cell>
+          </div>
+          <Cell label="Left out">
+            <LeftOut items={handoff.leftOut} />
+          </Cell>
+          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line">
+            <Cell label="Decisions">
+              {handoff.decisions.length ? (
+                <ul className="flex flex-col gap-1">
+                  {handoff.decisions.map((d) => (
+                    <li key={d.id}>
+                      <span className="font-mono text-muted mr-1.5">{d.id}</span>
+                      {d.text}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-faint">No decisions yet.</p>
+              )}
+            </Cell>
+            <Cell label="Risks">
+              <List items={handoff.risks} empty="No risks named." />
+              <p className="mt-1 text-[12px] text-muted">Refused actions: {(handoff.refusals ?? []).length ? (handoff.refusals ?? []).map((r) => `${r.action} (${r.reason ?? r.by})`).join('; ') : 'none'}</p>
+            </Cell>
+          </div>
+          <Cell label="Changed files">
+            {handoff.changedFiles.length ? (
+              <ul className="font-mono text-[12px] flex flex-col gap-0.5">
+                {handoff.changedFiles.map((f) => (
+                  <li key={f.path} className="flex gap-3">
+                    <span className="truncate">{f.path}</span>
+                    <span className="tabular text-good">+{f.added}</span>
+                    <span className="tabular text-bad">-{f.removed}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-faint">No files changed in this run.</p>
+            )}
+          </Cell>
+          <div className="p-3">
+            <div className="rounded-md border border-accent/50 bg-accent-tint px-3 py-2.5">
+              <p className="text-[12px] font-semibold mb-1">Ask of next</p>
+              <p data-testid="ask-of-next" className="text-ink">
+                {handoff.askOfNext}
+              </p>
+            </div>
+            <p className="mt-2 text-[12px] text-muted">
+              Run cost: <CostMeter cost={handoff.cost} detail className="text-[12px] text-muted" />
+            </p>
+          </div>
+        </div>
       )}
     </article>
   );

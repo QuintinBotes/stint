@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { type SkillRecord, api } from '../api';
-import { Button, EmptyState, StatusChip } from '../components/ui';
+import { Button, EmptyState, StatusChip, cx } from '../components/ui';
 
 const ORIGIN: Record<string, string> = { 'learn-loop': 'learned from reviews', human: 'written by a person' };
 
@@ -107,6 +107,7 @@ function SkillRow({ s, onChange }: { s: SkillRecord; onChange: () => void }) {
 
 export function Skills() {
   const [skills, setSkills] = useState<SkillRecord[] | null>(null);
+  const [params, setParams] = useSearchParams();
   const load = useCallback(() => {
     api
       .skills()
@@ -115,20 +116,66 @@ export function Skills() {
   }, []);
   useEffect(load, [load]);
   const order = (s: SkillRecord) => (s.status === 'proposed' ? 0 : s.retireProposed ? 1 : s.status === 'probation' ? 2 : s.status === 'active' ? 3 : 4);
+  const sorted = [...(skills ?? [])].sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id));
+  // what needs a decision comes first, and is what the page opens on
+  const selected = sorted.find((s) => s.id === params.get('skill')) ?? sorted[0] ?? null;
+  const pick = (id: string) => setParams((p) => { const n = new URLSearchParams(p); n.set('skill', id); return n; }, { replace: true });
   return (
     <main className="flex-1 min-h-0 overflow-y-auto" data-testid="skills">
-      <div className="max-w-[900px] mx-auto px-4 py-6">
-        <h1 className="text-[20px] font-semibold">Skills</h1>
-        <p className="text-muted text-[13px] mt-1 mb-4 max-w-[72ch]">
-          Rules the agents load before a run. When a review finding recurs across tasks, the learn step proposes one with its evidence; nothing is written to <span className="font-mono">.agents/skills</span> until you approve it. A learned skill starts on probation and becomes active after it helps on three tasks; one that hurts more than it helps is proposed for retirement.
-        </p>
+      <div className="max-w-[1400px] mx-auto px-4 py-6">
+        <header className="flex flex-wrap items-end justify-between gap-3 mb-4">
+          <div>
+            <h1 className="text-[28px] leading-[34px] font-semibold tracking-[-0.02em]">Skills</h1>
+            <p className="text-muted text-[13px] mt-1 max-w-[90ch]">
+              Folders in <span className="font-mono">.agents/skills/</span>, mounted by role before every run. When a review finding recurs across tasks, the learn step proposes one with its evidence; nothing is written until you approve it. A learned skill starts on probation and becomes active after it helps on three tasks; one that hurts more than it helps is proposed for retirement.
+            </p>
+          </div>
+          <span className="font-mono text-[12px] text-faint">stint skills list</span>
+        </header>
         {skills === null ? <p className="text-faint">Reading the skills.</p> : null}
         {skills?.length === 0 ? <EmptyState>No skills yet. A skill appears here when a review finding recurs across two tasks, or when a file is added to .agents/skills.</EmptyState> : null}
-        <ul className="flex flex-col gap-3">
-          {[...(skills ?? [])].sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id)).map((s) => (
-            <SkillRow key={s.id} s={s} onChange={load} />
-          ))}
-        </ul>
+        {sorted.length ? (
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-4 items-start">
+            <div className="rounded-lg border border-line bg-raised overflow-hidden">
+              <table className="w-full text-[13px]">
+                <thead className="text-[12px] text-muted text-left">
+                  <tr className="border-b border-line">
+                    <th className="font-normal px-3 py-2">Skill</th>
+                    <th className="font-normal px-3 py-2">Origin</th>
+                    <th className="font-normal px-3 py-2 hidden md:table-cell">Roles</th>
+                    <th className="font-normal px-3 py-2">Status</th>
+                    <th className="font-normal px-3 py-2 text-right">Applied, helped</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((s) => (
+                    <tr key={s.id} data-testid="skill-list-row" data-list-skill={s.id} aria-selected={s.id === selected?.id} className={cx('border-b border-line last:border-0 cursor-pointer', s.id === selected?.id ? 'bg-sunken' : 'hover:bg-sunken/60')} onClick={() => pick(s.id)}>
+                      <td className="px-3 py-2">
+                        <button type="button" className="font-mono text-left hover:text-accent focus-visible:text-accent" onClick={() => pick(s.id)}>
+                          {s.id}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2 text-muted">{ORIGIN[s.origin] ?? s.origin}</td>
+                      <td className="px-3 py-2 text-muted hidden md:table-cell">{s.roles.length ? s.roles.join(', ') : 'every role'}</td>
+                      <td className="px-3 py-2">
+                        <StatusChip label={s.retireProposed ? 'retire?' : s.status} tone={s.status === 'active' ? 'good' : s.status === 'probation' ? 'active' : s.status === 'proposed' || s.retireProposed ? 'warn' : 'neutral'} />
+                      </td>
+                      <td className="px-3 py-2 text-right tabular text-muted">
+                        {s.appliedIn.length}, {s.helped}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="px-3 py-2 text-[12px] text-faint border-t border-line">Helped means a task with the skill mounted was approved with no repeat of the finding it came from. Proposals also wait in the Factory queue.</p>
+            </div>
+            {selected ? (
+              <ul>
+                <SkillRow key={selected.id} s={selected} onChange={load} />
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </main>
   );

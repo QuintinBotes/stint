@@ -6,6 +6,9 @@ test('The Skills page lists the learned skill with its evidence and the hand-wri
   await expect(learned).toContainText('learned from reviews');
   await expect(learned).toContainText('T-0042/r4#F1');
   await expect(learned).toContainText('applied in 1 run');
+  // the list names both; picking the hand-written one shows its record beside the list
+  await expect(page.locator('[data-list-skill="review-voice-policy"]')).toContainText('written by a person');
+  await page.locator('[data-list-skill="review-voice-policy"]').getByRole('button').click();
   await expect(page.locator('[data-skill="review-voice-policy"]')).toContainText('written by a person');
 });
 
