@@ -14,7 +14,7 @@ The hackathon's building period starts after the kickoff session on 26 October 2
 | R-012 (first draft) | The packet builder, written before the kickoff and committed after it | product code |
 | R-010 | The OpenAI-compatible host client and the fallback chain, written by Muse Code from 16:35 to 18:05 CET, so partly during the kickoff session; committed after it | product code |
 
-Every commit made before the kickoff is listed by `git log --until="2026-10-26 17:00 +0100"`. Commit messages were later edited to drop tool attribution lines; the contents and every author and commit date are unchanged, so the times shown are the real ones.
+Every commit made before the kickoff is listed by `git log --until="2026-10-26 17:00 +0100"`. Commit messages were later edited to drop tool attribution lines. On 27 October the history was rewritten once more to replace a sample email address in one test title and one spec line with plain words, so a publishing check would pass; nothing else in the contents changed. Every author and commit date is unchanged, so the times shown are the real ones.
 
 ## After the kickoff (from 17:20 CET on 26 October)
 
