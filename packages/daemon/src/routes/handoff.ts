@@ -8,6 +8,7 @@ import { quizPacket } from '../quiz';
 import { DaemonError } from '../errors';
 import { buildHandoff } from '../handoff';
 import { assign, stop } from '../lifecycle';
+import { markCommentsHanded, pendingCommentSuffix, readComments } from './comments';
 import { walkChain } from '../route';
 import { worktreePath } from '../worktree';
 
@@ -118,7 +119,13 @@ export function handoffRoutes(app: Hono, ctx: DaemonContext): void {
     const role = body.role ?? 'implementer';
     const run = await latestEndedRun(ctx, id);
     const built = await buildHandoff(ctx, id, run, { to: { adapter: body.adapter, role }, reason: 'handed' });
-    const next = await assign(ctx, id, { adapter: body.adapter, role, handoffFrom: built.name, ...(body.ask ? { instruction: body.ask } : {}), ...(body.model ? { model: body.model } : {}) });
+    // line comments go to the next agent once, as the ask's suffix; they are marked with the run they went to
+    const comments = await readComments(ctx, id);
+    const pending = comments.filter((cm) => !cm.handedTo);
+    const suffix = pendingCommentSuffix(comments);
+    const ask = [body.ask, suffix ?? undefined].filter((part): part is string => !!part).join('\n');
+    const next = await assign(ctx, id, { adapter: body.adapter, role, handoffFrom: built.name, ...(ask ? { instruction: ask } : {}), ...(body.model ? { model: body.model } : {}) });
+    await markCommentsHanded(ctx, id, next.run, pending.map((cm) => cm.id));
     return c.json({ packet: built.name, tokens: built.tokens, run: next.run, worktree: next.worktree }, 202);
   });
 }

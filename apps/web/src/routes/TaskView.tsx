@@ -6,7 +6,7 @@ import { agentOf } from '../agents';
 import { api } from '../api';
 import { ApprovalGate } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
-import { DiffView } from '../components/DiffView';
+import { DiffView, readViewedFiles, writeViewedFiles } from '../components/DiffView';
 import { HandTo } from '../components/HandTo';
 import { MemoryPanel } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
@@ -60,22 +60,72 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     [setParams],
   );
   const setTab = useCallback((t: Tab) => setParam('tab', t), [setParam]);
+  const fileParam = params.get('file');
+  const [diffFiles, setDiffFiles] = useState<Array<{ path: string; added: number; removed: number }>>([]);
+  const [viewed, setViewed] = useState<Set<string>>(() => readViewedFiles(id));
+  useEffect(() => setViewed(readViewedFiles(id)), [id]);
+  const toggleViewed = useCallback(
+    (path: string) => {
+      setViewed((prev) => {
+        const next = new Set(prev);
+        if (next.has(path)) next.delete(path);
+        else next.add(path);
+        writeViewedFiles(id, next);
+        return next;
+      });
+    },
+    [id],
+  );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.metaKey || e.ctrlKey) return;
-      if (e.key === 'd') setTab('diff');
-      else if (e.key === 't') setTab('terminal');
+      // read the URL as it is now, so a fast second press is not handled with the previous selection
+      const current = new URLSearchParams(window.location.search);
+      if (e.key === 'd') {
+        setTab('diff');
+        // the pane appears once the diff has loaded, so keep looking for it briefly
+        let tries = 0;
+        const timer = setInterval(() => {
+          const pane = document.querySelector<HTMLElement>('[data-testid="diff-pane"]');
+          if (pane) {
+            pane.focus();
+            clearInterval(timer);
+          } else if (++tries > 20) clearInterval(timer);
+        }, 50);
+      } else if (e.key === '[' || e.key === ']') {
+        const paths = diffFiles.map((f) => f.path);
+        if (paths.length > 0) {
+          const i = paths.indexOf(current.get('file') ?? (paths[0] as string));
+          const next = e.key === ']' ? paths[Math.min(paths.length - 1, (i < 0 ? 0 : i) + 1)] : paths[Math.max(0, (i < 0 ? 0 : i) - 1)];
+          if (next !== undefined) {
+            // one update for both keys: two setParam calls in a row lose the first
+            setParams(
+              (p) => {
+                const both = new URLSearchParams(p);
+                both.set('file', next);
+                both.set('tab', 'diff');
+                return both;
+              },
+              { replace: true },
+            );
+          }
+        }
+      } else if (e.key === 'v') {
+        const currentFile = current.get('file') ?? diffFiles[0]?.path;
+        if (currentFile) toggleViewed(currentFile);
+      } else if (e.key === 't') setTab('terminal');
       else if (e.key === 'h') setTab('packet');
       else if (e.key === 'j' || e.key === 'k') {
         const seqs = events.map((x) => x.seq);
-        const i = selected === null ? -1 : seqs.indexOf(selected);
+        const at = current.get('ev') ? Number(current.get('ev')) : null;
+        const i = at === null ? -1 : seqs.indexOf(at);
         const next = e.key === 'j' ? seqs[Math.min(seqs.length - 1, i + 1)] : seqs[Math.max(0, i - 1)];
         if (next !== undefined) setParam('ev', String(next));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [events, selected, setParam, setTab]);
+  }, [events, selected, setParam, setTab, diffFiles, fileParam, toggleViewed]);
   const packetName = params.get('packet');
   const [packet, setPacket] = useState<Handoff | null>(null);
   const [packetNames, setPacketNames] = useState<string[]>([]);
@@ -90,6 +140,16 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     };
   }, [id, packetName, handoffCount]);
   const diffVersion = useMemo(() => events.filter((e) => e.type === 'run.finished' || e.type === 'merge.completed').length, [events]);
+  useEffect(() => {
+    let live = true;
+    api
+      .diffFiles(id)
+      .then((f) => live && setDiffFiles(f))
+      .catch(() => live && setDiffFiles([]));
+    return () => {
+      live = false;
+    };
+  }, [id, diffVersion]);
   const graphVersion = useMemo(() => events.filter((e) => GRAPH_EVENTS.has(e.type)).length, [events]);
   const locked = useMemo(() => [...new Set(events.filter((e) => e.type === 'acceptance.locked').flatMap((e) => ((e.payload.files as Array<{ path: string }> | undefined) ?? []).map((f) => f.path)))].sort(), [events]);
   const autopilot = useMemo(() => {
@@ -235,7 +295,19 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
       </div>
       {/* focusable, so a keyboard can scroll it */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4" role="tabpanel" aria-label={TAB_NAMES[tab]} tabIndex={0}>
-        {tab === 'diff' ? <DiffView taskId={t.id} version={diffVersion} /> : null}
+        {tab === 'diff' ? (
+          <DiffView
+            taskId={t.id}
+            version={diffVersion}
+            files={diffFiles}
+            file={fileParam}
+            onFile={(path) => setParam('file', path)}
+            events={events}
+            runs={bundle.runs}
+            viewed={viewed}
+            onToggleViewed={toggleViewed}
+          />
+        ) : null}
         {tab === 'files' ? <FilesTab taskId={t.id} /> : null}
         {tab === 'terminal' ? <Terminal taskId={t.id} liveRun={bundle.runs.find((r) => !r.endedAt)?.run ?? null} /> : null}
         {tab === 'plan' ? <PlanCard plan={bundle.plan} /> : null}
@@ -270,8 +342,15 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
       setAsOf={(v) => setParam('asOf', v)}
       version={graphVersion}
       onOpenFile={(path) => {
-        setTab('diff');
-        setTimeout(() => document.getElementById(`diff-${path}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+        setParams(
+          (p) => {
+            const both = new URLSearchParams(p);
+            both.set('file', path);
+            both.set('tab', 'diff');
+            return both;
+          },
+          { replace: true },
+        );
       }}
     />
   );

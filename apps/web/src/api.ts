@@ -88,6 +88,8 @@ export type Verification = {
   coverage?: { base: number | null; branch: number | null } | null;
   coverageReason?: string;
 };
+/** A comment on one line of the diff; the daemon stores them and the next hand carries them in its ask. */
+export type LineComment = { id: string; file: string; line: number; text: string; at: string; handedTo?: string };
 export type MergeRecord = { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> };
 export type OutcomeRecord = {
   kind: 'reverted' | 'followup' | 'ci' | 'incident';
@@ -223,6 +225,8 @@ export const api = {
   handoffNames: (id: string) => request<{ names: string[] }>(`/api/tasks/${id}/handoffs`).then((r) => r.names),
   handoff: (id: string, name: string) => request<{ name: string; packet: Handoff; meta: unknown }>(`/api/tasks/${id}/handoffs/${name}`),
   diffFiles: (id: string) => request<Array<{ path: string; added: number; removed: number }>>(`/api/tasks/${id}/diff?format=json`),
+  comments: (id: string) => request<LineComment[]>(`/api/tasks/${id}/comments`),
+  addComment: (id: string, comment: { file: string; line: number; text: string }) => post<LineComment[]>(`/api/tasks/${id}/comments`, comment),
   costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
   risk: () => request<RiskState>('/api/risk'),
   gardening: () => request<Gardening>('/api/gardening'),

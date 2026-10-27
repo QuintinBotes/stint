@@ -35,6 +35,7 @@ import { afterRunPacket, handoffRoutes } from './routes/handoff';
 import { runRoutes } from './routes/runs';
 import { skillRoutes } from './routes/skills';
 import { ptyRoutes } from './routes/pty';
+import { commentRoutes } from './routes/comments';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
@@ -409,4 +410,5 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   ptyRoutes(app, ctx);
   benchRoutes(app, ctx);
   gateRoutes(app, ctx);
+  commentRoutes(app, ctx);
 }
