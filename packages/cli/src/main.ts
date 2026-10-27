@@ -14,6 +14,8 @@ import { approve, exportTask, reject, show } from './approve';
 import { hand, packet } from './packet';
 import { scenario } from './scenario';
 import { skills } from './skills';
+import { doctor } from './doctor';
+import { applyStartupKeys, keys } from './keys';
 import { assignTask, newTask, runTask } from './tasks';
 import { up } from './up';
 
@@ -25,7 +27,12 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
 
 export const main = defineCommand({
   meta: { name: 'stint', version: '0.1.0', description: 'The task outlives the agent.' },
-  subCommands: { up, init: initCommand, new: newTask, assign: assignTask, run: runTask, demo, costs, packet, hand, approve, reject, show, export: exportTask, graph, skills, scenario, mcp, hook, bench, otel, report: reportCommand, eval: evalCommand, intake },
+  subCommands: { up, init: initCommand, new: newTask, assign: assignTask, run: runTask, demo, costs, packet, hand, approve, reject, show, export: exportTask, graph, skills, scenario, mcp, hook, bench, otel, report: reportCommand, eval: evalCommand, intake, doctor, keys },
 });
 
-if (import.meta.main) await runMain(main);
+if (import.meta.main) {
+  // keys from the user-level file, this repository's ignored .env, or the old place in the checkout (R-059);
+  // agent hooks and the MCP server need none and must stay silent on stderr
+  if (!['hook', 'mcp'].includes(process.argv[2] ?? '')) applyStartupKeys();
+  await runMain(main);
+}

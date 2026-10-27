@@ -1,0 +1,28 @@
+name: dco
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sign-off:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Every commit is signed off (Developer Certificate of Origin)
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # bots cannot certify the DCO, so their commits (Dependabot and the like) are exempt
+          missing=$(git log --format='%H%x09%ae%x09%(trailers:key=Signed-off-by,valueonly,separator=%x2C)' "$BASE..$HEAD" \
+            | awk -F'\t' '$2 !~ /\[bot\]@/ && $3 == "" { print substr($1, 1, 12) }')
+          if [ -n "$missing" ]; then
+            echo "::error::These commits have no Signed-off-by line. Sign them with: git rebase --signoff $BASE && git push --force-with-lease"
+            echo "$missing"
+            exit 1
+          fi
+          echo "Every commit is signed off."

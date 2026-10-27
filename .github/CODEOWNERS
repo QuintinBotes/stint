@@ -1,0 +1,5 @@
+# Every change needs a maintainer's review; the workflows, the identity guard and the release scripts most of all.
+*                               @QuintinBotes
+/.github/                       @QuintinBotes
+/scripts/                       @QuintinBotes
+/packages/daemon/src/sandbox.ts @QuintinBotes

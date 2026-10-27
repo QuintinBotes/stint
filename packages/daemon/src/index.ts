@@ -8,6 +8,7 @@ export * from './runs';
 export * from './verifier';
 export * from './worktree';
 export * from './pty';
+export { sandboxAvailable } from './sandbox';
 export * from './replay';
 export { DEFAULT_RECORDING } from './routes/demo';
 export * from './lifecycle';

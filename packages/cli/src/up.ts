@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { ConfigSchema, DEFAULT_CONFIG, type Config, type HostConfig } from '@stint-dev/core';
 import { defineCommand } from 'citty';
 import { startDaemon } from '@stint-dev/daemon';
+import { keyReport } from './keys';
 import { repoRoot } from './repo';
 
 export type UpReport = {
@@ -15,16 +16,16 @@ export type UpReport = {
 
 type FetchFn = (input: string, init?: RequestInit) => Promise<Response>;
 
-function baseURL(host: HostConfig, env: Record<string, string | undefined>): string | null {
+export function hostBaseURL(host: HostConfig, env: Record<string, string | undefined>): string | null {
   if (host.baseURL) return host.baseURL.replace(/\/+$/, '');
   if (host.baseURLEnv && env[host.baseURLEnv]) return (env[host.baseURLEnv] as string).replace(/\/+$/, '');
   return null;
 }
 
-function isLocal(host: HostConfig, env: Record<string, string | undefined>): boolean {
+export function isLocalHost(host: HostConfig, env: Record<string, string | undefined>): boolean {
   if (host.offline) return true;
   if (host.keyEnv) return false;
-  const url = baseURL(host, env);
+  const url = hostBaseURL(host, env);
   if (!url) return false;
   try {
     const name = new URL(url).hostname;
@@ -59,7 +60,7 @@ async function keyLine(id: string, host: HostConfig, env: Record<string, string 
   const keyEnv = host.keyEnv as string;
   const key = env[keyEnv];
   if (!key) return `${id}: ${keyEnv} not set`;
-  const url = baseURL(host, env);
+  const url = hostBaseURL(host, env);
   if (!url) return `${id}: ${host.baseURLEnv ?? 'base URL'} not set, so ${keyEnv} was NOT checked`;
   try {
     const res = await fetchFn(`${url}/models`, { headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(5000) });
@@ -82,8 +83,8 @@ export async function upReport(config: Config, env: Record<string, string | unde
     const hostId = slash < 0 ? entry : entry.slice(0, slash);
     const short = slash < 0 ? '' : entry.slice(slash + 1);
     const host = config.hosts[hostId];
-    if (!host || !isLocal(host, env)) continue;
-    const url = baseURL(host, env);
+    if (!host || !isLocalHost(host, env)) continue;
+    const url = hostBaseURL(host, env);
     if (!url) continue;
     const model = host.models[short] ?? short;
     warming = `Warming ${hostId}/${short} in the background; startup does not wait for it.`;
@@ -92,7 +93,7 @@ export async function upReport(config: Config, env: Record<string, string | unde
   }
   const keyLines = await Promise.all(
     Object.entries(config.hosts)
-      .filter(([, host]) => host.keyEnv && !isLocal(host, env))
+      .filter(([, host]) => host.keyEnv && !isLocalHost(host, env))
       .map(([id, host]) => keyLine(id, host, env, fetchFn)),
   );
   return { warming, warmDone, keyLines };
@@ -118,6 +119,9 @@ export const up = defineCommand({
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
+    // where each key came from, by name and source only; the daemon reads the values from the environment
+    const keys = keyReport(root);
+    for (const [name, value] of Object.entries(keys.values)) if (!process.env[name]) process.env[name] = value;
     const d = await startDaemon({ root, port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check });
     const report = await upReport(await readConfig(root));
     const reportLines = () => {
@@ -128,7 +132,7 @@ export const up = defineCommand({
       const health = (await (await fetch(`${d.url}/api/health`)).json()) as { ok: boolean; adapters: Array<{ id: string; capability: { level: string; reason?: string } }> };
       await d.stop();
       if (args.json) {
-        process.stdout.write(`${JSON.stringify(health)}\n`);
+        process.stdout.write(`${JSON.stringify({ ...health, keys: keys.sources })}\n`);
       } else {
         process.stdout.write(`daemon ok at ${d.url} (stopped after the check)\n`);
         for (const a of health.adapters) {
@@ -136,6 +140,8 @@ export const up = defineCommand({
           process.stdout.write(`  ${a.id.padEnd(18)} ${state}\n`);
         }
         reportLines();
+        const set = Object.entries(keys.sources).filter(([, src]) => src !== 'missing');
+        process.stdout.write(`  keys: ${set.length ? set.map(([n, src]) => `${n} (${src})`).join(', ') : 'none set; run stint keys set META_API_KEY'}\n`);
       }
       process.exit(health.ok ? 0 : 1);
     }

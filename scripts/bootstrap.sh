@@ -12,10 +12,13 @@ GLIMMER="muse-glimmer:30b-mlx"
 say() { printf '%s\n' "$*"; }
 version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" = "$2" ]; }
 
-# A key counts when it is in the environment or set to a non-empty value in .env. Values are never printed.
+# A key counts when it is in the environment, in the user-level key file, or in .env, as stint loads them.
+# Values are never printed.
+USER_KEYS="${XDG_CONFIG_HOME:-$HOME/.config}/stint/env"
 has_key() {
   [ -n "${!1:-}" ] && return 0
-  [ -f .env ] && grep -Eq "^$1=.+" .env
+  [ -f "$USER_KEYS" ] && grep -Eq "^(export )?$1=.+" "$USER_KEYS" && return 0
+  [ -f .env ] && grep -Eq "^(export )?$1=.+" .env
 }
 
 if ! command -v bun >/dev/null 2>&1; then say "bun: missing. Install Bun 1.3.14 or later: https://bun.sh"; exit 2; fi
@@ -68,6 +71,14 @@ for pair in "meta-api:META_API_KEY" "fireworks:FIREWORKS_API_KEY" "baseten:BASET
   else say "  $(printf '%-14s' "$host") unavailable: $key not set"; fi
 done
 
-if [ "$CHECK_ONLY" = 1 ]; then exit 0; fi
+if [ "$CHECK_ONLY" = 1 ]; then
+  # once the stint command is installed, its doctor checks the rest: the repository, keys by source, agents, Ollama
+  if command -v stint >/dev/null 2>&1; then say ""; stint doctor || true; fi
+  exit 0
+fi
 say ""
+if ! command -v stint >/dev/null 2>&1; then
+  say "To use stint from any folder, install the command: bash scripts/install-cli.sh"
+  say ""
+fi
 exec bun run demo
