@@ -51,3 +51,5 @@ The Factory shows two gates, computed by the daemon at `GET /api/phase-gates`:
 - Phase 3 opens when one risk tier has been shadow-approved (`autoapprove.shadow` records) for two weeks with no reverts on that tier.
 
 Each gate says whether it is open and, when it is not, what is missing.
+
+The golden pass rates above are two of the metrics defined once in [`metrics.md`](metrics.md), read there beside the verification and outcome numbers with `stint metrics`.

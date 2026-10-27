@@ -24,3 +24,5 @@ By default approve merges locally. With a release config in `.stint/config.json`
 approve instead pushes the task branch to the remote and opens a pull request with `gh pr create`. The title is the task title; the body is the packet summary and the same trailers a local merge commit would carry (`Stint-Task`, `Stint-Runs`, `Stint-Handoff`, `Stint-Verified`). The daemon records `release.pr_opened` with the URL and number, and the task waits in the board's In review lane.
 
 A poller reads the pull request every 60 seconds (`gh pr view`), and `POST /api/tasks/:id/release/refresh` reads it on demand. Changed checks are recorded as `release.checks` with the check name and status. When the pull request merges, the daemon records `merge.completed` with the pull request's merge commit and the task is done. When a check fails, the task goes back to Needs you with the failing check named as the next ask.
+
+What these outcomes add up to over a window (escaped defects, reverts, cost per good merge) is defined once in [`metrics.md`](metrics.md) and read with `stint metrics`.

@@ -11,6 +11,7 @@ Every file in this folder, one line each.
 - [`finals.md`](finals.md): the kit for the live judging: the 60-second version, likely questions and fallbacks.
 - [`launch.md`](launch.md): the launch post and thread for X.
 - [`mcp.md`](mcp.md): serving Stint's tools over the Model Context Protocol with `stint mcp`.
+- [`metrics.md`](metrics.md): verification and outcome metrics, defined once: first pass, escaped defects, cost per good merge, human load and learning.
 - [`otel.md`](otel.md): sending runs to an OpenTelemetry collector or an eval tool.
 - [`packet.md`](packet.md): the `stint.handoff/1` packet: its fields, how it is built, and a live example.
 - [`proofs.md`](proofs.md): every number Stint claims, the live packet, the benchmark, where each Meta model works, and what was built during the hackathon.

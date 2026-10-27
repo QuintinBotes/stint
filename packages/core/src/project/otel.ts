@@ -164,6 +164,21 @@ export function taskSpans(task: Task, events: StintEvent[], o: { only?: string; 
   return spans;
 }
 
+/** Gauge points for the workspace metrics (R-061): one point per non-null metric, named by stint.metric.id. */
+export function metricsOtlpBody(values: Array<{ id: string; value: number | null }>, serviceName: string, version: string, at: string): Record<string, unknown> {
+  const dataPoints = values
+    .filter((v) => v.value !== null)
+    .map((v) => ({ attributes: [{ key: 'stint.metric.id', value: { stringValue: v.id } }], timeUnixNano: nanos(at), asDouble: v.value as number }));
+  return {
+    resourceMetrics: [
+      {
+        resource: { attributes: attrs({ 'service.name': serviceName, 'service.version': version }) },
+        scopeMetrics: [{ scope: { name: 'stint', version }, metrics: [{ name: 'stint.metric', gauge: { dataPoints } }] }],
+      },
+    ],
+  };
+}
+
 /** The OTLP/HTTP JSON body for a batch of spans. */
 export function otlpBody(spans: OtlpSpan[], serviceName: string, version: string): Record<string, unknown> {
   return {

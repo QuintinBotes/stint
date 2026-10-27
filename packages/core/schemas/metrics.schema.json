@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/metrics/1",
+  "title": "stint.metrics/1",
+  "description": "Verification and outcome metrics, defined once in docs/metrics.md. Each value carries its sample size and a link to its definition.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "window", "by", "generatedAt", "groups"],
+  "properties": {
+    "version": { "const": "stint.metrics/1" },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": ["string", "null"], "format": "date-time" },
+        "to": { "type": "string", "format": "date-time" }
+      }
+    },
+    "by": { "type": ["string", "null"] },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verification", "outcome", "human", "learning", "efficiency"],
+      "properties": {
+        "verification": { "type": "array", "items": { "$ref": "#/$defs/metricValue" } },
+        "outcome": { "type": "array", "items": { "$ref": "#/$defs/metricValue" } },
+        "human": { "type": "array", "items": { "$ref": "#/$defs/metricValue" } },
+        "learning": { "type": "array", "items": { "$ref": "#/$defs/metricValue" } },
+        "efficiency": { "type": "array", "items": { "$ref": "#/$defs/metricValue" } }
+      }
+    },
+    "breakdown": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "metrics"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "metrics": { "type": "array", "items": { "$ref": "#/$defs/metricValue" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "metricValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "group", "label", "unit", "value", "n", "small", "definition"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "group": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "unit": { "type": "string", "enum": ["ratio", "count", "usd", "ms", "tokens"] },
+        "value": { "type": ["number", "null"] },
+        "n": { "type": "integer", "minimum": 0 },
+        "small": { "type": "boolean" },
+        "p50": { "type": "number" },
+        "p90": { "type": "number" },
+        "unpriced": { "type": "integer", "minimum": 0 },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["met"],
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" },
+            "met": { "type": "boolean" }
+          }
+        },
+        "definition": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

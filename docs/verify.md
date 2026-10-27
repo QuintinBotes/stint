@@ -39,3 +39,5 @@ After the verify suite, the daemon copies the scenario files into a temporary ch
 ## Coverage
 
 With `config.verify.coverage` on, the daemon also runs the test command with `--coverage` when the runner is bun or Vitest: once on the branch, once in a temporary checkout of the base commit. The line percentages land in the record as `coverage: { base, branch }` and on the card. When the runner gives no coverage summary, the record says `coverage: null` with a `coverageReason`, and the verification does not fail for it.
+
+The numbers these checks add up to (tamper escapes, scenario catch, first pass) are defined once in [`metrics.md`](metrics.md) and read with `stint metrics`.

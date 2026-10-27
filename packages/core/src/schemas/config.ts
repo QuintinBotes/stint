@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { METRIC_IDS } from '../metrics/ids';
 import { CheckSchema } from './task';
 
 const HostModelRef = z.string().regex(/^[a-z0-9-]+\/.+$/, 'expected host/model');
@@ -188,6 +189,13 @@ export const ConfigSchema = z.strictObject({
       commitTo: z.string().min(1).optional(),
     })
     .optional(),
+  /** Verification and outcome metrics: how long a merge is watched, and optional targets by metric id (R-061). */
+  metrics: z
+    .strictObject({
+      outcomeWindowDays: z.number().min(0).default(7),
+      targets: z.record(z.string(), z.strictObject({ min: z.number().optional(), max: z.number().optional() })).optional(),
+    })
+    .optional(),
   allowDirectEvents: z.boolean().optional(),
   branchRetentionDays: z.int().min(0).optional(),
 }).superRefine((cfg, ctx) => {
@@ -205,6 +213,11 @@ export const ConfigSchema = z.strictObject({
   for (const [name, def] of Object.entries(cfg.agents ?? {})) {
     if (def.host && !cfg.hosts[def.host]) {
       ctx.addIssue({ code: 'custom', path: ['agents', name, 'host'], message: `agent "${name}" names host "${def.host}" which is not in hosts (configured hosts: ${list})` });
+    }
+  }
+  for (const id of Object.keys(cfg.metrics?.targets ?? {})) {
+    if (!(METRIC_IDS as readonly string[]).includes(id)) {
+      ctx.addIssue({ code: 'custom', path: ['metrics', 'targets', id], message: `metrics target "${id}" is not a metric id (known ids: ${METRIC_IDS.join(', ')})` });
     }
   }
 });
@@ -365,5 +378,6 @@ export const DEFAULT_CONFIG: Config = {
       capabilities: { resume: false, schemaOutput: false, sandbox: false, costReporting: false },
     },
   },
+  metrics: { outcomeWindowDays: 7 },
   branchRetentionDays: 7,
 };

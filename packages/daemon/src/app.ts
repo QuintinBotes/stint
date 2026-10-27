@@ -23,6 +23,7 @@ import { outcomeRoutes } from './outcomes';
 import { ptyHealth } from './pty';
 import { benchRoutes } from './routes/bench';
 import { gateRoutes } from './routes/gates';
+import { metricRoutes } from './routes/metrics';
 import { demoRoutes } from './routes/demo';
 import { approveRoutes } from './routes/approve';
 import { graphRoutes } from './routes/graph';
@@ -413,5 +414,6 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   ptyRoutes(app, ctx);
   benchRoutes(app, ctx);
   gateRoutes(app, ctx);
+  metricRoutes(app, ctx);
   commentRoutes(app, ctx);
 }

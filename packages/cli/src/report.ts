@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { StintEvent, Task } from '@stint-dev/core';
-import { Workspace, runsFromEvents } from '@stint-dev/core/node';
+import { Workspace, metrics as computeMetrics, runsFromEvents, windowFor } from '@stint-dev/core/node';
 import { defineCommand } from 'citty';
+import { metricsLines } from './metrics';
 import { repoRoot } from './repo';
 
 /**
@@ -22,7 +23,7 @@ export function specOf(task: Task): string {
 const usd = (v: number | null | undefined) => (v === null || v === undefined ? 'unpriced' : `$${v.toFixed(v > 0 && v < 0.01 ? 4 : 2)}`);
 const when = (iso: string) => iso.slice(0, 16).replace('T', ' ');
 
-export type Report = { reviews: string[]; spend: string[] };
+export type Report = { reviews: string[]; spend: string[]; metrics: string[] };
 
 export function reportRows(tasks: Array<{ task: Task; events: StintEvent[] }>): Report {
   const reviews: string[] = [];
@@ -45,7 +46,13 @@ export function reportRows(tasks: Array<{ task: Task; events: StintEvent[] }>): 
       spend.push(`| ${when(r.startedAt)} | ${spec} | ${agent} ${r.run} | ${tokens} | ${usd(r.cost?.usd)}${r.cost?.estimated ? ' (estimated)' : ''} | ${wall}s |`);
     }
   }
-  return { reviews, spend };
+  return { reviews, spend, metrics: [] };
+}
+
+/** The metrics block (R-061): the 30 days ending at the latest event, the window since the previous report in practice. */
+export function metricsBlock(tasks: Array<{ task: Task; events: StintEvent[] }>, config: { metrics?: { outcomeWindowDays: number; targets?: Record<string, { min?: number; max?: number }> } }): string[] {
+  const now = tasks.flatMap((t) => t.events.map((e) => e.ts)).sort().at(-1) ?? new Date().toISOString();
+  return metricsLines(computeMetrics({ tasks, config, now, window: windowFor('30d', now) }));
 }
 
 /** A row Stint wrote names a task in its spec cell (`T-0042` or `R-047 (T-0050)`); the loop's own rows do not. */
@@ -74,7 +81,7 @@ export async function report(root: string, o: { specsOnly?: boolean } = {}): Pro
     if (o.specsOnly && specOf(task) === task.id) continue;
     tasks.push({ task, events: await ws.events(task.id).read() });
   }
-  return reportRows(tasks);
+  return { ...reportRows(tasks), metrics: metricsBlock(tasks, ws.config) };
 }
 
 export const reportCommand = defineCommand({
@@ -107,5 +114,7 @@ export const reportCommand = defineCommand({
     process.stdout.write(r.reviews.map((l) => `${l}\n`).join(''));
     process.stdout.write('\n## Spend\n\n| When | Spec | Agent | Tokens in/out | USD | Wall |\n|---|---|---|---|---|---|\n');
     process.stdout.write(r.spend.map((l) => `${l}\n`).join(''));
+    process.stdout.write('\n## Metrics (30 days)\n\n');
+    process.stdout.write(r.metrics.map((l) => `${l}\n`).join(''));
   },
 });

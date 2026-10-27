@@ -1,0 +1,34 @@
+{
+  "version": "stint.metrics/1",
+  "window": { "from": "2026-10-13T00:00:00Z", "to": "2026-11-10T00:00:00Z" },
+  "by": "agent",
+  "generatedAt": "2026-11-10T00:00:00Z",
+  "groups": {
+    "verification": [
+      { "id": "verify.first_pass", "group": "verification", "label": "First pass", "unit": "ratio", "value": 0.5, "n": 8, "small": false, "definition": "docs/metrics.md#verify.first_pass" },
+      { "id": "verify.tamper_escapes", "group": "verification", "label": "Tamper escapes", "unit": "count", "value": 1, "n": 6, "small": false, "target": { "max": 0, "met": false }, "definition": "docs/metrics.md#verify.tamper_escapes" }
+    ],
+    "outcome": [
+      { "id": "outcome.merged", "group": "outcome", "label": "Merged", "unit": "count", "value": 6, "n": 6, "small": false, "definition": "docs/metrics.md#outcome.merged" },
+      { "id": "outcome.lead_time", "group": "outcome", "label": "Lead time", "unit": "ms", "value": 129600000, "n": 6, "small": false, "p50": 129600000, "p90": 432000000, "definition": "docs/metrics.md#outcome.lead_time" },
+      { "id": "outcome.cost_per_merge", "group": "outcome", "label": "Cost per merge", "unit": "usd", "value": null, "n": 6, "small": false, "unpriced": 1, "definition": "docs/metrics.md#outcome.cost_per_merge" }
+    ],
+    "human": [
+      { "id": "human.autonomy", "group": "human", "label": "Autonomy", "unit": "ratio", "value": 0.5, "n": 6, "small": false, "definition": "docs/metrics.md#human.autonomy" }
+    ],
+    "learning": [
+      { "id": "learn.skills", "group": "learning", "label": "Skills", "unit": "count", "value": 3, "n": 3, "small": true, "definition": "docs/metrics.md#learn.skills" }
+    ],
+    "efficiency": [
+      { "id": "efficiency.packet_tokens", "group": "efficiency", "label": "Packet tokens", "unit": "tokens", "value": 450, "n": 4, "small": true, "definition": "docs/metrics.md#efficiency.packet_tokens" }
+    ]
+  },
+  "breakdown": [
+    {
+      "key": "muse-code",
+      "metrics": [
+        { "id": "verify.attempt_pass", "group": "verification", "label": "Attempt pass", "unit": "ratio", "value": 0.5, "n": 6, "small": false, "definition": "docs/metrics.md#verify.attempt_pass" }
+      ]
+    }
+  ]
+}

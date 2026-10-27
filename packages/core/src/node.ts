@@ -15,7 +15,7 @@ export { asOf, constrains, constrainsFiles, filesTogether, similarText, findingT
 export type { ConstrainsRow, FilesTogetherRow, Graph, GraphEdge, GraphEdgeType, GraphNode, GraphNodeType, GraphOptions, OpenFindingRow, ProjectOptions, SimilarRow, SkillsHelpedRow } from './graph/index';
 export { relayFromEvents } from './project/relay';
 export { ALL_TAGS, scoreboard } from './project/scoreboard';
-export { otlpBody, taskSpans, traceIdOf } from './project/otel';
+export { metricsOtlpBody, otlpBody, taskSpans, traceIdOf } from './project/otel';
 export type { OtlpSpan } from './project/otel';
 export type { ScoreRow } from './project/scoreboard';
 export type { Relay, RelayLane, RelayLink, RelayMark, RelayRun } from './project/relay';

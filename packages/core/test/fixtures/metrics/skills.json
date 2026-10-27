@@ -1,0 +1,25 @@
+{
+  "skills": [
+    {
+      "id": "limiter-config-via-env",
+      "status": "active",
+      "applied": 4,
+      "helped": 3,
+      "hurt": 1
+    },
+    {
+      "id": "retry-with-backoff",
+      "status": "probation",
+      "applied": 3,
+      "helped": 1,
+      "hurt": 2
+    },
+    {
+      "id": "fresh-proposal",
+      "status": "proposed",
+      "applied": 0,
+      "helped": 0,
+      "hurt": 0
+    }
+  ]
+}
