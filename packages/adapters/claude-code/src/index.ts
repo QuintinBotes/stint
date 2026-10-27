@@ -27,15 +27,33 @@ export function claudeEndedBy(o: { failed: boolean; aborted: boolean; signal: No
   return 'completed';
 }
 
+/** The address Claude Code's Anthropic client wants for a host: the host's base URL without its `/v1`. */
+export function anthropicBase(baseURL: string): string {
+  return baseURL.replace(/\/+$/, '').replace(/\/v1$/, '');
+}
+
+/**
+ * Where the preset's host is, for a run: the base URL always, and for a keyless local host a placeholder token
+ * (Ollama takes any). A value the person already set wins. A keyed host's token is passed only through `env`.
+ */
+export function hostEnv(env: Record<string, string>, host?: { id: string; baseURL?: string; keyless: boolean }): Record<string, string> {
+  if (!host?.baseURL) return env;
+  return {
+    ...env,
+    ...(env.ANTHROPIC_BASE_URL ? {} : { ANTHROPIC_BASE_URL: anthropicBase(host.baseURL) }),
+    ...(host.keyless && !env.ANTHROPIC_AUTH_TOKEN ? { ANTHROPIC_AUTH_TOKEN: host.id } : {}),
+  };
+}
+
 /** Claude Code driven headless in the worktree, observed by Stint and verified by the daemon after (R-034). */
-export function claudeCode(name: string, def: AgentDef): Adapter {
+export function claudeCode(name: string, def: AgentDef, host?: { id: string; baseURL?: string; keyless: boolean }): Adapter {
   const bin = (def.command[0] as string) || 'claude';
 
   async function exec(ctx: RunContext, extra: { sessionId?: string; prompt?: string } = {}): Promise<RunResult> {
     const model = ctx.model ?? def.model;
     const argv = claudeArgs({ bin, ...(model ? { model } : {}), ...(extra.sessionId ? { sessionId: extra.sessionId } : {}) });
     const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
-    const child = spawn(cmd, args, { cwd: ctx.worktree, env: ctx.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, { cwd: ctx.worktree, env: hostEnv(ctx.env, host), detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
     if (child.pid) ctx.onSpawn?.(child.pid);
     let aborted = false;
     const kill = () => {

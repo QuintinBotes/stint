@@ -50,20 +50,25 @@ Handing a task to an id that is not registered is refused, and the message lists
 
 The `claude-code` preset uses the native harness: `claude -p --output-format stream-json --verbose --permission-mode acceptEdits`, with the prompt on stdin and `--model` taken from the manifest's `model`. Stint maps the session start, assistant text, tool use, tool results and the final result (usage, cost and session id) onto the timeline, and resumes with `--resume <session>`. The gate is observed.
 
-To run the Claude Code harness on Glimmer on your own machine, point it at Ollama's Anthropic-compatible endpoint. Ollama serves that endpoint on the same address as the rest of its API and takes any token:
-
-```sh
-export ANTHROPIC_BASE_URL=http://localhost:11434
-export ANTHROPIC_AUTH_TOKEN=ollama
-```
-
-Then turn the preset on with the local model and host:
+To run the Claude Code harness on Glimmer on your own machine, name a host in the preset. Ollama serves an Anthropic-compatible endpoint on the same address as the rest of its API, so Stint gives the run `ANTHROPIC_BASE_URL` from the host's address (without its `/v1`) and, for a host that needs no key, a placeholder `ANTHROPIC_AUTH_TOKEN`:
 
 ```json
-"claude-code": { "command": ["claude", "-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"], "prompt": "stdin", "roles": ["implementer", "reviewer"], "vendor": "anthropic", "model": "muse-glimmer:30b-mlx", "enabled": true, "harness": "claude-code", "host": "ollama", "env": ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"] }
+"claude-code": { "command": ["claude", "-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"], "prompt": "stdin", "roles": ["implementer", "reviewer"], "vendor": "anthropic", "model": "muse-glimmer:30b-mlx", "enabled": true, "harness": "claude-code", "host": "ollama" }
 ```
 
-The two variable names in `env` are what let the daemon pass them into the run; the values stay in your environment and never enter the repo or a packet.
+A value you set yourself wins: list `ANTHROPIC_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` in the preset's `env` and export it, and the run uses yours. A host that needs a key, such as a LiteLLM gateway, gets the address but never a token from Stint; pass the token through `env` the same way. Values stay in your environment and never enter the repo or a packet.
+
+### Other places a model can run
+
+Three more hosts ship in the default config with no route pointing at them, so they cost nothing until something names them:
+
+| Host | Address | Key |
+|---|---|---|
+| `lmstudio` | `http://localhost:1234/v1` | none |
+| `llamacpp` | `http://localhost:8080/v1` (llama.cpp's `llama-server`) | none |
+| `litellm` | `LITELLM_BASE_URL` | `LITELLM_API_KEY` |
+
+Name one in a route (`"reviewer": ["lmstudio/<model id>", ...]`), in a hand-off (`stint hand T-0042 stint-agent --model llamacpp/<model id>`), or as the `host` of a harness preset. The status panel lists the chat models each local host has loaded that no route uses yet, with the command to try one. Small local models call tools less reliably than hosted ones, so start them on review and summary before giving them the implementer role.
 
 ### Codex
 

@@ -254,6 +254,10 @@ export const DEFAULT_CONFIG: Config = {
       structuredOutput: 'enforced',
       cachedInput: false,
     },
+    // other places a model can run, ready for any route or agent that names them; no default route does (ADR-0001)
+    lmstudio: { baseURL: 'http://localhost:1234/v1', models: {}, offline: true, structuredOutput: 'prompt-only', cachedInput: false },
+    llamacpp: { baseURL: 'http://localhost:8080/v1', models: {}, offline: true, structuredOutput: 'prompt-only', cachedInput: false },
+    litellm: { baseURLEnv: 'LITELLM_BASE_URL', keyEnv: 'LITELLM_API_KEY', models: {}, offline: false, structuredOutput: 'accepted', cachedInput: false },
   },
   routes: {
     planner: ['meta-api/muse-wonder-1.0', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],

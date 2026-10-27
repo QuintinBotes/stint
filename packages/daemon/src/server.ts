@@ -24,8 +24,11 @@ export function defaultAdapters(config?: Config): Adapter[] {
   for (const [name, def] of Object.entries(cfg.agents ?? {})) {
     if (!def.enabled) continue;
     const harness = def.acp ? 'acp' : (def.harness ?? 'cli');
-    if (harness === 'claude-code') agents.push(claudeCode(name, def));
-    else if (harness === 'codex') agents.push(codex(name, def));
+    if (harness === 'claude-code') {
+      const h = def.host ? cfg.hosts[def.host] : undefined;
+      const baseURL = h ? (h.baseURL ?? (h.baseURLEnv ? process.env[h.baseURLEnv] : undefined)) : undefined;
+      agents.push(claudeCode(name, def, def.host && h ? { id: def.host, ...(baseURL ? { baseURL } : {}), keyless: !h.keyEnv } : undefined));
+    } else if (harness === 'codex') agents.push(codex(name, def));
     else if (harness === 'acp') agents.push(acpAgent(name, def));
     else agents.push(cliAgent(name, def));
   }

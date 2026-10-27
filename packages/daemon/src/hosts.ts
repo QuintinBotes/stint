@@ -91,7 +91,13 @@ export async function localModels(config: Config, env: Record<string, string | u
     const tags = await fetch(new URL('/api/tags', url).toString(), { signal: AbortSignal.timeout(800) })
       .then((r) => (r.ok ? (r.json() as Promise<{ models?: Array<{ name: string; details?: { family?: string; families?: string[] | null; parameter_size?: string } }> }>) : null))
       .catch(() => null);
-    for (const m of tags?.models ?? []) {
+    // LM Studio and llama.cpp have no /api/tags; they list models the OpenAI way, without a family to go by
+    const listed = tags
+      ? (tags.models ?? [])
+      : ((await fetch(`${url.replace(/\/+$/, '')}/models`, { signal: AbortSignal.timeout(800) })
+          .then((r) => (r.ok ? (r.json() as Promise<{ data?: Array<{ id: string }> }>) : null))
+          .catch(() => null))?.data ?? []).filter((m) => !/embed|bge-|\be5-|minilm/i.test(m.id)).map((m) => ({ name: m.id, details: undefined }));
+    for (const m of listed) {
       const families = [m.details?.family ?? '', ...(m.details?.families ?? [])];
       if (families.some((f) => /bert/i.test(f))) continue;
       const short = Object.entries(h.models).find(([, id]) => id === m.name)?.[0] ?? m.name;

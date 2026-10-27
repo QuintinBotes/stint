@@ -58,3 +58,17 @@ test('local models lists chat models pulled on a keyless host that no route name
     ollama.stop(true);
   }
 });
+
+test('a local server without /api/tags, such as LM Studio or llama.cpp, lists its chat models through /v1/models', async () => {
+  const lmstudio = Bun.serve({
+    port: 0,
+    fetch: (req) => (new URL(req.url).pathname === '/v1/models' ? Response.json({ data: [{ id: 'qwen2.5-coder-7b' }, { id: 'text-embedding-nomic-embed-text-v1.5' }] }) : new Response('not found', { status: 404 })),
+  });
+  try {
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.hosts = { lmstudio: { ...(config.hosts.lmstudio as NonNullable<(typeof config.hosts)['lmstudio']>), baseURL: `http://127.0.0.1:${lmstudio.port}/v1` } };
+    expect(await localModels(config, {})).toEqual([{ host: 'lmstudio', model: 'qwen2.5-coder-7b', parameters: null }]);
+  } finally {
+    lmstudio.stop(true);
+  }
+});
