@@ -41,7 +41,8 @@ test('The terminal fills its pane, with the kill button visible while its run is
   });
   await page.goto(`/t/${id}?tab=terminal`);
   await expect(page.getByTestId('kill-run')).toBeVisible();
-  await expect(page.getByTestId('kill-run')).toContainText('Kill r1');
+  await expect(page.getByTestId('kill-run')).toContainText('Kill run');
+  await expect(page.getByTestId('kill-run')).toHaveAttribute('title', 'Kill r1');
   await expect(page.getByTestId('terminal-cwd')).toContainText(`.stint/worktrees/${id}-r1`);
   await expect
     .poll(async () => {
