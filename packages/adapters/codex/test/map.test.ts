@@ -112,3 +112,24 @@ describe('Codex mapper', () => {
     for (const flag of ['--full-auto', 'danger-full-access', '--yolo']) expect(args.join(' ')).not.toContain(flag);
   });
 });
+
+describe('a real Codex stream (R-057)', () => {
+  // Recorded 27 Oct 2026: codex exec on Muse Spark 1.3 through the Meta Model API's Responses endpoint, in a throwaway
+  // repository and home, paths scrubbed. Codex speaks only the Responses API now, which the Meta Model API serves.
+  const recorded = readFileSync(join(import.meta.dir, 'fixtures', 'stream.recorded.jsonl'), 'utf8').trim().split('\n');
+
+  test('maps to its messages, the command and the file change with their results, and the usage and thread it reported', () => {
+    const m = new CodexMapper();
+    const events = recorded.flatMap((l) => m.map(l));
+    events.forEach((e, i) => expect(StintEventSchema.safeParse(asStored(e, i + 1)).success).toBe(true));
+    expect(events.filter((e) => e.type === 'agent.tool_call').map((e) => e.payload.tool)).toEqual(['command_execution', 'file_change']);
+    expect(events.filter((e) => e.type === 'agent.tool_result').every((e) => e.payload.ok === true)).toBe(true);
+    expect(events.filter((e) => e.type === 'agent.message')).toHaveLength(3);
+    // Codex's warning that it has no metadata for the model is kept, unclassified, and does not fail the run
+    expect(events.filter((e) => e.type === 'runtime.unclassified')).toHaveLength(1);
+    expect(m.usage).toEqual({ inputTokens: 29819, cachedTokens: 19411, outputTokens: 653 });
+    expect(m.threadId).toBe('01a17d75-d23c-7b90-b601-a363a900f545');
+    expect(m.failed).toBe(false);
+    expect(m.inFlight()).toBeNull();
+  });
+});

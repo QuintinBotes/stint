@@ -74,7 +74,19 @@ Name one in a route (`"reviewer": ["lmstudio/<model id>", ...]`), in a hand-off 
 
 The `codex` preset uses the native harness: `codex exec --json --sandbox workspace-write -`, with the prompt on stdin. Stint maps the thread start, agent messages, command runs, file changes, MCP tool calls and the turn usage onto the timeline, and resumes with `codex exec resume <thread id>`. The gate is observed.
 
-To run Codex on a Meta model, give Codex an OpenAI-compatible provider in your Codex config (`~/.codex/config.toml`) that points at a host serving Muse Spark Open, such as Fireworks or Baseten, with that host's key variable as its `env_key`. Then turn the preset on and set its `model` to the model id that provider expects. Stint passes the model with `--model` and passes through only the variables named in `env`, such as `OPENAI_API_KEY`. Codex keeps its own provider and key settings; Stint only starts it in the worktree, watches it, and verifies after.
+To run Codex on a Meta model, give Codex a provider in your Codex config (`~/.codex/config.toml`). Codex now speaks only the Responses API (`wire_api = "chat"` is refused), and the Meta Model API serves it. This one ran on 27 October 2026 with Codex 0.163 and Muse Spark 1.3; its stream is the Codex mapper's test fixture:
+
+```toml
+model_provider = "meta"
+
+[model_providers.meta]
+name = "Meta Model API"
+base_url = "https://api.meta.ai/v1"
+env_key = "META_API_KEY"
+wire_api = "responses"
+```
+
+Then turn the preset on, set its `model` to `muse-spark-1.3`, and add `META_API_KEY` to its `env`: Stint passes through only the variables named there. Codex warns that it has no metadata for the model and carries on; Stint keeps the warning on the timeline as unclassified. A host that serves Muse Spark Open, such as Fireworks or Baseten, works the same way if it serves `/v1/responses`; those two are not verified yet. Ollama does serve it, which is what `codex exec --oss` uses for Glimmer. Codex keeps its own provider and key settings; Stint only starts it in the worktree, watches it, and verifies after.
 
 ### Agent Client Protocol (ACP)
 
