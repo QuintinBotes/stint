@@ -9,6 +9,7 @@ import { renderTranscript } from '../src/bench/transcript';
 
 const bin = join(import.meta.dir, '..', 'bin', 'stint');
 const fixtures = join(import.meta.dir, 'fixtures', 'bench-runs');
+const legFixtures = join(import.meta.dir, 'fixtures', 'bench-runs-legs');
 const repoRoot = join(import.meta.dir, '..', '..', '..');
 
 /** Runs the replay in a temp repository root, so results land in <root>/bench and the checkout stays clean. */
@@ -169,5 +170,38 @@ test('the scrub also removes the user name, JSON-escaped and URL-encoded home pa
     expect(out).toContain('META_API_KEY=[redacted]');
   } finally {
     delete process.env.STINT_TEST_API_KEY;
+  }
+});
+
+// R-055 acceptance 3: stint bench --replay --host fireworks --legs plan,build reads and writes those legs.
+test('stint bench --replay --host fireworks --legs plan,build reads and writes those legs', async () => {
+  const tmp = tempDir('stint-bench-legs-');
+  try {
+    const r = Bun.spawnSync(['bun', bin, 'bench', '--replay', '--from', legFixtures, '--host', 'fireworks', '--legs', 'plan,build', '--json'], {
+      cwd: tmp.dir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(r.exitCode, r.stderr.toString()).toBe(0);
+    const results = JSON.parse(r.stdout.toString()) as BenchResults;
+    expect(results.replay).toBe(true);
+    // the meta-api build row and the fireworks review row in the same fixture are left out
+    expect(results.rows.map((row) => `${row.leg}:${row.host}`).sort()).toEqual(['build:fireworks', 'plan:fireworks']);
+    const plan = results.rows.find((row) => row.leg === 'plan');
+    expect(plan?.result).toBe('planned: 4 steps');
+    expect(plan?.inputTokens).toBe(900);
+    expect(plan?.usd).toBe(0.0021);
+    const build = results.rows.find((row) => row.leg === 'build');
+    expect(build?.result).toBe('verified by the daemon');
+    expect(build?.verified).toBe(true);
+    expect(results.byLeg.plan?.runs).toBe(1);
+    expect(results.byLeg.build?.runs).toBe(1);
+    expect(results.byLeg.review).toBeUndefined();
+    expect(results.byMode.packet?.runs).toBe(1);
+
+    const written = JSON.parse(readFileSync(join(tmp.dir, 'bench', 'results.json'), 'utf8')) as BenchResults;
+    expect(written.rows.map((row) => row.leg).sort()).toEqual(['build', 'plan']);
+  } finally {
+    tmp.cleanup();
   }
 });

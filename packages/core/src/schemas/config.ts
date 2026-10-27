@@ -179,6 +179,15 @@ export const ConfigSchema = z.strictObject({
   editor: z.array(z.string().min(1)).min(1).max(10).optional(),
   /** Other coding agents a person can hand a task to; off until enabled (R-026). */
   agents: z.record(z.string().regex(/^[a-z0-9-]+$/), AgentDefSchema).optional(),
+  /** Skill mounting by similarity and where an approved skill is committed (R-055). */
+  skills: z
+    .strictObject({
+      /** A skill also mounts when one of the three most similar tasks, at or above this score, is in its evidence. */
+      similarity: z.number().min(0).default(0.5),
+      /** The branch an approved skill is committed to; unset, the branch checked out in the main tree. */
+      commitTo: z.string().min(1).optional(),
+    })
+    .optional(),
   allowDirectEvents: z.boolean().optional(),
   branchRetentionDays: z.int().min(0).optional(),
 }).superRefine((cfg, ctx) => {

@@ -1,8 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { type Role, type SkillProposal, type SkillStatus, SkillProposalSchema, parseSkillFrontmatter } from '@stint-dev/core';
-import { type StintEvent, type Workspace, canonicalJSON, findingThemes, readJsonIfExists, sha256Hex, writeFileAtomic, writeJsonAtomic } from '@stint-dev/core/node';
+import { type Role, type SkillProposal, type SkillStatus, type Task, SkillProposalSchema, parseSkillFrontmatter } from '@stint-dev/core';
+import { type StintEvent, type Workspace, canonicalJSON, findingThemes, readJsonIfExists, sha256Hex, similar, writeFileAtomic, writeJsonAtomic } from '@stint-dev/core/node';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
 import { git, gitOk, identityArgs } from './git';
@@ -119,21 +119,64 @@ export function scanSkillFiles(root: string): SkillFile[] {
   return out;
 }
 
+/** Which rule mounted a skill on a task (R-055), recorded as `by` in `skill.applied`. */
+export type SkillMountRule = 'role' | 'tag' | 'similar';
+
+/** A mounted skill with the rule that mounted it. */
+export type MountedSkillForTask = MountedSkill & { by: SkillMountRule };
+
+/**
+ * The mounted skills, with the rule behind each: an untagged skill mounts by role, a tagged
+ * one by a matching tag, and a tagged one with no matching tag by similarity when a task in
+ * `similarTasks` is one of its evidence tasks. With `tags` not given, tags do not filter.
+ */
+function mountsFor(root: string, role: Role, tags: string[] | undefined, similarTasks: ReadonlySet<string>): MountedSkillForTask[] {
+  const out: MountedSkillForTask[] = [];
+  for (const s of scanSkillFiles(root)) {
+    const fm = s.frontmatter;
+    if (fm.status !== 'active' && fm.status !== 'probation') continue;
+    if (fm.roles && !fm.roles.includes(role)) continue;
+    const tagged = Boolean(fm.tags && fm.tags.length > 0);
+    let by: SkillMountRule = 'role';
+    if (tags && tagged) {
+      if ((fm.tags as string[]).some((t) => tags.includes(t))) by = 'tag';
+      else if ((fm.evidence ?? []).some((ref) => similarTasks.has(ref.split('/')[0] as string))) by = 'similar';
+      else continue;
+    }
+    out.push({ name: fm.name, description: fm.description, by });
+  }
+  return out;
+}
+
 /**
  * Mounted skills in `.agents/skills` that apply to a role: active and probation both mount
  * (R-031). A skill without roles applies to every role; a skill without tags applies to every
  * task. When `tags` is given, a tagged skill mounts only when one of its tags is one of the task's tags.
  */
 export function skillsFor(root: string, role: Role, tags?: string[]): MountedSkill[] {
-  const out: MountedSkill[] = [];
-  for (const s of scanSkillFiles(root)) {
-    const fm = s.frontmatter;
-    if (fm.status !== 'active' && fm.status !== 'probation') continue;
-    if (fm.roles && !fm.roles.includes(role)) continue;
-    if (tags && fm.tags && fm.tags.length > 0 && !fm.tags.some((t) => tags.includes(t))) continue;
-    out.push({ name: fm.name, description: fm.description });
+  return mountsFor(root, role, tags, new Set());
+}
+
+/**
+ * Mounted skills for one task (R-055): besides role and tag, a skill mounts by similarity when
+ * one of the task's three most similar tasks, at or above `skills.similarity` (default 0.5),
+ * is a task in the skill's evidence. A graph that cannot answer is said out loud and only the
+ * role and tag rules mount.
+ */
+export async function skillsForTask(ws: Workspace, task: Pick<Task, 'id' | 'tags'>, role: Role): Promise<MountedSkillForTask[]> {
+  const threshold = ws.config.skills?.similarity ?? 0.5;
+  let similarTasks = new Set<string>();
+  try {
+    similarTasks = new Set(
+      (await similar(ws, task.id))
+        .slice(0, 3)
+        .filter((r) => r.score >= threshold)
+        .map((r) => r.task),
+    );
+  } catch (err) {
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'warn', message: `skills for ${task.id} were NOT checked against similar tasks: ${err instanceof Error ? err.message : String(err)}` })}\n`);
   }
-  return out;
+  return mountsFor(ws.root, role, task.tags ?? [], similarTasks);
 }
 
 async function readConsent(ws: Workspace): Promise<Record<string, string>> {
@@ -525,20 +568,67 @@ async function syncMirrors(ws: Workspace, id: string): Promise<string[]> {
   return changed;
 }
 
+async function branchExists(root: string, branch: string): Promise<boolean> {
+  return (await git(root, ['rev-parse', '--verify', '-q', `refs/heads/${branch}`])).code === 0;
+}
+
+async function gitEnvOk(root: string, args: string[], env: Record<string, string>): Promise<string> {
+  const r = await git(root, args, env);
+  if (r.code !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr.trim() || r.stdout.trim()}`);
+  return r.stdout;
+}
+
+/**
+ * Commits the named files onto a branch that is not checked out, by plumbing: a scratch index
+ * read from the branch, the files as blobs, one commit, and the ref moved only if it still
+ * points where it did. The checked out branch and its index are not touched.
+ */
+async function commitOntoBranch(ws: Workspace, id: string, files: string[], branch: string, msgFile: string): Promise<string> {
+  const root = ws.root;
+  const indexFile = join(ws.cacheDir, `skill-${id}.index`);
+  const env = { ...process.env, GIT_INDEX_FILE: indexFile } as Record<string, string>;
+  try {
+    await rm(indexFile, { force: true });
+    const parent = (await gitOk(root, ['rev-parse', `refs/heads/${branch}`])).trim();
+    await gitEnvOk(root, ['read-tree', `refs/heads/${branch}`], env);
+    for (const file of files) {
+      if (existsSync(join(root, file))) {
+        const blob = (await gitOk(root, ['hash-object', '-w', '--', file])).trim();
+        await gitEnvOk(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${file}`], env);
+      } else {
+        await gitEnvOk(root, ['update-index', '--force-remove', '--', file], env);
+      }
+    }
+    const tree = (await gitEnvOk(root, ['write-tree'], env)).trim();
+    const commit = (await gitOk(root, [...(await identityArgs(root)), 'commit-tree', tree, '-p', parent, '-F', msgFile])).trim();
+    await gitOk(root, ['update-ref', `refs/heads/${branch}`, commit, parent]);
+    return commit;
+  } finally {
+    await rm(indexFile, { force: true });
+  }
+}
+
 async function commitSkillFiles(ws: Workspace, id: string, files: string[], subject: string): Promise<{ committed: boolean; commit: string | null }> {
   const root = ws.root;
-  const branch = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
+  const checkedOut = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
+  // the branch the person named in skills.commitTo, or the one checked out in the main tree (R-055)
+  const branch = ws.config.skills?.commitTo ?? checkedOut;
   if (!branch) return { committed: false, commit: null };
+  if (!(await branchExists(root, branch))) {
+    process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `skill ${id} files were written but NOT committed: branch ${branch} does not exist` })}\n`);
+    return { committed: false, commit: null };
+  }
   files = [...files, ...(await syncMirrors(ws, id))];
   const msgFile = join(ws.cacheDir, `skill-${id}.txt`);
   try {
     await mkdir(ws.cacheDir, { recursive: true });
     await writeFileAtomic(msgFile, `${subject}\n\nStint-Skill: ${id}\n`);
+    if (branch !== checkedOut) return { committed: true, commit: await commitOntoBranch(ws, id, files, branch, msgFile) };
     await gitOk(root, ['add', '--', ...files]);
     await gitOk(root, [...(await identityArgs(root)), 'commit', '-F', msgFile, '--', ...files]);
     return { committed: true, commit: (await gitOk(root, ['rev-parse', 'HEAD'])).trim() };
   } catch (err) {
-    await git(root, ['reset', '-q', '--', ...files]);
+    if (branch === checkedOut) await git(root, ['reset', '-q', '--', ...files]);
     process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `skill ${id} files were written but NOT committed: ${err instanceof Error ? err.message : String(err)}` })}\n`);
     return { committed: false, commit: null };
   } finally {
@@ -571,8 +661,9 @@ export type ApprovedSkill = SkillRecord & { committed: boolean; commit: string |
 
 /**
  * Approves a pending proposal: writes the skill files, records consent, and commits only those
- * files on the branch checked out in the main tree. With no proposal, approving an existing
- * skill records its current file as the consented one, which clears `stale`.
+ * files on `skills.commitTo`, or on the branch checked out in the main tree when that is unset.
+ * A named branch that does not exist is refused before anything is written. With no proposal,
+ * approving an existing skill records its current file as the consented one, which clears `stale`.
  */
 export async function approveSkill(ws: Workspace, id: string, by = 'you'): Promise<ApprovedSkill> {
   checkId(id);
@@ -585,6 +676,10 @@ export async function approveSkill(ws: Workspace, id: string, by = 'you'): Promi
     await recordConsent(ws, id, existing.content);
     const record = (await listSkills(ws)).find((s) => s.id === id) as SkillRecord;
     return { ...record, committed: false, commit: null, path: rel };
+  }
+  const commitTo = ws.config.skills?.commitTo;
+  if (commitTo && !(await branchExists(root, commitTo))) {
+    throw new DaemonError('invalid', `skills.commitTo branch ${commitTo} does not exist`, 'create that branch or fix skills.commitTo in .stint/config.json');
   }
   for (const name of ['SKILL.md', 'examples.md']) {
     if (existsSync(join(skillsDir(root), id, name))) throw new DaemonError('invalid', `.agents/skills/${id}/${name} already exists`, 'retire or rename the existing skill first');

@@ -11,7 +11,7 @@ import { drainDockerBlocked, prepareRun } from './sandbox';
 import { git } from './git';
 import { earlierHops } from './handoff';
 import { renderPrompt } from './prompt';
-import { skillsFor } from './skills';
+import { skillsForTask } from './skills';
 import { worktreePath } from './worktree';
 
 export type AssignInput = {
@@ -111,7 +111,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     const head = (await git(ws.root, ['rev-parse', '--verify', '-q', 'HEAD'])).stdout.trim();
     if (head && head !== task.baseCommit) task = await ws.writeTask(taskId, { baseCommit: head }, undefined, { emit: false });
   }
-  const skills = skillsFor(ws.root, input.role, task.tags ?? []);
+  const skills = await skillsForTask(ws, task, input.role);
   const transcript = input.resume?.kind === 'transcript' ? input.resume.text : undefined;
   const packetName = transcript !== undefined ? null : (input.handoffFrom ?? (await ws.handoffs(taskId).names()).at(-1) ?? null);
   const handoff = packetName ? await ws.handoffs(taskId).read(packetName) : null;
@@ -160,7 +160,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   const events = ws.events(taskId);
   const base = { task: taskId, run, adapter: adapter.id, vendor: adapter.vendor } as const;
   await events.append({ ...base, type: 'run.started', payload: { role: input.role, model: model ?? null, host: 'local-cli', worktree: relative(ws.root, wt.path), handoffFrom: packetName, skills: skills.map((s) => s.name) } });
-  for (const s of skills) await events.append({ task: taskId, run, vendor: 'daemon', type: 'skill.applied', payload: { skill: s.name, run }, links: [{ kind: 'skill', ref: s.name }] });
+  for (const s of skills) await events.append({ task: taskId, run, vendor: 'daemon', type: 'skill.applied', payload: { skill: s.name, run, by: s.by }, links: [{ kind: 'skill', ref: s.name }] });
   await ws.writeTask(taskId, {
     status: input.role === 'reviewer' ? 'reviewing' : 'building',
     assignee: { adapter: adapter.id, role: input.role, run, ...(model ? { model } : {}) },
