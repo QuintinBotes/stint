@@ -4,9 +4,10 @@ import { modelName } from '../agents';
 import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, type SkillRecord, api } from '../api';
 import { PermissionRows } from './Permissions';
 import type { LayoutIn, LayoutOut } from '../graph.worker';
-import { useTasks } from '../hooks';
+import { useTasks, useWidth } from '../hooks';
 import { Button, EmptyState, cx } from './ui';
 
+// the graph lays out in the pixels it is drawn at, so its text is the same size in the side panel and the Factory
 const W = 328;
 const H = 260;
 
@@ -41,6 +42,50 @@ export function shortLabel(n: GraphNode): string {
   return n.label;
 }
 
+type Box = { x0: number; y0: number; x1: number; y1: number };
+const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+// skills first after the centre: there are few, and what the factory learned is what the panel is for
+const LABEL_RANK = ['skill', 'task', 'decision', 'finding', 'run', 'file'];
+
+type LabelSpot = { dx: number; dy: number; anchor: 'start' | 'middle' | 'end' };
+
+/**
+ * Where each label goes: beside its node, above or below it, or on a diagonal, else nowhere. Higher-ranked nodes go first, so a
+ * crowded graph keeps the labels that matter legible; a node without a label still names itself in its tooltip.
+ */
+export function placeLabels(nodes: Array<{ id: string; x: number; y: number; r: number; text?: string; size: number; rank: number }>, width: number, height: number): Map<string, LabelSpot> {
+  const taken: Box[] = nodes.map((n) => ({ x0: n.x - n.r, y0: n.y - n.r, x1: n.x + n.r, y1: n.y + n.r }));
+  const spots = new Map<string, LabelSpot>();
+  for (const n of [...nodes].sort((a, b) => a.rank - b.rank)) {
+    if (!n.text) continue;
+    // a generous box: the font's full ascent and descent, and a wide average glyph
+    const w = n.text.length * n.size * 0.62;
+    const candidates: LabelSpot[] = [
+      { dx: 9, dy: 4, anchor: 'start' },
+      { dx: -9, dy: 4, anchor: 'end' },
+      { dx: 0, dy: -(n.r + 3), anchor: 'middle' },
+      { dx: 0, dy: n.r + n.size, anchor: 'middle' },
+      { dx: 6, dy: -(n.r + 3), anchor: 'start' },
+      { dx: -6, dy: -(n.r + 3), anchor: 'end' },
+      { dx: 6, dy: n.r + n.size, anchor: 'start' },
+      { dx: -6, dy: n.r + n.size, anchor: 'end' },
+    ];
+    for (const spot of candidates) {
+      const left = n.x + spot.dx - (spot.anchor === 'start' ? 0 : spot.anchor === 'middle' ? w / 2 : w);
+      const box = { x0: left, y0: n.y + spot.dy - n.size, x1: left + w, y1: n.y + spot.dy + n.size * 0.3 };
+      if (box.x0 < 0 || box.x1 > width || box.y0 < 0 || box.y1 > height) continue;
+      // the centre is what the graph is about: its label may cover a neighbour's dot, and the others then steer round it
+      if (n.rank >= 0 && taken.some((t) => overlaps(t, box))) continue;
+      taken.push(box);
+      spots.set(n.id, spot);
+      break;
+    }
+  }
+  return spots;
+}
+
+const radius = (n: GraphNode, centre: string) => (n.id === centre ? 8 : n.type === 'task' || n.type === 'decision' || n.type === 'skill' ? 6 : 4);
+
 const at = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
 type NodeState = 'on' | 'faded' | 'hidden';
@@ -63,30 +108,57 @@ export function stateAt(nodes: GraphNode[], edges: GraphEdge[], ts: number, cent
   return state;
 }
 
-function useLayout(graph: GraphData | null, centre: string): { pos: Map<string, { x: number; y: number }>; done: boolean } {
+function useLayout(graph: GraphData | null, centre: string, width: number, height: number): { pos: Map<string, { x: number; y: number }>; done: boolean } {
   const [layout, setLayout] = useState({ pos: new Map<string, { x: number; y: number }>(), done: false });
+  // one worker for the graph's life: a new size or graph is a new message, never a worker torn down while it loads
+  const worker = useRef<Worker | null>(null);
+  const latest = useRef(0);
   useEffect(() => {
-    if (!graph) return;
+    const w = new Worker(new URL('../graph.worker.ts', import.meta.url), { type: 'module' });
+    w.onmessage = (e: MessageEvent<LayoutOut>) => {
+      if (e.data.seq === latest.current) setLayout({ pos: new Map(e.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }])), done: e.data.done });
+    };
+    worker.current = w;
+    return () => w.terminate();
+  }, []);
+  useEffect(() => {
+    if (!graph || !worker.current) return;
     setLayout((l) => ({ ...l, done: false }));
-    const worker = new Worker(new URL('../graph.worker.ts', import.meta.url), { type: 'module' });
-    worker.onmessage = (e: MessageEvent<LayoutOut>) => setLayout({ pos: new Map(e.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }])), done: e.data.done });
-    const msg: LayoutIn = { type: 'layout', nodes: graph.nodes.map((n) => ({ id: n.id, pinned: n.id === centre })), edges: graph.edges, width: W, height: H };
-    worker.postMessage(msg);
-    return () => worker.terminate();
-  }, [graph, centre]);
+    latest.current += 1;
+    const msg: LayoutIn = { type: 'layout', seq: latest.current, nodes: graph.nodes.map((n) => ({ id: n.id, pinned: n.id === centre })), edges: graph.edges, width, height };
+    worker.current.postMessage(msg);
+  }, [graph, centre, width, height]);
   return layout;
 }
 
-function Graph({ graph, centre, ts, onOpenFile, onSelectNode }: { graph: GraphData; centre: string; ts: number; onOpenFile?: (path: string) => void; onSelectNode?: (node: GraphNode) => void }) {
-  const { pos, done } = useLayout(graph, centre);
+function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { graph: GraphData; centre: string; ts: number; height?: number; onOpenFile?: (path: string) => void; onSelectNode?: (node: GraphNode) => void }) {
+  const { ref: measure, width: measured } = useWidth<HTMLDivElement>(W);
+  // whole steps of 8 px, so a resize re-lays the graph out only when it changes enough to matter
+  const width = Math.max(240, Math.round(measured / 8) * 8);
+  const { pos, done } = useLayout(graph, centre, width, height);
   const state = useMemo(() => stateAt(graph.nodes, graph.edges, ts, centre), [graph, ts, centre]);
+  const labels = useMemo(
+    () =>
+      placeLabels(
+        graph.nodes.flatMap((n) => {
+          const p = pos.get(n.id);
+          if (!p || (state.get(n.id) ?? 'hidden') === 'hidden') return [];
+          const rank = n.id === centre ? -1 : LABEL_RANK.indexOf(n.type);
+          return [{ id: n.id, x: p.x, y: p.y, r: radius(n, centre), size: n.type === 'file' ? 10 : 11, rank: rank < 0 && n.id !== centre ? LABEL_RANK.length : rank, ...(LABEL_RANK.includes(n.type) ? { text: shortLabel(n) } : {}) }];
+        }),
+        width,
+        height,
+      ),
+    [graph, pos, state, centre, width, height],
+  );
   const firstEdge = useMemo(() => {
     const m = new Map<string, GraphEdge>();
     for (const e of [...graph.edges].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))) for (const id of [e.from, e.to]) if (!m.has(id)) m.set(id, e);
     return m;
   }, [graph]);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded-md border border-line bg-sunken" role="group" aria-label="Memory graph" tabIndex={-1} data-testid="memory-graph" data-layout={done ? 'done' : 'running'}>
+    <div ref={measure}>
+    <svg viewBox={`0 0 ${width} ${height}`} className="block w-full h-auto rounded-md border border-line bg-sunken" role="group" aria-label="Memory graph" tabIndex={-1} data-testid="memory-graph" data-layout={done ? 'done' : 'running'}>
       {graph.edges.map((e) => {
         const a = pos.get(e.from);
         const b = pos.get(e.to);
@@ -101,8 +173,7 @@ function Graph({ graph, centre, ts, onOpenFile, onSelectNode }: { graph: GraphDa
         const s = state.get(n.id) ?? 'hidden';
         if (!p || s === 'hidden') return null;
         const first = firstEdge.get(n.id);
-        const big = n.type === 'task' || n.type === 'decision' || n.type === 'skill';
-        const labelled = big || n.type === 'finding' || n.type === 'file' || n.type === 'run';
+        const spot = labels.get(n.id);
         // a file opens in the diff; a decision or a run selects its place on the timeline (R-052)
         const activate = n.type === 'file' && onOpenFile ? () => onOpenFile(n.label) : (n.type === 'decision' || n.type === 'run') && onSelectNode ? () => onSelectNode(n) : undefined;
         const fadedNote = s === 'faded' ? ', no longer in force' : '';
@@ -130,9 +201,9 @@ function Graph({ graph, centre, ts, onOpenFile, onSelectNode }: { graph: GraphDa
               : {})}
           >
             <title>{`${n.label}${first ? `, recorded at ${at(first.recordedAt)} by event ${first.eventId}` : ''}${fadedNote}`}</title>
-            <circle r={n.id === centre ? 8 : big ? 6 : 4} fill={COLOUR[n.type] ?? 'var(--ink-faint)'} stroke="var(--surface)" strokeWidth={1.5} />
-            {labelled ? (
-              <text x={p.x > W - 110 ? -9 : 9} y={4} textAnchor={p.x > W - 110 ? 'end' : 'start'} fontSize={n.type === 'file' ? 9 : 10} fill="var(--ink)" className="tabular select-none">
+            <circle r={radius(n, centre)} fill={COLOUR[n.type] ?? 'var(--ink-faint)'} stroke="var(--surface)" strokeWidth={1.5} />
+            {spot ? (
+              <text x={spot.dx} y={spot.dy} textAnchor={spot.anchor} fontSize={n.type === 'file' ? 10 : 11} fill="var(--ink)" className="tabular select-none">
                 {shortLabel(n)}
               </text>
             ) : null}
@@ -140,6 +211,7 @@ function Graph({ graph, centre, ts, onOpenFile, onSelectNode }: { graph: GraphDa
         );
       })}
     </svg>
+    </div>
   );
 }
 
@@ -537,7 +609,7 @@ export function WorkspaceMemory() {
   }
   return (
     <div data-testid="factory-memory">
-      <Graph graph={graph} centre={centre} ts={ts} />
+      <Graph graph={graph} centre={centre} ts={ts} height={380} />
       {graph.total > graph.nodes.length ? (
         <p className="mt-1 text-[11px] text-faint tabular">
           {graph.nodes.length} of {graph.total} nodes, the most connected

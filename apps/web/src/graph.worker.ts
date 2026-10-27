@@ -2,8 +2,8 @@
 // Lays out the memory graph off the main thread: repulsion between every pair, springs on edges, a pull to
 // the centre. 60 nodes is 3,600 pairs a tick, so 240 ticks take a few milliseconds; positions go back in batches.
 
-export type LayoutIn = { type: 'layout'; nodes: Array<{ id: string; pinned?: boolean }>; edges: Array<{ from: string; to: string }>; width: number; height: number };
-export type LayoutOut = { type: 'positions'; nodes: Array<{ id: string; x: number; y: number }>; done: boolean };
+export type LayoutIn = { type: 'layout'; seq: number; nodes: Array<{ id: string; pinned?: boolean }>; edges: Array<{ from: string; to: string }>; width: number; height: number };
+export type LayoutOut = { type: 'positions'; seq: number; nodes: Array<{ id: string; x: number; y: number }>; done: boolean };
 
 /** The same start for the same id, so a graph that grows keeps its shape. */
 function seed(id: string): number {
@@ -12,8 +12,24 @@ function seed(id: string): number {
   return ((h >>> 0) % 10_000) / 10_000;
 }
 
+/**
+ * Scales the layout into the box, each axis on its own: a crowded graph spreads over the panel instead of piling on its
+ * walls, and a wide box is filled, not left with a circle in its middle. A small graph grows at most threefold.
+ */
+function fit(pos: Array<{ id: string; x: number; y: number }>, width: number, height: number): LayoutOut['nodes'] {
+  if (!pos.length) return [];
+  const xs = pos.map((p) => p.x);
+  const ys = pos.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const sx = Math.min(3, (width - 32) / Math.max(1, x1 - x0));
+  const sy = Math.min(3, (height - 24) / Math.max(1, y1 - y0));
+  const ox = (width - (x1 - x0) * sx) / 2 - x0 * sx;
+  const oy = (height - (y1 - y0) * sy) / 2 - y0 * sy;
+  return pos.map(({ id, x, y }) => ({ id, x: x * sx + ox, y: y * sy + oy }));
+}
+
 self.onmessage = (e: MessageEvent<LayoutIn>) => {
-  const { nodes, edges, width, height } = e.data;
+  const { seq, nodes, edges, width, height } = e.data;
   const cx = width / 2;
   const cy = height / 2;
   const pos = nodes.map((n) => {
@@ -60,19 +76,19 @@ self.onmessage = (e: MessageEvent<LayoutIn>) => {
       }
       p.vx += (cx - p.x) * 0.02 * alpha;
       p.vy += (cy - p.y) * 0.02 * alpha;
-      // a step never jumps further than 8 px, so the layout settles instead of flinging nodes to the walls
+      // a step never jumps further than 8 px, so the layout settles instead of flinging nodes apart
       const v = Math.hypot(p.vx, p.vy);
       if (v > 8) {
         p.vx *= 8 / v;
         p.vy *= 8 / v;
       }
-      p.x = Math.min(width - 24, Math.max(16, p.x + p.vx));
-      p.y = Math.min(height - 12, Math.max(12, p.y + p.vy));
+      p.x += p.vx;
+      p.y += p.vy;
       p.vx *= 0.6;
       p.vy *= 0.6;
     }
     if (t % 40 === 39 || t === ticks - 1) {
-      const out: LayoutOut = { type: 'positions', nodes: pos.map(({ id, x, y }) => ({ id, x, y })), done: t === ticks - 1 };
+      const out: LayoutOut = { type: 'positions', seq, nodes: fit(pos, width, height), done: t === ticks - 1 };
       self.postMessage(out);
     }
   }

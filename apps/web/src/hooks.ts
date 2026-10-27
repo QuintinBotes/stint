@@ -45,6 +45,26 @@ function useTrailing(fn: () => void, ms: number): () => void {
   }, [ms]);
 }
 
+/**
+ * An element's content width as it resizes. A callback ref, so it attaches whenever the element mounts, including
+ * after a loading state rendered something else first.
+ */
+export function useWidth<T extends HTMLElement>(initial: number) {
+  const el = useRef<T | null>(null);
+  const [width, setWidth] = useState(initial);
+  const ref = useCallback((node: T | null) => {
+    el.current = node;
+    if (!node) return;
+    const obs = new ResizeObserver(([e]) => e && setWidth(Math.round(e.contentRect.width)));
+    obs.observe(node);
+    return () => {
+      obs.disconnect();
+      el.current = null;
+    };
+  }, []);
+  return { ref, el, width };
+}
+
 export function useHealth(): Loadable<Health> {
   const h = useLoad(api.health, []);
   const { reload } = h;

@@ -15,6 +15,31 @@ test('After the replay, the T-0042 panel shows D3 and limiter-config-via-env; sc
   await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toHaveAttribute('data-state', 'on');
 });
 
+test('No two labels in the T-0042 graph overlap and each stays inside the graph; the graph spreads over the panel rather than piling on its edges', async ({ page }) => {
+  await page.goto('/t/T-0042');
+  const graph = page.getByTestId('memory-graph');
+  await expect(graph).toHaveAttribute('data-layout', 'done');
+  const { frame, labels, nodes } = await graph.evaluate((svg) => ({
+    frame: svg.getBoundingClientRect().toJSON() as DOMRect,
+    labels: [...svg.querySelectorAll('text')].map((t) => ({ text: t.textContent, ...(t.getBoundingClientRect().toJSON() as DOMRect) })),
+    nodes: [...svg.querySelectorAll('[data-node] > circle')].map((c) => c.getBoundingClientRect().toJSON() as DOMRect),
+  }));
+  expect(labels.length).toBeGreaterThan(5);
+  // the learned skill is the story's payoff; a long name still finds room above or below its node
+  await expect(graph.getByText('limiter-config-via-env', { exact: true })).toBeVisible();
+  for (const l of labels) {
+    expect(l.left).toBeGreaterThanOrEqual(frame.left);
+    expect(l.right).toBeLessThanOrEqual(frame.right);
+  }
+  // half a pixel each side for antialiasing
+  const hit = (a: DOMRect, b: DOMRect) => a.left + 0.5 < b.right && b.left + 0.5 < a.right && a.top + 0.5 < b.bottom && b.top + 0.5 < a.bottom;
+  expect(labels.flatMap((a, i) => labels.slice(i + 1).filter((b) => hit(a, b)).map((b) => `${a.text} over ${b.text}`))).toEqual([]);
+  // at most three nodes sit on one wall: the layout is fitted, not clamped
+  const onWall = (pick: (n: DOMRect) => boolean) => nodes.filter(pick).length;
+  expect(onWall((n) => n.top - frame.top < 18)).toBeLessThanOrEqual(3);
+  expect(onWall((n) => frame.bottom - n.bottom < 18)).toBeLessThanOrEqual(3);
+});
+
 test('A decision superseded during the window is hidden before it was recorded, on while it held, and faded to 35% after (R-019)', async ({ page }) => {
   const t0 = Date.parse('2026-10-26T14:00:00Z');
   const iso = (minutes: number) => new Date(t0 + minutes * 60_000).toISOString();

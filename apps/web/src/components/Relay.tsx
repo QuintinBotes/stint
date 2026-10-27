@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { hostName, modelName } from '../agents';
 import { api } from '../api';
 import { money } from '../format';
+import { useWidth } from '../hooks';
 import { EmptyState } from './ui';
 
 type Lane = { id: string; adapter: string | null; model: string | null; host: string | null; roles: string[]; human: boolean };
@@ -36,9 +37,9 @@ const clock = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((m
 /** The whole floor: every run on its agent's lane, the packets that carried a task on, and the lesson that crossed tasks. */
 export function Relay() {
   const [data, setData] = useState<RelayData | null>(null);
-  const [width, setWidth] = useState(900);
+  const { ref: measure, el: box, width: measured } = useWidth<HTMLDivElement>(900);
+  const width = Math.max(560, measured);
   const [hover, setHover] = useState<{ x: number; y: number; lines: string[] } | null>(null);
-  const box = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,12 +55,6 @@ export function Relay() {
       live = false;
       clearInterval(t);
     };
-  }, []);
-  useEffect(() => {
-    if (!box.current) return;
-    const obs = new ResizeObserver(([e]) => e && setWidth(Math.max(560, e.contentRect.width)));
-    obs.observe(box.current);
-    return () => obs.disconnect();
   }, []);
 
   if (!data) return <p className="text-faint text-[13px]">Reading the floor.</p>;
@@ -84,7 +79,7 @@ export function Relay() {
   };
 
   return (
-    <div ref={box} className="relative" data-testid="relay">
+    <div ref={measure} className="relative" data-testid="relay">
       <svg width={width} height={height} role="img" aria-label="Relay: runs by agent over time, with the packets and skills that connect them" className="block">
         {data.lanes.map((l, i) => {
           const t = laneTitle(l);
