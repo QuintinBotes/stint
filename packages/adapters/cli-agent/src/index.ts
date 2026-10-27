@@ -199,7 +199,8 @@ export function cliAgent(name: string, def: AgentDef): Adapter {
     },
     async available(): Promise<Availability> {
       const bin = def.command[0] as string;
-      return Bun.which(bin) ? { ok: true, version: bin } : { ok: false, reason: `${bin} is not on PATH` };
+      // the PATH as it is now, not as the process started: a test or a launcher may have changed it
+      return Bun.which(bin, { PATH: process.env.PATH ?? '' }) ? { ok: true, version: bin } : { ok: false, reason: `${bin} is not on PATH` };
     },
     gate: () => 'observed',
     run: (ctx) => exec(ctx),

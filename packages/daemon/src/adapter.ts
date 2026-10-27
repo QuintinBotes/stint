@@ -95,7 +95,7 @@ export async function adapterHealth(adapters: Adapter[], config?: Pick<Config, '
     if (seen.has(id)) continue;
     seen.add(id);
     const bin = def.command[0] as string;
-    const onPath = !!Bun.which(bin);
+    const onPath = !!Bun.which(bin, { PATH: process.env.PATH ?? '' });
     const reason = !def.enabled ? 'disabled in config; set enabled to true to use it' : onPath ? 'enabled but not registered' : `${bin} is not on PATH`;
     out.push({
       id,

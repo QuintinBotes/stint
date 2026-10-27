@@ -513,7 +513,8 @@ export function acpAgent(name: string, def: AgentDef): Adapter {
       offline: def.vendor === 'local' || def.host === 'ollama',
     },
     async available(): Promise<Availability> {
-      return Bun.which(bin) ? { ok: true, version: bin } : { ok: false, reason: `${bin} is not on PATH` };
+      // the PATH as it is now, not as the process started: a test or a launcher may have changed it
+      return Bun.which(bin, { PATH: process.env.PATH ?? '' }) ? { ok: true, version: bin } : { ok: false, reason: `${bin} is not on PATH` };
     },
     // Stint answers file, terminal and permission calls, but the agent process itself is observed.
     gate: () => 'observed',
