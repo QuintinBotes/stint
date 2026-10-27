@@ -51,7 +51,7 @@ export function App() {
   return (
     <BrowserRouter>
       <div className="h-full flex flex-col">
-        <TopBar health={health.data} onPalette={() => setPalette(true)} />
+        <TopBar health={health.data} unreachable={!health.data && !!health.error} onPalette={() => setPalette(true)} />
         <ReplayStrip health={health.data} />
         <Notifier />
         <Routes>

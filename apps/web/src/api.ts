@@ -27,6 +27,8 @@ export type Health = {
   replay?: { title: string; recordedAt: string; live: boolean };
   pty?: { backend: string };
   models?: ModelHealth[];
+  /** Chat models pulled on this machine that no route uses yet. */
+  localModels?: Array<{ host: string; model: string; parameters: string | null }>;
   autopilot?: { running: string[]; queued: string[] };
 };
 export type SkillEvalSide = { runs: number; findings: number; passed: number; failed: number; verified: number; inputTokens: number; cachedTokens: number; outputTokens: number; usd: number | null };

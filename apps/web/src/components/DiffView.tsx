@@ -4,7 +4,7 @@ import { agentOf } from '../agents';
 import { type LineComment, type RunSummary, api } from '../api';
 import { type CommentAnnotation, CommentEditor, CommentNote } from './DiffComments';
 import { type DiffFileEntry, DiffFileTree } from './DiffFileTree';
-import { Button, EmptyState, cx } from './ui';
+import { Button, EmptyState } from './ui';
 
 export type DiffLayout = 'split' | 'stacked';
 
@@ -292,7 +292,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
           {(['split', 'stacked'] as const).map((l) => (
             <Button
               key={l}
-              className={cx('h-7', layout === l && 'border-accent text-accent')}
+              className="h-7"
               aria-pressed={layout === l}
               data-testid={`diff-layout-${l}`}
               onClick={() => pickLayout(l)}
@@ -337,7 +337,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
               </span>
             ) : null}
             <Button
-              className={cx('h-6 px-2 text-[11px] ml-auto', isViewed && 'border-good text-good')}
+              className="h-6 px-2 text-[11px] ml-auto"
               aria-pressed={isViewed}
               data-testid="mark-viewed"
               disabled={!selected}

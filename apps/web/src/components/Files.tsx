@@ -76,7 +76,7 @@ export function FilesTab({ taskId }: { taskId: string }) {
               aria-label="Filter files"
               className="flex-1 min-w-0 h-8 rounded-md border border-line bg-surface px-2 text-[13px] focus-visible:border-accent outline-none"
             />
-            <Button aria-pressed={onlyChanged} onClick={() => setOnlyChanged((v) => !v)} className={cx('h-8', onlyChanged && 'border-accent text-accent')} disabled={data.changed.length === 0}>
+            <Button aria-pressed={onlyChanged} onClick={() => setOnlyChanged((v) => !v)} className="h-8" disabled={data.changed.length === 0}>
               Changed ({data.changed.length})
             </Button>
           </div>

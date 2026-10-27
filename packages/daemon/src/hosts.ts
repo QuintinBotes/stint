@@ -71,3 +71,34 @@ export function chainHealth(config: Config, models: ModelHealth[]): Record<strin
     ]),
   );
 }
+
+export type LocalModel = { host: string; model: string; parameters: string | null };
+
+let localCache: { at: number; key: string; value: LocalModel[] } | null = null;
+
+/**
+ * Chat models pulled on a keyless local host that no route names: what a person can run without a key, with
+ * `stint hand <task> stint-agent --model <host>/<model>`. Embedding models (BERT family) cannot take a run.
+ */
+export async function localModels(config: Config, env: Record<string, string | undefined> = process.env): Promise<LocalModel[]> {
+  const key = JSON.stringify([config.routes, config.hosts]);
+  if (localCache && localCache.key === key && Date.now() - localCache.at < 30_000) return localCache.value;
+  const routed = new Set(Object.values(config.routes).flatMap((chain) => chain ?? []));
+  const out: LocalModel[] = [];
+  for (const [host, h] of Object.entries(config.hosts)) {
+    const url = h.baseURL ?? (h.baseURLEnv ? env[h.baseURLEnv] : undefined);
+    if (h.keyEnv || !url) continue;
+    const tags = await fetch(new URL('/api/tags', url).toString(), { signal: AbortSignal.timeout(800) })
+      .then((r) => (r.ok ? (r.json() as Promise<{ models?: Array<{ name: string; details?: { family?: string; families?: string[] | null; parameter_size?: string } }> }>) : null))
+      .catch(() => null);
+    for (const m of tags?.models ?? []) {
+      const families = [m.details?.family ?? '', ...(m.details?.families ?? [])];
+      if (families.some((f) => /bert/i.test(f))) continue;
+      const short = Object.entries(h.models).find(([, id]) => id === m.name)?.[0] ?? m.name;
+      if (routed.has(`${host}/${short}`) || routed.has(`${host}/${m.name}`)) continue;
+      out.push({ host, model: m.name, parameters: m.details?.parameter_size || null });
+    }
+  }
+  localCache = { at: Date.now(), key, value: out };
+  return out;
+}

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { localDate, money } from '../format';
 import { useTasks } from '../hooks';
 import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
+import { StatusMenu } from './StatusMenu';
 import { Button, Kbd, StatusChip, cx } from './ui';
 
 function startOfWeek(now = new Date()): string {
@@ -31,33 +32,6 @@ function useWeekCost(): number | null {
 }
 
 /** The Meta models that can answer right now, one chip each; the rest wait for a key and say why on hover. */
-function ModelChips({ models }: { models: ModelHealth[] }) {
-  const byName = new Map<string, ModelHealth[]>();
-  for (const m of models) byName.set(modelName(m.model), [...(byName.get(modelName(m.model)) ?? []), m]);
-  const ready = [...byName.entries()].filter(([, ms]) => ms.some((m) => m.ready));
-  const waiting = [...byName.entries()].filter(([, ms]) => !ms.some((m) => m.ready));
-  return (
-    <span className="flex items-center gap-1.5" data-testid="model-chips">
-      {ready.map(([name, ms]) => {
-        const up = ms.filter((m) => m.ready);
-        const roles = [...new Set(up.flatMap((m) => m.roles))].join(', ');
-        return (
-          <span key={name} title={`${roles} on ${up.map((m) => hostName(m.host)).join(', ')}`} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-sunken px-2 h-5 text-[11px] font-medium whitespace-nowrap" data-testid="model-chip">
-            <span aria-hidden className="size-1.5 rounded-full" style={{ background: 'var(--vendor-meta)' }} />
-            {name}
-            {up.every((m) => m.offline) ? <span className="text-faint">local</span> : null}
-          </span>
-        );
-      })}
-      {waiting.length ? (
-        <span title={waiting.map(([name, ms]) => `${name}: ${ms.map((m) => m.reason).filter(Boolean).join('; ')}`).join('\n')}>
-          <StatusChip label={`${waiting.length} more waiting for a key`} tone="neutral" />
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
 /** What the hosted credits have left, derived from metered spend; only hosts with a balance entered appear. */
 function useCredits(): Array<{ host: string; left: number }> {
   const [rows, setRows] = useState<CostRow[] | null>(null);
@@ -70,7 +44,7 @@ function useCredits(): Array<{ host: string; left: number }> {
   return (rows ?? []).filter((r) => typeof r.creditsLeft === 'number').map((r) => ({ host: r.key, left: r.creditsLeft as number }));
 }
 
-export function TopBar({ health, onPalette }: { health: Health | null; onPalette: () => void }) {
+export function TopBar({ health, unreachable, onPalette }: { health: Health | null; unreachable: boolean; onPalette: () => void }) {
   const week = useWeekCost();
   const credits = useCredits();
   const { pathname } = useLocation();
@@ -88,8 +62,9 @@ export function TopBar({ health, onPalette }: { health: Health | null; onPalette
         </Link>
         {health?.repo ? (
           <>
-            <span aria-hidden className="text-faint">/</span>
-            <span className="text-muted whitespace-nowrap" data-testid="repo-name">
+            {/* on a phone the task id matters more; the repo is in the status panel */}
+            <span aria-hidden className="hidden sm:inline text-faint">/</span>
+            <span className="hidden sm:inline text-muted whitespace-nowrap" data-testid="repo-name">
               {health.repo}
             </span>
           </>
@@ -120,59 +95,7 @@ export function TopBar({ health, onPalette }: { health: Health | null; onPalette
         <span className="hidden sm:inline text-[12px] text-muted tabular whitespace-nowrap" title="Spend this week, Monday to Sunday, as metered by the daemon">
           This week <span className="text-ink font-semibold">{week === null ? 'not known yet' : money({ usd: week })}</span>
         </span>
-        {credits.length ? (
-          // the two balances closest to running out; all of them on hover
-          <span
-            className="hidden xl:inline text-[12px] text-muted tabular whitespace-nowrap"
-            title={`Derived from metered spend against the balance you entered, not read from the provider.\n${credits.map((c) => `${hostName(c.host)}: $${c.left.toFixed(2)}`).join('\n')}`}
-            data-testid="credits-left"
-          >
-            Credits left ≈{' '}
-            <span className="text-ink font-semibold">
-              {[...credits]
-                .sort((a, b) => a.left - b.left)
-                .slice(0, 2)
-                .map((c) => `$${c.left.toFixed(2)} ${hostName(c.host)}`)
-                .join(', ')}
-            </span>
-          </span>
-        ) : null}
-        <div className="hidden lg:flex items-center gap-1.5 min-w-0 overflow-hidden" data-testid="health-chips">
-          {health ? (
-            <span className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-line px-2 h-6 text-[11px] font-medium" data-testid="daemon-pill" title={`Started ${new Date(health.startedAt).toLocaleString()}, version ${health.version}`}>
-              <span aria-hidden className="size-1.5 rounded-full bg-good" />
-              {health.mode === 'replay' ? 'Replay daemon' : 'Daemon'}
-            </span>
-          ) : null}
-          {health && health.adapters.filter((a) => a.id !== 'replay').every((a) => a.capability.level !== 'supported') ? (
-            <>
-              {health.mode === 'replay' ? <StatusChip label="Replay" tone="good" /> : null}
-              <StatusChip label="No live agents configured" tone="neutral" />
-            </>
-          ) : health ? (
-            <>
-              {health.adapters
-                .filter((a) => a.capability.level === 'supported' && a.id !== 'replay')
-                .map((a) => (
-                  <span key={a.id} className="shrink-0" title={`${a.version ?? ''}${a.gate === 'none' ? '' : `; Stint's gate is ${a.gate}`}`}>
-                    <StatusChip label={ADAPTER_NAMES[a.id] ?? a.id} tone="good" />
-                  </span>
-                ))}
-              {/* agents that are off or not installed stay out of the way: one chip, named in its tooltip */}
-              {(() => {
-                const off = health.adapters.filter((a) => a.capability.level !== 'supported');
-                return off.length ? (
-                  <span className="shrink-0" data-testid="agents-off" title={off.map((a) => `${ADAPTER_NAMES[a.id] ?? a.id}: ${a.reason ?? 'unavailable'}`).join('\n')}>
-                    <StatusChip label={`${off.length} agent${off.length === 1 ? '' : 's'} off`} tone="neutral" />
-                  </span>
-                ) : null;
-              })()}
-              <ModelChips models={health.models ?? []} />
-            </>
-          ) : (
-            <StatusChip label="daemon not reachable" tone="bad" />
-          )}
-        </div>
+        <StatusMenu health={health} unreachable={unreachable} credits={credits} />
       </div>
     </header>
   );

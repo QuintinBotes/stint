@@ -17,7 +17,7 @@ import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { checkAcceptanceLock } from './acceptance';
 import { Autopilot, autopilotCard } from './autopilot';
-import { chainHealth, modelHealth } from './hosts';
+import { chainHealth, localModels, modelHealth } from './hosts';
 import { DaemonError, errorResponse } from './errors';
 import { outcomeRoutes } from './outcomes';
 import { ptyHealth } from './pty';
@@ -208,6 +208,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       autopilot: await ctx.autopilot.status(),
       models,
       chains: chainHealth(ws.config, models),
+      localModels: await localModels(ws.config),
       sandbox: await sandboxHealth(ctx),
       ...replayHealth(ctx),
       ...Object.assign({}, ...extra),

@@ -99,7 +99,8 @@ export function Button({ tone = 'quiet', className, ...rest }: ButtonHTMLAttribu
       className={cx(
         'inline-flex items-center justify-center gap-2 h-8 px-3 rounded-md border text-[13px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
         tone === 'primary' && 'bg-accent text-on-accent border-accent hover:opacity-90',
-        tone === 'quiet' && 'bg-raised text-ink border-line hover:border-line-strong',
+        // a toggle shows its state through aria-pressed; a variant, so it wins over the base colours
+        tone === 'quiet' && 'bg-raised text-ink border-line hover:border-line-strong aria-pressed:border-accent aria-pressed:text-accent aria-pressed:bg-accent-tint',
         tone === 'danger' && 'bg-raised text-bad border-line hover:border-bad',
         className,
       )}

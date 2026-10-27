@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { DEFAULT_CONFIG } from '@stint-dev/core';
-import { chainHealth, modelHealth } from '../src/index';
+import { chainHealth, localModels, modelHealth } from '../src/index';
 
 test('model health: a cloud model is ready when its key is set, waits with the reason when not, and a local model must be pulled', async () => {
   const ollama = Bun.serve({ port: 0, fetch: () => Response.json({ models: [{ name: 'muse-glimmer:30b-mlx' }] }) });
@@ -33,6 +33,27 @@ test("health's chains walk each role in config order with each entry's readiness
     expect(local?.latencyMs).toBeNumber();
     expect(local?.structuredOutput).toBe(config.hosts.ollama?.structuredOutput ?? null);
     expect(rows.find((r) => r.host === 'meta-api')?.latencyMs).toBeNull();
+  } finally {
+    ollama.stop(true);
+  }
+});
+
+test('local models lists chat models pulled on a keyless host that no route names, and leaves out embeddings and routed ones', async () => {
+  const ollama = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json({
+        models: [
+          { name: 'muse-glimmer:30b-mlx', details: { family: '' } },
+          { name: 'qwen3:8b', details: { family: 'qwen3', families: ['qwen3'], parameter_size: '8.2B' } },
+          { name: 'bge-m3:latest', details: { family: 'bert', families: ['bert'] } },
+        ],
+      }),
+  });
+  try {
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.hosts.ollama = { ...(config.hosts.ollama as NonNullable<(typeof config.hosts)['ollama']>), baseURL: `http://127.0.0.1:${ollama.port}/v1#local` };
+    expect(await localModels(config, {})).toEqual([{ host: 'ollama', model: 'qwen3:8b', parameters: '8.2B' }]);
   } finally {
     ollama.stop(true);
   }

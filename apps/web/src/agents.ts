@@ -89,6 +89,6 @@ export const ADAPTER_NAMES: Record<string, string> = {
   goose: 'goose',
   opencode: 'opencode',
   'gemini-cli': 'Gemini CLI',
-  'gemini-acp': 'Gemini CLI, ACP',
+  'gemini-acp': 'Gemini CLI over ACP',
   aider: 'Aider',
 };
