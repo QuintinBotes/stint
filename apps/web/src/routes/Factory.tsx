@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { ADAPTER_NAMES, ROLE_NAMES, agentOf, hostName, modelName } from '../agents';
-import { type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
+import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
 import { Queue } from '../components/MemoryPanel';
 import { Relay } from '../components/Relay';
 import { Button, EmptyState, StatusChip, VendorMark, cx } from '../components/ui';
@@ -87,6 +87,73 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+const BENCH_COLUMNS: Array<{ name: string; value: (m: BenchMode) => number | null; show: (n: number) => string }> = [
+  { name: 'Hand-over prompt', value: (m) => m.meanPromptTokens, show: (n) => `${Math.round(n).toLocaleString('en-US')} tokens` },
+  { name: 'Input, whole continued run', value: (m) => m.meanInputTokens, show: (n) => Math.round(n).toLocaleString('en-US') },
+  { name: 'Cost per run', value: (m) => m.meanUsd, show: (n) => `$${n.toFixed(4)}` },
+];
+
+/** The packet benchmark: each measure is its own column with its own scale, so no two scales share an axis. */
+function Benchmark({ data }: { data: BenchData }) {
+  const lines = [
+    { label: 'the transcript', m: data.byMode.transcript, base: true },
+    { label: 'the packet', m: data.byMode.packet, base: false },
+    { label: 'the packet with the diff digest', m: data.digest?.byMode.packet, base: false },
+  ].filter((l): l is { label: string; m: BenchMode; base: boolean } => l.m !== undefined);
+  const tasks = new Set(data.rows.map((r) => r.task)).size;
+  const colour = (base: boolean) => (base ? 'var(--ink-faint)' : 'var(--accent)');
+  return (
+    <div data-testid="bench">
+      <div className="overflow-x-auto">
+        <table className="w-full table-fixed text-[13px] min-w-[640px]">
+          <thead className="text-[12px] text-muted text-left">
+            <tr>
+              <th className="font-normal pb-2 w-[26%]">Continue from</th>
+              {BENCH_COLUMNS.map((c) => (
+                <th key={c.name} className="font-normal pb-2 pl-4 text-right">
+                  {c.name}
+                </th>
+              ))}
+              <th className="font-normal pb-2 pl-4 text-right w-[12%]">Tests green</th>
+            </tr>
+          </thead>
+          <tbody className="tabular">
+            {lines.map((l) => (
+              <tr key={l.label} className="border-t border-line" data-testid="bench-row">
+                <td className="py-2 font-medium">
+                  <span className="inline-flex items-center gap-2">
+                    <span aria-hidden className="size-2.5 rounded-sm" style={{ background: colour(l.base) }} />
+                    {l.label}
+                  </span>
+                </td>
+                {BENCH_COLUMNS.map((c) => {
+                  const v = c.value(l.m);
+                  const max = Math.max(...lines.map((x) => c.value(x.m) ?? 0));
+                  return (
+                    <td key={c.name} className="py-2 pl-4 text-right">
+                      {v === null ? <span className="text-muted">unpriced</span> : c.show(v)}
+                      <div className="mt-1 h-1.5 rounded-full bg-sunken">
+                        <div className="h-full rounded-full" style={{ width: `${v === null || max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
+                      </div>
+                    </td>
+                  );
+                })}
+                <td className="py-2 pl-4 text-right">
+                  {Math.round(l.m.passRate * l.m.runs)} of {l.m.runs}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-[12px] text-muted max-w-[90ch]">
+        {data.synthetic ? 'Synthetic rows, ' : data.replay ? 'Rebuilt from recorded runs, ' : `Live on ${new Date(data.startedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}, `}
+        {tasks} tasks from commit <span className="font-mono">{data.commit.slice(0, 7)}</span>: {ADAPTER_NAMES[data.implementer] ?? data.implementer} is stopped at the same step each time, then the Stint agent on {modelName(data.models[data.continuer] ?? null)} continues and the daemon runs the tests. Means per run. One run per task, so read it as a first measurement.
+      </p>
     </div>
   );
 }
@@ -496,6 +563,7 @@ export function Factory() {
   const risk = useLoad(() => api.risk(), [riskVersion]);
   const upkeep = useLoad(() => api.gardening(), []);
   const gates = useLoad(() => api.phaseGates(), []);
+  const bench = useLoad(() => api.bench(), []);
   const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
   const [outcomeRows, setOutcomeRows] = useState<OutcomeRow[] | null>(null);
@@ -599,10 +667,16 @@ export function Factory() {
             </Panel>
             <Panel title="Adjudication queue: decisions waiting for you">
               <Queue />
-              <p className="text-[12px] text-faint">A reviewer can propose reversing a decision, but only you can accept it.</p>
+              <p className="text-[12px] text-faint">A reviewer can propose reversing a decision and the learn step can propose a skill, but only you can accept either.</p>
             </Panel>
           </div>
         </div>
+
+        {bench ? (
+          <Panel title="Benchmark: continuing from a packet or from the transcript" testId="panel-bench">
+            <Benchmark data={bench} />
+          </Panel>
+        ) : null}
 
         <Panel title="Scoreboard: how each agent has done" testId="panel-scoreboard">
           <Scoreboard data={scores} />

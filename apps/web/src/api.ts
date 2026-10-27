@@ -37,7 +37,11 @@ export type PhaseGates = {
   phase3: { met: boolean; tier: string | null; shadowDays: number; reverts: number; detail: string };
   golden: { k: number; passAt1: number; passPowK: number; tasks: number; usd: number | null } | null;
 };
-export type QuizMiss = { id: string; text: string; truth: boolean; blocking: boolean; answer: string };
+export type BenchMode = { runs: number; meanInputTokens: number; meanPromptTokens: number; meanUsd: number | null; passRate: number };
+type BenchRun = { commit: string; startedAt: string; replay: boolean; synthetic?: true; implementer: string; continuer: string; models: Record<string, string>; rows: Array<{ task: string }>; byMode: Partial<Record<'transcript' | 'packet', BenchMode>> };
+/** `stint bench` results, with the packet run that carried the diff digest when it was measured separately. */
+export type BenchData = BenchRun & { digest: BenchRun | null };
+export type QuizMiss ={ id: string; text: string; truth: boolean; blocking: boolean; answer: string };
 export type QuizResult = {
   name: string;
   run: string;
@@ -253,6 +257,7 @@ export const api = {
   retireSkill: (id: string) => post<unknown>(`/api/skills/${id}/retire`),
   keepSkill: (id: string) => post<unknown>(`/api/skills/${id}/keep`),
   phaseGates: () => request<PhaseGates>('/api/phase-gates'),
+  bench: () => request<BenchData>('/api/bench'),
   relay: () => request<import('./components/Relay').RelayData>('/api/relay'),
   hand: (id: string, adapter: string, ask?: string) => post<{ run: string; packet: string }>(`/api/tasks/${id}/hand`, { adapter, ...(ask ? { ask } : {}) }),
   quiz: (id: string, name: string) => post<QuizResult>(`/api/tasks/${id}/handoffs/${name}/quiz`),

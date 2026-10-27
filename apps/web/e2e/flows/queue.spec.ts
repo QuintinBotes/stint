@@ -1,0 +1,22 @@
+import { expect, test } from '@playwright/test';
+import { daemon, stopped } from './daemon';
+
+test('A skill the learn step proposed waits in the memory panel queue; Approve calls the daemon and the row leaves the queue', async ({ page, request }) => {
+  const d = daemon(request);
+  const t = await d.post<{ id: string }>('/api/tasks', { title: 'Flow: [learn] [queue] a limit approved from the panel', goal: 'Add a limit, as a flow test.', acceptance: ['the task file exists'], tags: ['limits'] });
+  await d.post(`/api/tasks/${t.id}/autopilot`, { on: true });
+  await d.until(t.id, stopped);
+  await d.post(`/api/tasks/${t.id}/approve`);
+  await d.until(t.id, (ev) => ev.some((e) => e.type === 'skill.proposed' || e.type === 'learn.skipped'), 60_000);
+  const proposed = (await d.events(t.id)).find((e) => e.type === 'skill.proposed');
+  expect(proposed, JSON.stringify((await d.events(t.id)).find((e) => e.type === 'learn.skipped')?.payload)).toBeTruthy();
+
+  await page.goto(`/t/${t.id}`);
+  const row = page.getByTestId('memory-panel').locator('[data-testid="queue-skill"][data-skill="limits-live-in-one-place"]');
+  await expect(row).toContainText('Nothing is written until you approve it');
+  const approve = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/api/skills/limits-live-in-one-place/approve'));
+  await row.getByRole('button', { name: 'Approve and commit' }).click();
+  await approve;
+  await expect(row).toHaveCount(0);
+  await expect.poll(async () => (await d.get<Array<{ id: string; status: string }>>('/api/skills')).find((s) => s.id === 'limits-live-in-one-place')?.status).toBe('probation');
+});

@@ -29,7 +29,8 @@ const review = (prompt: string) => {
 };
 const proposal = (prompt: string) => ({
   version: 'stint.skillProposal/1',
-  id: 'limits-come-from-config',
+  // the learn prompt carries the task title, so a [queue] task gets its own skill whichever flow runs first
+  id: /\[queue\]/.test(prompt) ? 'limits-live-in-one-place' : 'limits-come-from-config',
   name: 'Limits come from config',
   description: 'Use when adding a limit, threshold, window or cap: read it through loadConfig() with a default.',
   roles: ['implementer', 'reviewer'],

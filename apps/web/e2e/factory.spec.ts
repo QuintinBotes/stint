@@ -59,3 +59,15 @@ test('The demo closes on any harness, any model, one packet: every configured ha
   await expect(panel.getByTestId('host-chips')).toContainText('Meta Model API');
   await expect(panel.getByTestId('host-chips')).toContainText('Ollama');
 });
+
+test('The Factory shows the benchmark the fixture was measured with: transcript, packet, and packet with the digest, each 5 of 5 green', async ({ page }) => {
+  await page.goto('/factory');
+  const bench = page.getByTestId('panel-bench');
+  await expect(bench.getByTestId('bench-row')).toHaveCount(3);
+  await expect(bench.getByTestId('bench-row').nth(0)).toContainText('4,418 tokens');
+  await expect(bench.getByTestId('bench-row').nth(1)).toContainText('728 tokens');
+  await expect(bench.getByTestId('bench-row').nth(2)).toContainText('the packet with the diff digest');
+  await expect(bench.getByTestId('bench-row').nth(2)).toContainText('48,623');
+  for (const row of await bench.getByTestId('bench-row').all()) await expect(row).toContainText('5 of 5');
+  await expect(bench).toContainText('commit be1bee8');
+});

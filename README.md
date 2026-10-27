@@ -91,7 +91,7 @@ Live, 26 October, five tasks:
 | Continue from | Hand-over prompt | Input tokens for the whole continued run | Cost | Tests green (daemon) |
 |---|---|---|---|---|
 | the transcript | 4,418 tokens | 60,816 | $0.059 | 5 of 5 |
-| the packet | 728 tokens | 64,863 | $0.065 | 5 of 5 |
+| the packet | 728 tokens | 64,863 | $0.064 | 5 of 5 |
 | the packet with the diff digest | 797 tokens | 48,623 | $0.054 | 5 of 5 |
 
 <picture>
@@ -99,7 +99,7 @@ Live, 26 October, five tasks:
   <img alt="Input tokens per continued run, transcript against packet, for five tasks" src="bench/results-light.svg" width="640">
 </picture>
 
-The first packet was six times smaller to hand over, and every continued run passed. But the whole run cost about the same as starting from the transcript. These first runs were short (7 or 8 steps), and the agent that started from the packet spent the difference re-reading code. The packet quiz showed why: the packet said which files changed, not what the code now does. So a run that cannot be asked now gets a digest of what its diff implements. On a second live run of the packet side, the continued runs used 25% fewer input tokens. That made the packet 1.25 times cheaper than the transcript overall, still with 5 of 5 green.
+The first packet was six times smaller to hand over, and every continued run passed. But the whole run cost about the same as starting from the transcript. These first runs were short (7 or 8 steps), and the agent that started from the packet spent the difference re-reading code. The packet quiz showed why: the packet said which files changed, not what the code now does. So a run that cannot be asked now gets a digest of what its diff implements. On a second live run of the packet side, the continued runs used 25% fewer input tokens than the first. That is 20% fewer than starting from the transcript, at 10% less cost, still with 5 of 5 green.
 
 One run per task is a small sample, and single tasks swung both ways, so read this as a first measurement, not a law. The digest also failed to arrive for one task. The rows, prompts, packets and transcripts are in `bench/runs/` and `bench/digest/runs/`, and `stint bench --replay` rebuilds the tables from them.
 

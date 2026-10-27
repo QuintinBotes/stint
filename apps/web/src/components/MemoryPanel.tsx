@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { modelName } from '../agents';
-import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, api } from '../api';
+import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, type SkillRecord, api } from '../api';
 import { PermissionRows } from './Permissions';
 import type { LayoutIn, LayoutOut } from '../graph.worker';
 import { useTasks } from '../hooks';
@@ -57,21 +57,22 @@ export function stateAt(nodes: GraphNode[], edges: GraphEdge[], ts: number, cent
   return state;
 }
 
-function useLayout(graph: GraphData | null, centre: string): Map<string, { x: number; y: number }> {
-  const [pos, setPos] = useState(new Map<string, { x: number; y: number }>());
+function useLayout(graph: GraphData | null, centre: string): { pos: Map<string, { x: number; y: number }>; done: boolean } {
+  const [layout, setLayout] = useState({ pos: new Map<string, { x: number; y: number }>(), done: false });
   useEffect(() => {
     if (!graph) return;
+    setLayout((l) => ({ ...l, done: false }));
     const worker = new Worker(new URL('../graph.worker.ts', import.meta.url), { type: 'module' });
-    worker.onmessage = (e: MessageEvent<LayoutOut>) => setPos(new Map(e.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }])));
+    worker.onmessage = (e: MessageEvent<LayoutOut>) => setLayout({ pos: new Map(e.data.nodes.map((n) => [n.id, { x: n.x, y: n.y }])), done: e.data.done });
     const msg: LayoutIn = { type: 'layout', nodes: graph.nodes.map((n) => ({ id: n.id, pinned: n.id === centre })), edges: graph.edges, width: W, height: H };
     worker.postMessage(msg);
     return () => worker.terminate();
   }, [graph, centre]);
-  return pos;
+  return layout;
 }
 
 function Graph({ graph, centre, ts, onOpenFile }: { graph: GraphData; centre: string; ts: number; onOpenFile: (path: string) => void }) {
-  const pos = useLayout(graph, centre);
+  const { pos, done } = useLayout(graph, centre);
   const state = useMemo(() => stateAt(graph.nodes, graph.edges, ts, centre), [graph, ts, centre]);
   const firstEdge = useMemo(() => {
     const m = new Map<string, GraphEdge>();
@@ -79,7 +80,7 @@ function Graph({ graph, centre, ts, onOpenFile }: { graph: GraphData; centre: st
     return m;
   }, [graph]);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded-md border border-line bg-sunken" role="img" aria-label="Memory graph" data-testid="memory-graph">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded-md border border-line bg-sunken" role="img" aria-label="Memory graph" data-testid="memory-graph" data-layout={done ? 'done' : 'running'}>
       {graph.edges.map((e) => {
         const a = pos.get(e.from);
         const b = pos.get(e.to);
@@ -225,10 +226,66 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
   );
 }
 
-/** Contradictions wait here for a person: a reviewer may not reverse a decision on its own. */
+/** A skill the learn step proposed: nothing is written to .agents/skills until a person approves it. */
+function SkillProposal({ s, onDecided }: { s: SkillRecord; onDecided: () => void }) {
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const act = (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    setError(null);
+    fn()
+      .then(onDecided)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <li className="rounded-md border border-good/40 bg-good-tint p-3 text-[12px]" data-testid="queue-skill" data-skill={s.id}>
+      <p className="text-muted mb-1">
+        The learn step proposes a skill from {s.evidence.join(', ')}. Nothing is written until you approve it.
+      </p>
+      <Link to={`/skills?skill=${s.id}`} className="font-mono font-medium text-ink hover:text-accent">
+        {s.id}
+      </Link>
+      <p className="text-ink mb-2">{s.description}</p>
+      {s.eval ? <p className="tabular text-muted mb-2">{s.eval.card}</p> : null}
+      {rejecting ? (
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            act(() => api.rejectSkill(s.id, reason));
+          }}
+        >
+          <input required value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Why reject ${s.id}`} placeholder="Why not?" className="flex-1 min-w-0 h-7 rounded-md border border-line bg-surface px-2" />
+          <Button className="h-7" tone="danger" type="submit" disabled={busy}>
+            Reject
+          </Button>
+          <Button className="h-7" onClick={() => setRejecting(false)}>
+            Cancel
+          </Button>
+        </form>
+      ) : (
+        <div className="flex gap-2">
+          <Button className="h-7" tone="primary" disabled={busy} onClick={() => act(() => api.approveSkill(s.id))}>
+            Approve and commit
+          </Button>
+          <Button className="h-7" disabled={busy} onClick={() => setRejecting(true)}>
+            Reject
+          </Button>
+        </div>
+      )}
+      {error ? <p className="mt-2 text-bad">{error}</p> : null}
+    </li>
+  );
+}
+
+/** Contradictions and proposed skills wait here for a person: a reviewer may not reverse a decision, nor the learn step write a skill, on its own. */
 export function Queue({ only, onSettled }: { only?: string; onSettled?: () => void }) {
   const [items, setItems] = useState<PendingItem[] | null>(null);
   const [permissions, setPermissions] = useState<PendingPermission[]>([]);
+  const [skills, setSkills] = useState<SkillRecord[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(() => {
     api
@@ -239,13 +296,17 @@ export function Queue({ only, onSettled }: { only?: string; onSettled?: () => vo
       .permissions()
       .then((p) => setPermissions(only ? p.filter((x) => x.task === only) : p))
       .catch(() => setPermissions([]));
+    api
+      .skills()
+      .then((s) => setSkills(s.filter((x) => x.status === 'proposed' && (!only || x.evidence.some((e) => e.startsWith(`${only}/`))))))
+      .catch(() => setSkills([]));
   }, [only]);
   useEffect(() => {
     load();
     const t = setInterval(load, 3000);
     return () => clearInterval(t);
   }, [load]);
-  if ((!items || items.length === 0) && permissions.length === 0) return null;
+  if ((!items || items.length === 0) && permissions.length === 0 && skills.length === 0) return null;
   const settle = (name: string, action: 'keep' | 'supersede') => {
     setBusy(name);
     api
@@ -286,6 +347,16 @@ export function Queue({ only, onSettled }: { only?: string; onSettled?: () => vo
             </div>
           </li>
         ))}
+        {skills.map((s) => (
+          <SkillProposal
+            key={s.id}
+            s={s}
+            onDecided={() => {
+              load();
+              onSettled?.();
+            }}
+          />
+        ))}
       </ul>
     </section>
   );
@@ -324,6 +395,11 @@ export function MemoryPanel({ id, asOf, setAsOf, onOpenFile, version }: { id: st
       {graph && graph.nodes.length > 1 && range ? (
         <>
           <Graph graph={graph} centre={centre} ts={ts} onOpenFile={onOpenFile} />
+          {graph.total > graph.nodes.length ? (
+            <p className="mt-1 text-[11px] text-faint tabular" data-testid="memory-count">
+              {graph.nodes.length} of {graph.total} nodes, the closest to this task
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-muted">
             {TYPE_NAMES.map(([t, name]) => (
               <span key={t} className="inline-flex items-center gap-1">

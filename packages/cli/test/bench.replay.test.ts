@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
 import { createApp } from '@stint-dev/daemon';
-import { tempDir } from '../../core/test/fixture';
+import { tempDir, withFixtureRepo } from '../../core/test/fixture';
 import type { BenchResults } from '../src/bench/results';
 import { renderTranscript } from '../src/bench/transcript';
 
@@ -95,6 +95,19 @@ test('stint bench --replay --tasks 2 --modes transcript,packet writes results.js
   } finally {
     tmp.cleanup();
   }
+});
+
+test("A clone of the demo fixture has no results of its own but has the commit Stint's bench ran on, so the daemon serves Stint's, with the digest run", async () => {
+  await withFixtureRepo(async (dir) => {
+    const app = createApp(await Workspace.open(dir), [], { token: 'bench-test-token', quiet: true, webDist: null });
+    const res = await app.request('/api/bench');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as BenchResults & { digest: BenchResults | null };
+    const stint = JSON.parse(readFileSync(join(repoRoot, 'bench', 'results.json'), 'utf8')) as BenchResults;
+    expect(body.commit).toBe(stint.commit);
+    expect(body.byMode.transcript?.runs).toBe(5);
+    expect(body.digest?.byMode.packet?.runs).toBe(5);
+  });
 });
 
 test('The transcript-mode prompt token count is larger than the packet-mode one for the recorded runs, and both are reported', () => {
