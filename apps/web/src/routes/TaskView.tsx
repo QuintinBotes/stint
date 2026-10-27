@@ -91,6 +91,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
   }, [id, packetName, handoffCount]);
   const diffVersion = useMemo(() => events.filter((e) => e.type === 'run.finished' || e.type === 'merge.completed').length, [events]);
   const graphVersion = useMemo(() => events.filter((e) => GRAPH_EVENTS.has(e.type)).length, [events]);
+  const locked = useMemo(() => [...new Set(events.filter((e) => e.type === 'acceptance.locked').flatMap((e) => ((e.payload.files as Array<{ path: string }> | undefined) ?? []).map((f) => f.path)))].sort(), [events]);
   const autopilot = useMemo(() => {
     const last = events.filter((e) => e.type.startsWith('autopilot.')).at(-1);
     if (!last) return { on: false, text: null as string | null };
@@ -257,7 +258,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
           </div>
         ) : null}
         {tab === 'review' ? <ReviewCard review={bundle.review} /> : null}
-        {tab === 'verification' ? <VerificationTab taskId={t.id} acceptance={t.acceptance} live={bundle.runs.some((r) => !r.endedAt)} onChanged={reload} /> : null}
+        {tab === 'verification' ? <VerificationTab taskId={t.id} acceptance={t.acceptance} locked={locked} live={bundle.runs.some((r) => !r.endedAt)} onChanged={reload} /> : null}
       </div>
     </div>
   );

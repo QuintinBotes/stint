@@ -9,6 +9,7 @@ import {
   type StintEvent,
   StintEventSchema,
   type Workspace,
+  writeJsonAtomic,
 } from '@stint-dev/core/node';
 import { DaemonError } from './errors';
 import { git, gitOk } from './git';
@@ -266,6 +267,12 @@ export class Replayer {
         break;
       case 'review.recorded':
         if (p.review) await ws.writeReview(id, p.review as Review);
+        break;
+      case 'skill.evaluated':
+        // the eval file a live daemon writes beside the event, so the skill card shows the recorded result
+        if (typeof p.id === 'string' && p.with && p.without) {
+          await writeJsonAtomic(join(ws.stintDir, 'evals', `${p.id}.json`), { id: p.id, with: p.with, without: p.without, ...(typeof p.card === 'string' ? { card: p.card } : {}), replay: true, ...(p.synthetic === true ? { synthetic: true } : {}) });
+        }
         break;
       case 'decision.recorded':
         await ws.decisions(id).append({

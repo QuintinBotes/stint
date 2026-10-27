@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Task } from '@stint-dev/core';
 import type { VerificationCheck, VerificationRecord, Workspace } from '@stint-dev/core/node';
-import { checkTamperAtRef, tamperMode, type TamperResult } from './acceptance';
+import { checkTamperAtRef, readTestsLock, tamperMode, type TamperResult } from './acceptance';
 import { runEnv } from './env';
 import { git, gitOk } from './git';
 import { listScenarioFiles, scenariosDir } from './scenarios';
@@ -157,7 +157,7 @@ export class DaemonVerifier implements Verifier {
     const testsOutput = outputs[0] ?? '';
 
     const tamper = await this.tamper(task, run, worktree);
-    const tamperRed = tamper !== null && !tamper.allowedBy && tamperMode(this.ws) === 'fail';
+    const tamperRed = !!tamper && !tamper.allowedBy && tamperMode(this.ws) === 'fail';
     const scenarios = await this.runScenarios(task, run, worktree);
     const scenariosRed = scenarios.record !== null && scenarios.record.failed > 0;
     const coverage = await this.coverage(task, run, worktree);
@@ -188,7 +188,7 @@ export class DaemonVerifier implements Verifier {
       ...(/^[0-9a-f]{40}$/.test(head) ? { commit: head } : {}),
       ...(reason ? { reason } : {}),
       checks,
-      tamper,
+      ...(tamper !== undefined ? { tamper } : {}),
       scenarios: scenarios.record,
       coverage: coverage.coverage,
       ...(coverage.reason ? { coverageReason: coverage.reason } : {}),
@@ -209,7 +209,7 @@ export class DaemonVerifier implements Verifier {
         parsed: testsParsed !== null,
         failing: failingTests(testsOutput),
         checks: record.checks,
-        tamper: record.tamper,
+        ...(record.tamper !== undefined ? { tamper: record.tamper } : {}),
         scenarios: record.scenarios,
         coverage: record.coverage,
         ...(record.reason ? { reason: record.reason } : {}),
@@ -223,8 +223,12 @@ export class DaemonVerifier implements Verifier {
     return record;
   }
 
-  /** Locked test files that changed on the branch this worktree has checked out (R-029). */
-  private async tamper(task: Task, run: string, worktree: string): Promise<TamperResult | null> {
+  /**
+   * Locked test files that changed on the branch this worktree has checked out (R-029): null when none did.
+   * Undefined when nothing is locked or the check is off, so "tests unchanged" never claims a lock that does not exist.
+   */
+  private async tamper(task: Task, run: string, worktree: string): Promise<TamperResult | null | undefined> {
+    if (tamperMode(this.ws) === 'off' || (await readTestsLock(this.ws, task.id)).length === 0) return undefined;
     if ((await git(worktree, ['rev-parse', '--verify', '-q', 'HEAD'])).code === 0) {
       return checkTamperAtRef(this.ws, task.id, run, worktree, 'HEAD');
     }

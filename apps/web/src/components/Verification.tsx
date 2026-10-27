@@ -53,7 +53,7 @@ export function mapCriteria(criteria: string[], tests: TestLine[]): Array<{ text
   });
 }
 
-export function VerificationTab({ taskId, acceptance, live, onChanged }: { taskId: string; acceptance: string[]; live: boolean; onChanged: () => void }) {
+export function VerificationTab({ taskId, acceptance, locked = [], live, onChanged }: { taskId: string; acceptance: string[]; locked?: string[]; live: boolean; onChanged: () => void }) {
   const [runs, setRuns] = useState<Verification[] | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [output, setOutput] = useState<string | null>(null);
@@ -174,6 +174,7 @@ export function VerificationTab({ taskId, acceptance, live, onChanged }: { taskI
               <dt className="text-muted">Locked tests</dt>
               <dd data-testid="tamper-line" className={cx(v.tamper && !v.tamper.allowedBy && 'text-bad')}>
                 {tamperText(v)}
+                {v.tamper === null && locked.length ? `: ${locked.join(', ')}` : ''}
               </dd>
             </>
           ) : null}

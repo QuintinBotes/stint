@@ -25,7 +25,8 @@ test("A task with checks: [{name:'typecheck', command:'...', kind:'typecheck'}] 
     const ran = (await ws.events(task.id).read()).find((e) => e.type === 'verification.ran');
     expect(ran?.payload.status).toBe('red');
     expect(ran?.payload.checks).toEqual(v.checks);
-    expect(ran?.payload.tamper).toBeNull();
+    // nothing was locked, so there is no tamper result to report
+    expect(ran?.payload).not.toHaveProperty('tamper');
     expect(ran?.payload.scenarios).toBeNull();
   });
 }, 120_000);
@@ -42,7 +43,7 @@ test('config.verify.checks run when the task names none, and the record is green
     const v = await new DaemonVerifier(ws).verify(task, 'r1', path);
     expect(v.status).toBe('green');
     expect(v.checks?.map((c) => c.name)).toEqual(['tests', 'lint']);
-    expect(v.tamper).toBeNull();
+    expect(v.tamper).toBeUndefined();
     expect(v.scenarios).toBeNull();
     expect(v.coverage).toBeNull();
   });
