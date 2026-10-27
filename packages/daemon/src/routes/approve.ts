@@ -192,6 +192,9 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash }
     const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
     if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
     const log = await ctx.ws.events(id).read();
+    // a reject or a request for changes outranks the green verification before it: the person said this code is not ready
+    const asked = log.findLastIndex((e) => e.type === 'approval.rejected');
+    if (asked > log.findLastIndex((e) => e.type === 'verification.ran' && e.payload.status === 'green')) throw new DaemonError('verification_red', 'changes were asked for after the last green verification', 'run the task again, then approve');
     const lockAt = log.findIndex((e) => e.type === 'acceptance.locked');
     // a tamper the escape hatch allowed (a `tests:` decision naming every file) does not stand in the way
     const tampered =

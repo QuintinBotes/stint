@@ -32,6 +32,22 @@ test('a second approve of the same task is refused and merges nothing', async ()
   });
 }, 120_000);
 
+for (const [route, body] of [['request-changes', { text: 'Handle the empty list' }], ['reject', { reason: 'Wrong approach' }]] as const) {
+  test(`approve is refused after ${route} while the last green verification is older, and merges nothing`, async () => {
+    await withFixtureRepo(async (repo) => {
+      const { app, t } = await builtTask(repo);
+      const head = (await gitOk(repo, ['rev-parse', 'HEAD'])).trim();
+      expect((await post(app, `/api/tasks/${t.id}/${route}`, body)).status).toBe(200);
+      const res = await post(app, `/api/tasks/${t.id}/approve`, {});
+      expect(res.status).toBe(409);
+      const err = await code(res);
+      expect(err.code).toBe('verification_red');
+      expect(err.message).toContain('after the last green verification');
+      expect((await gitOk(repo, ['rev-parse', 'HEAD'])).trim()).toBe(head);
+    });
+  }, 120_000);
+}
+
 test('a merge that would overwrite an ignored file in the main tree is refused and the file is untouched', async () => {
   await withFixtureRepo(async (repo) => {
     const { app, ws, t } = await builtTask(repo);
