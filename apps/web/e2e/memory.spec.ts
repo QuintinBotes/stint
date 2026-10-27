@@ -5,8 +5,11 @@ test('After the replay, the T-0042 panel shows D3 and limiter-config-via-env; sc
   const graph = page.getByTestId('memory-graph');
   await expect(graph.locator('[data-node="decision:T-0042/D3"]')).toBeVisible();
   await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toBeVisible();
-  // file nodes carry their basename (R-052)
-  await expect(graph.getByText('limiter.ts', { exact: true })).toBeVisible();
+  // file nodes carry their basename (R-052); in a crowded graph some go unlabelled, which one depends on the layout
+  await expect(graph).toHaveAttribute('data-layout', 'done');
+  const fileLabels = await graph.locator('[data-node^="file:"] text').allTextContents();
+  expect(fileLabels.length).toBeGreaterThan(2);
+  for (const label of fileLabels) expect(label).toMatch(/^[^/]+\.[a-z]+$/);
   const scrubber = page.getByTestId('memory-scrubber');
   await scrubber.fill(String(await scrubber.getAttribute('min')));
   await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toHaveCount(0);

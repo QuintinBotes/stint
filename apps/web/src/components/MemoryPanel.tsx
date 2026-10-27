@@ -54,7 +54,8 @@ type LabelSpot = { dx: number; dy: number; anchor: 'start' | 'middle' | 'end' };
  * crowded graph keeps the labels that matter legible; a node without a label still names itself in its tooltip.
  */
 export function placeLabels(nodes: Array<{ id: string; x: number; y: number; r: number; text?: string; size: number; rank: number }>, width: number, height: number): Map<string, LabelSpot> {
-  const taken: Box[] = nodes.map((n) => ({ x0: n.x - n.r, y0: n.y - n.r, x1: n.x + n.r, y1: n.y + n.r }));
+  const dots: Box[] = nodes.map((n) => ({ x0: n.x - n.r, y0: n.y - n.r, x1: n.x + n.r, y1: n.y + n.r }));
+  const placed: Box[] = [];
   const spots = new Map<string, LabelSpot>();
   for (const n of [...nodes].sort((a, b) => a.rank - b.rank)) {
     if (!n.text) continue;
@@ -74,9 +75,9 @@ export function placeLabels(nodes: Array<{ id: string; x: number; y: number; r: 
       const left = n.x + spot.dx - (spot.anchor === 'start' ? 0 : spot.anchor === 'middle' ? w / 2 : w);
       const box = { x0: left, y0: n.y + spot.dy - n.size, x1: left + w, y1: n.y + spot.dy + n.size * 0.3 };
       if (box.x0 < 0 || box.x1 > width || box.y0 < 0 || box.y1 > height) continue;
-      // the centre is what the graph is about: its label may cover a neighbour's dot, and the others then steer round it
-      if (n.rank >= 0 && taken.some((t) => overlaps(t, box))) continue;
-      taken.push(box);
+      // the centre and the skills are what the graph is about: their labels may cover a neighbour's dot, never a label
+      if (placed.some((t) => overlaps(t, box)) || (n.rank > 0 && dots.some((t) => overlaps(t, box)))) continue;
+      placed.push(box);
       spots.set(n.id, spot);
       break;
     }
