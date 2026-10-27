@@ -36,11 +36,11 @@ export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoos
       <div className="mt-2 flex flex-wrap gap-2">
         {next ? (
           <Button tone="primary" className="h-7" onClick={hand} disabled={state.busy} data-testid="who-continues-hand">
-            Hand to {agentOf(next.id).name} <Kbd>h</Kbd>
+            Hand to {agentOf(next.id).name}
           </Button>
         ) : null}
         <Button className="h-7" onClick={onChoose}>
-          Choose another
+          Choose another <Kbd>h</Kbd>
         </Button>
       </div>
       {state.said ? <p className="mt-2 text-muted">{state.said}</p> : null}
