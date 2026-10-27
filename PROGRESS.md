@@ -69,6 +69,14 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-022 | Demo seeding and recording | R-006, R-020 | done | muse-code/muse-wonder-full-1.0 | 1 | 2026-10-26 | `stint demo seed` (idempotent; T-0040 done with the review finding learn needs, T-0042 and T-0043 planned). `stint demo --live [--auto] [--allow-online] [--kill-after]`: preflight names the first missing key or model; beats run through the daemon API: plan, Muse Code, kill, hand to the Stint agent, network-off check and offline review, approve, learn, approve the skill, T-0043, totals. `stint demo record`: a live workspace becomes stint.recording/1 with real timings, live: true, patches beside it and paths scrubbed. Replay now reads patch files and format-patch output, and replays empty commits. Fidelity: a live-shaped run recorded and replayed rebuilds the T-0042 packet with the same hash and token count. Muse Wonder Full built it from a brief: 63 calls, 9.25M input (9.05M cached), 42K output; the author reviewed the replay change and reran the suite (186 pass). Open: the live recording itself (the author runs it). Verify: R-022 block exit 0 |
 | R-023 | Rehearsal, video, docs | R-022 | done | author | 1 | 2026-10-26 | README: the three proofs with live evidence, the quick start, screenshots, the packet, the live benchmark with its caveats, Meta models with where each runs, what was built during the event, ideas borrowed, support, roadmap, MIT. docs/adapters.md, CHANGELOG 0.1.0, the write-up refreshed (Push the Frontier, live claims, the Meta table with no unbuilt claims). docs.claims and docs.writeup tests; a CI quickstart job (a clean clone replays the demo without keys in under 90 s; 3 s locally). Open: the video (human part, R-022 recording first). Verify: bun test packages/core exit 0 |
 | R-024 | Buffer and submit | R-023 | todo | | 0 | | human |
+| R-050 | Every configured agent and model in view | R-026, R-032, R-034 | in_progress | author | 1 | 2026-10-27 | Added 27 Oct from the requirements audit and the person's ask to show the other models. Status menu and health localModels landed (d5c1c95, ADR-0009); host presets, /v1/models discovery and Claude Code's base URL from its host remain |
+| R-051 | Every card carries its state, and the gate its record | R-016, R-017 | todo | | 0 | | Added 27 Oct from the requirements audit |
+| R-052 | Memory and the Factory, complete | R-015, R-018, R-019 | todo | | 0 | | Added 27 Oct from the requirements audit |
+| R-053 | Boundaries an agent cannot cross, and lifecycles that close | R-003, R-004, R-008, R-013 | todo | | 0 | | Added 27 Oct; the audit found refusal bypasses (chained commands, git -C push, absolute paths, symlinks) |
+| R-054 | Routing, cost and the packet, as specified | R-009, R-010, R-011, R-012, R-025 | todo | | 0 | | Added 27 Oct from the requirements audit |
+| R-055 | The learn step and the bench, complete | R-018, R-020, R-021 | todo | | 0 | | Added 27 Oct from the requirements audit |
+| R-056 | The demo runner, the docs and the dev loop, as specified | R-001, R-007, R-022, R-023 | todo | | 0 | | Added 27 Oct from the requirements audit |
+| R-057 | Live proofs | R-009, R-014, R-021, R-022, R-034 | todo | | 0 | | Added 27 Oct; step 4 needs the person |
 
 ## Gates
 
@@ -150,6 +158,17 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-001 | Acceptance, `packages/core/test/smoke.test.ts` | removed when R-002 added the real schema and store tests | a smoke test that only proves the workspace builds adds nothing once every package has tests; `bun test` covers it | pending |
 | R-007 | Req 1 and 2, light and stage themes with a toggle; Acceptance `theme.spec.ts` | the UI is dark only; the light and stage tokens are not shipped | the person asked for the light theme to be removed after it failed to switch (26 Oct) | decided by the person |
 | R-010 | Interfaces, `health.adapters[]` gains host, models, structuredOutput, latencyMs, chains | `health.models[]` carries structuredOutput and latencyMs, and `health.chains` the order per role with availability per entry | the plan and review client is not an adapter, so there is no `adapters[]` entry to extend | pending |
+| R-004 | Interfaces, `createApp(ws, adapters)` | takes `options` with the token as a third argument | ADR-0002: a default would mean a daemon whose mutating routes have no token | decided |
+| R-005 | Interfaces, `verify(task, run)` | `verify(task, run, worktree)` | ADR-0002: best of n, checkpoints and evals verify worktrees other than the run's default | decided |
+| R-009 | Req 1, `available()` checks META_API_KEY | checks that `muse` runs and reports its version | ADR-0010: Muse Code logs in by itself; the run environment strips keys it does not need | decided |
+| R-014 | Req 1, hooks template written into each worktree's `.muse/` | a user-scope Muse plugin, installed once | ADR-0005: Muse 1.4 loads hooks from plugins; a worktree file would land in the diff and the merge | decided |
+| R-016 | Req 3, never the leaving vendor | never the leaving agent; vendor shown, not enforced | ADR-0006: under D-018 every model is Meta's | decided |
+| R-022 | Req 3 and 4, the live take is the default replay | the hand-written story stays the default; live takes in demo/recordings | ADR-0011: no take yet has the offline review and a learned skill | owner to close |
+| R-027 | Req 4, `acceptance.tampered` | `verification.tampered` | ADR-0002: the tamper check is part of verification since R-029 | decided |
+| R-029 | Req 2, lock every test file | lock the test files the plan and task name | ADR-0003 (D-045): locking every test blocked routine test additions | decided |
+| R-035 | Req 2, `stint/<task>-b<k>` branches | child tasks on their own branches | ADR-0002 (D-043): one task holds one live run | decided |
+| R-041 | Req 1, `--repo owner/name` | `--gh-repo owner/name` | ADR-0002: `--repo` names the local workspace on every command | decided |
+| R-048 | Req 1 and 2, CLAUDE.md link and .claude/skills copy always | only when that agent is enabled | ADR-0004 (D-044): Meta first, other agents opt in | decided |
 | R-011 | Acceptance 1, usd 0.0276 | 0.0303 | 0.0276 does not follow from the default prices under any reading of cached tokens; D-012 gives 0.0303 | pending |
 
 ## Reviews
