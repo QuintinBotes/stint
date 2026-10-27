@@ -8,7 +8,7 @@ The public repository names no client, client platform or employer of the author
 ## Context
 - `scripts/guard-identity.mjs` checks emails, em and en dashes, and the words in the gitignored `scripts/guard-identity.denylist`. With no denylist it warns and exits 0. Its test is `scripts/test/guard-identity.test.ts`.
 - Non-negotiable 9 in `AGENTS.md` and LOOP.md section 5 forbid client and employer names.
-- As of commit `c3df656`, the client platform is named in four places. Find them with `grep -rniI "open-source agent factory" .`:
+- As of commit `db1ef1a`, the client platform is named in four places. Find them with `grep -rniI "open-source agent factory" .`:
   - `README.md`, section "Ideas borrowed";
   - the `PROGRESS.md` R-027 Notes cell;
   - `PROGRESS.md` decisions D-036 and D-037.

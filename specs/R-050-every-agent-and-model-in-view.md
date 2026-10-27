@@ -34,4 +34,4 @@ bun run typecheck && bash scripts/check.sh && bun run test:ui
 Discovering models on hosted providers; a UI for editing the config.
 
 ## Notes
-Requirement 1 and Acceptance 1 landed in c402b17. LM Studio and llama.cpp both serve `GET /v1/models` in the OpenAI list shape (`{ data: [{ id }] }`).
+Requirement 1 and Acceptance 1 landed in 3e29e19. LM Studio and llama.cpp both serve `GET /v1/models` in the OpenAI list shape (`{ data: [{ id }] }`).

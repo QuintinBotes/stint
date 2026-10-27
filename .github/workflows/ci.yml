@@ -4,6 +4,10 @@ on:
     branches: [main]
   pull_request:
 
+# the workflow only reads the repository; a pull request's code gets no write access
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
@@ -29,14 +33,28 @@ jobs:
       - name: Identity guard over the files (names checked against the keyed list)
         env:
           STINT_GUARD_KEY: ${{ secrets.STINT_GUARD_KEY }}
-        run: node scripts/guard-identity.mjs
+          FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          # GitHub gives no secrets to a pull request from a fork, so names cannot be checked there;
+          # say so, check emails and dashes, and a maintainer runs the name check before merging
+          if [ -z "$STINT_GUARD_KEY" ] && [ "$FORK" = "true" ]; then
+            echo "::warning::Names were not checked: a pull request from a fork gets no STINT_GUARD_KEY. A maintainer runs node scripts/guard-identity.mjs before merging."
+            CI= node scripts/guard-identity.mjs
+          else
+            node scripts/guard-identity.mjs
+          fi
       - name: Identity guard over the commit messages of this push or pull request
         if: runner.os == 'Linux'
         env:
           STINT_GUARD_KEY: ${{ secrets.STINT_GUARD_KEY }}
           BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
+          FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
+          if [ -z "$STINT_GUARD_KEY" ] && [ "$FORK" = "true" ]; then
+            echo "::warning::Commit messages were not checked for names: a pull request from a fork gets no STINT_GUARD_KEY."
+            exit 0
+          fi
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             range="origin/main..HEAD"
           elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
