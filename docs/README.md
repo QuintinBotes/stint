@@ -7,14 +7,17 @@ Every file in this folder, one line each.
 - [`build-kit.md`](build-kit.md): the spec-driven build loop Stint was built with (`AGENTS.md`, `GOAL.md`, `LOOP.md`, `specs/`).
 - [`demo.md`](demo.md): the demo runbook: the replay, the live beats, rehearsal timings and what to do when a beat goes wrong.
 - [`evals.md`](evals.md): skill evals, probation and retirement, the golden tasks and the phase gates.
+- [`factory.md`](factory.md): the factory around the hand-off: escalation, best of n, memory, skills, evals and outcomes after merge.
 - [`finals.md`](finals.md): the kit for the live judging: the 60-second version, likely questions and fallbacks.
 - [`launch.md`](launch.md): the launch post and thread for X.
 - [`mcp.md`](mcp.md): serving Stint's tools over the Model Context Protocol with `stint mcp`.
 - [`otel.md`](otel.md): sending runs to an OpenTelemetry collector or an eval tool.
 - [`packet.md`](packet.md): the `stint.handoff/1` packet: its fields, how it is built, and a live example.
+- [`proofs.md`](proofs.md): every number Stint claims, the live packet, the benchmark, where each Meta model works, and what was built during the hackathon.
 - [`release.md`](release.md): what the daemon records after merge (reverts, follow-ups, CI, incidents) and the pull request release mode.
 - [`sandbox.md`](sandbox.md): the run sandbox and network rules around each worktree.
-- [`support.md`](support.md): supported platforms and what each one needs.
+- [`setup.md`](setup.md): the full setup guide: platforms, install, where keys load from, other agents, the offline review, updating and uninstalling.
+- [`support.md`](support.md): where to get help: `stint doctor`, troubleshooting, issues and security reports.
 - [`timeline.md`](timeline.md): when Stint was built, and which commits came before the hackathon kickoff.
 - [`verify.md`](verify.md): the verify suite, the tamper guard, held-out scenarios and coverage.
 - [`video.md`](video.md): the demo video's script, timings and the footage capture.

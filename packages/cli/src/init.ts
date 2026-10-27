@@ -87,7 +87,9 @@ export const initCommand = defineCommand({
     const { changed, kept } = await init(root, { force: args.force });
     process.stdout.write(changed.length ? `Wrote ${changed.join(', ')}\n` : 'Already a Stint workspace; nothing changed.\n');
     if (kept) process.stdout.write("Kept AGENTS.md's Stint section: it differs from this version's text (edited by hand, or written by an older Stint). Run stint init --force to replace it.\n");
-    const plugin = relative(process.cwd(), join(import.meta.dir, '..', '..', 'adapters', 'muse-code', 'plugin'));
+    const abs = join(import.meta.dir, '..', '..', 'adapters', 'muse-code', 'plugin');
+    // from another repository the relative path climbs to the root, so give the absolute one
+    const plugin = relative(process.cwd(), abs).startsWith('..') ? abs : relative(process.cwd(), abs);
     process.stdout.write(`For Muse Code's hooks, install and approve the Stint plugin once:\n  muse plugins install ${plugin} --scope user\n  muse plugins approve stint\n`);
   },
 });

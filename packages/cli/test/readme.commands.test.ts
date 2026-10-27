@@ -1,11 +1,11 @@
 // Every shell block in README.md and docs/setup.md runs, or says why not (R-059 Requirement 8). A block preceded by
 // `<!-- needs: X -->` is skipped with that reason printed. The rest run in order, in a temporary HOME, against a fresh
-// copy of the fixture as "your repository", with the flow tests' fake agents and model server. Two lines are stood in
-// for: `cd /path/to/your/repo` goes to that copy, and `stint up` (which runs until stopped) is the fake-agent daemon,
-// started in this process. A ```text block right after a block that ran must match what it printed, ports, hashes and
+// copy of the fixture as "your repository", with the flow tests' fake agents and model server. Three lines are stood
+// in for: `cd /path/to/your/repo` goes to that copy, `cd /path/to/stint` goes to this checkout, and `stint up` (which
+// runs until stopped) is the fake-agent daemon, started in this process. A ```text block right after a block that ran must match what it printed, ports, hashes and
 // paths aside.
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { startDaemon } from '@stint-dev/daemon';
 import { fakeAcp, flowConfig, startFakeModels, writer } from '../../../apps/web/e2e/flows/fakes';
@@ -15,6 +15,7 @@ import { main } from '../src/main';
 const checkout = join(import.meta.dir, '..', '..', '..');
 const DOCS = ['README.md', 'docs/setup.md'];
 const YOUR_REPO = /^cd \/path\/to\/your\/repo\s*$/;
+const STINT_CHECKOUT = /^cd \/path\/to\/stint\s*$/;
 
 type Block = { file: string; line: number; needs: string | null; text: string; output: string | null };
 
@@ -54,6 +55,7 @@ const commands = (text: string) =>
 /** Ports, hashes, temporary paths and timings change every run; the words around them must not. */
 const normalise = (s: string) =>
   s
+    .replaceAll(checkout, '/path/to/stint')
     .replace(/127\.0\.0\.1:\d+/g, '127.0.0.1:PORT')
     .replace(/\b[0-9a-f]{7,40}\b/g, 'HASH')
     .replace(/\/(private\/)?(var|tmp)\/[^\s,)]+/g, 'PATH')
@@ -66,7 +68,7 @@ test('R-059 Acceptance 2: a command in a README or docs/setup.md block that the 
   for (const file of DOCS) {
     for (const b of shellBlocks(file)) {
       for (const c of commands(b.text)) {
-        const sub = /^stint\s+([a-z-]+)/.exec(c)?.[1];
+        const sub = /^stint\s+([a-z][a-z-]*)/.exec(c)?.[1];
         if (sub && !known.has(sub)) unknown.push(`${file}:${b.line}: stint ${sub}`);
       }
     }
@@ -84,9 +86,6 @@ test('R-059 Acceptance 2: every shell block in the README and docs/setup.md runs
   let daemon: Awaited<ReturnType<typeof startDaemon>> | null = null;
   try {
     await withFixtureRepo(async (repo) => {
-      // the fakes' config is in place before `stint init`, which keeps an existing config, so the commit holds it
-      mkdirSync(join(repo, '.stint'), { recursive: true });
-      writeFileSync(join(repo, '.stint', 'config.json'), JSON.stringify(flowConfig(models.port), null, 2));
       Bun.spawnSync(['git', '-C', repo, 'config', 'user.name', 'Stint Readme']);
       Bun.spawnSync(['git', '-C', repo, 'config', 'user.email', 'readme@example.com']);
       const bin = join(home.dir, '.local', 'bin');
@@ -103,7 +102,14 @@ test('R-059 Acceptance 2: every shell block in the README and docs/setup.md runs
             cwd = repo;
             continue;
           }
+          if (STINT_CHECKOUT.test(c)) {
+            cwd = checkout;
+            continue;
+          }
           if (/^stint up\s*&?$/.test(c)) {
+            // the README's `stint init` wrote the default config; the fakes' hosts go in as one more commit
+            writeFileSync(join(repo, '.stint', 'config.json'), JSON.stringify(flowConfig(models.port), null, 2));
+            Bun.spawnSync(['git', '-C', repo, 'commit', '-qam', 'Use the fake hosts']);
             daemon = await startDaemon({ root: repo, quiet: true, adapters: [writer('muse-code'), writer('stint-agent'), fakeAcp()] });
             continue;
           }

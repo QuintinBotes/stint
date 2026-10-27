@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 const root = join(import.meta.dir, '..', '..', '..');
 const readme = readFileSync(join(root, 'README.md'), 'utf8');
+const proofs = readFileSync(join(root, 'docs', 'proofs.md'), 'utf8');
 
 /** Claims the README makes that a reader can check, each tied to something in the repository. */
 export function readmeProblems(text: string): string[] {
@@ -16,7 +17,7 @@ export function readmeProblems(text: string): string[] {
   const packet = /packet is (\d+) tokens/.exec(text)?.[1];
   const recorded = [...readFileSync(join(root, 'demo', 'recording.jsonl'), 'utf8').matchAll(/"type":"handoff\.created".*?"tokens":(\d+)/g)].map((m) => m[1]);
   if (packet && !recorded.includes(packet)) problems.push(`says the packet is ${packet} tokens; the recording has ${recorded.join(', ')}`);
-  problems.push(...measuredProblems(text));
+  problems.push(...summaryProblems(text));
   return problems;
 }
 
@@ -24,7 +25,29 @@ type Mode = { runs: number; meanPromptTokens: number; meanInputTokens: number; m
 const json = <T>(path: string) => JSON.parse(readFileSync(join(root, path), 'utf8')) as T;
 const n = (s: string) => Number(s.replace(/[,$]/g, ''));
 
-/** The live numbers the README quotes, each checked against the result file it came from (R-056). */
+/** The README's one-line summaries of docs/proofs.md and the quick start time, against the files they come from. */
+export function summaryProblems(text: string): string[] {
+  const problems: string[] = [];
+  const quick = json<{ seconds: number; runs: Array<{ seconds: number }> }>('bench/quickstart.json');
+  if (quick.seconds !== Math.max(...quick.runs.map((r) => r.seconds))) problems.push(`bench/quickstart.json says ${quick.seconds} s; its slowest run took ${Math.max(...quick.runs.map((r) => r.seconds))} s`);
+  const said = /these steps take about (\d+) seconds/.exec(text)?.[1];
+  if (Number(said) !== quick.seconds) problems.push(`says the quick start takes about ${said} seconds; CI measured ${quick.seconds}`);
+  const bench = json<{ byMode: Record<string, Mode> }>('bench/results.json').byMode;
+  const digest = json<{ byMode: Record<string, Mode> }>('bench/digest/results.json').byMode;
+  const green = (m: Mode | undefined) => (m ? Math.round(m.passRate * m.runs) : 0);
+  const [t, p, d] = [bench.transcript, bench.packet, digest.packet];
+  const line = /packets (\d+) times smaller than transcripts, (\d+) of (\d+) continued runs green against (\d+) of (\d+)/.exec(text);
+  if (!line || !t || !p || !d) problems.push('the benchmark summary line is missing');
+  else {
+    const [, times, pOk, pAll, tOk, tAll] = line.map(Number);
+    if (times !== Math.round(t.meanPromptTokens / ((p.meanPromptTokens + d.meanPromptTokens) / 2))) problems.push(`says packets are ${times} times smaller; the results give ${Math.round(t.meanPromptTokens / ((p.meanPromptTokens + d.meanPromptTokens) / 2))}`);
+    if (pOk !== green(p) + green(d) || pAll !== p.runs + d.runs) problems.push(`says ${pOk} of ${pAll} packet runs green; the results give ${green(p) + green(d)} of ${p.runs + d.runs}`);
+    if (tOk !== green(t) || tAll !== t.runs) problems.push(`says ${tOk} of ${tAll} transcript runs green; the results give ${green(t)} of ${t.runs}`);
+  }
+  return problems;
+}
+
+/** The live numbers docs/proofs.md quotes, each checked against the result file it came from (R-056, R-059). */
 export function measuredProblems(text: string): string[] {
   const problems: string[] = [];
   const bench = json<{ byMode: Record<string, Mode> }>('bench/results.json');
@@ -69,14 +92,16 @@ test('every test, link, image and packet size the README cites exists in the rep
   expect(readmeProblems(readme)).toEqual([]);
 });
 
-test('the measured numbers fail the check when one is changed by hand', () => {
-  expect(measuredProblems(readme)).toEqual([]);
-  expect(measuredProblems(readme.replace(/(\| the transcript \| )[\d,]+ tokens/, '$14,000 tokens'))).toEqual([expect.stringContaining('hand-over prompt 4,000')]);
-  expect(measuredProblems(readme.replace(/9 of 9 tries/, '8 of 9 tries'))).toEqual([expect.stringContaining('golden: 8 of 9')]);
-  expect(measuredProblems(readme.replace(/from these \d+ tokens/, 'from these 300 tokens'))).toEqual([expect.stringContaining('300 tokens')]);
+test('R-059 Acceptance 7: the measured numbers in docs/proofs.md match their results files, and fail the check when one is changed by hand', () => {
+  expect(measuredProblems(proofs)).toEqual([]);
+  expect(measuredProblems(proofs.replace(/(\| the transcript \| )[\d,]+ tokens/, '$14,000 tokens'))).toEqual([expect.stringContaining('hand-over prompt 4,000')]);
+  expect(measuredProblems(proofs.replace(/9 of 9 tries/, '8 of 9 tries'))).toEqual([expect.stringContaining('golden: 8 of 9')]);
+  expect(measuredProblems(proofs.replace(/from these \d+ tokens/, 'from these 300 tokens'))).toEqual([expect.stringContaining('300 tokens')]);
 });
 
 test('the check fails when a README number is changed by hand', () => {
   expect(readmeProblems(readme.replace(/packet is \d+ tokens/, 'packet is 99 tokens'))).toEqual([expect.stringContaining('says the packet is 99 tokens')]);
   expect(readmeProblems(`${readme}\nSee packages/daemon/test/nothing.test.ts.`)).toEqual([expect.stringContaining('nothing.test.ts')]);
+  expect(readmeProblems(readme.replace(/take about \d+ seconds/, 'take about 5 seconds'))).toEqual([expect.stringContaining('CI measured')]);
+  expect(readmeProblems(readme.replace(/9 of 10 continued runs/, '10 of 10 continued runs'))).toEqual([expect.stringContaining('10 of 10 packet runs')]);
 });

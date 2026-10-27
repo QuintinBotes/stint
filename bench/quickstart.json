@@ -1,0 +1,11 @@
+{
+  "what": "Seconds the CI quickstart job takes from a clean clone, after the clone: bootstrap --check-only, bun install, the fixture, the web build and the replay",
+  "job": ".github/workflows/ci.yml#quickstart",
+  "seconds": 10,
+  "runs": [
+    { "run": 40538242382, "date": "2026-10-27", "seconds": 10 },
+    { "run": 40539202634, "date": "2026-10-27", "seconds": 9 },
+    { "run": 40542543771, "date": "2026-10-27", "seconds": 8 },
+    { "run": 40590326632, "date": "2026-10-27", "seconds": 9 }
+  ]
+}

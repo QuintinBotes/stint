@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": { "outDir": ".tsbuild/packages", "rootDir": "." },
-  "include": ["packages/**/src/**/*", "packages/**/src/**/*.json", "packages/**/test/**/*", "packages/**/bin/**/*.ts", "packages/*/scripts/**/*.ts", "scripts/**/*.ts"],
+  "include": ["packages/**/src/**/*", "packages/**/src/**/*.json", "packages/**/test/**/*", "packages/**/bin/**/*.ts", "packages/*/scripts/**/*.ts", "scripts/**/*.ts", "apps/web/e2e/flows/fakes.ts"],
   "exclude": ["**/node_modules", "**/dist"]
 }
