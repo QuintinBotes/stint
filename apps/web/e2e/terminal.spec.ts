@@ -22,3 +22,34 @@ test('The Terminal tab opens a shell in the run worktree; a typed line runs ther
     })
     .toBe('echo stint-$((40+2))');
 });
+
+test('The terminal fills its pane, with the kill button visible while its run is live', async ({ page, request }) => {
+  await page.goto('/');
+  const token = (await page.locator('meta[name="stint-token"]').getAttribute('content')) as string;
+  const headers = { Authorization: `Bearer ${token}` };
+  const created = await request.post('/api/tasks', { headers, data: { title: 'A task whose run looks live', goal: 'Fill the pane.', acceptance: ['the terminal fills its pane'] } });
+  const { id } = (await created.json()) as { id: string };
+  expect((await request.post(`/api/tasks/${id}/assign`, { headers, data: { adapter: 'replay', role: 'implementer' } })).status()).toBe(202);
+  await expect.poll(async () => ((await (await request.get(`/api/tasks/${id}`)).json()) as { runs: Array<{ endedAt: string | null }> }).runs[0]?.endedAt ?? null).not.toBeNull();
+
+  // the replay run ends at once, so the bundle the page reads keeps it live: the worktree and its shell are real
+  await page.route(`**/api/tasks/${id}`, async (route) => {
+    const res = await route.fetch();
+    const bundle = (await res.json()) as { runs: Array<Record<string, unknown>> };
+    if (bundle.runs[0]) bundle.runs[0].endedAt = null;
+    await route.fulfill({ response: res, json: bundle });
+  });
+  await page.goto(`/t/${id}?tab=terminal`);
+  await expect(page.getByTestId('kill-run')).toBeVisible();
+  await expect(page.getByTestId('kill-run')).toContainText('Kill r1');
+  await expect(page.getByTestId('terminal-cwd')).toContainText(`.stint/worktrees/${id}-r1`);
+  await expect
+    .poll(async () => {
+      const pane = await page.getByTestId('terminal').boundingBox();
+      const term = await page.locator('.xterm').boundingBox();
+      if (!pane || !term) return 0;
+      // the shell takes the pane's width and most of its height, not a fixed small box in a corner
+      return term.width >= pane.width - 24 && term.height >= 300 ? 1 : 0;
+    })
+    .toBe(1);
+});

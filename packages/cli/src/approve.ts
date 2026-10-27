@@ -40,7 +40,14 @@ export async function showCommit(root: string, commit: string): Promise<string> 
     if ((await ws.handoffs(id).read(name))?.hash === t['Stint-Handoff']) packet = relative(root, join(dir, 'handoffs', `${name}.json`));
   }
   const task = await ws.readTask(id);
-  return [`Task: ${id} ${task.title}`, `Runs: ${t['Stint-Runs'] ?? 'none'}`, `Packet: ${packet} (${t['Stint-Handoff'] ?? 'none'})`, `Verified: ${t['Stint-Verified'] ?? 'none'}`, ''].join('\n');
+  return [
+    `Task: ${id} ${task.title}`,
+    `Runs: ${t['Stint-Runs'] ?? 'none'}`,
+    `Packet: ${packet} (${t['Stint-Handoff'] ?? 'none'})`,
+    `Verified: ${t['Stint-Verified'] ?? 'none'}`,
+    ...(task.links.issueUrl ? [`Issue: ${task.links.issueUrl}`] : []),
+    '',
+  ].join('\n');
 }
 
 export const show = defineCommand({

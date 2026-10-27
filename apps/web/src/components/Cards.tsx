@@ -17,6 +17,16 @@ function List({ items, empty }: { items: string[]; empty: string }) {
   );
 }
 
+/** An empty card: its sentence, and the state the task is waiting in beside it. */
+function PlannedEmpty({ testId, children }: { testId: string; children: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <StatusChip status="planned" />
+      <EmptyState testId={testId}>{children}</EmptyState>
+    </div>
+  );
+}
+
 /** One cell of the packet grid: a small label over its content. */
 function Cell({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -52,7 +62,7 @@ function LeftOut({ items }: { items: string[] }) {
 
 export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
   const [view, setView] = useState<'packet' | 'prompt' | 'json'>('packet');
-  if (!handoff) return <EmptyState testId="empty-packet">The packet appears here when a run ends, however it ends.</EmptyState>;
+  if (!handoff) return <PlannedEmpty testId="empty-packet">The packet appears here when a run ends, however it ends.</PlannedEmpty>;
   const prompt = renderHandoff(handoff);
   const bytes = new TextEncoder().encode(prompt).length;
   const from = agentOf(handoff.from.adapter, handoff.from.host, handoff.from.model);
@@ -62,10 +72,13 @@ export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
     <article data-testid="handoff-card" className="flex flex-col gap-3 max-w-[80ch]">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-[17px] font-semibold tracking-[-0.01em]">
-            Packet from {handoff.from.run}
-            {to ? ` to ${to.name.replace(/^The /, 'the ')}` : ''}
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">
+              Packet from {handoff.from.run}
+              {to ? ` to ${to.name.replace(/^The /, 'the ')}` : ''}
+            </h2>
+            <StatusChip status={handoff.from.endedBy} />
+          </div>
           <p className="text-[12px] text-muted tabular" data-testid="packet-size">
             {countTokens(prompt)} tokens, {(bytes / 1024).toFixed(1)} KB.{' '}
             <span className="font-mono text-faint" title={handoff.hash}>
@@ -194,7 +207,7 @@ const JSON_STYLE = {
 };
 
 export function ReviewCard({ review, decisions = [] }: { review: Review | null; decisions?: Array<{ id: string; text: string }> }) {
-  if (!review) return <EmptyState testId="empty-review">The review appears here after a green verification.</EmptyState>;
+  if (!review) return <PlannedEmpty testId="empty-review">The review appears here after a green verification.</PlannedEmpty>;
   return (
     <article data-testid="review-card" className="flex flex-col gap-3 max-w-[72ch]">
       <header className="flex flex-wrap items-center gap-2">
@@ -226,6 +239,20 @@ export function ReviewCard({ review, decisions = [] }: { review: Review | null; 
         <p data-testid="review-disagreement" className="text-[12px] text-warn">
           The reviewers did not agree on the verdict. The strictest one counts; read their findings before you approve.
         </p>
+      ) : null}
+      {review.blockers.length ? (
+        <section data-testid="review-blockers" aria-label="Blockers">
+          <h3 className="text-[13px] font-semibold text-bad">
+            {review.blockers.length} blocker{review.blockers.length === 1 ? '' : 's'}
+          </h3>
+          <ul className="mt-1 flex flex-col gap-1 list-disc pl-4 marker:text-bad">
+            {review.blockers.map((b) => (
+              <li key={b} className="text-bad">
+                {b}
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
       {review.findings.length === 0 ? (
         <p data-testid="no-findings">No actionable findings.</p>
@@ -265,31 +292,92 @@ export function ReviewCard({ review, decisions = [] }: { review: Review | null; 
   );
 }
 
-export function PlanCard({ plan }: { plan: Plan | null }) {
-  if (!plan) return <EmptyState testId="empty-plan">The plan arrives here when the planner finishes.</EmptyState>;
+const STEP_STOP = new Set(['the', 'and', 'with', 'when', 'that', 'this', 'from', 'into', 'for', 'are', 'its', 'per']);
+
+/** Key words of a step or a packet entry, lightly stemmed so tests and test are the same word. */
+const stepWords = (s: string) =>
+  new Set(
+    s
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
+      .filter((w) => w.length >= 3 && !STEP_STOP.has(w)),
+  );
+
+/**
+ * How strongly a packet entry names a step: an exact id or text match outranks everything;
+ * the agent's own words score by shared key words, and two shared words count as the same step.
+ */
+function stepScore(entry: string, step: { id: number; text: string }): number {
+  const text = entry.trim().toLowerCase();
+  if (text === String(step.id) || text === `step ${step.id}` || text === step.text.trim().toLowerCase()) return 1000;
+  const want = stepWords(step.text);
+  if (want.size === 0) return 0;
+  const have = stepWords(entry);
+  return [...want].filter((w) => have.has(w)).length;
+}
+
+/** Each step, done or open, from the latest packet's lists; the list that names it best decides. */
+export function planStepStates(plan: Plan, handoff: Handoff | null | undefined): Array<'done' | 'open'> {
+  const best = (entries: string[], step: { id: number; text: string }) => Math.max(0, ...entries.map((e) => stepScore(e, step)));
+  return plan.steps.map((s) => {
+    const need = Math.min(2, Math.max(1, stepWords(s.text).size));
+    const done = best(handoff?.done ?? [], s);
+    const open = best(handoff?.open ?? [], s);
+    return done >= need && done >= open ? 'done' : 'open';
+  });
+}
+
+export function PlanCard({ plan, handoff }: { plan: Plan | null; handoff?: Handoff | null }) {
+  if (!plan) return <PlannedEmpty testId="empty-plan">The plan arrives here when the planner finishes.</PlannedEmpty>;
   const [host, model] = plan.model.includes('/') ? plan.model.split('/') : [null, plan.model];
+  const states = planStepStates(plan, handoff);
+  const doneCount = states.filter((s) => s === 'done').length;
+  const state = doneCount === plan.steps.length ? 'done' : doneCount > 0 ? 'building' : 'planned';
   return (
     <article data-testid="plan-card" className="flex flex-col gap-2 max-w-[72ch]">
-      <p className="text-muted">
-        Planned by {modelName(model)}
-        {host ? ` on ${hostName(host)}` : ''}
-        {plan.offline ? ', offline' : ''}
-        {plan.similarTasks.length ? `. Similar past tasks: ${plan.similarTasks.join(', ')}` : ''}
-      </p>
+      <header className="flex flex-wrap items-center gap-2">
+        <StatusChip status={state} />
+        <p className="text-muted">
+          Planned by {modelName(model)}
+          {host ? ` on ${hostName(host)}` : ''}
+          {plan.offline ? ', offline' : ''}
+        </p>
+      </header>
       <ol className="flex flex-col gap-2">
-        {plan.steps.map((s) => (
-          <li key={s.id} className="grid grid-cols-[1.5rem_1fr] gap-2">
-            <span className="tabular text-faint">{s.id}</span>
-            <div>
-              <p>{s.text}</p>
-              <p className="font-mono text-[12px] text-muted">{[...s.files, ...(s.test ? [s.test] : [])].join(', ')}</p>
-            </div>
-          </li>
-        ))}
+        {plan.steps.map((s, i) => {
+          const stepState = states[i] ?? 'open';
+          return (
+            <li key={s.id} data-testid="plan-step" data-state={stepState} className="grid grid-cols-[1.5rem_1fr_auto] gap-2 items-start">
+              <span className="tabular text-faint">{s.id}</span>
+              <div>
+                <p>{s.text}</p>
+                <p className="font-mono text-[12px] text-muted">{[...s.files, ...(s.test ? [s.test] : [])].join(', ')}</p>
+              </div>
+              <StatusChip label={stepState} tone={stepState === 'done' ? 'good' : 'neutral'} />
+            </li>
+          );
+        })}
       </ol>
+      {plan.filesToTouch.length ? (
+        <Section title="Files">
+          <ul className="font-mono text-[12px] flex flex-col gap-0.5" data-testid="plan-files">
+            {plan.filesToTouch.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
       {plan.risks.length ? (
         <Section title="Risks">
-          <List items={plan.risks.map((r) => `${r.id}: ${r.text}`)} empty="" />
+          <div data-testid="plan-risks">
+            <List items={plan.risks.map((r) => `${r.id}: ${r.text}`)} empty="" />
+          </div>
+        </Section>
+      ) : null}
+      {plan.similarTasks.length ? (
+        <Section title="Similar tasks">
+          <p data-testid="plan-similar">{plan.similarTasks.join(', ')}</p>
         </Section>
       ) : null}
     </article>

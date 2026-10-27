@@ -19,3 +19,18 @@ test('Pressing n opens the new task dialog; creating a task opens it, puts it in
   await page.goto('/');
   await expect(page.getByTestId('lane-planned').locator(`[data-task="${id}"]`)).toBeVisible();
 });
+
+test('A task created with an issue URL shows it as a link in the task header', async ({ page, request }) => {
+  const d = daemon(request);
+  const issueUrl = 'https://example.invalid/acme/api/issues/42';
+  const t = await d.post<{ id: string }>('/api/tasks', {
+    title: 'Flow: a task from an issue',
+    goal: 'The header links back to the issue.',
+    acceptance: ['the issue link is in the header'],
+    links: { issueUrl },
+  });
+  await page.goto(`/t/${t.id}`);
+  const link = page.getByTestId('task-header').getByTestId('issue-link');
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('href', issueUrl);
+});

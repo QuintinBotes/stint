@@ -203,6 +203,11 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
           <span>
             branch <span className="font-mono">{t.branch}</span>, base <span className="font-mono">{t.baseCommit.slice(0, 7)}</span>
           </span>
+          {t.links.issueUrl ? (
+            <a href={t.links.issueUrl} data-testid="issue-link" className="text-accent hover:underline" target="_blank" rel="noreferrer">
+              Issue
+            </a>
+          ) : null}
           {t.status !== 'done' ? (
             <Button
               className={cx('h-7 ml-auto', autopilot.on && 'border-accent text-accent')}
@@ -311,7 +316,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
         ) : null}
         {tab === 'files' ? <FilesTab taskId={t.id} /> : null}
         {tab === 'terminal' ? <Terminal taskId={t.id} liveRun={bundle.runs.find((r) => !r.endedAt)?.run ?? null} /> : null}
-        {tab === 'plan' ? <PlanCard plan={bundle.plan} /> : null}
+        {tab === 'plan' ? <PlanCard plan={bundle.plan} handoff={bundle.handoff} /> : null}
         {tab === 'packet' ? (
           <div className="flex flex-col gap-3">
             {packetNames.length > 1 ? (

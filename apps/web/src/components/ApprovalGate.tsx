@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DaemonError, type TaskBundle, api } from '../api';
+import { localDate, localTime } from '../format';
 import { Button, Kbd, StatusChip } from './ui';
 
 /** Opens only on a green verification and a review that is not a block. The daemon enforces the same on /approve. */
@@ -111,10 +112,25 @@ export function ApprovalGate({ bundle, onDone }: { bundle: TaskBundle; onDone: (
           {bundle.merge ? (
             <>
               <p>
-                Approved by {!bundle.merge.by || bundle.merge.by === 'human' ? 'you' : bundle.merge.by} and merged into {bundle.merge.into ?? 'the base branch'} as <span className="font-mono">{bundle.merge.commit.slice(0, 10)}</span>.
+                Approved by <span data-testid="signoff-by">{!bundle.merge.by || bundle.merge.by === 'human' ? 'you' : bundle.merge.by}</span> and merged into {bundle.merge.into ?? 'the base branch'} as{' '}
+                <span className="font-mono" data-testid="signoff-commit">
+                  {bundle.merge.commit.slice(0, 10)}
+                </span>
+                .
               </p>
               <p className="text-muted mt-1">
-                The commit carries Stint-Task: {bundle.task.id}
+                <span data-testid="signoff-at">
+                  {localDate(bundle.merge.at)}, {localTime(bundle.merge.at)}
+                </span>
+                {bundle.merge.verificationHash ? (
+                  <>
+                    . Verification{' '}
+                    <span className="font-mono" data-testid="signoff-hash" title={bundle.merge.verificationHash}>
+                      {bundle.merge.verificationHash.slice(0, 12)}
+                    </span>
+                  </>
+                ) : null}
+                . The commit carries Stint-Task: {bundle.task.id}
                 {bundle.merge.trailers['Stint-Verified'] ? `, Stint-Verified: ${bundle.merge.trailers['Stint-Verified']}` : ''}.
               </p>
             </>

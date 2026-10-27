@@ -92,7 +92,7 @@ export type Verification = {
 };
 /** A comment on one line of the diff; the daemon stores them and the next hand carries them in its ask. */
 export type LineComment = { id: string; file: string; line: number; text: string; at: string; handedTo?: string };
-export type MergeRecord = { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> };
+export type MergeRecord = { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string>; verificationHash: string | null };
 export type OutcomeRecord = {
   kind: 'reverted' | 'followup' | 'ci' | 'incident';
   type: string;

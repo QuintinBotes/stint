@@ -5,7 +5,8 @@ import { useParams } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
 import { type RunSummary, api } from '../api';
 import { duration, localTime } from '../format';
-import { Button, CostMeter, EmptyState, StatusChip, VendorMark, cx } from './ui';
+import { useHealth } from '../hooks';
+import { Button, type ChipTone, CostMeter, EmptyState, StatusChip, VendorMark, cx } from './ui';
 
 /** What raises attention on the rail when collapsed: what the agent did, what changed, what was decided or refused. */
 const NOTABLE = new Set([
@@ -296,7 +297,19 @@ function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; select
   );
 }
 
-function SegmentHead({ seg }: { seg: Seg }) {
+/**
+ * How much a person is asked before this run's work can land, from the gate health reports for its
+ * harness and the task's risk tier: an observed gate means the harness's own approvals are on and
+ * Stint never bypasses them; low risk can take the auto-approve lane with the daemon's verify;
+ * anything else waits for a person.
+ */
+export function permissionTier(gate: string | null | undefined, risk: string | null | undefined): { label: string; tone: ChipTone } {
+  if (gate === 'observed') return { label: 'never bypass', tone: 'warn' };
+  if (risk === 'low') return { label: 'auto, verified', tone: 'good' };
+  return { label: 'manual', tone: 'neutral' };
+}
+
+function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk?: string | null }) {
   const s = seg.summary;
   const finished = seg.events.find((e) => e.type === 'run.finished');
   const host = str(seg.started.payload.host);
@@ -311,6 +324,7 @@ function SegmentHead({ seg }: { seg: Seg }) {
       ? `${Math.round(((typeof endAt === 'number' ? endAt : startAt) - startAt) / 1000)}s`
       : duration(seg.started.ts, finished?.ts ?? null);
   const endedBy = finished ? str(finished.payload.endedBy) : 'running';
+  const tier = permissionTier(gate, risk);
   return (
     <header data-testid="run-segment" data-run={seg.run} data-adapter={seg.started.adapter} className="flex items-start justify-between gap-2 py-2">
       <div className="min-w-0">
@@ -329,6 +343,9 @@ function SegmentHead({ seg }: { seg: Seg }) {
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
         <StatusChip status={endedBy} />
+        <span data-testid="permission-tier" title="Permission tier">
+          <StatusChip label={tier.label} tone={tier.tone} />
+        </span>
         <span className="text-[11px] text-faint tabular">
           {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
         </span>
@@ -425,6 +442,12 @@ export function Rail({
   onOpenPacket: (name: string) => void;
 }) {
   const list = useMemo(() => items(events, runs, showAll), [events, runs, showAll]);
+  const { data: health } = useHealth();
+  const gates = useMemo(() => new Map((health?.adapters ?? []).map((a) => [a.id, a.gate])), [health]);
+  const risk = useMemo(() => {
+    const assessed = [...events].reverse().find((e) => e.type === 'risk.assessed');
+    return typeof assessed?.payload.tier === 'string' ? assessed.payload.tier : null;
+  }, [events]);
   const virtual = list.length >= VIRTUAL_FROM;
   const live = list.some((it) => it.kind === 'head' && it.live);
   const root = useRef<HTMLOListElement>(null);
@@ -513,7 +536,7 @@ export function Rail({
       case 'head':
         return (
           <Spine seg={it.seg} live={it.live}>
-            <SegmentHead seg={it.seg} />
+            <SegmentHead seg={it.seg} gate={gates.get(it.seg.started.adapter ?? '') ?? null} risk={risk} />
           </Spine>
         );
       case 'event': {

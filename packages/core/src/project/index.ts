@@ -3,6 +3,7 @@ import type { StintEvent } from '../schemas/event';
 import type { Plan } from '../schemas/plan';
 import type { Review } from '../schemas/review';
 import type { Task } from '../schemas/task';
+import { canonicalJSON, sha256Hex } from '../canonical';
 import type { VerificationRecord } from '../store/runs';
 import type { Workspace } from '../store/workspace';
 
@@ -46,8 +47,8 @@ export type TaskBundle = {
   verification: VerificationRecord | null;
   runs: RunSummary[];
   cost: Cost;
-  /** The sign-off, from the log: who approved, when, and the merge commit. */
-  merge?: { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string> } | null;
+  /** The sign-off record: who approved, when, the verification hash and the merge commit. */
+  merge?: { commit: string; into: string | null; by: string | null; at: string; trailers: Record<string, string>; verificationHash: string | null } | null;
   /** Reverts, follow-ups, failing CI and incidents recorded after merge (R-030, R-042). */
   outcomes: OutcomeRecord[];
   /** The open pull request, in PR release mode (R-042). */
@@ -141,8 +142,18 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
   const runs = runsFromEvents(events);
   const merged = events.filter((e) => e.type === 'merge.completed').at(-1);
   const granted = events.filter((e) => e.type === 'approval.granted').at(-1);
+  // signoff.json is the record approve wrote; the log stands in where there is none, as in a replay.
+  const signoff = merged ? await ws.readDoc<{ by?: string; at?: string; verificationHash?: string; commit?: string }>(id, 'signoff.json').catch(() => null) : null;
+  const latestVerification = await ws.verification(id).latest();
   const merge = merged
-    ? { commit: str(merged.payload.commit) ?? '', into: str(merged.payload.into), by: str(granted?.payload.by), at: merged.ts, trailers: (merged.payload.trailers ?? {}) as Record<string, string> }
+    ? {
+        commit: signoff?.commit ?? str(merged.payload.commit) ?? '',
+        into: str(merged.payload.into),
+        by: signoff?.by ?? str(granted?.payload.by),
+        at: signoff?.at ?? merged.ts,
+        trailers: (merged.payload.trailers ?? {}) as Record<string, string>,
+        verificationHash: signoff?.verificationHash ?? (latestVerification ? `sha256:${sha256Hex(canonicalJSON(latestVerification))}` : null),
+      }
     : null;
   const opened = events.filter((e) => e.type === 'release.pr_opened').at(-1);
   const assessed = events.filter((e) => e.type === 'risk.assessed').at(-1);
@@ -154,7 +165,7 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
     plan: await ws.readPlan(id),
     handoff: await ws.handoffs(id).latest(),
     review: await ws.readReview(id),
-    verification: await ws.verification(id).latest(),
+    verification: latestVerification,
     runs,
     cost: sumCosts(runs.map((r) => r.cost)),
     merge,

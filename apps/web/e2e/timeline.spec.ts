@@ -13,6 +13,39 @@ test('The T-0042 rail shows its four runs with their agents, the 412-token joint
   await expect(page.locator('[data-testid="checkpoint"][data-run="r2"]')).toContainText('Checkpoint after r2');
 });
 
+test('Each T-0042 rail segment shows a permission tier chip', async ({ page }) => {
+  await page.goto('/t/T-0042');
+  const segments = page.getByTestId('run-segment');
+  await expect(segments).toHaveCount(4);
+  const tiers = page.getByTestId('permission-tier');
+  await expect(tiers).toHaveCount(4);
+  for (let i = 0; i < 4; i++) {
+    await expect(segments.nth(i).getByTestId('permission-tier')).toHaveCount(1);
+    expect(['manual', 'auto, verified', 'never bypass']).toContain((await tiers.nth(i).textContent())?.trim());
+  }
+});
+
+test("The T-0042 rail runs to r4, and each segment's spine takes its agent's vendor colour", async ({ page }) => {
+  await page.goto('/t/T-0042');
+  const segments = page.getByTestId('run-segment');
+  await expect(segments).toHaveCount(4);
+  await expect(segments.nth(3)).toHaveAttribute('data-run', 'r4');
+  await expect(segments.nth(3)).toHaveAttribute('data-adapter', 'openai-compatible');
+  // every run on this task is a Meta model, so every mark and spine takes the Meta vendor colour
+  for (let i = 0; i < 4; i++) {
+    const colours = await segments.nth(i).evaluate((header) => {
+      const mark = header.querySelector('span[aria-hidden="true"]');
+      const spine = header.parentElement?.querySelector(':scope > span[aria-hidden="true"]');
+      return {
+        mark: mark ? getComputedStyle(mark).backgroundColor : null,
+        spine: spine ? getComputedStyle(spine).backgroundColor : null,
+      };
+    });
+    expect(colours.mark).toBe('rgb(250, 204, 21)');
+    expect(colours.spine).toBe(colours.mark);
+  }
+});
+
 test("Restore on a checkpoint opens that run's code in a worktree of its own; the conversation waits for a later release", async ({ page }) => {
   await page.goto('/t/T-0042');
   const cp = page.locator('[data-testid="checkpoint"][data-run="r3"]');

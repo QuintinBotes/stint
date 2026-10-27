@@ -12,6 +12,27 @@ test('The T-0042 review card shows the offline badge and the finding routed to t
   await expect(page.getByText('Sliding window over fixed window, so a burst at a window edge cannot double the limit').first()).toBeVisible();
 });
 
+test('A review with blockers shows them above the findings, counted and in the bad tone', async ({ page }) => {
+  // the replay review has no blockers, so this one is served with two
+  await page.route('**/api/tasks/T-0042', async (route) => {
+    const res = await route.fetch();
+    const bundle = (await res.json()) as { review: Record<string, unknown> };
+    bundle.review = { ...bundle.review, blockers: ['The limiter counts retries as new requests.', 'The window is read once at startup and cannot change.'] };
+    await route.fulfill({ response: res, json: bundle });
+  });
+  await page.goto('/t/T-0042?tab=review');
+  const blockers = page.getByTestId('review-blockers');
+  await expect(blockers).toContainText('2 blockers');
+  await expect(blockers).toContainText('The limiter counts retries as new requests.');
+  await expect(blockers).toContainText('The window is read once at startup and cannot change.');
+  await expect(blockers.locator('li').first()).toHaveClass(/text-bad/);
+  const blockersBox = await blockers.boundingBox();
+  const findingBox = await page.getByTestId('finding').first().boundingBox();
+  expect(blockersBox).not.toBeNull();
+  expect(findingBox).not.toBeNull();
+  expect((blockersBox as { y: number }).y).toBeLessThan((findingBox as { y: number }).y);
+});
+
 test("A finding that would reverse D3 shows D3's text, links to the Factory queue, and its file opens in the diff", async ({ page }) => {
   await page.goto('/t/T-0042?tab=review');
   const finding = page.getByTestId('finding').filter({ has: page.getByTestId('finding-queue') }).first();
