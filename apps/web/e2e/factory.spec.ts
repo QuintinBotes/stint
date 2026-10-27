@@ -19,7 +19,8 @@ test('The Factory shows the workspace graph with its scrubber, the transcript-sh
   await expect(memory.locator('[data-node="decision:T-0042/D3"]')).toBeVisible();
   const scrubber = page.getByTestId('factory-memory-scrubber');
   await scrubber.fill(String(await scrubber.getAttribute('min')));
-  await expect(memory.locator('[data-node="decision:T-0042/D3"]')).toHaveAttribute('data-state', 'faded');
+  // at the workspace's first moment D3 was not recorded yet
+  await expect(memory.locator('[data-node="decision:T-0042/D3"]')).toHaveCount(0);
 
   const share = page.getByTestId('kpi-transcript-share');
   await expect(share).toContainText('Fed forward as transcripts');

@@ -27,7 +27,7 @@ The graph is `packages/core/src/graph/index.ts` (nodes, edges, `similar`, `const
 2. The graph has `cost` and `links_to` edges after the replay: `packages/core/test/graph.edges.test.ts`.
 3. With a fake embeddings host, similarity uses it and marks the edges derived; without one nothing changes: `packages/core/test/graph.embed.test.ts`.
 4. A packet for a task whose files another task's decision constrains carries that decision: `packages/daemon/test/handoff.constrains.test.ts`.
-5. Clicking D3 in the panel selects its timeline row; clicking a run node selects its segment; scrubbing to the start fades D3 to 35%: `apps/web/e2e/memory.spec.ts`.
+5. Clicking D3 in the panel selects its timeline row; clicking a run node selects its segment; a decision superseded during the window is faded to 35% after its end and on before it, and a node not yet recorded is hidden: `apps/web/e2e/memory.spec.ts`.
 6. The Factory shows the graph, the transcript-share KPI and a 7-day funnel: `apps/web/e2e/factory.spec.ts`.
 
 ## Verify

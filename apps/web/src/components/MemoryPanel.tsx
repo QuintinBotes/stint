@@ -46,15 +46,15 @@ const at = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digi
 type NodeState = 'on' | 'faded' | 'hidden';
 
 /**
- * Which nodes stand at a moment: on when an edge of theirs is valid then, faded (35%) when they
- * are not in force at that moment, whether superseded or not yet recorded, hidden only when no
- * edge ever touches them (R-052: scrubbing to the start fades D3 rather than removing it).
+ * Which nodes stand at a moment (R-019): on when an edge of theirs is valid then; faded (35%) when every edge they
+ * had by then has ended, as a superseded decision; hidden when nothing about them was recorded yet.
  */
 export function stateAt(nodes: GraphNode[], edges: GraphEdge[], ts: number, centre: string): Map<string, NodeState> {
   const state = new Map<string, NodeState>(nodes.map((n) => [n.id, n.id === centre ? 'on' : 'hidden']));
   for (const e of edges) {
     const from = Date.parse(e.recordedAt);
-    const valid = from <= ts && (e.validTo === null || ts < Date.parse(e.validTo));
+    if (from > ts) continue;
+    const valid = e.validTo === null || ts < Date.parse(e.validTo);
     for (const id of [e.from, e.to]) {
       if (valid) state.set(id, 'on');
       else if (state.get(id) === 'hidden') state.set(id, 'faded');
@@ -105,7 +105,7 @@ function Graph({ graph, centre, ts, onOpenFile, onSelectNode }: { graph: GraphDa
         const labelled = big || n.type === 'finding' || n.type === 'file' || n.type === 'run';
         // a file opens in the diff; a decision or a run selects its place on the timeline (R-052)
         const activate = n.type === 'file' && onOpenFile ? () => onOpenFile(n.label) : (n.type === 'decision' || n.type === 'run') && onSelectNode ? () => onSelectNode(n) : undefined;
-        const fadedNote = s === 'faded' ? (first && Date.parse(first.recordedAt) > ts ? ', not yet in force' : ', no longer in force') : '';
+        const fadedNote = s === 'faded' ? ', no longer in force' : '';
         return (
           <g
             key={n.id}

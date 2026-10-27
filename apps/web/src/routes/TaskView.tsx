@@ -1,5 +1,5 @@
 import type { Handoff } from '@stint-dev/core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useParams, useSearchParams } from 'react-router';
 import { agentOf } from '../agents';
@@ -140,15 +140,17 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     };
   }, [id, packetName, handoffCount]);
   const diffVersion = useMemo(() => events.filter((e) => e.type === 'run.finished' || e.type === 'merge.completed').length, [events]);
+  // a list read for this task is kept even when a newer read has started: dropping it left [ and ] with no files
+  // while the events were still arriving. A failed read keeps the last list; only a new task starts empty.
+  const diffFor = useRef(id);
+  diffFor.current = id;
+  useEffect(() => setDiffFiles([]), [id]);
   useEffect(() => {
-    let live = true;
+    const want = id;
     api
       .diffFiles(id)
-      .then((f) => live && setDiffFiles(f))
-      .catch(() => live && setDiffFiles([]));
-    return () => {
-      live = false;
-    };
+      .then((f) => diffFor.current === want && setDiffFiles(f))
+      .catch(() => undefined);
   }, [id, diffVersion]);
   const decisions = useMemo(() => events.filter((e) => e.type === 'decision.recorded').map((e) => ({ id: String(e.payload.id ?? ''), text: String(e.payload.text ?? '') })), [events]);
   const graphVersion = useMemo(() => events.filter((e) => GRAPH_EVENTS.has(e.type)).length, [events]);
@@ -210,7 +212,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
           ) : null}
           {t.status !== 'done' ? (
             <Button
-              className={cx('h-7 ml-auto', autopilot.on && 'border-accent text-accent')}
+              className="h-7 ml-auto"
               onClick={toggleAutopilot}
               disabled={autoBusy}
               aria-pressed={autopilot.on}
@@ -322,7 +324,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
             {packetNames.length > 1 ? (
               <div className="flex items-center gap-1" role="group" aria-label="Packets">
                 {packetNames.map((n) => (
-                  <Button key={n} className={cx('h-7', (packetName ?? packetNames.at(-1)) === n && 'border-accent text-accent')} onClick={() => setParam('packet', n)}>
+                  <Button key={n} className="h-7" aria-pressed={(packetName ?? packetNames.at(-1)) === n} onClick={() => setParam('packet', n)}>
                     {n}
                   </Button>
                 ))}

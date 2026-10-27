@@ -80,8 +80,8 @@ test('While the worker is still laying out, the scrubber moves and the graph ans
   const scrubber = page.getByTestId('memory-scrubber');
   await scrubber.fill(String(await scrubber.getAttribute('min')));
   await expect(page.getByTestId('memory-asof')).not.toHaveText(now ?? '');
-  // at the first edge only the task and its first neighbour stand; the rest are faded, not yet in force (R-052)
-  await expect(graph.locator('[data-node][data-state="on"]')).toHaveCount(2);
+  // at the first edge only the task and its first neighbour stand; the rest were not recorded yet
+  await expect(graph.locator('[data-node]')).toHaveCount(2);
   await expect(graph).toHaveAttribute('data-layout', 'running');
   await expect(graph).toHaveAttribute('data-layout', 'done', { timeout: 5000 });
 });

@@ -367,7 +367,7 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {tags.length > 1
           ? tags.map((t) => (
-              <Button key={t} aria-pressed={t === tag} onClick={() => setTag(t)} className={cx('h-7', t === tag && 'border-accent text-accent')}>
+              <Button key={t} aria-pressed={t === tag} onClick={() => setTag(t)} className="h-7">
                 {t === '*' ? 'All tasks' : t}
               </Button>
             ))

@@ -88,7 +88,7 @@ export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
         </div>
         <div className="flex gap-1" role="tablist" aria-label="Packet view">
           {(['packet', 'prompt', 'json'] as const).map((v) => (
-            <Button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className={cx('h-7', view === v && 'border-accent text-accent')}>
+            <Button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)} className="h-7">
               {v === 'packet' ? 'Packet' : v === 'prompt' ? 'As prompt' : 'Raw JSON'}
             </Button>
           ))}

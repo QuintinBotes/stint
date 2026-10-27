@@ -154,10 +154,13 @@ export function describe(e: StintEvent): ReactNode {
         </>
       );
     case 'human.command':
-      return (
+      // a typed command, or a person's word on a queue item ("Kept D3"), which has text and no command
+      return p.command ? (
         <>
           You ran <code className="font-mono text-[12px]">{str(p.command)}</code>
         </>
+      ) : (
+        <>You: {str(p.text)}</>
       );
     case 'approval.requested':
       return <>Approval requested</>;

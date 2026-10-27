@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('After the replay, the T-0042 panel shows D3 and limiter-config-via-env; scrubbing to the start fades D3 to 35%', async ({ page }) => {
+test('After the replay, the T-0042 panel shows D3 and limiter-config-via-env; scrubbing to the start removes the skill node, which was not recorded yet', async ({ page }) => {
   await page.goto('/t/T-0042');
   const graph = page.getByTestId('memory-graph');
   await expect(graph.locator('[data-node="decision:T-0042/D3"]')).toBeVisible();
@@ -8,16 +8,45 @@ test('After the replay, the T-0042 panel shows D3 and limiter-config-via-env; sc
   // file nodes carry their basename (R-052)
   await expect(graph.getByText('limiter.ts', { exact: true })).toBeVisible();
   const scrubber = page.getByTestId('memory-scrubber');
-  const min = await scrubber.getAttribute('min');
-  await scrubber.fill(String(min));
-  const d3 = graph.locator('[data-node="decision:T-0042/D3"]');
-  await expect(d3).toHaveAttribute('data-state', 'faded');
-  await expect(d3).toHaveAttribute('opacity', '0.35');
-  const skill = graph.locator('[data-node="skill:limiter-config-via-env"]');
-  await expect(skill).toHaveAttribute('data-state', 'faded');
+  await scrubber.fill(String(await scrubber.getAttribute('min')));
+  await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toHaveCount(0);
   await expect(page).toHaveURL(/asOf=/);
   await page.getByRole('button', { name: 'Now' }).click();
   await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toHaveAttribute('data-state', 'on');
+});
+
+test('A decision superseded during the window is hidden before it was recorded, on while it held, and faded to 35% after (R-019)', async ({ page }) => {
+  const t0 = Date.parse('2026-10-26T14:00:00Z');
+  const iso = (minutes: number) => new Date(t0 + minutes * 60_000).toISOString();
+  const node = (id: string, type: string, label: string) => ({ id, type, label, data: {} });
+  const edge = (id: string, to: string, from: number, until: number | null) => ({ id, from: 'task:T-0042', to, type: 'relates', recordedAt: iso(from), validTo: until === null ? null : iso(until), eventId: id, data: {} });
+  await page.route('**/api/tasks/T-0042/graph', (r) =>
+    r.fulfill({
+      json: {
+        nodes: [node('task:T-0042', 'task', 'T-0042'), node('file:src/a.ts', 'file', 'src/a.ts'), node('decision:T-0042/D1', 'decision', 'D1'), node('decision:T-0042/D2', 'decision', 'D2')],
+        edges: [edge('e0', 'file:src/a.ts', 0, null), edge('e1', 'decision:T-0042/D1', 2, 6), edge('e2', 'decision:T-0042/D2', 6, null), edge('e3', 'file:src/a.ts', 10, null)],
+        asOf: null,
+        total: 4,
+      },
+    }),
+  );
+  await page.goto('/t/T-0042');
+  const graph = page.getByTestId('memory-graph');
+  const d1 = graph.locator('[data-node="decision:T-0042/D1"]');
+  const d2 = graph.locator('[data-node="decision:T-0042/D2"]');
+  // now: D2 replaced D1, which fades rather than vanishes
+  await expect(d1).toHaveAttribute('data-state', 'faded');
+  await expect(d1).toHaveAttribute('opacity', '0.35');
+  await expect(d2).toHaveAttribute('data-state', 'on');
+  const scrubber = page.getByTestId('memory-scrubber');
+  // minute 4: D1 holds, D2 is not recorded yet
+  await scrubber.fill(String(t0 + 4 * 60_000));
+  await expect(d1).toHaveAttribute('data-state', 'on');
+  await expect(d2).toHaveCount(0);
+  // the start: neither decision was recorded
+  await scrubber.fill(String(t0));
+  await expect(d1).toHaveCount(0);
+  await expect(d2).toHaveCount(0);
 });
 
 test('Clicking D3 in the panel selects its timeline row; clicking a run node selects its segment (R-052)', async ({ page }) => {
