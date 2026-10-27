@@ -1,0 +1,3 @@
+# Names the identity guard refuses, as keyed HMAC-SHA256 hashes: one lowercase hex hash per line, optionally followed by "# <label>".
+# The key is STINT_GUARD_KEY (a repository secret in CI, .env or the shell locally); without it this file reveals nothing.
+# Add a name with: printf %s '<name>' | node scripts/denylist-hash.mjs --label "<label>" >> scripts/guard-identity.denylist.hmac

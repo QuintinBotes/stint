@@ -6,7 +6,7 @@ Day: 2 (28 Oct) · Owner: MC · Depends on: R-004, R-006 · Fallback: drop the b
 The React app the daemon serves: the board and the task view laid out, the SSE client, the design tokens with dark as default, and the command palette skeleton. After this spec the replay is visible end to end as a list of events in the right places; R-015 and R-016 make it beautiful.
 
 ## Context
-Design system: the Stint tokens (`tokens.json` in the kit's `design/` folder, three themes, dark default), Geist, shadcn/ui on Base UI (Rhea style), Kibo UI Kanban, `cmdk`, `react-resizable-panels`, `sonner`. Screen layouts are in the Stint screens canvas (Board, Task view) and the wireframes W1 to W3. UI copy rules are in the design README.
+Design system: the Stint tokens (`design/tokens.json`, three themes, dark default), Geist, shadcn/ui on Base UI (Rhea style), Kibo UI Kanban, `cmdk`, `react-resizable-panels`, `sonner`. Screen layouts are the `Board` and `TaskView` components in `apps/web/src/routes/`, with `design/tokens.json`. UI copy rules are non-negotiable 12 in `AGENTS.md`.
 
 ## Requirements
 1. MUST set up `apps/web`: Vite 7, React 19, Tailwind 4 with `@theme inline` mapping the token CSS variables, `data-theme` on `<html>` with `dark` default and `light`/`stage` opt-in (persisted in `localStorage`, "system" honours `prefers-color-scheme` only when chosen), Geist and Geist Mono from Google Fonts, shadcn/ui initialised (Base UI, Rhea), lucide-react.
@@ -38,4 +38,4 @@ bun run test:ui
 The timeline rail design (R-015), cards and gate behaviour (R-016), terminal (R-008), memory panel (R-019).
 
 ## Notes
-Copy the token CSS from the kit's `design/tokens.css`; never author a colour outside it. Vendor colours only on marks and rail segments. No gradients, no decorative cards, no icons where a word does. Keep components in `apps/web/src/components/` with the eight design-system components (VendorMark, StatusChip, TaskCard, RunSegment, HandoffCard, VerificationCard, ApprovalGate, CostMeter) re-implemented as React from the design system's READMEs.
+Copy the token CSS from `design/tokens.css`; never author a colour outside it. Vendor colours only on marks and rail segments. No gradients, no decorative cards, no icons where a word does. Keep components in `apps/web/src/components/` with the eight design-system components (VendorMark, StatusChip, TaskCard, RunSegment, HandoffCard, VerificationCard, ApprovalGate, CostMeter) re-implemented as React from the design system's READMEs.

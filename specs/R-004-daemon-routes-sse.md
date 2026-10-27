@@ -6,7 +6,7 @@ Day: 1 (27 Oct) · Owner: Q · Depends on: R-003 · Fallback: polling instead of
 One Hono app on Bun that is the only process touching `.stint/`: REST for every state change, SSE for every event, a bearer token, a health route that tells the truth about adapters, and static serving of the built web UI. The CLI and the UI are thin clients of exactly these routes.
 
 ## Context
-Route table in `AGENTS.md` section 5 and the spec doc's Daemon API. The honesty rules for `/api/health` come from an earlier terminal project: an adapter is reported with its capability level and gate strength, and an unreachable one says why.
+Route table in `AGENTS.md` section 5 and `docs/agents.md`. The honesty rules for `/api/health` come from an earlier terminal project: an adapter is reported with its capability level and gate strength, and an unreachable one says why.
 
 ## Requirements
 1. MUST start with `stint up` (R-004 ships a minimal `packages/cli` entry `stint up [--port N] [--open]`) on `127.0.0.1` only, pick a free port when 0, write `.stint/cache/daemon.json` `{ port, token, pid, startedAt, version }` (mode 0600), and remove it on exit.

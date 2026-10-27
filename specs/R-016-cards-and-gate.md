@@ -6,7 +6,7 @@ Day: 5 (31 Oct) · Owner: MC · Depends on: R-012, R-015 · Fallback: fewer card
 Every card in the task view declares a state and an empty state, so the live demo never shows a blank panel: the verification card the daemon fills, the handoff card with `askOfNext` highlighted and a "why" expander per field, the review card with severity, offline badge and contradiction chip, the plan card, and the approval gate with `a`, `r`, `x` and a sign-off record. The handoff panel's "Hand to" picker lives here too.
 
 ## Context
-Design: Handoff panel artboard, the Task view, wireframes W4 to W7; design-system components `HandoffCard`, `VerificationCard`, `ApprovalGate`, `StatusChip`. Honest copy from the design README. The "why" view reads `handoffs/<h>.meta.json` from R-012.
+Design: the components `HandoffCard`, `VerificationCard`, `ApprovalGate` and `StatusChip` in the `TaskView`, with `design/tokens.json`. Honest copy per non-negotiable 12 in `AGENTS.md`. The "why" view reads `handoffs/<h>.meta.json` from R-012.
 
 ## Requirements
 1. MUST implement states for every card: planned, running, finished, verified, handed off, awaiting approval, approved, rejected, failed, killed, capped, each with a `StatusChip` and an empty-state sentence ("The plan arrives here when the planner finishes.", "Verification runs here when the run ends.", "The packet appears here when a run ends, however it ends.").

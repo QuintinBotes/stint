@@ -6,7 +6,7 @@ Day: 9 (4 Nov) · Owner: Q · Depends on: R-023 · Fallback: none · Cut: never
 Nothing new is built on the last day. The loop runs in fix-only mode: red tests, broken quick start, wrong numbers in docs. The human submits by 23:00 CET on 3 November if everything is green, and by the hard deadline (4 November 9:00 PM ET, 3:00 AM on 5 November in Amsterdam) at the latest.
 
 ## Context
-Submission checklist in the spec doc; Official Rules read and accepted on 26 October; track chosen then (indie vs startup) and the write-up tuned to it.
+Official Rules read and accepted on 26 October; track chosen then (indie vs startup) and the write-up tuned to it.
 
 ## Requirements (agent part, fix-only)
 1. MUST only accept work that fixes a failing Verify line of an earlier spec, a broken quick start, or a factual error in docs; any other change is refused with a note under Ideas.

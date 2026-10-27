@@ -6,7 +6,7 @@ Day: 3 (29 Oct) · Owner: Q, handed to MC · Depends on: R-004, R-005 · Fallbac
 The hero adapter: Muse Code implements a task inside the worktree, its JSON event stream lands on the timeline one to one, a run can be capped by steps or budget, resumed by session id, and killed, and every ending yields the data the packet builder (R-012) needs. "Real worktree, real diff, real cost" is this spec.
 
 ## Context
-Adapter contract in the spec doc and `AGENTS.md`. Backend: `muse exec --json --prompt-file <rendered> --disable-approval --max-model-steps N` with `cwd` = worktree; resume with `muse exec --session-id <uuid>`; `muse schema` is the source of truth for the JSONL shape and the mapper is generated from it. Observers are disabled for daemon-driven runs so metered cost is the run's own. Muse Code reads `.agents/skills` natively.
+Adapter contract in `docs/adapters.md` and `AGENTS.md`. Backend: `muse exec --json --prompt-file <rendered> --disable-approval --max-model-steps N` with `cwd` = worktree; resume with `muse exec --session-id <uuid>`; `muse schema` is the source of truth for the JSONL shape and the mapper is generated from it. Observers are disabled for daemon-driven runs so metered cost is the run's own. Muse Code reads `.agents/skills` natively.
 
 ## Requirements
 1. MUST implement `packages/adapters/muse-code/src/index.ts` exporting `museCodeAdapter: Adapter` with `id: 'muse-code'`, `vendor: 'meta'`, `roles: ['planner','implementer','reviewer']`, `capabilities: { editsFiles: true, runsCommands: true, resumable: true, structuredOutput: true, offline: false }`, `available()` (runs `muse --version`, checks `META_API_KEY`, returns `{ ok, version, reason }` and `gate: 'observed'`).

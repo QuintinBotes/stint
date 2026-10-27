@@ -15,6 +15,9 @@ jobs:
       META_API_KEY: ${{ secrets.META_API_KEY }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # the commit-message check reads the pushed range and origin/main
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
@@ -23,7 +26,25 @@ jobs:
       - run: bun run typecheck
       - run: bun test
       - run: bun run build:web
-      - run: node scripts/guard-identity.mjs
+      - name: Identity guard over the files (names checked against the keyed list)
+        env:
+          STINT_GUARD_KEY: ${{ secrets.STINT_GUARD_KEY }}
+        run: node scripts/guard-identity.mjs
+      - name: Identity guard over the commit messages of this push or pull request
+        if: runner.os == 'Linux'
+        env:
+          STINT_GUARD_KEY: ${{ secrets.STINT_GUARD_KEY }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="origin/main..HEAD"
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            range="$SHA^!"
+          else
+            range="$BEFORE..$SHA"
+          fi
+          node scripts/guard-identity.mjs --commits "$range"
       - name: "UI tests: the replay, the live flows and accessibility"
         if: runner.os == 'Linux'
         run: |
