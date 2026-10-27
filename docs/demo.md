@@ -45,6 +45,8 @@ The times above are the script for the 2:35 video. A live run takes longer. The 
 | The packet for the reviewer | 34 s | 2:26 |
 | Review (that take ran it online) and the merge | 2 min 10 s | 4:36 |
 
+A rehearsal on 27 October on the current build (`--auto --allow-online`, Glimmer preloaded) ran every beat in 9 min 14 s, the review on Glimmer offline included, at $0.26 for T-0042 and $0.19 for T-0043. Its learn step proposed nothing: the agents read the limit through `loadConfig()` as the fixture's AGENTS.md asks, so the review found no mistake that T-0040's review had found before, and a skill is proposed only for a mistake that recurs. Whether a take carries the learned skill depends on the model repeating that mistake; ADR-0011 keeps the hand-written replay as the default until one does. An earlier rehearsal that day stopped at the review because the continued run ended red; the runner now hands on again from the packet.
+
 So the video cuts the waits, and the screen says it is a replay when it is one.
 
 To rehearse one beat, `--from review` runs the beats before it without stopping and pauses from the review on; `--offline-plan` plans on the local model; `--take 2` records the finished run under `demo/recordings/<date>-2/`. After the run, or without `--take`, record it and keep the recording:
