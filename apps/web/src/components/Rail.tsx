@@ -67,7 +67,7 @@ export function describe(e: StintEvent): ReactNode {
   const p = e.payload;
   switch (e.type) {
     case 'task.created':
-      return p.source === 'voice' ? <>Task created from speech: "{str(p.transcript)}"</> : <>Task created: {str(p.title)}</>;
+      return <>Task created: {str(p.title ?? p.transcript)}</>;
     case 'task.status':
       return <>Status {str(p.from)} to {str(p.to)}</>;
     case 'agent.message':

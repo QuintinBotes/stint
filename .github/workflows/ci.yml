@@ -24,7 +24,7 @@ jobs:
       - run: bun test
       - run: bun run build:web
       - run: node scripts/guard-identity.mjs
-      - name: UI tests against the replay
+      - name: "UI tests: the replay, the live flows and accessibility"
         if: runner.os == 'Linux'
         run: |
           cd apps/web && bunx playwright install --with-deps chromium && cd ../..

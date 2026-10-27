@@ -51,10 +51,22 @@ stint approve T-0001            # a real merge, with Stint-Task trailers
 
 ## What you see
 
-- **Board**: every task by stage; a chip shows the autopilot's current step.
-- **Task view**: the runs on the left, one agent after another, with every hand-off between them. In the middle are the diff, a terminal in the worktree, the plan, the packet, the review and the daemon's verification. The memory panel on the right shows similar tasks, the decisions that constrain this one and a scrubber that goes back in time. The approval gate opens only on a green verification.
-- **Factory**: which Muse model did what, where it ran, its tokens, cache share and cost. It also shows tasks by stage, cost per day, the skill that was learned next to the task it helped, and the decisions waiting for you.
-- **Skills**: what the agents load before a run, learned or written by hand, with evidence and a track record.
+- **Board**: every task by stage, each card showing the agents that worked on it and who holds it now. Issues pulled from GitHub or Linear wait in an intake panel until you accept them. Run all puts every planned task on autopilot.
+- **Task view**: the task, its acceptance criteria and its spend across the top. The runs are on the left, one agent after another with every hand-off. In the middle:
+  - the diff, and the worktree's files with "Open in your editor";
+  - a terminal in the worktree;
+  - the plan and the packet;
+  - the review, one row per lens;
+  - the daemon's verification: "33 passed, tests unchanged".
+
+  The memory panel on the right shows similar tasks, the decisions that constrain this one, and a scrubber that goes back in time. The approval gate opens only on a green verification, and shows the change's risk tier.
+- **Factory**: who carried each task and what they handed on, which Muse model did what and what it cost. Also there:
+  - a scoreboard per agent and model;
+  - outcomes after merge (reverts, follow-ups, failing CI);
+  - the auto-approve lane's shadow record;
+  - scheduled upkeep;
+  - every harness and host this workspace can use.
+- **Skills**: what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
 
 <p align="center"><img alt="The Factory: Meta models at work, with tokens, cache share and cost per model" src="assets/screenshot-factory.png" width="900"></p>
 
@@ -91,6 +103,31 @@ The first packet was six times smaller to hand over, and every continued run pas
 
 One run per task is a small sample, and single tasks swung both ways, so read this as a first measurement, not a law. The digest also failed to arrive for one task. The rows, prompts, packets and transcripts are in `bench/runs/` and `bench/digest/runs/`, and `stint bench --replay` rebuilds the tables from them.
 
+## The factory
+
+Beyond the hand-off, Stint runs the loop around it. Each part has its own page in `docs/`:
+
+- **Verification an agent cannot fake.** The daemon runs the tests and the configured checks. The test files a task names are locked at plan time, so an agent that weakens them fails. Held-out scenarios run in a checkout the agent never sees ([`docs/verify.md`](docs/verify.md)).
+- **Hand-offs that get smarter.**
+  - A task escalates after repeated failures.
+  - Best of n builds candidates in parallel and keeps the best green one.
+  - No model reviews its own work.
+  - Reviews run per lens: general, security and spec fit ([`docs/agents.md`](docs/agents.md)).
+- **Plans that remember.** The planner reads similar tasks and the decisions on the files it will touch. It splits big tasks into subtasks that run in dependency order.
+- **Learning that is measured.** A learned skill starts on probation, carries an eval with and without it, and is proposed for retirement if it hurts. Golden tasks report pass@1 and pass^3 ([`docs/evals.md`](docs/evals.md)).
+- **After merge.** Reverts, follow-up work, failing CI and incidents are linked to the task that caused them. Approve can open a pull request and follow its checks ([`docs/release.md`](docs/release.md)).
+- **Boundaries.**
+  - Keys stay in the daemon.
+  - A default-deny egress proxy, and a sandbox-exec or docker sandbox per run.
+  - Risk tiers on every change.
+  - An auto-approve lane that is off and must be earned on a shadow record ([`docs/sandbox.md`](docs/sandbox.md)).
+- **Work from where teams track it.** Issues from GitHub and Linear arrive triaged. Doc gardening and drift tasks run on a schedule.
+- **Any harness, any model.**
+  - Muse Code and Stint's agent by default.
+  - Claude Code, Codex, and any Agent Client Protocol agent (goose, opencode, Gemini CLI) as off-by-default config entries.
+  - A scoreboard that can route by results, and OpenTelemetry traces for any eval tool ([`docs/otel.md`](docs/otel.md)).
+- **Stint builds Stint.** `scripts/loop.sh --self` turns the next spec into a Stint task that stops at your approval, and `stint report` writes the build record from `.stint/`.
+
 ## Stint as a tool for any agent
 
 `stint mcp` serves Stint over MCP: the board, packets, similar tasks, the decisions that constrain a file, recording a decision, handing off, autopilot and verify. The Stint plugin registers it for Muse Code, so Muse Code can read the memory mid-session. Any other MCP client can connect too. Approving and merging stay with a person. See [`docs/mcp.md`](docs/mcp.md).
@@ -117,7 +154,7 @@ A Bun and TypeScript monorepo:
 - **Adapters** never touch the store.
 - **A React UI** is served by the daemon on 127.0.0.1 with a per-session token.
 
-About 160 tests run in CI, plus Playwright tests for the UI. `PROGRESS.md` records every spec, which agent built it and how it was verified.
+Over 300 tests run in CI. Playwright adds a suite against the replay, end-to-end flows driven through the browser against a live daemon with fake agents, and an accessibility check of every main screen against WCAG 2.2 AA. `PROGRESS.md` records every spec, which agent built it and how it was verified.
 
 ## Built during the hackathon
 
@@ -134,8 +171,8 @@ macOS and Linux. Windows through WSL is untested. Bun 1.3.14 or later and git 2.
 ## Roadmap
 
 - Fine-tune Muse Spark Open on approved packets and skills; Fireworks offers it as a base model.
-- Run more tasks in parallel, across machines.
-- Add more agents behind the same four-method adapter contract.
+- Run the factory across machines: the event log is already the only source of truth.
+- Container images per agent for the docker sandbox, so turning one on is one line.
 
 ## Licence
 
