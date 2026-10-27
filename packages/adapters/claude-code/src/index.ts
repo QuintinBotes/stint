@@ -95,7 +95,9 @@ export function claudeCode(name: string, def: AgentDef, host?: { id: string; bas
     const u = mapper.usage ?? { inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
     return {
       endedBy: ended,
-      cost: { ...u, usd: mapper.totalCostUsd, ...(mapper.usage || mapper.totalCostUsd !== null ? {} : { estimated: true }) },
+      // Claude Code prices every model at its own rates, a local one too: a keyless local host costs nothing, another
+      // host is priced by the daemon from Stint's prices, and only a run on Anthropic's own API keeps Claude Code's figure
+      cost: { ...u, usd: host ? (host.keyless ? 0 : null) : mapper.totalCostUsd, ...(mapper.usage || mapper.totalCostUsd !== null ? {} : { estimated: true }) },
       host: def.host ?? 'local-cli',
       ...(model ? { model } : {}),
       inFlight: ended === 'killed' ? mapper.inFlight() : null,

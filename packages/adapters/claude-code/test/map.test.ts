@@ -101,3 +101,56 @@ describe('Claude Code mapper', () => {
     for (const flag of ['bypassPermissions', '--dangerously-skip-permissions', '--yolo']) expect(args.join(' ')).not.toContain(flag);
   });
 });
+
+describe('a real Claude Code stream (R-057)', () => {
+  // Recorded 27 Oct 2026: claude -p on Muse Glimmer 30B through Ollama, in a throwaway repository and home, paths scrubbed
+  const recordedPath = join(import.meta.dir, 'fixtures', 'stream.recorded.jsonl');
+  const recorded = readFileSync(recordedPath, 'utf8').trim().split('\n');
+
+  test('maps to its tool calls, their results and the closing message, with the usage and session it reported', () => {
+    const m = new ClaudeMapper();
+    const events = recorded.flatMap((l) => m.map(l));
+    events.forEach((e, i) => expect(StintEventSchema.safeParse(asStored(e, i + 1)).success).toBe(true));
+    const tally = (type: string) => events.filter((e) => e.type === type).length;
+    expect(tally('agent.tool_call')).toBe(3);
+    expect(tally('agent.tool_result')).toBe(3);
+    expect(tally('agent.message')).toBe(1);
+    // the stream's own bookkeeping (thinking-token counters, the init record) is not news for the timeline
+    expect(tally('runtime.unclassified')).toBe(0);
+    expect(m.sessionId).toBe('211f711e-6ae8-4100-bb7d-506a9a88652b');
+    expect(m.usage).toEqual({ inputTokens: 74196, cachedTokens: 55538, outputTokens: 558 });
+    expect(m.inFlight()).toBeNull();
+  });
+
+  test('Claude Code prices a local model at its own rates; Stint records a keyless local host as free and keeps the figure only on Anthropic', async () => {
+    const tmp = tempDir();
+    const oldPath = process.env.PATH;
+    try {
+      const binDir = join(tmp.dir, 'bin');
+      mkdirSync(binDir);
+      writeFileSync(join(binDir, 'claude'), `#!/bin/sh\ncat > /dev/null\ncat ${recordedPath}\n`);
+      chmodSync(join(binDir, 'claude'), 0o755);
+      process.env.PATH = `${binDir}:${oldPath ?? ''}`;
+      const run = (host?: { id: string; baseURL?: string; keyless: boolean }) =>
+        claudeCode('claude-code', def, host).run({
+          task: { id: 'T-0042' } as never,
+          run: 'r1',
+          role: 'implementer',
+          worktree: tmp.dir,
+          prompt: 'do the task',
+          promptPath: join(tmp.dir, 'prompt.md'),
+          budget: { tokens: 10_000, timeoutMs: 30_000 },
+          env: { PATH: `${binDir}:${oldPath ?? ''}` },
+          signal: new AbortController().signal,
+          emit: async () => undefined,
+          transcript: async (line) => ({ pointer: 'transcript.jsonl:1', byteLen: line.length }),
+        });
+      expect((await run({ id: 'ollama', baseURL: 'http://localhost:11434/v1', keyless: true })).cost.usd).toBe(0);
+      expect((await run({ id: 'litellm', baseURL: 'https://gateway.example/v1', keyless: false })).cost.usd).toBeNull();
+      expect((await run()).cost.usd).toBe(0.0968996);
+    } finally {
+      process.env.PATH = oldPath;
+      tmp.cleanup();
+    }
+  }, 60_000);
+});
