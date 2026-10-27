@@ -59,6 +59,9 @@ jobs:
             range="origin/main..HEAD"
           elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             range="$SHA^!"
+          elif ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            # a force push replaced the history, so the old tip is not in the clone and every commit is new
+            range="$SHA"
           else
             range="$BEFORE..$SHA"
           fi
