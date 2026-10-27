@@ -19,7 +19,7 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', '.tsbuild', '.stint',
 // specs/ is the frozen build kit and the guard's own test quotes it: both name the sample address.
 const EMAIL_EXEMPT = /^(specs\/|scripts\/test\/guard-identity\.test\.ts$)/;
 // bench runs and live recordings hold model output verbatim; its dashes are the models' words, not ours. Names and emails are still checked.
-const DASH_EXEMPT = /^(bench\/runs|bench\/digest\/runs|demo\/recordings)\//;
+const DASH_EXEMPT = /^(bench\/runs|bench\/digest\/runs|bench\/golden-runs|demo\/recordings)\//;
 
 function allowedEmail(addr) {
   const lower = addr.toLowerCase();

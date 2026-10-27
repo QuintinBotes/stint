@@ -1,0 +1,184 @@
+{
+  "version": "stint.golden/1",
+  "replay": false,
+  "k": 3,
+  "passAt1": 1,
+  "passPowK": 1,
+  "cost": {
+    "usd": 1.4033,
+    "inputTokens": 3882373,
+    "cachedTokens": 3320868,
+    "outputTokens": 40650
+  },
+  "tasks": [
+    {
+      "name": "bench-01-rate-limit",
+      "title": "Rate-limit incoming webhooks per tenant",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "task": "bench-01-rate-limit",
+          "run": 1,
+          "passed": true,
+          "verified": true,
+          "passedTests": 32,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 584415,
+          "cachedTokens": 520336,
+          "outputTokens": 4599,
+          "usd": 0.1811,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        },
+        {
+          "task": "bench-01-rate-limit",
+          "run": 2,
+          "passed": true,
+          "verified": true,
+          "passedTests": 31,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 768702,
+          "cachedTokens": 699860,
+          "outputTokens": 7040,
+          "usd": 0.2262,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        },
+        {
+          "task": "bench-01-rate-limit",
+          "run": 3,
+          "passed": true,
+          "verified": true,
+          "passedTests": 31,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 518041,
+          "cachedTokens": 454190,
+          "outputTokens": 4684,
+          "usd": 0.1714,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        }
+      ],
+      "passAll": true
+    },
+    {
+      "name": "bench-02-get-event",
+      "title": "Get one stored event by id",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "task": "bench-02-get-event",
+          "run": 1,
+          "passed": true,
+          "verified": true,
+          "passedTests": 30,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 382801,
+          "cachedTokens": 320362,
+          "outputTokens": 2740,
+          "usd": 0.1398,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        },
+        {
+          "task": "bench-02-get-event",
+          "run": 2,
+          "passed": true,
+          "verified": true,
+          "passedTests": 31,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 181903,
+          "cachedTokens": 122052,
+          "outputTokens": 2200,
+          "usd": 0.1041,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        },
+        {
+          "task": "bench-02-get-event",
+          "run": 3,
+          "passed": true,
+          "verified": true,
+          "passedTests": 30,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 185485,
+          "cachedTokens": 124612,
+          "outputTokens": 2834,
+          "usd": 0.109,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        }
+      ],
+      "passAll": true
+    },
+    {
+      "name": "bench-03-delete-tenant",
+      "title": "Delete a tenant through the admin routes",
+      "passedRuns": 3,
+      "runs": [
+        {
+          "task": "bench-03-delete-tenant",
+          "run": 1,
+          "passed": true,
+          "verified": true,
+          "passedTests": 31,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 534003,
+          "cachedTokens": 465085,
+          "outputTokens": 6992,
+          "usd": 0.1909,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        },
+        {
+          "task": "bench-03-delete-tenant",
+          "run": 2,
+          "passed": true,
+          "verified": true,
+          "passedTests": 31,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 330245,
+          "cachedTokens": 282873,
+          "outputTokens": 4675,
+          "usd": 0.125,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        },
+        {
+          "task": "bench-03-delete-tenant",
+          "run": 3,
+          "passed": true,
+          "verified": true,
+          "passedTests": 30,
+          "failedTests": 0,
+          "scenarios": [],
+          "inputTokens": 396778,
+          "cachedTokens": 331498,
+          "outputTokens": 4886,
+          "usd": 0.1558,
+          "implementer": "muse-code",
+          "model": "muse-spark-1.3",
+          "host": "local-cli"
+        }
+      ],
+      "passAll": true
+    }
+  ],
+  "createdAt": "2026-10-27T08:13:24.998Z"
+}

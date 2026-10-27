@@ -1,0 +1,16 @@
+{
+  "cachedTokens": 331498,
+  "failedTests": 0,
+  "host": "local-cli",
+  "implementer": "muse-code",
+  "inputTokens": 396778,
+  "model": "muse-spark-1.3",
+  "outputTokens": 4886,
+  "passed": true,
+  "passedTests": 30,
+  "run": 3,
+  "scenarios": [],
+  "task": "bench-03-delete-tenant",
+  "usd": 0.1558,
+  "verified": true
+}

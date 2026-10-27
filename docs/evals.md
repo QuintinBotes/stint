@@ -39,6 +39,8 @@ stint eval add-golden T-0042
 
 Each golden task runs k times on fresh fixtures. A run passes when the daemon's verification is green and every scenario exits 0; each run records an `eval.ran` event on its fixture task. Results land in `bench/golden-results.json` with the recorded runs in `bench/golden-runs/` for replay. Two numbers are reported: pass@1, the share of tries that pass, and pass^k, the share of tasks where every try passes. Work that must succeed every time is judged on pass^k.
 
+The first live run, 27 October: Muse Code on Muse Spark 1.3, three golden tasks, k 3. All nine tries passed the daemon's verification, so pass@1 and pass^3 are both 100%, for $1.40 at list prices ($0.10 to $0.23 a try, about 85% of input from cache). An earlier attempt the same morning lost two tries to the laptop sleeping mid-run; the live commands now hold off idle sleep, and the test cap counts only time the machine was awake. Nine tries on three tasks is a small sample.
+
 `stint eval add-golden <task>` turns a rejected or reverted task into a golden task, so a real failure keeps being tested. A task that never failed is refused.
 
 ## Phase gates

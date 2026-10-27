@@ -1,0 +1,16 @@
+{
+  "cachedTokens": 699860,
+  "failedTests": 0,
+  "host": "local-cli",
+  "implementer": "muse-code",
+  "inputTokens": 768702,
+  "model": "muse-spark-1.3",
+  "outputTokens": 7040,
+  "passed": true,
+  "passedTests": 31,
+  "run": 2,
+  "scenarios": [],
+  "task": "bench-01-rate-limit",
+  "usd": 0.2262,
+  "verified": true
+}
