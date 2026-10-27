@@ -1,18 +1,5 @@
-/* Stint tokens, copied from design/tokens.css (generated from tokens.json). Dark is the default theme. Fonts are bundled, not fetched, so the UI works offline. */
-[data-theme="light"] {
-  --surface: #ffffff; --surface-raised: #fafafa; --surface-sunken: #f4f4f5;
-  --border: #e4e4e7; --border-strong: #d4d4d8;
-  --ink: #18181b; --ink-muted: #52525b; --ink-faint: #71717a;
-  --accent: #2563eb; --on-accent: #ffffff; --accent-tint: #eff6ff;
-  --status-good: #15803d; --status-good-tint: #ecfdf5;
-  --status-warn: #b45309; --status-warn-tint: #fffbeb;
-  --status-bad: #b91c1c; --status-bad-tint: #fef2f2;
-  --vendor-meta: #a16207; --vendor-alt: #475569; --vendor-openai: #15803d; --vendor-local: #52525b; --on-mark: #ffffff;
-  --focus: #2563eb; --diff-added: #dcfce7; --diff-removed: #fee2e2;
-  --terminal-ground: #18181b; --terminal-ink: #e4e4e7;
-  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-:root, [data-theme="dark"] {
+/* Stint tokens, copied from design/tokens.css (generated from tokens.json). The UI is dark only; the light and stage themes in design/ are not shipped. Fonts are bundled, not fetched, so the UI works offline. */
+:root {
   --surface: #0b0b0d; --surface-raised: #141417; --surface-sunken: #1c1c21;
   --border: #27272a; --border-strong: #3f3f46;
   --ink: #f4f4f5; --ink-muted: #a1a1aa; --ink-faint: #8b8b94;
@@ -24,19 +11,6 @@
   --focus: #60a5fa; --diff-added: #14532d; --diff-removed: #7f1d1d;
   --terminal-ground: #09090b; --terminal-ink: #e4e4e7;
   --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.6);
-}
-[data-theme="stage"] {
-  --surface: #ffffff; --surface-raised: #ffffff; --surface-sunken: #f4f4f5;
-  --border: #52525b; --border-strong: #27272a;
-  --ink: #000000; --ink-muted: #27272a; --ink-faint: #3f3f46;
-  --accent: #1d4ed8; --on-accent: #ffffff; --accent-tint: #eff6ff;
-  --status-good: #166534; --status-good-tint: #ecfdf5;
-  --status-warn: #92400e; --status-warn-tint: #fffbeb;
-  --status-bad: #991b1b; --status-bad-tint: #fef2f2;
-  --vendor-meta: #854d0e; --vendor-alt: #334155; --vendor-openai: #166534; --vendor-local: #3f3f46; --on-mark: #ffffff;
-  --focus: #1d4ed8; --diff-added: #bbf7d0; --diff-removed: #fecaca;
-  --terminal-ground: #000000; --terminal-ink: #ffffff;
-  --shadow-overlay: 0 0 0 2px #000000;
 }
 :root {
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;

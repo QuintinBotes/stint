@@ -23,3 +23,13 @@ test('On a task, the palette runs Verify for real and opens Request changes; r a
   await page.keyboard.press('x');
   await expect(page.getByText('Why reject it? The reason becomes a decision.')).toBeVisible();
 });
+
+test('On a merged task, the palette offers its views and no gate or autopilot actions', async ({ page }) => {
+  await page.goto('/t/T-0042');
+  await page.keyboard.press('Meta+k');
+  const list = page.getByRole('listbox');
+  await expect(list.getByText('Show the packet')).toBeVisible();
+  await expect(list.getByText('Approve and merge')).toHaveCount(0);
+  await expect(list.getByText('Put on autopilot')).toHaveCount(0);
+  await expect(list.getByText('Verify: the daemon runs the tests')).toHaveCount(0);
+});
