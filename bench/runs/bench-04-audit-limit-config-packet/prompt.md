@@ -5,6 +5,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -31,16 +32,16 @@ T-0001
 
 ## Where it got to
 muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: capped.
-muse-code capped after 14 tool calls.
-Verification by the daemon: bun run test, 21 passed, 6 failed (exit 1).
-Changed: src/config.ts +2 -0, src/lib/audit.ts +2 -2.
-Diff: be1bee8..76efaf7.
+src/config.ts Config/loadConfig now includes auditExportLimit from AUDIT_EXPORT_LIMIT default 5000. src/lib/audit.ts AuditLog takes exportLimit in constructor and uses it in toCsv instead of EXPORT_LIMIT. src/app.ts createDeps passes it to AuditLog. test/config.test.ts and test/audit.test.ts add default/env/fallback and export-cap tests. No further pending work shows in the diff.
+Verification by the daemon: bun run test, 31 passed, 0 failed (exit 0).
+Changed: src/app.ts +1 -1, src/config.ts +2 -0, src/lib/audit.ts +3 -3, test/audit.test.ts +11 -0, test/config.test.ts +17 -3.
+Diff: be1bee8..a97518e.
 
 ## Done
-- Verification by the daemon: 21 passed, 6 failed
+- Verification by the daemon: 31 passed, 0 failed
 
 ## Open
-- Make the failing tests pass (6 failed)
+- Locked test files changed without a tests: decision: test/audit.test.ts, test/config.test.ts. Restore them, or say on a decision: line why they had to change.
 
 ## Refused actions
 - none
@@ -52,14 +53,17 @@ Diff: be1bee8..76efaf7.
 - none
 
 ## Ask of next
-Next: Make the failing tests pass (6 failed).
+Next: Locked test files changed without a tests: decision: test/audit.test.ts, test/config.test.ts. Restore them, or say on a decision: line why they had to change..
 
 ## Not included
 - none
 
 ## Changes on the task branch so far
+- src/app.ts +1 -1
 - src/config.ts +2 -0
-- src/lib/audit.ts +2 -2
+- src/lib/audit.ts +3 -3
+- test/audit.test.ts +11 -0
+- test/config.test.ts +17 -3
 
 ## Ask
 Continue from the packet: start with its ask of next.

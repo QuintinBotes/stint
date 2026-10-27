@@ -5,6 +5,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -31,16 +32,16 @@ T-0001
 
 ## Where it got to
 muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: capped.
-src/config.ts adds auditExportLimit to Config and loadConfig reads AUDIT_EXPORT_LIMIT default 5000. src/lib/audit.ts removes EXPORT_LIMIT and adds AuditLog constructor taking exportLimit. No src/app.ts createDeps wiring and no test/config.test.ts or test/audit.test.ts updates are shown, and exportLimit use is not visible.
-Verification by the daemon: bun run test, 21 passed, 6 failed (exit 1).
-Changed: src/config.ts +2 -0, src/lib/audit.ts +2 -2.
-Diff: be1bee8..b9add94.
+src/config.ts adds auditExportLimit to Config and loadConfig() reads AUDIT_EXPORT_LIMIT with default 5000. src/lib/audit.ts removes EXPORT_LIMIT, adds an AuditLog constructor taking exportLimit, and toCsv() uses this.exportLimit. No wiring in src/app.ts createDeps and no tests in test/config.test.ts or test/audit.test.ts appear in the diff.
+Verification by the daemon: bun run test, 25 passed, 2 failed (exit 1).
+Changed: src/config.ts +2 -0, src/lib/audit.ts +3 -3.
+Diff: be1bee8..014f13b.
 
 ## Done
-- Verification by the daemon: 21 passed, 6 failed
+- Verification by the daemon: 25 passed, 2 failed
 
 ## Open
-- Make the failing tests pass (6 failed: config > uses defaults when the environment is empty; config > reads values from the environment; GET /audit > exports CSV with a header row)
+- Make the failing tests pass (2 failed: config > uses defaults when the environment is empty; config > reads values from the environment; test/config.test.ts > config > uses defaults when the enviro...
 
 ## Refused actions
 - none
@@ -52,14 +53,14 @@ Diff: be1bee8..b9add94.
 - none
 
 ## Ask of next
-Next: Make the failing tests pass (6 failed: config > uses defaults when the environment is empty; config > reads values from the environment; GET /audit > exports CSV with a header row).
+Next: Make the failing tests pass (2 failed: config > uses defaults when the environment is empty; config > reads values from the environment; test/config.test.ts > config > uses defaults when the enviro....
 
 ## Not included
 - none
 
 ## Changes on the task branch so far
 - src/config.ts +2 -0
-- src/lib/audit.ts +2 -2
+- src/lib/audit.ts +3 -3
 
 ## Ask
 Continue from the packet: start with its ask of next.

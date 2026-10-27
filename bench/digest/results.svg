@@ -7,36 +7,36 @@
 <line x1="72" y1="344" x2="812" y2="344" stroke="#27272a" stroke-width="1"/>
 <text x="64" y="348" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">0</text>
 <line x1="72" y1="279" x2="812" y2="279" stroke="#27272a" stroke-width="1"/>
-<text x="64" y="283" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">22k</text>
+<text x="64" y="283" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">27.9k</text>
 <line x1="72" y1="214" x2="812" y2="214" stroke="#27272a" stroke-width="1"/>
-<text x="64" y="218" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">44k</text>
+<text x="64" y="218" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">55.8k</text>
 <line x1="72" y1="149" x2="812" y2="149" stroke="#27272a" stroke-width="1"/>
-<text x="64" y="153" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">65.9k</text>
+<text x="64" y="153" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">83.7k</text>
 <line x1="72" y1="84" x2="812" y2="84" stroke="#27272a" stroke-width="1"/>
-<text x="64" y="88" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">87.9k</text>
+<text x="64" y="88" text-anchor="end" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#a1a1aa">111.6k</text>
 <g class="group" data-task="bench-01-rate-limit">
-<rect x="86" y="234.4" width="48" height="109.6" fill="#60a5fa"/>
-<text x="110" y="228.4" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">37k</text>
+<rect x="86" y="84" width="48" height="260" fill="#60a5fa"/>
+<text x="110" y="78" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">111.6k</text>
 <text x="146" y="364" text-anchor="middle" font-family="Geist, Inter, system-ui, sans-serif" font-size="11" fill="#a1a1aa">bench-01-rate-limit</text>
 </g>
 <g class="group" data-task="bench-02-get-event">
-<rect x="234" y="251.9" width="48" height="92.1" fill="#60a5fa"/>
-<text x="258" y="245.9" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">31.1k</text>
+<rect x="234" y="280" width="48" height="64" fill="#60a5fa"/>
+<text x="258" y="274" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">27.5k</text>
 <text x="294" y="364" text-anchor="middle" font-family="Geist, Inter, system-ui, sans-serif" font-size="11" fill="#a1a1aa">bench-02-get-event</text>
 </g>
 <g class="group" data-task="bench-03-delete-tenant">
-<rect x="382" y="148.6" width="48" height="195.4" fill="#60a5fa"/>
-<text x="406" y="142.6" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">66.1k</text>
+<rect x="382" y="256.7" width="48" height="87.3" fill="#60a5fa"/>
+<text x="406" y="250.7" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">37.5k</text>
 <text x="442" y="364" text-anchor="middle" font-family="Geist, Inter, system-ui, sans-serif" font-size="11" fill="#a1a1aa">bench-03-delete-tenant</text>
 </g>
 <g class="group" data-task="bench-04-audit-limit-config">
-<rect x="530" y="84" width="48" height="260" fill="#60a5fa"/>
-<text x="554" y="78" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">87.9k</text>
+<rect x="530" y="171.6" width="48" height="172.4" fill="#60a5fa"/>
+<text x="554" y="165.6" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">74k</text>
 <text x="590" y="364" text-anchor="middle" font-family="Geist, Inter, system-ui, sans-serif" font-size="11" fill="#a1a1aa">bench-04-audit-limit-config</text>
 </g>
 <g class="group" data-task="bench-05-audit-json">
-<rect x="678" y="282" width="48" height="62" fill="#60a5fa"/>
-<text x="702" y="276" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">20.9k</text>
+<rect x="678" y="194.5" width="48" height="149.5" fill="#60a5fa"/>
+<text x="702" y="188.5" text-anchor="middle" font-family="Geist Mono, ui-monospace, Menlo, monospace" font-size="11" fill="#f4f4f5">64.2k</text>
 <text x="738" y="364" text-anchor="middle" font-family="Geist, Inter, system-ui, sans-serif" font-size="11" fill="#a1a1aa">bench-05-audit-json</text>
 </g>
 </svg>

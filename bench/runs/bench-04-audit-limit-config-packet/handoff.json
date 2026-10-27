@@ -1,6 +1,12 @@
 {
-  "askOfNext": "Next: Make the failing tests pass (6 failed).",
+  "askOfNext": "Next: Locked test files changed without a tests: decision: test/audit.test.ts, test/config.test.ts. Restore them, or say on a decision: line why they had to change..",
   "changedFiles": [
+    {
+      "added": 1,
+      "path": "src/app.ts",
+      "removed": 1,
+      "run": "r1"
+    },
     {
       "added": 2,
       "path": "src/config.ts",
@@ -8,26 +14,38 @@
       "run": "r1"
     },
     {
-      "added": 2,
+      "added": 3,
       "path": "src/lib/audit.ts",
-      "removed": 2,
+      "removed": 3,
+      "run": "r1"
+    },
+    {
+      "added": 11,
+      "path": "test/audit.test.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 17,
+      "path": "test/config.test.ts",
+      "removed": 3,
       "run": "r1"
     }
   ],
   "cost": {
-    "cachedTokens": 222487,
-    "inputTokens": 273266,
-    "outputTokens": 1751,
-    "usd": 0.1056
+    "cachedTokens": 211735,
+    "inputTokens": 246582,
+    "outputTokens": 4116,
+    "usd": 0.0959
   },
-  "createdAt": "2026-10-26T18:09:30.068Z",
+  "createdAt": "2026-10-27T11:55:30.802Z",
   "decisions": [],
   "diffRef": {
     "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
-    "head": "76efaf7b983f7c05557eb0556e36f9dc3eb06e99"
+    "head": "a97518eceeab9b96b839c4aef03273c4e2a49a14"
   },
   "done": [
-    "Verification by the daemon: 21 passed, 6 failed"
+    "Verification by the daemon: 31 passed, 0 failed"
   ],
   "from": {
     "adapter": "muse-code",
@@ -36,24 +54,24 @@
     "model": "muse-spark-1.3",
     "role": "implementer",
     "run": "r1",
-    "sessionId": "01a17966-ea03-7250-9e80-b9ea2ed8295d",
+    "sessionId": "01a17d35-ec79-7f20-8f44-2a4e6841976a",
     "vendor": "meta"
   },
-  "hash": "sha256:085db0a6d5346490bc43bf511f8b2c96ab7440093e876c4db32fd72030d21833",
+  "hash": "sha256:bcc85ae165e263a472f0f3464493830a2998c251b5d69c6db37172ea4b00c93b",
   "leftOut": [],
   "open": [
-    "Make the failing tests pass (6 failed)"
+    "Locked test files changed without a tests: decision: test/audit.test.ts, test/config.test.ts. Restore them, or say on a decision: line why they had to change."
   ],
   "refusals": [],
   "risks": [],
-  "summary": "muse-code capped after 14 tool calls.",
+  "summary": "src/config.ts Config/loadConfig now includes auditExportLimit from AUDIT_EXPORT_LIMIT default 5000. src/lib/audit.ts AuditLog takes exportLimit in constructor and uses it in toCsv instead of EXPORT_LIMIT. src/app.ts createDeps passes it to AuditLog. test/config.test.ts and test/audit.test.ts add default/env/fallback and export-cap tests. No further pending work shows in the diff.",
   "task": "T-0001",
   "verification": {
     "command": "bun run test",
-    "durationMs": 1209,
-    "exitCode": 1,
-    "failed": 6,
-    "passed": 21,
+    "durationMs": 1140,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 31,
     "runBy": "daemon",
     "status": "red"
   },

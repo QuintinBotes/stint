@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { readJsonIfExists, type Workspace } from '@stint-dev/core/node';
+import { STINT_BENCH, measuredHere } from './measured';
 
 /** The part of bench/golden-results.json the phase gates read (written by `stint eval --golden`, R-046). */
 export type GoldenSummary = { k: number; passAt1: number; passPowK: number; tasks: number; usd: number | null };
@@ -14,9 +15,11 @@ export type PhaseGates = {
 const asRecord = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const asNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+/** This repository's golden results, or Stint's when this is the demo fixture they were measured on, as for the bench. */
 export async function readGoldenSummary(root: string): Promise<GoldenSummary | null> {
-  const path = join(root, 'bench', 'golden-results.json');
-  if (!existsSync(path)) return null;
+  const own = join(root, 'bench', 'golden-results.json');
+  const path = existsSync(own) ? own : (await measuredHere(root)) ? join(STINT_BENCH, 'golden-results.json') : null;
+  if (!path || !existsSync(path)) return null;
   const raw = asRecord(await readJsonIfExists<unknown>(path));
   if (!raw || raw.version !== 'stint.golden/1') return null;
   const k = asNum(raw.k);

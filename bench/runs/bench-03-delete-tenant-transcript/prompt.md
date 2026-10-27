@@ -5,6 +5,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -31,6 +32,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -327,35 +329,70 @@ Read text file `test/helpers.ts`.
 15|  return { deps, app, send, postWebhook };
 16|}
 
-Tool call: search
-
-Tool result (search):
-
-
-Tool call: search
-
-Tool result (search):
-
-
-Tool call: bash {
-  "command": "ls test/ src/routes/ && grep -rn \"audit\" test/ src/ | head -30"
+Tool call: read_file {
+  "path": "src/routes/events.ts"
 }
 
-Tool result (bash):
-{
-  "chunk_id": "exec-1-1",
-  "command": "ls test/ src/routes/ && grep -rn \"audit\" test/ src/ | head -30",
-  "description": "List tests and grep audit usage",
-  "exit_code": 0,
-  "terminal_status": "completed",
-  "output": "src/routes/:\nadmin.ts\naudit.ts\nevents.ts\nwebhooks.ts\n\ntest/:\nadmin.test.ts\naudit.test.ts\nbackoff.test.ts\nconfig.test.ts\nevents.test.ts\nhelpers.ts\nwebhooks.test.ts\ntest/webhooks.test.ts:41:  it('writes an audit entry for each accepted event', async () => {\ntest/webhooks.test.ts:44:    expect(deps.audit.list()).toMatchObject([{ tenant: 'tenant-a', action: 'webhook.received', target: 'evt_000001' }]);\ntest/audit.test.ts:4:describe('GET /audit', () => {\ntest/audit.test.ts:7:    const res = await send('/audit');\ntest/audit.test.ts:12:  it('writes one row per audit entry', async () => {\ntest/audit.test.ts:16:    const lines = (await (await send('/audit')).text()).trim().split('\\n');\ntest/audit.test.ts:23:    const row = (await (await send('/audit')).text()).trim().split('\\n')[1] ?? '';\ntest/audit.test.ts:31:    const lines = (await (await send('/audit', { tenant: 'tenant-a' })).text()).trim().split('\\n');\nsrc/app.ts:3:import { AuditLog } from './lib/audit';\nsrc/app.ts:7:import { auditRoutes } from './routes/audit';\nsrc/app.ts:15:  audit: AuditLog;\nsrc/app.ts:26:    audit: new AuditLog(),\nsrc/app.ts:36:  app.route('/audit', auditRoutes(deps));\nsrc/routes/webhooks.ts:28:    deps.audit.record(tenant, 'webhook.received', event.id);\nsrc/routes/admin.ts:17:      deps.audit.record(tenant.id, 'tenant.created', tenant.id);\nsrc/routes/events.ts:25:    deps.audit.record(tenant, 'webhook.replayed', event.id);\nsrc/routes/audit.ts:4:export function auditRoutes(deps: Deps): Hono {\nsrc/routes/audit.ts:10:    return c.body(deps.audit.toCsv(tenant));\n",
-  "original_output_bytes": 1553,
-  "original_output_tokens": 389,
-  "truncated": false
+Tool call: read_file {
+  "path": "src/routes/audit.ts"
 }
+
+Tool result (read_file):
+Read text file `src/routes/events.ts`.
+1|import { Hono } from 'hono';
+2|import type { Deps } from '../app';
+3|import { backoffMs } from '../lib/backoff';
+4|
+5|export function eventRoutes(deps: Deps): Hono {
+6|  const r = new Hono();
+7|
+8|  r.get('/', (c) => {
+9|    const tenant = c.req.header('X-Tenant');
+10|    if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
+11|    return c.json({ events: deps.store.listByTenant(tenant) });
+12|  });
+13|
+14|  r.post('/:id/replay', (c) => {
+15|    const tenant = c.req.header('X-Tenant');
+16|    if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
+17|    const event = deps.store.get(c.req.param('id'));
+18|    if (!event || event.tenant !== tenant) return c.json({ error: 'event not found' }, 404);
+19|    if (event.attempts >= deps.config.replayMaxAttempts) {
+20|      return c.json({ error: `replay limit of ${deps.config.replayMaxAttempts} reached` }, 409);
+21|    }
+22|
+23|    const attempts = event.attempts + 1;
+24|    const updated = deps.store.update(event.id, { attempts, status: 'replayed' });
+25|    deps.audit.record(tenant, 'webhook.replayed', event.id);
+26|    return c.json({ event: updated, delayMs: backoffMs(attempts, deps.config.replayBaseDelayMs) });
+27|  });
+28|
+29|  return r;
+30|}
+
+Tool result (read_file):
+Read text file `src/routes/audit.ts`.
+1|import { Hono } from 'hono';
+2|import type { Deps } from '../app';
+3|
+4|export function auditRoutes(deps: Deps): Hono {
+5|  const r = new Hono();
+6|
+7|  r.get('/', (c) => {
+8|    const tenant = c.req.header('X-Tenant') || undefined;
+9|    c.header('Content-Type', 'text/csv; charset=utf-8');
+10|    return c.body(deps.audit.toCsv(tenant));
+11|  });
+12|
+13|  return r;
+14|}
 
 Tool call: edit_file {
   "path": "src/lib/tenants.ts"
+}
+
+Tool call: edit_file {
+  "path": "src/routes/admin.ts"
 }
 
 Tool result (edit_file):
@@ -375,10 +412,6 @@ changed lines: lines 29-31
 +    return this.tenants.delete(id);
 +  }
 
-
-Tool call: edit_file {
-  "path": "src/routes/admin.ts"
-}
 
 Tool result (edit_file):
 edited
@@ -400,9 +433,95 @@ changed lines: lines 25-26
 +  return r;
 +}
 
+
+Tool call: edit_file {
+  "path": "test/admin.test.ts"
+}
+
+Tool result (edit_file):
+edited
+changed lines: lines 32-37
+--- original
++++ updated
+@@
+-  it('lets a new tenant receive webhooks', async () => {
+-    const { send, postWebhook } = setup();
+-    await createTenant(send, { id: 'tenant-c', name: 'Tenant C' });
+-    expect((await postWebhook('tenant-c', { type: 'hello' })).status).toBe(202);
+-  });
+-});
++  it('lets a new tenant receive webhooks', async () => {
++    const { send, postWebhook } = setup();
++    await createTenant(send, { id: 'tenant-c', name: 'Tenant C' });
++    expect((await postWebhook('tenant-c', { type: 'hello' })).status).toBe(202);
++  });
++
++  it('deletes a known tenant', async () => {
++    const { send } = setup();
++    const res = await send('/admin/tenants/tenant-a', { method: 'DELETE' });
++    expect(res.status).toBe(200);
++    expect(await res.json()).toMatchObject({ id: 'tenant-a' });
++    const body = (await (await send('/admin/tenants')).json()) as { tenants: Array<{ id: string }> };
++    expect(body.tenants.map((t) => t.id)).toEqual(['tenant-b']);
++  });
++
++  it('answers 404 when deleting an unknown tenant', async () => {
++    const { send } = setup();
++    const res = await send('/admin/tenants/no-such-tenant', { method: 'DELETE' });
++    expect(res.status).toBe(404);
++    expect(await res.json()).toEqual({ error: 'unknown tenant no-such-tenant' });
++  });
++
++  it('writes an audit entry for the deletion', async () => {
++    const { send, deps } = setup();
++    await send('/admin/tenants/tenant-a', { method: 'DELETE' });
++    expect(deps.audit.list('tenant-a')).toContainEqual(
++      expect.objectContaining({ tenant: 'tenant-a', action: 'tenant.deleted', target: 'tenant-a' }),
++    );
++  });
++
++  it('rejects webhooks for a deleted tenant', async () => {
++    const { send, postWebhook } = setup();
++    await send('/admin/tenants/tenant-a', { method: 'DELETE' });
++    const res = await postWebhook('tenant-a', { type: 'hello' });
++    expect(res.status).toBe(404);
++  });
++});
+
+
+Tool call: bash {
+  "command": "bun run test 2>&1 | tail -20 && bun run typecheck 2>&1 | tail -5"
+}
+
+Tool result (bash):
+{
+  "chunk_id": "exec-1-1",
+  "command": "bun run test 2>&1 | tail -20 && bun run typecheck 2>&1 | tail -5",
+  "description": "Run test suite and typecheck",
+  "exit_code": 0,
+  "terminal_status": "completed",
+  "output": "$ vitest run\n\n RUN  v3.2.7 <fixture>/.stint/worktrees/T-0001-r1\n\n ✓ test/backoff.test.ts (2 tests) 2ms\n ✓ test/config.test.ts (4 tests) 2ms\n ✓ test/webhooks.test.ts (7 tests) 10ms\n ✓ test/events.test.ts (5 tests) 11ms\n ✓ test/audit.test.ts (4 tests) 11ms\n ✓ test/admin.test.ts (9 tests) 13ms\n\n Test Files  6 passed (6)\n      Tests  31 passed (31)\n   Start at  12:51:46\n   Duration  495ms (transform 1.13s, setup 0ms, collect 1.40s, tests 49ms, environment 1ms, prepare 314ms)\n\n$ tsc --noEmit\n",
+  "original_output_bytes": 569,
+  "original_output_tokens": 143,
+  "truncated": false
+}
+
+Assistant: Done. DELETE /admin/tenants/:id is implemented and the suite is green locally (31 tests, typecheck clean — the daemon's run is the record).
+
+Changes:
+- [tenants.ts](<fixture>/.stint/worktrees/T-0001-r1/src/lib/tenants.ts) — added `TenantRegistry.remove(id)` returning whether a tenant was deleted.
+- [admin.ts](<fixture>/.stint/worktrees/T-0001-r1/src/routes/admin.ts) — added `DELETE /tenants/:id`: 404 `{ error: "unknown tenant <id>" }` for unknown tenants (same wording as POST /webhooks), otherwise removes the tenant, records `tenant.deleted` in the audit log with the tenant and target, and returns the deleted tenant as JSON. POST /webhooks needs no change since it already 404s on `tenants.get()` misses.
+- [admin.test.ts](<fixture>/.stint/worktrees/T-0001-r1/test/admin.test.ts) — 4 new cases: delete known tenant, 404 for unknown, audit entry, webhooks 404 after deletion.
+
+decision: DELETE returns 200 with the deleted tenant JSON, mirroring the create route's JSON response style, since the repo has no delete precedent.
+decision: tests: test/admin.test.ts changed because the task explicitly requires adding tests for the delete path in that file.
+
+Did not finish / did not look at: nothing outstanding for this task; I did not review backoff, config, or CSV export internals beyond confirming the suite passes.
+
 ## Changes on the task branch so far
 - src/lib/tenants.ts +4 -0
 - src/routes/admin.ts +9 -0
+- test/admin.test.ts +31 -0
 
 ## Ask
 Continue from the transcript: finish what it started.

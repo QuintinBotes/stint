@@ -21,7 +21,7 @@ github.com/QuintinBotes/stint
 
 4. Muse Glimmer reviews on the laptop, offline, for $0. A review finding that would reverse a decision waits for you.
 
-5. We measured it: transcript against packet on five live tasks. The packet was 6x smaller to hand over, but the agent then re-read code. A quiz between two Muse models showed why, a diff digest fixed it, and the next run used 20% fewer input tokens than the transcript and cost 10% less.
+5. We measured it: transcript against packet on five live tasks. The first packet was 6x smaller to hand over, but the agent then re-read code. A quiz between two Muse models showed why: the packet named files, not what the code does. Now it carries the leaving agent's own account, and on the current build 9 of 10 runs from the packet passed against 3 of 5 from the transcript, with 31% fewer input tokens and 11% less cost.
 
 6. It learns: when the same finding shows up on two tasks, it proposes a rule with the evidence. You approve it, and the next task gets it right.
 

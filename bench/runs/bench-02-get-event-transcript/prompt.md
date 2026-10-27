@@ -5,6 +5,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -31,6 +32,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -56,15 +58,15 @@ None yet.
 Implement the goal. Follow the plan where there is one.
 
 Tool call: read_file {
-  "path": "src/app.ts"
-}
-
-Tool call: read_file {
   "path": "src/routes/events.ts"
 }
 
 Tool call: read_file {
   "path": "src/lib/store.ts"
+}
+
+Tool call: read_file {
+  "path": "src/app.ts"
 }
 
 Tool call: read_file {
@@ -74,47 +76,6 @@ Tool call: read_file {
 Tool call: read_file {
   "path": "test/helpers.ts"
 }
-
-Tool result (read_file):
-Read text file `src/app.ts`.
-1|import { Hono } from 'hono';
-2|import { type Config, loadConfig } from './config';
-3|import { AuditLog } from './lib/audit';
-4|import { EventStore } from './lib/store';
-5|import { TenantRegistry } from './lib/tenants';
-6|import { adminRoutes } from './routes/admin';
-7|import { auditRoutes } from './routes/audit';
-8|import { eventRoutes } from './routes/events';
-9|import { webhookRoutes } from './routes/webhooks';
-10|
-11|export interface Deps {
-12|  config: Config;
-13|  store: EventStore;
-14|  tenants: TenantRegistry;
-15|  audit: AuditLog;
-16|}
-17|
-18|export function createDeps(config: Config = loadConfig()): Deps {
-19|  return {
-20|    config,
-21|    store: new EventStore(),
-22|    tenants: new TenantRegistry([
-23|      { id: 'tenant-a', name: 'Tenant A' },
-24|      { id: 'tenant-b', name: 'Tenant B' },
-25|    ]),
-26|    audit: new AuditLog(),
-27|  };
-28|}
-29|
-30|export function createApp(deps: Deps = createDeps()): Hono {
-31|  const app = new Hono();
-32|  app.get('/health', (c) => c.json({ ok: true }));
-33|  app.route('/webhooks', webhookRoutes(deps));
-34|  app.route('/events', eventRoutes(deps));
-35|  app.route('/admin', adminRoutes(deps));
-36|  app.route('/audit', auditRoutes(deps));
-37|  return app;
-38|}
 
 Tool result (read_file):
 Read text file `src/routes/events.ts`.
@@ -200,6 +161,47 @@ Read text file `src/lib/store.ts`.
 47|}
 
 Tool result (read_file):
+Read text file `src/app.ts`.
+1|import { Hono } from 'hono';
+2|import { type Config, loadConfig } from './config';
+3|import { AuditLog } from './lib/audit';
+4|import { EventStore } from './lib/store';
+5|import { TenantRegistry } from './lib/tenants';
+6|import { adminRoutes } from './routes/admin';
+7|import { auditRoutes } from './routes/audit';
+8|import { eventRoutes } from './routes/events';
+9|import { webhookRoutes } from './routes/webhooks';
+10|
+11|export interface Deps {
+12|  config: Config;
+13|  store: EventStore;
+14|  tenants: TenantRegistry;
+15|  audit: AuditLog;
+16|}
+17|
+18|export function createDeps(config: Config = loadConfig()): Deps {
+19|  return {
+20|    config,
+21|    store: new EventStore(),
+22|    tenants: new TenantRegistry([
+23|      { id: 'tenant-a', name: 'Tenant A' },
+24|      { id: 'tenant-b', name: 'Tenant B' },
+25|    ]),
+26|    audit: new AuditLog(),
+27|  };
+28|}
+29|
+30|export function createApp(deps: Deps = createDeps()): Hono {
+31|  const app = new Hono();
+32|  app.get('/health', (c) => c.json({ ok: true }));
+33|  app.route('/webhooks', webhookRoutes(deps));
+34|  app.route('/events', eventRoutes(deps));
+35|  app.route('/admin', adminRoutes(deps));
+36|  app.route('/audit', auditRoutes(deps));
+37|  return app;
+38|}
+
+Tool result (read_file):
 Read text file `test/events.test.ts`.
 1|import { describe, expect, it } from 'vitest';
 2|import { setup } from './helpers';
@@ -264,6 +266,100 @@ Read text file `test/helpers.ts`.
 15|  return { deps, app, send, postWebhook };
 16|}
 
+Tool call: read_file {
+  "path": "src/routes/webhooks.ts"
+}
+
+Tool call: read_file {
+  "path": "src/routes/admin.ts"
+}
+
+Tool call: read_file {
+  "path": "src/routes/audit.ts"
+}
+
+Tool result (read_file):
+Read text file `src/routes/webhooks.ts`.
+1|import { Hono } from 'hono';
+2|import type { Deps } from '../app';
+3|
+4|export function webhookRoutes(deps: Deps): Hono {
+5|  const r = new Hono();
+6|
+7|  r.post('/', async (c) => {
+8|    const tenant = c.req.header('X-Tenant');
+9|    if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
+10|    if (!deps.tenants.get(tenant)) return c.json({ error: `unknown tenant ${tenant}` }, 404);
+11|
+12|    const raw = await c.req.text();
+13|    if (new TextEncoder().encode(raw).length > deps.config.maxBodyBytes) {
+14|      return c.json({ error: 'payload too large' }, 413);
+15|    }
+16|
+17|    let body: { type?: unknown; data?: unknown };
+18|    try {
+19|      body = JSON.parse(raw);
+20|    } catch {
+21|      return c.json({ error: 'body must be JSON' }, 400);
+22|    }
+23|    if (typeof body.type !== 'string' || body.type === '') {
+24|      return c.json({ error: 'type is required' }, 400);
+25|    }
+26|
+27|    const event = deps.store.add(tenant, body.type, body.data ?? null);
+28|    deps.audit.record(tenant, 'webhook.received', event.id);
+29|    return c.json(event, 202);
+30|  });
+31|
+32|  return r;
+33|}
+
+Tool result (read_file):
+Read text file `src/routes/admin.ts`.
+1|import { Hono } from 'hono';
+2|import type { Deps } from '../app';
+3|import { TenantError } from '../lib/tenants';
+4|
+5|export function adminRoutes(deps: Deps): Hono {
+6|  const r = new Hono();
+7|
+8|  r.get('/tenants', (c) => c.json({ tenants: deps.tenants.list() }));
+9|
+10|  r.post('/tenants', async (c) => {
+11|    const body = await c.req.json<{ id?: unknown; name?: unknown }>().catch(() => ({}) as Record<string, unknown>);
+12|    if (typeof body.id !== 'string' || typeof body.name !== 'string') {
+13|      return c.json({ error: 'id and name are required' }, 400);
+14|    }
+15|    try {
+16|      const tenant = deps.tenants.create(body.id, body.name);
+17|      deps.audit.record(tenant.id, 'tenant.created', tenant.id);
+18|      return c.json(tenant, 201);
+19|    } catch (err) {
+20|      if (err instanceof TenantError) return c.json({ error: err.message }, err.code === 'exists' ? 409 : 400);
+21|      throw err;
+22|    }
+23|  });
+24|
+25|  return r;
+26|}
+
+Tool result (read_file):
+Read text file `src/routes/audit.ts`.
+1|import { Hono } from 'hono';
+2|import type { Deps } from '../app';
+3|
+4|export function auditRoutes(deps: Deps): Hono {
+5|  const r = new Hono();
+6|
+7|  r.get('/', (c) => {
+8|    const tenant = c.req.header('X-Tenant') || undefined;
+9|    c.header('Content-Type', 'text/csv; charset=utf-8');
+10|    return c.body(deps.audit.toCsv(tenant));
+11|  });
+12|
+13|  return r;
+14|}
+
 Tool call: edit_file {
   "path": "src/routes/events.ts"
 }
@@ -280,7 +376,7 @@ changed lines: line 14
 +    if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
 +    const event = deps.store.get(c.req.param('id'));
 +    if (!event || event.tenant !== tenant) return c.json({ error: 'event not found' }, 404);
-+    return c.json({ event });
++    return c.json(event);
 +  });
 +
 +  r.post('/:id/replay', (c) => {
@@ -292,24 +388,47 @@ Tool call: edit_file {
 
 Tool result (edit_file):
 edited
-changed lines: line 19
+changed lines: lines 35-43
 --- original
 +++ updated
 @@
--  it('replays an event and returns the backoff delay', async () => {
-+  it('returns one stored event for its owning tenant', async () => {
-+    const { postWebhook, send } = setup();
+-  it('stops replaying after the configured number of attempts', async () => {
+-    const { postWebhook, send } = setup({ replayMaxAttempts: 2 });
+-    await postWebhook('tenant-a', { type: 'a.one' });
+-    const replay = () => send('/events/evt_000001/replay', { method: 'POST', tenant: 'tenant-a' });
+-    await replay();
+-    await replay();
+-    expect((await replay()).status).toBe(409);
+-  });
+-});
++  it('stops replaying after the configured number of attempts', async () => {
++    const { postWebhook, send } = setup({ replayMaxAttempts: 2 });
 +    await postWebhook('tenant-a', { type: 'a.one' });
-+    const res = await send('/events/evt_000001', { tenant: 'tenant-a' });
-+    expect(res.status).toBe(200);
-+    expect(await res.json()).toMatchObject({ event: { id: 'evt_000001', tenant: 'tenant-a', type: 'a.one' } });
++    const replay = () => send('/events/evt_000001/replay', { method: 'POST', tenant: 'tenant-a' });
++    await replay();
++    await replay();
++    expect((await replay()).status).toBe(409);
 +  });
 +
-+  it('does not return an event to another tenant', async () => {
++  it('returns one stored event for its owning tenant', async () => {
++    const { postWebhook, send } = setup();
++    await postWebhook('tenant-a', { type: 'a.one', data: { n: 1 } });
++    const res = await send('/events/evt_000001', { tenant: 'tenant-a' });
++    expect(res.status).toBe(200);
++    expect(await res.json()).toMatchObject({ id: 'evt_000001', tenant: 'tenant-a', type: 'a.one' });
++  });
++
++  it('returns 404 when another tenant asks for the same id', async () => {
 +    const { postWebhook, send } = setup();
 +    await postWebhook('tenant-a', { type: 'a.one' });
-+    expect((await send('/events/evt_000001', { tenant: 'tenant-b' })).status).toBe(404);
-+    expect((await send('/events/evt_999999', { tenant: 'tenant-a' })).status).toBe(404);
++    const res = await send('/events/evt_000001', { tenant: 'tenant-b' });
++    expect(res.status).toBe(404);
++  });
++
++  it('returns 404 for an unknown event id', async () => {
++    const { send } = setup();
++    const res = await send('/events/evt_999999', { tenant: 'tenant-a' });
++    expect(res.status).toBe(404);
 +  });
 +
 +  it('requires the X-Tenant header to get one event', async () => {
@@ -317,36 +436,46 @@ changed lines: line 19
 +    await postWebhook('tenant-a', { type: 'a.one' });
 +    expect((await send('/events/evt_000001')).status).toBe(400);
 +  });
-+
-+  it('replays an event and returns the backoff delay', async () => {
++});
 
 
 Tool call: bash {
-  "command": "bun run test 2>&1 | tail -20 && bun run typecheck 2>&1 | tail -5"
+  "command": "bun run typecheck 2>&1 | tail -20"
 }
 
 Tool result (bash):
 {
   "chunk_id": "exec-1-1",
-  "command": "bun run test 2>&1 | tail -20 && bun run typecheck 2>&1 | tail -5",
-  "description": "Run tests and typecheck",
+  "command": "bun run typecheck 2>&1 | tail -20",
+  "description": "Run typecheck for verification",
   "exit_code": 0,
   "terminal_status": "completed",
-  "output": "$ vitest run\n\n RUN  v3.2.7 <fixture>/.stint/worktrees/T-0001-r1\n\n ✓ test/backoff.test.ts (2 tests) 2ms\n ✓ test/config.test.ts (4 tests) 2ms\n ✓ test/admin.test.ts (5 tests) 12ms\n ✓ test/audit.test.ts (4 tests) 13ms\n ✓ test/webhooks.test.ts (7 tests) 13ms\n ✓ test/events.test.ts (8 tests) 14ms\n\n Test Files  6 passed (6)\n      Tests  30 passed (30)\n   Start at  19:08:07\n   Duration  685ms (transform 1.50s, setup 0ms, collect 2.03s, tests 56ms, environment 1ms, prepare 394ms)\n\n$ tsc --noEmit\n",
-  "original_output_bytes": 569,
-  "original_output_tokens": 143,
+  "output": "$ tsc --noEmit\n",
+  "original_output_bytes": 15,
+  "original_output_tokens": 4,
   "truncated": false
 }
 
-Assistant: Done. Added `GET /events/:id` in [events.ts](<fixture>/.stint/worktrees/T-0001-r1/src/routes/events.ts) using `EventStore.get`, with 400 on missing `X-Tenant` and 404 on unknown id or tenant mismatch. Added three tests in [events.test.ts](<fixture>/.stint/worktrees/T-0001-r1/test/events.test.ts) covering own-tenant read, other-tenant/nonexistent 404, and missing-header 400.
+Tool call: bash {
+  "command": "bun run test 2>&1 | tail -30"
+}
 
-decision: GET /events/:id is a read, so it writes no audit entry, matching the existing list handler.
-
-I did not look at the review-voice-policy skill (not relevant to this task) or at admin/audit/webhook route internals. The daemon's test run is the record, not my local run.
+Tool result (bash):
+{
+  "chunk_id": "exec-2-1",
+  "command": "bun run test 2>&1 | tail -30",
+  "description": "Run test suite for verification",
+  "exit_code": 0,
+  "terminal_status": "completed",
+  "output": "$ vitest run\n\n RUN  v3.2.7 <fixture>/.stint/worktrees/T-0001-r1\n\n ✓ test/config.test.ts (4 tests) 2ms\n ✓ test/backoff.test.ts (2 tests) 2ms\n ✓ test/webhooks.test.ts (7 tests) 10ms\n ✓ test/admin.test.ts (5 tests) 11ms\n ✓ test/audit.test.ts (4 tests) 10ms\n ✓ test/events.test.ts (9 tests) 13ms\n\n Test Files  6 passed (6)\n      Tests  31 passed (31)\n   Start at  12:49:51\n   Duration  494ms (transform 1.21s, setup 0ms, collect 1.48s, tests 49ms, environment 1ms, prepare 325ms)\n\n",
+  "original_output_bytes": 554,
+  "original_output_tokens": 139,
+  "truncated": false
+}
 
 ## Changes on the task branch so far
 - src/routes/events.ts +8 -0
-- test/events.test.ts +21 -0
+- test/events.test.ts +27 -0
 
 ## Ask
 Continue from the transcript: finish what it started.

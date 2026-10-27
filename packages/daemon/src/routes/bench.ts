@@ -3,9 +3,7 @@ import { join } from 'node:path';
 import type { Hono } from 'hono';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
-
-/** Stint's own measured results, run on the demo fixture. */
-const STINT_BENCH = join(import.meta.dir, '..', '..', '..', '..', 'bench');
+import { STINT_BENCH, measuredHere } from '../measured';
 
 async function read(path: string): Promise<Record<string, unknown>> {
   try {
@@ -13,15 +11,6 @@ async function read(path: string): Promise<Record<string, unknown>> {
   } catch {
     throw new DaemonError('invalid', `${path.slice(path.lastIndexOf('bench'))} is not valid JSON`, 'run stint bench again');
   }
-}
-
-/** True when this repository has the commit Stint's own bench ran on, so those results describe its code. */
-async function measuredHere(root: string): Promise<boolean> {
-  const path = join(STINT_BENCH, 'results.json');
-  if (!existsSync(path)) return false;
-  const commit = ((await Bun.file(path).json().catch(() => ({}))) as { commit?: unknown }).commit;
-  if (typeof commit !== 'string' || !/^[0-9a-f]{7,40}$/.test(commit)) return false;
-  return (await Bun.spawn(['git', 'cat-file', '-e', `${commit}^{commit}`], { cwd: root, stdout: 'ignore', stderr: 'ignore' }).exited) === 0;
 }
 
 /**

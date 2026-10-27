@@ -1,10 +1,10 @@
 {
-  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "askOfNext": "Next: Locked test files changed without a tests: decision: test/audit.test.ts. Restore them, or say on a decision: line why they had to change..",
   "changedFiles": [
     {
-      "added": 5,
+      "added": 4,
       "path": "src/lib/audit.ts",
-      "removed": 1,
+      "removed": 0,
       "run": "r1"
     },
     {
@@ -14,26 +14,26 @@
       "run": "r1"
     },
     {
-      "added": 21,
+      "added": 28,
       "path": "test/audit.test.ts",
       "removed": 0,
       "run": "r1"
     }
   ],
   "cost": {
-    "cachedTokens": 185510,
-    "inputTokens": 236103,
-    "outputTokens": 2360,
-    "usd": 0.1029
+    "cachedTokens": 169894,
+    "inputTokens": 213016,
+    "outputTokens": 3864,
+    "usd": 0.0987
   },
-  "createdAt": "2026-10-26T18:21:12.661Z",
+  "createdAt": "2026-10-27T12:05:04.497Z",
   "decisions": [],
   "diffRef": {
     "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
-    "head": "37d8b23d7c35b6c31dcedaedb2f6e1d724477053"
+    "head": "603378f4febb3ea1e443048582c4cf9fce8f4d42"
   },
   "done": [
-    "Verification by the daemon: 29 passed, 0 failed"
+    "Verification by the daemon: 30 passed, 0 failed"
   ],
   "from": {
     "adapter": "muse-code",
@@ -42,24 +42,26 @@
     "model": "muse-spark-1.3",
     "role": "implementer",
     "run": "r1",
-    "sessionId": "01a17971-9a82-7ce1-a1e2-c810a9bb75b2",
+    "sessionId": "01a17d3e-bd19-7302-bc29-956da0837168",
     "vendor": "meta"
   },
-  "hash": "sha256:73b7bb489b3c324a11159638c5d06ac6aa604a87a3bad3663419c886bba7501e",
+  "hash": "sha256:9e8fb0e0a4c0c5c22caea65ed88a01e58bcf25e34d851f731deca33710d28165",
   "leftOut": [],
-  "open": [],
+  "open": [
+    "Locked test files changed without a tests: decision: test/audit.test.ts. Restore them, or say on a decision: line why they had to change."
+  ],
   "refusals": [],
   "risks": [],
-  "summary": "src/lib/audit.ts adds AuditLog.toJson returning AuditEntry list with EXPORT_LIMIT, reused by toCsv. src/routes/audit.ts makes auditRoutes GET / return c.json via toJson when query format=json else CSV, both with X-Tenant filter. test/audit.test.ts adds JSON content and JSON tenant-filter tests. The diff cuts off inside the existing CSV filter test, so its completion is not visible.",
+  "summary": "src/lib/audit.ts adds AuditLog.toJson returning AuditEntry list filtered by tenant. src/routes/audit.ts branches GET /audit on query format=json to return JSON, keeping CSV default and X-Tenant filtering in both. test/audit.test.ts adds tests for CSV default, JSON entries, and JSON tenant filtering. No unfinished changes are visible in the diff.",
   "task": "T-0001",
   "verification": {
     "command": "bun run test",
-    "durationMs": 1474,
+    "durationMs": 1317,
     "exitCode": 0,
     "failed": 0,
-    "passed": 29,
+    "passed": 30,
     "runBy": "daemon",
-    "status": "green"
+    "status": "red"
   },
   "version": "stint.handoff/1"
 }

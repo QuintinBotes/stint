@@ -2,7 +2,7 @@
   "askOfNext": "Next: Make the failing tests pass (2 failed: config > uses defaults when the environment is empty; config > reads values from the environment; test/config.test.ts > config > uses defaults when the enviro....",
   "changedFiles": [
     {
-      "added": 3,
+      "added": 1,
       "path": "src/app.ts",
       "removed": 0,
       "run": "r1"
@@ -14,23 +14,23 @@
       "run": "r1"
     },
     {
-      "added": 38,
+      "added": 28,
       "path": "src/lib/limiter.ts",
       "removed": 0,
       "run": "r1"
     }
   ],
   "cost": {
-    "cachedTokens": 237335,
-    "inputTokens": 291655,
-    "outputTokens": 3402,
-    "usd": 0.1205
+    "cachedTokens": 195238,
+    "inputTokens": 258946,
+    "outputTokens": 4418,
+    "usd": 0.131
   },
-  "createdAt": "2026-10-26T18:18:26.705Z",
+  "createdAt": "2026-10-27T12:00:59.782Z",
   "decisions": [],
   "diffRef": {
     "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
-    "head": "1ba767c9e158ae43538f57c03750a5f3915ebfc6"
+    "head": "0f338fc29d3a3db930f1d52f78051270f4530c42"
   },
   "done": [
     "Verification by the daemon: 25 passed, 2 failed"
@@ -42,21 +42,21 @@
     "model": "muse-spark-1.3",
     "role": "implementer",
     "run": "r1",
-    "sessionId": "01a1796e-fa6c-7df0-99ef-620d0c5cdd4b",
+    "sessionId": "01a17d3a-e0d0-78a0-8784-b6ec6158ea57",
     "vendor": "meta"
   },
-  "hash": "sha256:0905bdf20f5b98299ccf0a11beba5fcc8a1ebe1a9f873114c2f9d84d70f5b7a2",
+  "hash": "sha256:e0a2fd924bc787293abb0065be797a03e727ff84569d0c84bc77ef85871d4267",
   "leftOut": [],
   "open": [
     "Make the failing tests pass (2 failed: config > uses defaults when the environment is empty; config > reads values from the environment; test/config.test.ts > config > uses defaults when the enviro..."
   ],
   "refusals": [],
   "risks": [],
-  "summary": "src/lib/limiter.ts adds RateLimiter with check() and reset() returning RateLimitResult. src/config.ts extends Config and loadConfig() with rateLimitMax and rateLimitWindowMs defaults. src/app.ts extends Deps and createDeps() to share a RateLimiter. No wiring in src/routes/webhooks.ts for 429 with Retry-After and no tests are visible.",
+  "summary": "src/lib/limiter.ts adds RateLimiter with check() for sliding-window per-key limiting returning RateLimitResult. src/config.ts extends Config and loadConfig() with rateLimitMaxRequests default 100 and rateLimitWindowMs default 60000. src/app.ts only imports RateLimiter. No webhook route enforcement with 429 and Retry-After, no shared state wiring, and no tests are shown.",
   "task": "T-0001",
   "verification": {
     "command": "bun run test",
-    "durationMs": 1259,
+    "durationMs": 1326,
     "exitCode": 1,
     "failed": 2,
     "passed": 25,

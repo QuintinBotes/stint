@@ -30,8 +30,8 @@ The story the replay shows (T-0040, T-0042 and T-0043) is hand-written, and the 
 | Number | From | Record |
 |---|---|---|
 | A killed run continued to green: 29 of 29 tests, $0.10 | Live, 26 October: Muse Code killed, the Stint agent on Muse Spark 1.3 continued | `packages/daemon/test/continue.live.test.ts` |
-| A live packet of 394 tokens, shown below | Live, 26 October: Muse Code capped on the rate-limit task, its packet as the next agent read it | `bench/digest/runs/bench-01-rate-limit-packet/` |
-| The bench table | Live, 26 October, five tasks | `bench/results.json`, `bench/digest/results.json` |
+| A live packet of 404 tokens, shown below | Live, 27 October: Muse Code capped on the rate-limit task, its packet as the next agent read it | `bench/digest/runs/bench-01-rate-limit-packet/` |
+| The bench table | Live, 27 October, five tasks on the current build; the 26 October run is in the text | `bench/results.json`, `bench/digest/results.json` |
 | The golden set: 9 of 9 tries passed, pass^3 100%, $1.40 | Live, 27 October, three tasks, three tries each | `bench/golden-results.json` |
 | The skill eval: no findings either way, 32 against 31 tests passed, $0.1365 against $0.1724 | Live, 27 October, Muse Code with the learned skill and without | the T-0042 timeline's `skill.evaluated` |
 | The packet quiz: 4 of 8, two blocking misses, $0.08 | Live, 26 October, on the killed T-0042 packet | `PROGRESS.md` D-037 |
@@ -81,7 +81,7 @@ stint approve T-0001            # a real merge, with Stint-Task trailers
   - every harness and host this workspace can use.
 - **Skills**: what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
 
-<p align="center"><img alt="The Factory: Meta models at work, with tokens, cache share and cost per model" src="assets/screenshot-factory.png" width="900"></p>
+<p align="center"><img alt="The Factory: the week in figures, the relay of runs across Meta's models with the 412-token packet and the learned skill, and the memory graph of the whole workspace" src="assets/screenshot-factory.png" width="900"></p>
 
 ## The packet
 
@@ -93,7 +93,7 @@ stint approve T-0001            # a real merge, with Stint-Task trailers
 - **The changed files and the daemon's verification.**
 - **One `askOfNext`.**
 
-It always renders under 600 tokens, and a killed run gets one too. This one is live: Muse Code was capped on the rate-limit task, and the Stint agent continued from these 394 tokens to a green verification.
+It always renders under 600 tokens, and a killed run gets one too. This one is live: Muse Code was capped on the rate-limit task, and the Stint agent continued from these 404 tokens to a green verification.
 
 <details>
 <summary>The live packet, as the next agent read it</summary>
@@ -106,10 +106,10 @@ T-0001
 
 ## Where it got to
 muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: capped.
-src/lib/limiter.ts adds RateLimiter with check() and reset() returning RateLimitResult. src/config.ts extends Config and loadConfig() with rateLimitMax and rateLimitWindowMs defaults. src/app.ts extends Deps and createDeps() to share a RateLimiter. No wiring in src/routes/webhooks.ts for 429 with Retry-After and no tests are visible.
+src/lib/limiter.ts adds RateLimiter with check() for sliding-window per-key limiting returning RateLimitResult. src/config.ts extends Config and loadConfig() with rateLimitMaxRequests default 100 and rateLimitWindowMs default 60000. src/app.ts only imports RateLimiter. No webhook route enforcement with 429 and Retry-After, no shared state wiring, and no tests are shown.
 Verification by the daemon: bun run test, 25 passed, 2 failed (exit 1).
-Changed: src/app.ts +3 -0, src/config.ts +4 -0, src/lib/limiter.ts +38 -0.
-Diff: be1bee8..1ba767c.
+Changed: src/app.ts +1 -0, src/config.ts +4 -0, src/lib/limiter.ts +28 -0.
+Diff: be1bee8..0f338fc.
 
 ## Done
 - Verification by the daemon: 25 passed, 2 failed
@@ -141,22 +141,24 @@ The full packet and the recorded killed example are in [`docs/packet.md`](docs/p
 
 `stint bench` runs the same tasks twice from the same commit. Each time Muse Code is capped at the same step, and the Stint agent continues on Muse Spark 1.3, once from the full transcript and once from the packet plus the diff. The daemon runs the tests both times.
 
-Live, 26 October, five tasks:
+Live, 27 October, five tasks, on the current build:
 
 | Continue from | Hand-over prompt | Input tokens for the whole continued run | Cost | Tests green (daemon) |
 |---|---|---|---|---|
-| the transcript | 4,418 tokens | 60,816 | $0.059 | 5 of 5 |
-| the packet | 728 tokens | 64,863 | $0.064 | 5 of 5 |
-| the packet with the diff digest | 797 tokens | 48,623 | $0.054 | 5 of 5 |
+| the transcript | 6,328 tokens | 86,423 | $0.087 | 3 of 5 |
+| the packet | 929 tokens | 56,642 | $0.074 | 4 of 5 |
+| the packet, again with the digest on | 923 tokens | 62,922 | $0.080 | 5 of 5 |
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="bench/results.svg">
   <img alt="Input tokens per continued run, transcript against packet, for five tasks" src="bench/results-light.svg" width="640">
 </picture>
 
-The first packet was six times smaller to hand over, and every continued run passed. But the whole run cost about the same as starting from the transcript. These first runs were short (7 or 8 steps), and the agent that started from the packet spent the difference re-reading code. The packet quiz showed why: the packet said which files changed, not what the code now does. So a run that cannot be asked now gets a digest of what its diff implements. On a second live run of the packet side, the continued runs used 25% fewer input tokens than the first. That is 20% fewer than starting from the transcript, at 10% less cost, still with 5 of 5 green.
+The packet is about seven times smaller to hand over. Across its two runs, 9 of 10 continued runs passed against 3 of 5 from the transcript, using 31% fewer input tokens at 11% less cost.
 
-One run per task is a small sample, and single tasks swung both ways, so read this as a first measurement, not a law. The digest also failed to arrive for one task. The rows, prompts, packets and transcripts are in `bench/runs/` and `bench/digest/runs/`, and `stint bench --replay` rebuilds the tables from them.
+It got there in two steps. The first live run, on 26 October, passed 5 of 5 from both, with a packet of 728 tokens against 4,418, but the whole run cost about the same as starting from the transcript: the agent that started from the packet spent the difference re-reading code. The packet quiz showed why. The packet said which files changed, not what the code now does. So the daemon now asks the leaving agent for its own account before it builds the packet, and when the agent cannot be asked, as with a killed run, a model reads the diff and writes a digest instead. On 26 October a digest-only run used 48,623 input tokens per continued run, 20% fewer than the transcript, with 5 of 5 green. The bench caps runs rather than killing them, so on 27 October the agent answered every time: the second packet run had the digest on as a fallback and never needed it, which makes it a repeat of the first. The 26 October results are at commit `fb2e64d` (`git show fb2e64d:bench/results.json`).
+
+One run per task and mode is a small sample, and single tasks swung both ways (one transcript run used 140,290 input tokens, one packet run 27,465), so read this as a measurement, not a law. The rows, prompts, packets and transcripts are in `bench/runs/` and `bench/digest/runs/`, and `stint bench --replay` rebuilds the tables from them.
 
 ## The factory
 

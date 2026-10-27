@@ -108,6 +108,9 @@ test("A clone of the demo fixture has no results of its own but has the commit S
     expect(body.commit).toBe(stint.commit);
     expect(body.byMode.transcript?.runs).toBe(5);
     expect(body.digest?.byMode.packet?.runs).toBe(5);
+    // R-057: the committed rows are the live run on the current build, not the first one of 26 October
+    expect(stint.startedAt >= '2026-10-27').toBe(true);
+    expect(stint.replay).toBe(false);
   });
 });
 

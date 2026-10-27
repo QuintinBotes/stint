@@ -5,6 +5,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -31,10 +32,10 @@ T-0001
 
 ## Where it got to
 muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: capped.
-src/lib/limiter.ts adds RateLimiter with check() and reset() returning RateLimitResult. src/config.ts extends Config and loadConfig() with rateLimitMax and rateLimitWindowMs defaults. src/app.ts extends Deps and createDeps() to share a RateLimiter. No wiring in src/routes/webhooks.ts for 429 with Retry-After and no tests are visible.
+src/lib/limiter.ts adds RateLimiter with check() for sliding-window per-key limiting returning RateLimitResult. src/config.ts extends Config and loadConfig() with rateLimitMaxRequests default 100 and rateLimitWindowMs default 60000. src/app.ts only imports RateLimiter. No webhook route enforcement with 429 and Retry-After, no shared state wiring, and no tests are shown.
 Verification by the daemon: bun run test, 25 passed, 2 failed (exit 1).
-Changed: src/app.ts +3 -0, src/config.ts +4 -0, src/lib/limiter.ts +38 -0.
-Diff: be1bee8..1ba767c.
+Changed: src/app.ts +1 -0, src/config.ts +4 -0, src/lib/limiter.ts +28 -0.
+Diff: be1bee8..0f338fc.
 
 ## Done
 - Verification by the daemon: 25 passed, 2 failed
@@ -58,9 +59,9 @@ Next: Make the failing tests pass (2 failed: config > uses defaults when the env
 - none
 
 ## Changes on the task branch so far
-- src/app.ts +3 -0
+- src/app.ts +1 -0
 - src/config.ts +4 -0
-- src/lib/limiter.ts +38 -0
+- src/lib/limiter.ts +28 -0
 
 ## Ask
 Continue from the packet: start with its ask of next.

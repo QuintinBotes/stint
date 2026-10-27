@@ -5,6 +5,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -30,36 +31,36 @@ You are picking up work in progress. Everything below is a record of what anothe
 T-0001
 
 ## Where it got to
-muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: completed.
-Done. Added `GET /events/:id` in [events.ts](<fixture>/.stint/worktrees/T-0001-r1/src/routes/events.ts) using the existing `EventStore.get`, mirroring the replay route's tenant checks: 400 on missing `X-Tenant`, 404 when the id is unknown or owned by another tenant, `{ event }` on success with no audit entry since a read is not a ...
-Verification by the daemon: bun run test, 31 passed, 0 failed (exit 0).
-Changed: src/routes/events.ts +8 -0, test/events.test.ts +28 -0.
-Diff: be1bee8..7ab2dc0.
+muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: capped.
+src/routes/events.ts adds r.get('/:id') in eventRoutes using deps.store.get and X-Tenant check, returning event JSON, 400 if header missing, 404 if absent or other tenant. test/events.test.ts adds tests for owner 200, other tenant and unknown id 404, and missing header 400. No further task steps or test results are visible in the diff.
+Verification by the daemon: bun run test, 30 passed, 0 failed (exit 0).
+Changed: src/routes/events.ts +8 -0, test/events.test.ts +21 -0.
+Diff: be1bee8..9d14c25.
 
 ## Done
-- Verification by the daemon: 31 passed, 0 failed
+- Verification by the daemon: 30 passed, 0 failed
 
 ## Open
-- none
+- Locked test files changed without a tests: decision: test/events.test.ts. Restore them, or say on a decision: line why they had to change.
 
 ## Refused actions
 - none
 
 ## Decisions
-- D1: GET /events/:id returns the `{ event }` envelope to match the replay route convention in the same file.
+- none
 
 ## Risks
 - none
 
 ## Ask of next
-Review the change against the plan, the decisions and AGENTS.md.
+Next: Locked test files changed without a tests: decision: test/events.test.ts. Restore them, or say on a decision: line why they had to change..
 
 ## Not included
 - none
 
 ## Changes on the task branch so far
 - src/routes/events.ts +8 -0
-- test/events.test.ts +28 -0
+- test/events.test.ts +21 -0
 
 ## Ask
 Continue from the packet: start with its ask of next.

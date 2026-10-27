@@ -5,6 +5,7 @@ You are a coding agent working on one task in a git worktree that Stint created 
 Rules for this run:
 - Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
 - When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
 - Say plainly what you did not finish and what you did not look at.
 - After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
 
@@ -30,11 +31,11 @@ You are picking up work in progress. Everything below is a record of what anothe
 T-0001
 
 ## Where it got to
-muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: capped.
-src/routes/events.ts adds GET /:id in eventRoutes using deps.store.get with X-Tenant check, returning event JSON, 400 if header missing, 404 if missing or tenant mismatch. test/events.test.ts adds four tests for owner success, other tenant 404, unknown id 404, and missing header 400. No further work is visible in the diff.
+muse-code (meta, muse-spark-1.3) ran r1 as implementer. The run ended: completed.
+src/routes/events.ts adds r.get('/:id') in eventRoutes using deps.store.get. It returns 400 without X-Tenant, 404 if missing or other tenant owns it, else JSON event. test/events.test.ts adds tests for owner success, cross-tenant 404, unknown id 404, and missing header 400. No further unfinished work is visible in diff.
 Verification by the daemon: bun run test, 31 passed, 0 failed (exit 0).
-Changed: src/routes/events.ts +8 -0, test/events.test.ts +25 -0.
-Diff: be1bee8..a45fb2a.
+Changed: src/routes/events.ts +8 -0, test/events.test.ts +27 -0.
+Diff: be1bee8..f2fbda7.
 
 ## Done
 - Verification by the daemon: 31 passed, 0 failed
@@ -46,7 +47,7 @@ Diff: be1bee8..a45fb2a.
 - none
 
 ## Decisions
-- none
+- D1: tests: test/events.test.ts changed because the task goal explicitly requires adding tests there.
 
 ## Risks
 - none
@@ -59,7 +60,7 @@ Review the change against the plan, the decisions and AGENTS.md.
 
 ## Changes on the task branch so far
 - src/routes/events.ts +8 -0
-- test/events.test.ts +25 -0
+- test/events.test.ts +27 -0
 
 ## Ask
 Continue from the packet: start with its ask of next.

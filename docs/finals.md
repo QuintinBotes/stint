@@ -21,7 +21,7 @@ Subagents live inside one session of one agent. When that session dies, they die
 **What happens when the packet is wrong?**
 Four things limit the damage:
 - **It cannot invent results.** The packet is derived from the log, so it cannot claim tests passed that did not. Verification is the daemon's own run.
-- **We measure it.** The quiz asks a second model facts from the full record, answered from the packet alone, and the misses show what the packet dropped. The first live quiz found that the packet named files but not what the code did. The diff digest fixed that, and the benchmark showed 25% fewer tokens afterwards.
+- **We measure it.** The quiz asks a second model facts from the full record, answered from the packet alone, and the misses show what the packet dropped. The first live quiz found that the packet named files but not what the code did. So the packet now carries the leaving agent's account of what the code does, or a digest of the diff when the agent cannot be asked, and on the current build runs from the packet used 31% fewer input tokens than runs from the transcript and passed 9 of 10 against 3 of 5.
 - **The next agent's checks still run.** The tests-first lock and the daemon's tests catch a wrong continuation before it can be merged.
 - **The person merges, not an agent.**
 

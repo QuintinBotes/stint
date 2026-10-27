@@ -102,7 +102,7 @@ function Benchmark({ data }: { data: BenchData }) {
   const lines = [
     { label: 'the transcript', m: data.byMode.transcript, base: true },
     { label: 'the packet', m: data.byMode.packet, base: false },
-    { label: 'the packet with the diff digest', m: data.digest?.byMode.packet, base: false },
+    { label: 'the packet, again with the digest on', m: data.digest?.byMode.packet, base: false },
   ].filter((l): l is { label: string; m: BenchMode; base: boolean } => l.m !== undefined);
   const tasks = new Set(data.rows.map((r) => r.task)).size;
   const colour = (base: boolean) => (base ? 'var(--ink-faint)' : 'var(--accent)');

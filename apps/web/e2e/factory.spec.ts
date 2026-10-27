@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost bars with a legend, the learned pair and the queue', async ({ page }) => {
@@ -46,8 +48,9 @@ test('The Factory shows the phase gates with their reasons', async ({ page }) =>
   const gates = page.getByTestId('phase-gates');
   await expect(gates).toContainText('Phase 2');
   await expect(gates).toContainText('Phase 3');
-  // the replay fixture has no golden results file, so both gates say not yet and say why
-  await expect(gates).toContainText('No golden results yet');
+  // the replay fixture has no golden results of its own, so it shows Stint's, measured on it; phase 3 has no shadow record
+  await expect(gates).toContainText('pass^3 100%');
+  await expect(gates).toContainText('No shadow approvals recorded yet');
   await expect(gates).toContainText('not yet');
 });
 
@@ -88,14 +91,22 @@ test('The demo closes on any harness, any model, one packet: every configured ha
   await expect(panel.getByTestId('host-chips')).toContainText('Ollama');
 });
 
-test('The Factory shows the benchmark the fixture was measured with: transcript, packet, and packet with the digest, each 5 of 5 green', async ({ page }) => {
+test('The Factory shows the benchmark the fixture was measured with: transcript, packet, and packet with the digest, as the results files record them', async ({ page }) => {
+  // the numbers come from the committed live results, so a new bench run changes them without touching this test
+  const read = (path: string) => JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', '..', path), 'utf8')) as { commit: string; byMode: Record<string, { runs: number; passRate: number; meanPromptTokens: number; meanInputTokens: number }> };
+  const plain = read('bench/results.json');
+  const digest = read('bench/digest/results.json');
+  const lines = [plain.byMode.transcript, plain.byMode.packet, digest.byMode.packet];
   await page.goto('/factory');
   const bench = page.getByTestId('panel-bench');
   await expect(bench.getByTestId('bench-row')).toHaveCount(3);
-  await expect(bench.getByTestId('bench-row').nth(0)).toContainText('4,418 tokens');
-  await expect(bench.getByTestId('bench-row').nth(1)).toContainText('728 tokens');
-  await expect(bench.getByTestId('bench-row').nth(2)).toContainText('the packet with the diff digest');
-  await expect(bench.getByTestId('bench-row').nth(2)).toContainText('48,623');
-  for (const row of await bench.getByTestId('bench-row').all()) await expect(row).toContainText('5 of 5');
-  await expect(bench).toContainText('commit be1bee8');
+  await expect(bench.getByTestId('bench-row').nth(2)).toContainText('the packet, again with the digest on');
+  for (const [i, m] of lines.entries()) {
+    const row = bench.getByTestId('bench-row').nth(i);
+    if (!m) throw new Error(`bench line ${i} is missing from the results`);
+    await expect(row).toContainText(`${Math.round(m.meanPromptTokens).toLocaleString('en-US')} tokens`);
+    await expect(row).toContainText(Math.round(m.meanInputTokens).toLocaleString('en-US'));
+    await expect(row).toContainText(`${Math.round(m.passRate * m.runs)} of ${m.runs}`);
+  }
+  await expect(bench).toContainText(`commit ${plain.commit.slice(0, 7)}`);
 });

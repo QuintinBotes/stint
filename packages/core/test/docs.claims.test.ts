@@ -32,7 +32,7 @@ export function measuredProblems(text: string): string[] {
   const rows: Array<[string, Mode | undefined]> = [
     ['the transcript', bench.byMode.transcript],
     ['the packet', bench.byMode.packet],
-    ['the packet with the diff digest', digest.byMode.packet],
+    ['the packet, again with the digest on', digest.byMode.packet],
   ];
   for (const [label, m] of rows) {
     const row = new RegExp(`^\\| ${label} \\| ([\\d,]+) tokens \\| ([\\d,]+) \\| \\$([\\d.]+) \\| (\\d+) of (\\d+) \\|$`, 'm').exec(text);
@@ -71,9 +71,9 @@ test('every test, link, image and packet size the README cites exists in the rep
 
 test('the measured numbers fail the check when one is changed by hand', () => {
   expect(measuredProblems(readme)).toEqual([]);
-  expect(measuredProblems(readme.replace('| 4,418 tokens |', '| 4,000 tokens |'))).toEqual([expect.stringContaining('hand-over prompt 4,000')]);
+  expect(measuredProblems(readme.replace(/(\| the transcript \| )[\d,]+ tokens/, '$14,000 tokens'))).toEqual([expect.stringContaining('hand-over prompt 4,000')]);
   expect(measuredProblems(readme.replace(/9 of 9 tries/, '8 of 9 tries'))).toEqual([expect.stringContaining('golden: 8 of 9')]);
-  expect(measuredProblems(readme.replace('from these 394 tokens', 'from these 300 tokens'))).toEqual([expect.stringContaining('300 tokens')]);
+  expect(measuredProblems(readme.replace(/from these \d+ tokens/, 'from these 300 tokens'))).toEqual([expect.stringContaining('300 tokens')]);
 });
 
 test('the check fails when a README number is changed by hand', () => {

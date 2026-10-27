@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { phaseGates } from '../src/index';
-import { makeApp, newTask, withFixtureRepo } from './helpers';
+import { makeApp, newTask, tempDir, withFixtureRepo } from './helpers';
 
 function goldenResults(repo: string, passPowK: number): void {
   mkdirSync(join(repo, 'bench'), { recursive: true });
@@ -12,15 +12,29 @@ function goldenResults(repo: string, passPowK: number): void {
   );
 }
 
+test('a repository with no golden results of its own, and not the demo fixture, says so', async () => {
+  const tmp = tempDir();
+  try {
+    Bun.spawnSync(['git', 'init', '-q'], { cwd: tmp.dir });
+    const { app } = await makeApp(tmp.dir);
+    const empty = (await (await app.request('/api/phase-gates')).json()) as Awaited<ReturnType<typeof phaseGates>>;
+    expect(empty.phase2.met).toBe(false);
+    expect(empty.phase2.detail).toContain('No golden results yet');
+    expect(empty.golden).toBeNull();
+  } finally {
+    tmp.cleanup();
+  }
+});
+
 test('phase 2 opens when the golden set passes pass^3 >= 80% with no tamper escapes, and a tampered merge closes it', async () => {
   await withFixtureRepo(async (repo) => {
     const { app, ws } = await makeApp(repo);
     const res = await app.request('/api/phase-gates');
     expect(res.status).toBe(200);
-    const empty = (await res.json()) as Awaited<ReturnType<typeof phaseGates>>;
-    expect(empty.phase2.met).toBe(false);
-    expect(empty.phase2.detail).toContain('No golden results yet');
-    expect(empty.golden).toBeNull();
+    // the demo fixture has no results of its own, so it shows Stint's golden set, measured on it, as the bench does
+    const stint = JSON.parse(readFileSync(join(import.meta.dir, '..', '..', '..', 'bench', 'golden-results.json'), 'utf8')) as { k: number; passPowK: number };
+    const borrowed = (await res.json()) as Awaited<ReturnType<typeof phaseGates>>;
+    expect(borrowed.golden).toMatchObject({ k: stint.k, passPowK: stint.passPowK });
 
     goldenResults(repo, 0.9);
     const open = await phaseGates(ws);
