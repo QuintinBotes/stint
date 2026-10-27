@@ -14,6 +14,8 @@ export type { MetricDef, MetricId, MetricsGolden, MetricsGroup, MetricsInput, Me
 export { renderHandoff, parseHandoffPrompt, HANDOFF_PREAMBLE, HEADINGS } from './render';
 export type { ParsedHandoffPrompt, RenderOptions } from './render';
 export { countTokens } from './tokens';
+export * from './skills/bundle';
+export * from './skills/patterns';
 export { priceUsage } from './cost';
 export type { Usage } from './cost';
 export { formatIssues } from './issues';

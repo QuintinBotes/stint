@@ -211,6 +211,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       chains: chainHealth(ws.config, models),
       localModels: await localModels(ws.config),
       sandbox: await sandboxHealth(ctx),
+      skills: { requireReview: ws.config.skills?.requireReview ?? true },
       ...replayHealth(ctx),
       ...Object.assign({}, ...extra),
     });

@@ -120,6 +120,20 @@ export function resolveSkillEvalTasks(input: { evidence: string[]; tags: string[
   return { defs, heldOut: held?.id ?? null };
 }
 
+/**
+ * The tasks an imported skill with no evidence is judged on (R-060): up to three most similar
+ * tasks, narrowed to tasks that share a tag when the skill carries tags.
+ */
+export function pickSimilarEvalTasks(rows: Array<{ task: string }>, tasks: Task[], tags: string[]): EvalTaskDef[] {
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const picked = rows
+    .map((r) => byId.get(r.task))
+    .filter((t): t is Task => Boolean(t))
+    .filter((t) => tags.length === 0 || (t.tags ?? []).some((tag) => tags.includes(tag)))
+    .slice(0, 3);
+  return picked.map((t) => ({ id: t.id, title: t.title, goal: t.goal, acceptance: t.acceptance, testCommand: t.testCommand, ...(t.tags ? { tags: t.tags } : {}) }));
+}
+
 function checkedSkillRow(raw: unknown, path: string): SkillEvalRow {
   const r = raw as Record<string, unknown>;
   const bad = (field: string) => new Error(`${path}: row.json field ${field} is missing or not valid`);
@@ -334,6 +348,7 @@ export function formatSkillSummary(evalFile: SkillEvalFile): string[] {
   const kind = [evalFile.replay ? 'replay' : 'live', evalFile.synthetic ? 'synthetic' : null].filter(Boolean).join(', ');
   return [
     `Skill eval for ${evalFile.id} (${kind}): ${evalFile.rows.length} runs over ${evalFile.tasks.length} tasks${evalFile.heldOut ? `, held out ${evalFile.heldOut}` : ''}`,
+    `Tasks used: ${evalFile.tasks.join(', ') || 'none'}`,
     evalFile.card,
   ];
 }

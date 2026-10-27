@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, lstatSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { LATEST_MERGED, SECTION_END as END, SECTION_START as START, Workspace, withLatestMerged } from '@stint-dev/core/node';
+import { ensureConsentScan } from '@stint-dev/daemon';
 import { defineCommand } from 'citty';
 import { repoRoot } from './repo';
 
@@ -39,6 +40,8 @@ export async function init(root: string, { force = false }: { force?: boolean } 
   const hadConfig = existsSync(join(root, '.stint', 'config.json'));
   const ws = await Workspace.open(root);
   if (!hadConfig) changed.push('.stint/config.json');
+  // the first registry scan (R-060): skills already here are consented; later arrivals wait for review
+  await ensureConsentScan(ws);
   const gi = join(root, '.gitignore');
   const ignore = existsSync(gi) ? readFileSync(gi, 'utf8') : '';
   const missing = IGNORES.filter((l) => !ignore.split('\n').includes(l));

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CostSchema, EndedBySchema, RUN_ID, TASK_ID } from './handoff';
+import { CostSchema, EndedBySchema, RUN_ID } from './handoff';
 
 export const EVENT_TYPES = [
   'task.created',
@@ -41,6 +41,9 @@ export const EVENT_TYPES = [
   'skill.evaluated',
   'skill.status',
   'skill.retire_proposed',
+  'skill.imported',
+  'skill.edit_proposed',
+  'skill.unreviewed',
   'permission.requested',
   'permission.decided',
   'risk.assessed',
@@ -98,12 +101,15 @@ const PAYLOAD_RULES: Partial<Record<EventType, z.ZodType>> = {
   'file.changed': FileChangedPayload,
 };
 
+/** A task id, or `workspace` for an event that belongs to no task and lives on the workspace log (R-060). */
+export const EVENT_TASK = /^(T-[0-9]{4,}|workspace)$/;
+
 export const StintEventSchema = z
   .strictObject({
     id: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
     seq: z.int().min(1),
     ts: z.iso.datetime({ offset: true }),
-    task: z.string().regex(TASK_ID),
+    task: z.string().regex(EVENT_TASK),
     run: z.string().regex(RUN_ID).optional(),
     adapter: z.string().optional(),
     vendor: EventVendorSchema.optional(),

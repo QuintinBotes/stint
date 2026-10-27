@@ -187,6 +187,8 @@ export const ConfigSchema = z.strictObject({
       similarity: z.number().min(0).default(0.5),
       /** The branch an approved skill is committed to; unset, the branch checked out in the main tree. */
       commitTo: z.string().min(1).optional(),
+      /** Unknown and stale skills wait for review before they mount; unset keeps this on (R-060). */
+      requireReview: z.boolean().optional(),
     })
     .optional(),
   /** Verification and outcome metrics: how long a merge is watched, and optional targets by metric id (R-061). */

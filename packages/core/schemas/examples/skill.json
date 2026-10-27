@@ -1,0 +1,11 @@
+{
+  "name": "acme-review-voice",
+  "description": "How acme review comments are written. Use when reviewing a change.",
+  "roles": ["reviewer"],
+  "tags": ["review", "voice"],
+  "version": "1.0.0",
+  "origin": "import",
+  "evidence": ["T-0042/r4#F1"],
+  "status": "probation",
+  "source": { "kind": "git", "ref": "https://example.com/acme/skills", "commit": "0123456789abcdef0123456789abcdef01234567" }
+}

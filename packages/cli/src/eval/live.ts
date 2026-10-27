@@ -25,7 +25,7 @@ export function freshRepoCopy(root: string): string {
  * runs: with the skill mounted (a proposal not yet approved is written in), or with the skill
  * folder removed for the without side.
  */
-export async function prepareSkillFixture(fixture: string, root: string, skillId: string, withSkill: boolean, proposal: SkillProposal | null): Promise<void> {
+export async function prepareSkillFixture(fixture: string, root: string, skillId: string, withSkill: boolean, proposal: SkillProposal | null, proposalDir?: string): Promise<void> {
   const skillsFrom = join(root, '.agents', 'skills');
   const skillsTo = join(fixture, '.agents', 'skills');
   if (existsSync(skillsFrom)) {
@@ -38,6 +38,10 @@ export async function prepareSkillFixture(fixture: string, root: string, skillId
   } else if (proposal && !existsSync(join(skillDir, 'SKILL.md'))) {
     await mkdir(skillDir, { recursive: true });
     await writeFile(join(skillDir, 'SKILL.md'), renderSkillMarkdown(proposal));
+  } else if (proposalDir && !existsSync(join(skillDir, 'SKILL.md'))) {
+    // an imported proposal folder (R-060): the bundle mounts as submitted, its card stays in the queue
+    await mkdir(skillDir, { recursive: true });
+    cpSync(proposalDir, skillDir, { recursive: true, filter: (from) => !from.endsWith('proposal.json') });
   }
   const config = join(root, '.stint', 'config.json');
   if (existsSync(config)) {
@@ -125,6 +129,8 @@ export type SkillEvalLiveOptions = {
   root: string;
   skillId: string;
   proposal: SkillProposal | null;
+  /** An imported proposal folder, mounted as submitted on the with side (R-060). */
+  proposalDir?: string;
   tasks: EvalTaskDef[];
   implementer: string;
   /** Where row artefacts land: `.stint/evals/<skill>/runs` in the workspace. */
@@ -143,7 +149,7 @@ export async function runSkillEvalLive(opts: SkillEvalLiveOptions): Promise<Skil
     for (const withSkill of [true, false]) {
       const fixture = (opts.makeFixture ?? (() => freshRepoCopy(opts.root)))();
       try {
-        await prepareSkillFixture(fixture, opts.root, opts.skillId, withSkill, opts.proposal);
+        await prepareSkillFixture(fixture, opts.root, opts.skillId, withSkill, opts.proposal, opts.proposalDir);
         opts.log?.(`${def.id} ${withSkill ? 'with' : 'without'} ${opts.skillId}: running ${opts.implementer}`);
         const outcome = await runOneTask({ fixture, def, implementer: opts.implementer, ...(opts.adapters ? { adapters: opts.adapters } : {}), ...(opts.review ? { review: opts.review } : {}), ...(opts.log ? { log: opts.log } : {}) });
         const row: SkillEvalRow = {

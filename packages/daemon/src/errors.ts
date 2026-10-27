@@ -17,6 +17,9 @@ export type ErrorCode =
   | 'packet_too_large'
   | 'verification_red'
   | 'review_blocked'
+  | 'skill_invalid'
+  | 'skill_blocked'
+  | 'skill_unacknowledged'
   | 'merge_conflict';
 
 const STATUS: Record<ErrorCode, ContentfulStatusCode> = {
@@ -33,6 +36,9 @@ const STATUS: Record<ErrorCode, ContentfulStatusCode> = {
   packet_too_large: 422,
   verification_red: 409,
   review_blocked: 409,
+  skill_invalid: 422,
+  skill_blocked: 409,
+  skill_unacknowledged: 409,
   merge_conflict: 409,
 };
 

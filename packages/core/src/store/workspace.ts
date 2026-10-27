@@ -187,6 +187,11 @@ export class Workspace {
     return EventLog.at(join(this.requireCachedDir(id), 'events.jsonl'));
   }
 
+  /** The log for events that belong to no task (R-060): `.stint/workspace/events.jsonl`, daemon-written like the rest. */
+  workspaceEvents(): EventLog {
+    return EventLog.at(join(this.stintDir, 'workspace', 'events.jsonl'));
+  }
+
   decisions(id: string): DecisionLedger {
     return new DecisionLedger(join(this.requireCachedDir(id), 'decisions.md'), id);
   }

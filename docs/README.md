@@ -18,6 +18,7 @@ Every file in this folder, one line each.
 - [`release.md`](release.md): what the daemon records after merge (reverts, follow-ups, CI, incidents) and the pull request release mode.
 - [`sandbox.md`](sandbox.md): the run sandbox and network rules around each worktree.
 - [`setup.md`](setup.md): the full setup guide: platforms, install, where keys load from, other agents, the offline review, updating and uninstalling.
+- [`skills.md`](skills.md): custom skills: write, import, upload, export, the pattern scan, review and probation, and the requireReview gate.
 - [`support.md`](support.md): where to get help: `stint doctor`, troubleshooting, issues and security reports.
 - [`timeline.md`](timeline.md): when Stint was built, and which commits came before the hackathon kickoff.
 - [`verify.md`](verify.md): the verify suite, the tamper guard, held-out scenarios and coverage.

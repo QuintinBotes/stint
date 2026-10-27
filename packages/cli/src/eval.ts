@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { SkillProposalSchema, parseSkillFrontmatter } from '@stint-dev/core';
-import { Workspace, readJsonIfExists, slugify, writeJsonAtomic } from '@stint-dev/core/node';
+import { Workspace, readJsonIfExists, similarText, slugify, writeJsonAtomic } from '@stint-dev/core/node';
 import { defineCommand } from 'citty';
 import { keepAwake } from './awake';
 import { runGoldenLive, runSkillEvalLive } from './eval/live';
@@ -15,6 +15,7 @@ import {
   loadGoldenReplay,
   loadGoldenTasks,
   loadSkillReplay,
+  pickSimilarEvalTasks,
   resolveSkillEvalTasks,
   writeGoldenResults,
 } from './eval/results';
@@ -37,11 +38,20 @@ async function skillInfo(root: string, ws: Workspace, id: string) {
   const proposalRaw = await readJsonIfExists<unknown>(join(ws.cacheDir, 'proposals', `${id}.json`));
   const proposalParsed = proposalRaw !== null ? SkillProposalSchema.safeParse(proposalRaw) : null;
   const proposal = proposalParsed?.success ? proposalParsed.data : null;
+  // an imported proposal (R-060) is a folder in the same queue, its SKILL.md not yet approved
+  const importedDir = join(ws.cacheDir, 'proposals', id);
+  const importedFile = join(importedDir, 'SKILL.md');
+  const imported = existsSync(importedFile) && existsSync(join(importedDir, 'proposal.json')) ? importedDir : null;
   if (existsSync(file)) {
     const { frontmatter } = parseSkillFrontmatter(await Bun.file(file).text());
-    return { tags: frontmatter.tags ?? [], evidence: frontmatter.evidence ?? [], proposal };
+    return { name: frontmatter.name, description: frontmatter.description, tags: frontmatter.tags ?? [], evidence: frontmatter.evidence ?? [], proposal, importedDir: imported };
   }
-  if (proposal) return { tags: proposal.tags, evidence: proposal.evidence, proposal };
+  if (proposal) return { name: proposal.name, description: proposal.description, tags: proposal.tags, evidence: proposal.evidence, proposal, importedDir: null };
+  if (imported) {
+    const { frontmatter } = parseSkillFrontmatter(await Bun.file(importedFile).text());
+    const held = await readJsonIfExists<{ rolesOverride?: string[]; tagsOverride?: string[] }>(join(importedDir, 'proposal.json'));
+    return { name: frontmatter.name, description: frontmatter.description, tags: held?.tagsOverride ?? frontmatter.tags ?? [], evidence: frontmatter.evidence ?? [], proposal: null, importedDir: imported };
+  }
   throw new Error(`no skill or proposal ${id} in ${root}`);
 }
 
@@ -63,7 +73,8 @@ export async function recordEval(root: string, ws: Workspace, evalFile: SkillEva
     await ws.events(taskId).append({ task: taskId, vendor: 'daemon', type: 'skill.evaluated', payload: { id: evalFile.id, with: evalFile.with, without: evalFile.without, replay: evalFile.replay, card: evalFile.card }, links: [{ kind: 'skill', ref: evalFile.id }] });
     return;
   }
-  process.stderr.write(`skill.evaluated for ${evalFile.id} was NOT recorded: no evidence task exists in this workspace\n`);
+  // no task timeline carries it (an imported skill judged on golden tasks); the workspace log does (R-060)
+  await ws.workspaceEvents().append({ task: 'workspace', vendor: 'daemon', type: 'skill.evaluated', payload: { id: evalFile.id, with: evalFile.with, without: evalFile.without, replay: evalFile.replay, card: evalFile.card }, links: [{ kind: 'skill', ref: evalFile.id }] });
 }
 
 async function skillEval(args: { skill: string; tasks?: string; replay: boolean; from?: string; implementer: string; repo?: string; json: boolean }): Promise<void> {
@@ -77,13 +88,25 @@ async function skillEval(args: { skill: string; tasks?: string; replay: boolean;
       return loadSkillReplay(args.skill, fromDir);
     }
     const requested = args.tasks?.split(',').map((s) => s.trim()).filter(Boolean);
-    const { defs, heldOut } = resolveSkillEvalTasks({ evidence: info.evidence, tags: info.tags, tasks: await ws.listTasks(), ...(requested?.length ? { requested } : {}) });
-    if (!defs.length) throw new Error(`skill ${args.skill} has no evidence tasks in this workspace; name some with --tasks`);
+    const tasks = await ws.listTasks();
+    let { defs, heldOut } = resolveSkillEvalTasks({ evidence: info.evidence, tags: info.tags, tasks, ...(requested?.length ? { requested } : {}) });
+    if (!defs.length) {
+      // a skill with no evidence (R-060) is judged on the three most similar tasks, else the golden set
+      defs = pickSimilarEvalTasks(await similarText(ws, { title: info.name, goal: info.description }, 10), tasks, info.tags);
+    }
+    if (!defs.length) {
+      const golden = await loadGoldenTasks(join(root, 'bench', 'golden')).catch(() => []);
+      defs = golden.map((g) => ({ id: g.name, title: g.title, goal: g.goal, acceptance: g.acceptance, testCommand: g.testCommand }));
+      heldOut = null;
+    }
+    if (!defs.length) throw new Error(`skill ${args.skill} has no evidence, similar or golden tasks in this workspace; name some with --tasks`);
+    process.stderr.write(`eval for ${args.skill} runs on tasks: ${defs.map((d) => d.id).join(', ')}\n`);
     keepAwake();
     const rows = await runSkillEvalLive({
       root,
       skillId: args.skill,
       proposal: info.proposal,
+      ...(info.importedDir ? { proposalDir: info.importedDir } : {}),
       tasks: defs,
       implementer: args.implementer,
       outRunsDir: join(evalsDir, args.skill, 'runs'),
