@@ -110,7 +110,8 @@ export function VerificationTab({ taskId, acceptance, live, onChanged }: { taskI
 
   return (
     <div className="flex flex-col gap-4 max-w-[80ch]" data-testid="verification-tab">
-      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Verifications by run">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Verifications by run">
         {runs.map((r) => (
           <button
             key={r.run}
@@ -127,6 +128,7 @@ export function VerificationTab({ taskId, acceptance, live, onChanged }: { taskI
             </span>
           </button>
         ))}
+        </div>
         <span className="ml-auto flex items-center gap-2">
           {live ? <span className="text-[12px] text-faint">A run is live; the daemon verifies when it ends.</span> : null}
           <Button onClick={rerun} disabled={busy || live} data-testid="rerun">

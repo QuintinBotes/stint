@@ -42,7 +42,7 @@ export function DiffView({ taskId, version }: { taskId: string; version: number 
       {files.map((f) => (
         <section key={f.path} id={`diff-${f.path}`} data-testid="diff-file" className="rounded-md border border-line overflow-hidden scroll-mt-4">
           <h3 className="px-3 py-1.5 bg-raised border-b border-line font-mono text-[12px]">{f.path}</h3>
-          <pre className="font-mono text-[12px] leading-[18px] overflow-x-auto">
+          <pre className="font-mono text-[12px] leading-[18px] overflow-x-auto" tabIndex={0} aria-label={`Diff of ${f.path}`}>
             {f.lines.map((l, i) => (
               <div
                 // diff lines have no identity of their own

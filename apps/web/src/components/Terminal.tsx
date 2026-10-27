@@ -75,10 +75,12 @@ export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string 
 
   return (
     <div className="flex flex-col gap-2 h-full min-h-[360px]" data-testid="terminal">
-      <div className="flex items-center gap-2 text-[12px] text-muted">
-        <span className="font-mono truncate" data-testid="terminal-cwd">
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
+        <span className="text-[13px] font-semibold text-ink">Shell in the run's worktree</span>
+        <span className="font-mono truncate rounded-md border border-line bg-sunken px-2 py-0.5 max-w-[48ch]" data-testid="terminal-cwd">
           {state.kind === 'open' ? state.cwd : state.kind === 'connecting' ? 'Opening a shell in the worktree.' : state.reason}
         </span>
+        <span className="hidden lg:inline">owned by the daemon</span>
         <span className="ml-auto flex gap-2 shrink-0">
           {state.kind === 'open' ? (
             <Button
@@ -102,6 +104,7 @@ export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string 
       </div>
       {state.kind === 'closed' && state.reason.startsWith('No worktree') ? <EmptyState testId="empty-terminal">{state.reason}</EmptyState> : null}
       <div ref={host} className="flex-1 min-h-[320px] rounded-md overflow-hidden border border-line p-2" style={{ background: 'var(--terminal-ground)', display: state.kind === 'closed' && !state.reason.startsWith('The shell') ? 'none' : undefined }} />
+      <p className="text-[12px] text-faint">Lines you type here join the timeline as your commands, next to what the agent did.</p>
     </div>
   );
 }

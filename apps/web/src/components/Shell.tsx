@@ -111,9 +111,8 @@ export function TopBar({ health, onPalette }: { health: Health | null; onPalette
         type="button"
         onClick={onPalette}
         className="ml-2 flex shrink-0 items-center justify-between gap-4 h-8 w-[240px] max-w-[30vw] px-2.5 rounded-md border border-line bg-raised text-faint hover:text-muted hover:border-line-strong"
-        aria-label="Search or run a command"
       >
-        <span className="hidden sm:inline text-[13px] truncate whitespace-nowrap">Search or run a command</span>
+        <span className="sr-only sm:not-sr-only text-[13px] truncate whitespace-nowrap">Search or run a command</span>
         <Kbd>⌘K</Kbd>
       </button>
       <div className="ml-auto flex items-center gap-3 min-w-0">

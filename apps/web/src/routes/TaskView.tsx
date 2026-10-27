@@ -15,6 +15,7 @@ import { QuizPanel } from '../components/Quiz';
 import { Terminal } from '../components/Terminal';
 import { FilesTab } from '../components/Files';
 import { VerificationTab } from '../components/Verification';
+import { WhoContinues } from '../components/WhoContinues';
 import { Rail } from '../components/Rail';
 import { Button, CostMeter, EmptyState, StatusChip, cx } from '../components/ui';
 import { useEvents, useTask } from '../hooks';
@@ -209,6 +210,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
             setTab('packet');
           }} />
       </div>
+      <WhoContinues bundle={bundle} onChoose={() => setTab('packet')} />
       <ApprovalGate bundle={bundle} onDone={reload} />
     </div>
   );
@@ -230,7 +232,8 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
           </button>
         ))}
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-4" role="tabpanel">
+      {/* focusable, so a keyboard can scroll it */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4" role="tabpanel" aria-label={TAB_NAMES[tab]} tabIndex={0}>
         {tab === 'diff' ? <DiffView taskId={t.id} version={diffVersion} /> : null}
         {tab === 'files' ? <FilesTab taskId={t.id} /> : null}
         {tab === 'terminal' ? <Terminal taskId={t.id} liveRun={bundle.runs.find((r) => !r.endedAt)?.run ?? null} /> : null}
