@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "scripts": {},
+  "scripts": {
+    "gen:schema": "rm -rf src/generated && muse schema generate-json-schema --out src/generated && muse schema generate-ts --out src/generated && perl -CSD -pi -e 's/\\x{2014}/-/g; s/\\x{2013}/-/g' src/generated/manifest.json src/generated/msp.schema.json src/generated/msp.d.ts"
+  },
   "dependencies": {
     "@stint-dev/core": "workspace:*"
   }

@@ -7,7 +7,7 @@ import type { Adapter, Availability, EndedBy, Enrichment, RunContext, RunResult 
 import { MuseMapper } from './mapper';
 
 export { MuseMapper } from './mapper';
-export type { MuseRecord, MuseTerminal } from './mapper';
+export type { MuseRecord, MuseTerminal, MuseUsage } from './mapper';
 
 const DEFAULT_MODEL = 'muse-spark-1.3';
 const CAPPED = /step|budget|limit|max/i;
@@ -107,10 +107,10 @@ export async function askSession(sessionId: string, worktree: string, model: str
 }
 
 /** Runs one `muse exec --json` in the worktree and streams it into the daemon. */
-async function exec(ctx: RunContext, extra: { sessionId?: string } = {}): Promise<RunResult> {
+async function exec(ctx: RunContext, extra: { sessionId?: string; promptPath?: string } = {}): Promise<RunResult> {
   const model = ctx.model ?? DEFAULT_MODEL;
   const steps = ctx.budget.steps ?? 60;
-  const argv = ['muse', ...museArgs({ promptPath: ctx.promptPath, model, steps, ...extra })];
+  const argv = ['muse', ...museArgs({ promptPath: extra.promptPath ?? ctx.promptPath, model, steps, ...(extra.sessionId ? { sessionId: extra.sessionId } : {}) })];
   const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
   const child = spawn(cmd, args, {
     cwd: ctx.worktree,
@@ -179,6 +179,16 @@ export const museCodeAdapter: Adapter = {
   // Stint classifies Muse Code's tool calls but cannot stop one yet: the gate is observed.
   gate: () => 'observed',
   run: (ctx) => exec(ctx),
-  resume: (ctx) => exec(ctx, { sessionId: ctx.sessionId }),
+  // a resumed session already has the first prompt: it gets only the new instruction, in its own prompt file
+  resume: async (ctx) => {
+    const dir = mkdtempSync(join(tmpdir(), 'stint-resume-'));
+    try {
+      const promptPath = join(dir, 'instruction.md');
+      writeFileSync(promptPath, ctx.instruction);
+      return await exec(ctx, { sessionId: ctx.sessionId, promptPath });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
   enrich: (ctx) => (ctx.sessionId ? askSession(ctx.sessionId, ctx.worktree, ctx.model ?? DEFAULT_MODEL) : Promise.resolve({})),
 };

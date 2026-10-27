@@ -9,7 +9,7 @@ import { DaemonError } from '../errors';
 import { buildHandoff } from '../handoff';
 import { assign, stop } from '../lifecycle';
 import { markCommentsHanded, pendingCommentSuffix, readComments } from './comments';
-import { walkChain } from '../route';
+import { effectiveChain, walkChain } from '../route';
 import { worktreePath } from '../worktree';
 
 const ENRICH_CAP_MS = 20_000;
@@ -41,11 +41,11 @@ Task: ${task.title}. ${task.goal}
 
 Diff:
 ${diff}`;
-    const routes = ctx.ws.config.routes as { summary: string[] };
     const call = walkChain<{ value: z.infer<typeof Digest> }>({
       role: 'summary',
-      chain: routes.summary,
+      chain: effectiveChain('summary', ctx.ws.config.routes, task.routes),
       hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>,
+      emit: (e) => ctx.ws.events(taskId).append({ task: taskId, vendor: 'daemon', type: e.type, payload: e.payload }).then(() => undefined),
       call: (h, model, c) => h.complete(Digest, prompt, { model, timeoutMs: c.timeoutMs, emit: c.emit }),
     }).then((r) => (((r.value as { value?: z.infer<typeof Digest> }).value ?? r.value) as z.infer<typeof Digest>).summary);
     const summary = await Promise.race([call, Bun.sleep(DIGEST_CAP_MS).then(() => null)]);
@@ -97,7 +97,17 @@ export function handoffRoutes(app: Hono, ctx: DaemonContext): void {
     const id = c.req.param('id');
     const body = HandoffBody.parse(await c.req.json().catch(() => ({})));
     const run = body.run ?? (await latestEndedRun(ctx, id));
-    const built = await buildHandoff(ctx, id, run, { ...(body.to ? { to: body.to } : {}), reason: body.reason ?? 'rebuilt' });
+    // enrich asks the leaving session first, while it can still answer (R-054)
+    let enrich: Enrichment | null = null;
+    if (body.enrich) {
+      const events = await ctx.ws.events(id).read();
+      const started = events.find((e) => e.type === 'run.started' && e.run === run);
+      const finished = events.find((e) => e.type === 'run.finished' && e.run === run);
+      const text = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+      const asked = await enrichFrom(ctx, id, run, started?.adapter ?? '', text(finished?.payload.sessionId), text(finished?.payload.model) ?? text(started?.payload.model));
+      if (asked && Object.keys(asked).length > 0) enrich = asked;
+    }
+    const built = await buildHandoff(ctx, id, run, { ...(body.to ? { to: body.to } : {}), reason: body.reason ?? 'rebuilt', ...(enrich ? { enrich, enrichedBy: 'agent' as const } : {}) });
     if (body.reason === 'precompact' || body.reason === 'subagentstop') await ctx.ws.events(id).append({ task: id, run, vendor: 'daemon', type: 'agent.message', payload: { text: `Packet ${built.name} drafted by the agent's ${body.reason === 'precompact' ? 'PreCompact' : 'SubagentStop'} hook.`, hook: body.reason } });
     return c.json({ name: built.name, tokens: built.tokens, bytes: built.bytes, handoff: built.handoff });
   });

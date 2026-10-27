@@ -205,6 +205,9 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     const snaps = ctx.worktrees.startSnapshots(task, run, wt.path, ctx.snapshotMs);
     let result: RunResult;
     try {
+      // Muse Code steps scale with what is left of the role budget, not only with config (R-054)
+      const configSteps = Number(ws.config.adapters[adapter.id]?.maxModelSteps ?? 60);
+      const remainingSteps = adapter.id === 'muse-code' ? Math.max(1, Math.min(configSteps, Math.floor((configSteps * Math.max(0, budget - spent)) / Math.max(1, budget)))) : configSteps;
       result = await adapter.run({
         task,
         run,
@@ -216,7 +219,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
         ...(model ? { model } : {}),
         budget: {
           tokens: budget - spent,
-          steps: input.steps ?? Number(ws.config.adapters[adapter.id]?.maxModelSteps ?? 60),
+          steps: input.steps ?? remainingSteps,
           ...(input.steps !== undefined ? { maxTurns: input.steps } : {}),
           timeoutMs: Number(ws.config.adapters[adapter.id]?.timeoutMs ?? 900_000),
         },

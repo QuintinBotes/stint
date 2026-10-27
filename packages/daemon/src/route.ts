@@ -73,19 +73,27 @@ function splitEntry(entry: string): { hostId: string; model: string } {
   return { hostId: entry.slice(0, slash), model: entry.slice(slash + 1) };
 }
 
-function unwrap<T>(result: unknown, hostId: string, model: string): WalkChainResult<T> {
+function unwrap<T>(result: unknown, hostId: string, model: string): WalkChainResult<T> & { hasCost: boolean } {
   if (isRecord(result) && 'value' in result) {
-    const cost = isRecord(result.cost) ? (result.cost as unknown as Cost) : ZERO_COST;
+    const hasCost = isRecord(result.cost);
+    const cost = hasCost ? (result.cost as unknown as Cost) : ZERO_COST;
     return {
       value: result.value as T,
       host: typeof result.host === 'string' ? result.host : hostId,
       model: typeof result.model === 'string' ? result.model : model,
       cost,
       retries: typeof result.retries === 'number' ? result.retries : 0,
+      hasCost,
     };
   }
-  const cost = isRecord(result) && isRecord(result.cost) ? (result.cost as unknown as Cost) : ZERO_COST;
-  return { value: result as T, host: hostId, model, cost, retries: 0 };
+  const hasCost = isRecord(result) && isRecord(result.cost);
+  const cost = hasCost ? (result.cost as unknown as Cost) : ZERO_COST;
+  return { value: result as T, host: hostId, model, cost, retries: 0, hasCost };
+}
+
+/** The chain a role call walks for one task: the task override where it is set, else the config chain (R-054). */
+export function effectiveChain(role: string, configRoutes: Record<string, string[] | undefined>, taskRoutes?: Record<string, string[] | undefined>): string[] {
+  return taskRoutes?.[role] ?? configRoutes[role] ?? [];
 }
 
 /**
@@ -165,10 +173,15 @@ export async function walkChain<T>(args: {
 
     try {
       const raw = await args.call(host, entry.model, ctx);
-      const result = unwrap<T>(raw, entry.hostId, entry.model);
+      const { hasCost, ...result } = unwrap<T>(raw, entry.hostId, entry.model);
       if (result.retries > 0 && retryNotes === 0) {
         const errors = isRecord(raw) && typeof raw.retryErrors === 'string' ? raw.retryErrors : 'validation failed';
         await noteRetry({ errors });
+      }
+      // a call with no price for its host and model is flagged, never shown as free (R-054)
+      const noUsage = result.cost.inputTokens + result.cost.outputTokens === 0;
+      if (hasCost && result.cost.usd === null && !(result.cost.estimated && noUsage)) {
+        await emit({ type: 'cost.unpriced', payload: { role: args.role, key: `${result.host}/${result.model}`, host: result.host, model: result.model } });
       }
       return result;
     } catch (error) {

@@ -118,18 +118,36 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
   const changed = new Set(numstat.map((f) => f.path));
   const head = (await git(ws.root, ['rev-parse', '--verify', '-q', task.branch])).stdout.trim() || task.baseCommit;
 
+  // the packet this run started from, if any: its ask and its done items are what a hop carries (R-054)
+  const carriedName = str(started.payload.handoffFrom);
+  let carried = carriedName ? await ws.handoffs(taskId).read(carriedName).catch(() => null) : null;
+  if (!carried) {
+    for (const name of await ws.handoffs(taskId).names()) {
+      const h = await ws.handoffs(taskId).read(name).catch(() => null);
+      if (h && Number(h.from.run.slice(1)) < Number(run.slice(1))) carried = h;
+    }
+  }
+
   const green = verified?.payload.status === 'green';
   const steps = plan?.steps ?? [];
   const reached = steps.filter((s) => s.files.length > 0 && s.files.every((f) => changed.has(f)) && green);
   const notReached = steps.filter((s) => !reached.includes(s));
-  const done = list([
-    ...reached.map((s) => s.text),
-    ...(verified ? [`Verification by the daemon: ${Number(verified.payload.passed)} passed, ${Number(verified.payload.failed)} failed`] : []),
-  ]);
+  // a hop packet lists only what this run finished: nothing the previous hop already reported done
+  const carriedDone = new Set((carried?.done ?? []).map((d) => clip(d, ITEM)));
+  const done = list(
+    [...reached.map((s) => s.text), ...(verified ? [`Verification by the daemon: ${Number(verified.payload.passed)} passed, ${Number(verified.payload.failed)} failed`] : [])].filter(
+      (x) => !carriedDone.has(clip(x, ITEM)),
+    ),
+  );
   const inFlight = endedBy === 'killed' ? str(finished?.payload.inFlight) || (toolCalls.length && !own.some((e) => e.type === 'agent.tool_result' && e.payload.callId === toolCalls.at(-1)?.payload.callId) ? str(toolCalls.at(-1)?.payload.tool) : '') : '';
   const scenarioFailing = Array.isArray(verified?.payload.scenarioFailing) ? (verified.payload.scenarioFailing as string[]) : [];
   const tamperFiles = (verified?.payload.tamper as { files?: string[] } | null | undefined)?.files ?? [];
+  // the ask carried in stays open until a completed, green run with every plan step reached closes it
+  const carriedAskClosed = endedBy === 'completed' && green && notReached.length === 0;
+  const carriedAsk = carried && !carriedAskClosed ? scrub(carried.askOfNext) : '';
+  const carriedAskCore = carriedAsk.replace(/^Next: /, '').replace(/\.$/, '');
   const open = list([
+    ...(carriedAsk && !notReached.some((s) => s.text === carriedAskCore) ? [carriedAsk] : []),
     ...notReached.map((s) => s.text),
     ...(verified && !green && verified.payload.reason === 'tampered'
       ? [`Locked test files changed without a tests: decision: ${tamperFiles.join(', ')}. Restore them, or say on a decision: line why they had to change.`]
@@ -170,8 +188,8 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
   try {
     for (const row of await constrains(ws, taskId, createdAt)) {
       if (row.kind === 'decision' && row.task !== taskId) {
-        const carried = { id: row.id, text: clip(row.text, ITEM) };
-        if (!decisions.some((d) => d.id === carried.id && d.text === carried.text)) decisions.push(carried);
+        const carriedDecision = { id: row.id, text: clip(row.text, ITEM) };
+        if (!decisions.some((d) => d.id === carriedDecision.id && d.text === carriedDecision.text)) decisions.push(carriedDecision);
       } else if (row.kind === 'finding') {
         findingRisks.push(`Open finding ${row.id} (${row.task}): ${row.text}`);
       }
@@ -181,10 +199,20 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'warn', message: `constraining decisions were NOT added to the packet for ${taskId}: ${err instanceof Error ? err.message : String(err)}` })}\n`);
     findingRisks = [];
   }
-  const risks = list([...(plan?.risks ?? []).map((r) => r.text), ...findingRisks]);
+  // a `risk:` line the agent wrote in its own messages is a risk of this run (R-054)
+  const RISK = /^[-*]?\s*risk:\s*(.+)$/i;
+  const riskEvents = messages.filter((m) => str(m.payload.text).split('\n').some((line) => RISK.test(line.trim())));
+  const statedRisks = riskEvents.flatMap((m) =>
+    str(m.payload.text)
+      .split('\n')
+      .map((line) => RISK.exec(line.trim())?.[1] ?? '')
+      .filter(Boolean)
+      .map(scrub),
+  );
+  const risks = list([...(plan?.risks ?? []).map((r) => r.text), ...statedRisks, ...findingRisks]);
   const lastMessage = str(messages.at(-1)?.payload.text);
   const summary = clip(scrub(lastMessage || `${started.adapter ?? 'The agent'} ${endedBy} after ${toolCalls.length} tool calls.`), 400);
-  const nextStep = open[0] ? `Next: ${open[0]}.` : green ? 'Review the change against the plan, the decisions and AGENTS.md.' : 'Run the tests and make them pass.';
+  const nextStep = open[0] ? (open[0].startsWith('Next: ') ? open[0] : `Next: ${open[0]}.`) : green ? 'Review the change against the plan, the decisions and AGENTS.md.' : 'Run the tests and make them pass.';
   const askOfNext = clip(inFlight ? `Check the unknown step first. ${nextStep}` : nextStep, 400);
   const cost = (finished?.payload.cost as Cost | undefined) ?? { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true };
 
@@ -226,7 +254,7 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     leftOut: { from: 'events', eventIds: ids(finished ? [finished] : []) },
     refusals: { from: 'events', eventIds: ids(upto.filter((e) => e.type === 'rule.blocked' || e.type === 'run.refused')) },
     decisions: { from: 'events', eventIds: ids(upto.filter((e) => e.type === 'decision.recorded')) },
-    risks: { from: findingRisks.length ? 'events' : 'plan', eventIds: [] },
+    risks: { from: statedRisks.length || findingRisks.length ? 'events' : 'plan', eventIds: ids(riskEvents) },
     changedFiles: { from: 'diff', eventIds: ids(changes.slice(-LIST)) },
     verification: { from: 'events', eventIds: ids(verified ? [verified] : []) },
     askOfNext: { from: 'events', eventIds: ids(finished ? [finished] : []) },

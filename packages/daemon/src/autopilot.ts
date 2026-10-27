@@ -324,6 +324,47 @@ export class Autopilot {
     for (const t of await this.ctx.ws.listTasks()) if (autopilotTail(await this.ctx.ws.events(t.id).read())) this.kick(t.id);
   }
 
+  /** The one word for where autopilot is on a task, from its own next step (R-054). */
+  async stepFor(id: string): Promise<'plan' | 'build' | 'verify' | 'review' | 'approve' | 'idle'> {
+    const task = await this.ctx.ws.readTask(id);
+    const events = await this.ctx.ws.events(id).read();
+    const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id));
+    switch (s.kind) {
+      case 'plan':
+        return 'plan';
+      case 'lock':
+        return 'verify';
+      case 'review':
+        return 'review';
+      case 'specify':
+      case 'build':
+      case 'hand':
+      case 'escalate':
+      case 'bestof':
+      case 'bestof-wait':
+      case 'adopt':
+      case 'children':
+        return 'build';
+      case 'stop':
+        return task.status === 'awaiting_approval' || s.reason.startsWith('Waiting for your approval') ? 'approve' : 'idle';
+      case 'wait': {
+        if (task.status === 'awaiting_approval') return 'approve';
+        if (task.status === 'verifying') return 'verify';
+        if (task.status === 'reviewing' || task.status === 'in_review') return 'review';
+        if (task.status === 'building') return 'build';
+        if (task.status === 'planned') return 'plan';
+        const last = events.filter((e) => e.type === 'autopilot.step').at(-1)?.payload.step;
+        if (last === 'plan') return 'plan';
+        if (last === 'verify') return 'verify';
+        if (last === 'review') return 'review';
+        if (last === 'build' || last === 'specify' || last === 'hand') return 'build';
+        return 'idle';
+      }
+      case 'idle':
+        return task.status === 'awaiting_approval' ? 'approve' : 'idle';
+    }
+  }
+
   async status(): Promise<{ running: string[]; queued: string[] }> {
     const running: string[] = [];
     const queued: string[] = [];

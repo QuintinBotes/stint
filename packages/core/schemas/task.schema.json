@@ -157,6 +157,76 @@
         }
       }
     },
+    "routes": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-role route overrides for this task, used before the config chains.",
+      "properties": {
+        "planner": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "implementer": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "reviewer": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "tester": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "learn": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "agent": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "summary": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "quiz": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        },
+        "recall": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/.+$"
+          }
+        }
+      }
+    },
     "links": {
       "type": "object",
       "additionalProperties": false,

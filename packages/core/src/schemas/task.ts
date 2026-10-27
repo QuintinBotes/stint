@@ -32,6 +32,23 @@ export const CheckSchema = z.strictObject({
 });
 export type Check = z.infer<typeof CheckSchema>;
 
+/** One `host/model` route entry, validated the same way as `config.routes` (R-054). */
+const HostModelRef = z.string().regex(/^[a-z0-9-]+\/.+$/, 'expected host/model');
+
+/** A task may override any role chain from config; the task chain wins where it is set (R-054). */
+export const TaskRoutesSchema = z.strictObject({
+  planner: z.array(HostModelRef).optional(),
+  implementer: z.array(HostModelRef).optional(),
+  reviewer: z.array(HostModelRef).optional(),
+  tester: z.array(HostModelRef).optional(),
+  learn: z.array(HostModelRef).optional(),
+  agent: z.array(HostModelRef).optional(),
+  summary: z.array(HostModelRef).optional(),
+  quiz: z.array(HostModelRef).optional(),
+  recall: z.array(HostModelRef).optional(),
+});
+export type TaskRoutes = z.infer<typeof TaskRoutesSchema>;
+
 export const TaskSchema = z.strictObject({
   version: z.literal('stint.task/1'),
   id: z.string().regex(TASK_ID),
@@ -54,6 +71,8 @@ export const TaskSchema = z.strictObject({
     .optional(),
   testCommand: z.string().min(1),
   budgets: BudgetsSchema,
+  /** Per-role route overrides for this task, used before the config chains (R-054). */
+  routes: TaskRoutesSchema.optional(),
   links: z.strictObject({
     beadsId: z.string().nullable().optional(),
     issueUrl: z.url().nullable().optional(),

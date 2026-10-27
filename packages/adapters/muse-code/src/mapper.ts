@@ -1,8 +1,12 @@
-import type { AdapterEvent, Usage } from '@stint-dev/core';
+import type { AdapterEvent } from '@stint-dev/core';
+import type { StreamRef, TokenUsage } from './generated/msp';
+
+/** The token counters a run reports, typed from the generated MSP declarations where the wire shapes overlap. */
+export type MuseUsage = Pick<TokenUsage, 'inputTokens' | 'cachedTokens' | 'outputTokens'>;
 
 /** One line of `muse exec --json`: an MSP record (see `muse schema generate-json-schema`). */
 export type MuseRecord = {
-  stream?: { kind: string; id: string };
+  stream?: StreamRef;
   sequence?: number;
   payload_type: string;
   payload: Record<string, unknown> & { event?: Record<string, unknown> };
@@ -57,7 +61,7 @@ function argsFromResult(tool: string, text: string, editFacts: unknown): Record<
 /** Maps Muse Code's JSONL event stream one to one onto Stint events, keeping the state a stream needs. */
 export class MuseMapper {
   sessionId: string | null = null;
-  usage: Usage | null = null;
+  usage: MuseUsage | null = null;
   terminal: MuseTerminal | null = null;
   private tasks = new Map<string, ToolTask>();
   private openCalls = new Map<string, string>();
@@ -129,7 +133,7 @@ export class MuseMapper {
         return out;
       case 'run.usage': {
         const models = (p.models ?? []) as Array<{ input_tokens?: number; cached_tokens?: number; output_tokens?: number }>;
-        this.usage = models.reduce<Usage>(
+        this.usage = models.reduce<MuseUsage>(
           (u, m) => ({ inputTokens: u.inputTokens + (m.input_tokens ?? 0), cachedTokens: u.cachedTokens + (m.cached_tokens ?? 0), outputTokens: u.outputTokens + (m.output_tokens ?? 0) }),
           { inputTokens: 0, cachedTokens: 0, outputTokens: 0 },
         );

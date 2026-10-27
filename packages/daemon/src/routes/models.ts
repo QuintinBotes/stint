@@ -9,7 +9,7 @@ import {
   hostsFromConfig,
   renderPlanMarkdown,
 } from '@stint-dev/adapter-openai-compatible';
-import { type Plan, PlanSchema, type Review, ReviewSchema, type StintEvent, renderHandoff } from '@stint-dev/core';
+import { type Plan, PlanSchema, type Review, ReviewSchema, type StintEvent, type Task, renderHandoff } from '@stint-dev/core';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
@@ -18,7 +18,7 @@ import { namedFiles } from '../paths';
 import { afterReview } from '../risk';
 import { lockPlanTests } from '../acceptance';
 import { git } from '../git';
-import { ChainExhaustedError, walkChain } from '../route';
+import { ChainExhaustedError, effectiveChain, walkChain } from '../route';
 import { skillsFor } from '../skills';
 
 const ROOT_SCHEMAS = join(import.meta.dir, '..', '..', '..', 'core', 'schemas');
@@ -27,9 +27,9 @@ const HostBody = z.strictObject({ host: z.enum(['meta-api', 'fireworks', 'basete
 // built per call: hosts come from this workspace's config, and building them makes no request
 const hosts = (ctx: DaemonContext): Record<string, Host> => hostsFromConfig(ctx.ws.config) as Record<string, Host>;
 
-/** The chain for a role, or only the entries on one host when the caller names it. */
-function chainFor(ctx: DaemonContext, role: 'planner' | 'reviewer', host?: string): string[] {
-  const chain = ctx.ws.config.routes[role];
+/** The chain for a role for one task (the task override wins), or only the entries on one host when the caller names it. */
+function chainFor(ctx: DaemonContext, role: 'planner' | 'reviewer', host?: string, task?: Task): string[] {
+  const chain = effectiveChain(role, ctx.ws.config.routes, task?.routes);
   const picked = host ? chain.filter((e) => e.startsWith(`${host}/`)) : chain;
   if (picked.length === 0) throw new DaemonError('adapter_unavailable', `no ${role} entry on ${host}`, chain.join(', '));
   return picked;
@@ -53,7 +53,10 @@ async function modelRun<T>(
   prompt: string,
   skip: string[] = [],
 ): Promise<{ value: T; run: string; host: string; model: string }> {
-  const chain = chainFor(ctx, role, host).filter((e) => !skip.includes(e));
+  const task = await ctx.ws.readTask(taskId);
+  const chain = chainFor(ctx, role, host, task).filter((e) => !skip.includes(e));
+  // the call is capped at the role token budget for this task (R-054)
+  const maxTokens = task.budgets[role] ?? ctx.ws.config.budgets[role];
   if (chain.length === 0) throw new DaemonError('review_blocked', `every ${role} entry is the model that built this change (${skip.join(', ')})`, 'add a reviewer on another model to routes.reviewer, or set review.crossVendor to false');
   const run = await nextRun(ctx, taskId);
   const events = ctx.ws.events(taskId);
@@ -68,7 +71,7 @@ async function modelRun<T>(
       chain,
       hosts: hosts(ctx),
       emit: (e) => events.append({ ...base, type: e.type, payload: e.payload }).then(() => undefined),
-      call: (h, model, c) => h.complete(zodSchema as never, jsonSchema, prompt, { model, timeoutMs: c.timeoutMs, emit: c.emit }),
+      call: (h, model, c) => h.complete(zodSchema as never, jsonSchema, prompt, { model, timeoutMs: c.timeoutMs, maxTokens, emit: c.emit }),
     });
     const value = ((r.value as { value?: T }).value ?? r.value) as T;
     await ctx.ws.runs(taskId).updateMeta(run, { endedAt: new Date().toISOString(), endedBy: 'completed', cost: r.cost, host: r.host, model: r.model });
@@ -172,11 +175,11 @@ export async function decompose(ctx: DaemonContext, id: string, plan: Plan, run:
  * Stint's reviewer is Stint's own prompt on a chain model, so it is the same harness as the Stint agent;
  * any other coding agent is a different harness and may be reviewed by its own model.
  */
-export function ownReviewers(ctx: DaemonContext, events: StintEvent[]): string[] {
+export function ownReviewers(ctx: DaemonContext, events: StintEvent[], chain: string[] = ctx.ws.config.routes.reviewer): string[] {
   const impl = runsFromEvents(events).filter((r) => r.role === 'implementer').at(-1);
   if (!impl || impl.adapter !== 'stint-agent') return [];
   const model = (impl.model?.includes('/') ? impl.model.split('/').slice(1).join('/') : impl.model) ?? ctx.ws.config.routes.agent?.[0]?.split('/').slice(1).join('/');
-  return model ? ctx.ws.config.routes.reviewer.filter((e) => e.split('/').slice(1).join('/') === model) : [];
+  return model ? chain.filter((e) => e.split('/').slice(1).join('/') === model) : [];
 }
 
 type Lens = 'general' | 'security' | 'spec-fit';
@@ -264,7 +267,8 @@ export async function reviewTask(ctx: DaemonContext, id: string, host?: string):
   const packet = await ctx.ws.handoffs(id).latest();
   const decisions = (await ctx.ws.decisions(id).validAt()).map((d) => ({ id: d.id, text: d.text }));
   const base = { packetPrompt: packet ? renderHandoff(packet) : `Task ${task.id}: ${task.goal}`, diff: (await ctx.worktrees.diff(task, 'unified')) as string, decisions, acceptance: task.acceptance };
-  const skip = ctx.ws.config.review?.crossVendor === false ? [] : ownReviewers(ctx, await ctx.ws.events(id).read());
+  const reviewerChain = effectiveChain('reviewer', ctx.ws.config.routes, task.routes);
+  const skip = ctx.ws.config.review?.crossVendor === false ? [] : ownReviewers(ctx, await ctx.ws.events(id).read(), reviewerChain);
   const lenses = (ctx.ws.config.review?.lenses ?? ['general']) as Lens[];
   const bestOf = host ? 1 : (ctx.ws.config.review?.bestOf ?? 1);
 
@@ -272,7 +276,7 @@ export async function reviewTask(ctx: DaemonContext, id: string, host?: string):
   let disagreement = false;
   for (const lens of lenses) {
     if (lens === 'general' && bestOf > 1) {
-      const hosts = distinctHosts(ctx.ws.config.routes.reviewer, skip, bestOf);
+      const hosts = distinctHosts(reviewerChain, skip, bestOf);
       const answers: Review[] = [];
       for (const h of hosts) {
         // a host that cannot answer leaves the others to decide; one answer is enough

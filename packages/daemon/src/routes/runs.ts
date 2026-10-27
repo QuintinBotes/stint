@@ -51,7 +51,7 @@ export function runRoutes(app: Hono, ctx: DaemonContext): void {
     await ctx.ws.readTask(id);
     if (on) await ctx.autopilot.start(id);
     else await ctx.autopilot.stop(id, 'Turned off by you.');
-    return c.json({ on, ...(await ctx.autopilot.status()) });
+    return c.json({ on, step: await ctx.autopilot.stepFor(id), ...(await ctx.autopilot.status()) });
   });
 
   // Run all: every planned task goes on autopilot; past the parallel limit they wait as queued, in board order
@@ -64,7 +64,9 @@ export function runRoutes(app: Hono, ctx: DaemonContext): void {
       else await ctx.autopilot.stop(t.id, 'Turned off by you.');
       started.push(t.id);
     }
-    return c.json({ on, tasks: started, ...(await ctx.autopilot.status()) });
+    const status = await ctx.autopilot.status();
+    const stepTask = status.running[0] ?? started[0];
+    return c.json({ on, tasks: started, step: stepTask ? await ctx.autopilot.stepFor(stepTask) : 'idle', ...status });
   });
 
   app.post('/api/tasks/:id/assign', async (c) => {
