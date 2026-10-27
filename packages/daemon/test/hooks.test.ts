@@ -42,3 +42,34 @@ test('The hook posts its payload by hand and the daemon drafts a packet with rea
     }
   });
 }, 60_000);
+
+const live = process.env.STINT_LIVE === '1';
+/** The Stint plugin installed and approved in this person's Muse config; installing it is the person's step (ADR-0005). */
+const pluginInstalled = (() => {
+  if (!Bun.which('muse')) return false;
+  const out = Bun.spawnSync(['muse', 'plugins', 'list'], { stdout: 'pipe', stderr: 'pipe' }).stdout.toString();
+  return /\bstint\b/.test(out);
+})();
+
+// R-014 Acceptance 2's live case (R-057): Muse compacts at once, and its PreCompact hook reaches the daemon
+test.skipIf(!live || !pluginInstalled)('With STINT_LIVE=1 and the Stint plugin installed, a forced compaction in a real Muse Code run drafts a packet with reason precompact', async () => {
+  await withFixtureRepo(async (repo) => {
+    const d = await startDaemon({ root: repo, quiet: true, adapters: [{ ...sleeper, id: 'muse-code' }] });
+    try {
+      const t = await d.ws.createTask(newTask);
+      const res = await fetch(`${d.url}/api/tasks/${t.id}/assign`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ adapter: 'muse-code', role: 'implementer' }) });
+      const { run, worktree } = (await res.json()) as { run: string; worktree: string };
+      const env = { ...process.env, STINT_TASK: t.id, STINT_RUN: run, STINT_WORKTREE: join(repo, worktree) };
+      const p = Bun.spawn(['muse', 'exec', '--json', '--model', 'muse-spark-1.3', '--max-model-steps', '6', '--context-compaction-hard-threshold', '0.02', '--prompt', 'Read src/app.ts and src/config.ts and summarise them.'], { cwd: join(repo, worktree), env, stdout: 'ignore', stderr: 'ignore' });
+      await p.exited;
+      const created = (await d.ws.events(t.id).read()).find((e) => e.type === 'handoff.created' && e.payload.reason === 'precompact');
+      expect(created).toBeDefined();
+    } finally {
+      await d.stop();
+    }
+  });
+}, 300_000);
+
+test.skipIf(live && pluginInstalled)('the live compaction case skips without STINT_LIVE=1 and the Stint plugin installed (muse plugins list); the hand-posted hook above is its replay twin', () => {
+  expect(live && pluginInstalled).toBe(false);
+});
