@@ -2,6 +2,8 @@
 
 2:30 target, 2:40 cap, 1080p, dark theme, captions burned in. Record the live run with `stint demo --live` and screen capture. If any segment is a replay, the header says "Replay of a live run on <date>", and that stays on screen. The voiceover is below; each line names what must be on screen while it plays.
 
+Footage from the replay instead of a live take: `bun apps/web/scripts/capture-video.ts` plays the replay through the real daemon at 1.2x, which puts its beats on the times below, switches the view on the replay's own clock, pans the Factory, ends on a title card, and writes a silent 1920x1080 MP4 to `.loop/video/`. The strip under the top bar says "Replay, hand-written" for its whole length, so nobody takes it for a live run.
+
 | Time | On screen | Voiceover |
 |---|---|---|
 | 0:00 | The board, three tasks | "I'm going to kill a coding agent halfway through a task, and another agent is going to finish it." |
