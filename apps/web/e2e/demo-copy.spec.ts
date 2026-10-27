@@ -7,8 +7,8 @@ test('The T-0042 verification card says the locked tests are unchanged', async (
   await expect(page.getByTestId('verification-tab')).toContainText('test/webhooks.test.ts');
 });
 
-// fixme until the hand-written recording carries the eval from the live run
-test.fixme('The learned skill shows its eval: with the skill and without', async ({ page }) => {
+// the numbers are a live eval of 27 October: one Muse Code run on T-0042 with the skill mounted, one without
+test('The learned skill shows its eval: with the skill and without', async ({ page }) => {
   await page.goto('/skills?skill=limiter-config-via-env');
   await expect(page.locator('[data-skill="limiter-config-via-env"]').getByTestId('skill-eval')).toContainText(/^with skill: \d+ findings, .*; without: \d+ findings/);
 });
