@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { agentOf } from '../agents';
 import type { TaskCardData } from '../api';
 import { age } from '../format';
-import { CostMeter, StatusChip, VendorMark } from './ui';
+import { CostMeter, StatusChip, VendorMark, cx } from './ui';
 
 type CardTask = TaskCardData['task'];
 
@@ -13,30 +13,45 @@ function standing(t: CardTask, all: Map<string, CardTask>): string {
   return open.length ? `waits for ${open.join(', ')}` : t.status.replace('_', ' ');
 }
 
+/** Who holds the task now, in the words a person uses: you at the gate, the agent that is running, or nobody yet. */
+function holding(card: TaskCardData): string {
+  const { task, lastRun } = card;
+  if (task.status === 'awaiting_approval') return 'held by you';
+  if (task.status === 'done') return '';
+  if (lastRun && !lastRun.endedAt) return `${agentOf(lastRun.adapter, lastRun.host, lastRun.model).name}, ${lastRun.run}, live`;
+  if (task.status === 'planned' && !lastRun) return 'no holder yet';
+  return lastRun ? `last: ${agentOf(lastRun.adapter, lastRun.host, lastRun.model).name}` : 'unassigned';
+}
+
 export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, CardTask> }) {
   const { task, lastRun } = card;
-  const holder = lastRun ? agentOf(lastRun.adapter, lastRun.host, lastRun.model) : null;
   const tasks = all ?? new Map<string, CardTask>();
   // a split task lists its subtasks in order, each with what it waits for: the dependency line (R-036)
   const children = [...tasks.values()].filter((t) => t.parent === task.id).sort((a, b) => a.id.localeCompare(b.id));
+  const agents = (card.agents ?? (lastRun?.adapter ? [{ adapter: lastRun.adapter, host: lastRun.host, model: lastRun.model, role: lastRun.role }] : [])).map((a) => agentOf(a.adapter, a.host, a.model));
+  const live = !!lastRun && !lastRun.endedAt;
+  const gate = task.status === 'awaiting_approval';
   return (
     <Link
       to={`/t/${task.id}`}
       data-testid="task-card"
       data-task={task.id}
-      className="block rounded-lg border border-line bg-raised p-3 hover:border-line-strong focus-visible:border-accent"
+      className={cx('block rounded-lg border bg-raised p-3 hover:border-line-strong focus-visible:border-accent', gate ? 'border-warn/60' : live ? 'border-accent/60' : 'border-line')}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="text-[13px] font-semibold leading-[18px]">{task.title}</h3>
-        <StatusChip status={task.status} />
-      </div>
-      <div className="mt-2 flex items-center gap-2 text-[12px] text-muted min-w-0">
-        <span className="font-mono text-faint shrink-0">{task.id}</span>
-        {holder ? <VendorMark agent={holder} /> : <span className="text-faint">unassigned</span>}
-        <span className="ml-auto flex items-center gap-2 shrink-0 tabular">
-          <span>{age(card.lastEventAt)}</span>
+      <div className="flex items-center justify-between gap-2 text-[12px] text-muted">
+        <span className="font-mono text-faint">{task.id}</span>
+        <span className="flex items-center gap-1.5 tabular">
+          <span>{age(card.lastEventAt)},</span>
           <CostMeter cost={card.cost} />
         </span>
+      </div>
+      <h3 className="mt-1.5 text-[15px] font-semibold leading-[20px] tracking-[-0.01em]">{task.title}</h3>
+      <div className="mt-2 flex items-center gap-1 text-[12px] text-muted min-w-0" data-testid="card-agents">
+        {agents.slice(0, 5).map((a, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the same agent can appear on two models, so position is the identity
+          <VendorMark key={i} agent={a} showName={false} />
+        ))}
+        <span className={cx('truncate', agents.length ? 'ml-1' : '')}>{holding(card)}</span>
       </div>
       {card.autopilot?.on ? (
         <p className="mt-2 flex items-center gap-2 text-[12px] min-w-0" data-testid="autopilot-chip">
@@ -72,7 +87,12 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
           ))}
         </ol>
       ) : null}
-      {card.summary ? <p className="mt-2 text-[12px] text-muted line-clamp-2">{card.summary}</p> : null}
+      {card.summary ? <p className="mt-2 text-[12px] text-muted line-clamp-3">{card.summary}</p> : null}
+      <div className="mt-2 flex items-center gap-2">
+        {task.status === 'done' ? <StatusChip label="merged" tone="good" /> : <StatusChip status={task.status} />}
+        {task.status === 'done' ? <span className="font-mono text-[11px] text-faint">Stint-Task: {task.id}</span> : null}
+      </div>
+      {live ? <div aria-hidden className="mt-2 h-0.5 rounded-full bg-accent live-spine" /> : null}
     </Link>
   );
 }

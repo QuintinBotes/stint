@@ -55,7 +55,7 @@ export function App() {
         <ReplayStrip health={health.data} />
         <Notifier />
         <Routes>
-          <Route path="/" element={<Board />} />
+          <Route path="/" element={<Board onNewTask={openNewTask} />} />
           <Route path="/t/:id" element={<TaskView memoryOpen={memoryOpen} />} />
           <Route path="/factory" element={<Factory />} />
           <Route path="/skills" element={<Skills />} />

@@ -22,6 +22,7 @@ export type Health = {
   version: string;
   mode: 'live' | 'replay';
   startedAt: string;
+  repo?: string;
   adapters: AdapterHealth[];
   replay?: { title: string; recordedAt: string; live: boolean };
   pty?: { backend: string };
@@ -132,7 +133,16 @@ export type RiskState = {
   lanes: Array<{ tier: string; open: boolean; why: string }>;
 };
 export type AutopilotCard = { on: boolean; step: string | null; reason: string | null; queued: boolean };
-export type TaskCardData = { task: Task; cost: Cost; lastRun: RunSummary | null; lastEventAt: string; summary: string | null; autopilot?: AutopilotCard | null };
+export type TaskCardData = {
+  task: Task;
+  cost: Cost;
+  lastRun: RunSummary | null;
+  /** Every agent and model that worked on the task, in the order they first ran. */
+  agents?: Array<{ adapter: string; host: string | null; model: string | null; role: string | null }>;
+  lastEventAt: string;
+  summary: string | null;
+  autopilot?: AutopilotCard | null;
+};
 export type GraphNode = { id: string; type: string; label: string; data: Record<string, unknown> };
 export type GraphEdge = { id: string; from: string; to: string; type: string; recordedAt: string; validTo: string | null; eventId: string; data: Record<string, unknown> };
 export type GraphData = { nodes: GraphNode[]; edges: GraphEdge[]; asOf: string | null; total: number };
@@ -148,7 +158,7 @@ export type PendingItem = {
 };
 export type PermissionOptionData = { optionId: string; name: string; kind: string };
 export type PendingPermission = { task: string; run: string; requestId: string; tool: string; title: string; options: PermissionOptionData[] };
-export type CostRow = Cost & { key: string; runs: number; roles?: string[] };
+export type CostRow = Cost & { key: string; runs: number; roles?: string[]; creditsLeft?: number; derived?: true };
 export type DemoStatus = { playing: boolean; paused: boolean; at: number; total: number; title: string | null; live: boolean | null; recordedAt: string | null; done: boolean };
 export type ApiError = { code: string; message: string; hint: unknown };
 

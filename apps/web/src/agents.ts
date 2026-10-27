@@ -21,18 +21,28 @@ const isMeta = (model: string) => /(^|\/)(muse-|llama)/i.test(model);
 
 /** Coding agents are named by their harness; plan and review calls are named by the model that answered. */
 export function agentOf(adapter: string | null | undefined, host?: string | null, model?: string | null): Agent {
-  if (adapter === 'muse-code') return { name: 'Muse Code', mark: 'meta', letter: 'M' };
-  if (adapter === 'stint-agent') return { name: 'Stint agent', mark: 'alt', letter: 'S' };
-  if (adapter === 'openai-compatible' && host === 'ollama') return { name: model ? `${modelName(model)}, local` : 'Local model', mark: 'local', letter: 'L' };
-  if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: !model || isMeta(model) ? 'meta' : 'alt', letter: 'M' };
-  if (adapter === 'claude-code') return { name: 'Claude Code', mark: 'alt', letter: 'C' };
-  if (adapter === 'codex') return { name: 'Codex', mark: 'alt', letter: 'X' };
-  if (adapter === 'goose') return { name: 'Goose', mark: 'alt', letter: 'G' };
-  if (adapter === 'opencode') return { name: 'OpenCode', mark: 'alt', letter: 'O' };
-  if (adapter === 'gemini-cli') return { name: 'Gemini CLI', mark: 'alt', letter: 'G' };
-  if (adapter === 'aider') return { name: 'Aider', mark: 'alt', letter: 'A' };
-  if (adapter === 'replay') return { name: 'Replay', mark: 'local', letter: 'R' };
-  return { name: adapter ?? 'daemon', mark: 'local', letter: (adapter ?? 'd').slice(0, 1).toUpperCase() };
+  if (adapter === 'muse-code') return { name: 'Muse Code', mark: 'meta', letter: 'MC' };
+  // the Stint agent runs on Muse Spark unless someone points it at another model
+  if (adapter === 'stint-agent') return { name: 'Stint agent', mark: !model || isMeta(model) ? 'meta' : 'alt', letter: 'SA' };
+  if (adapter === 'openai-compatible' && host === 'ollama') return { name: model ? `${modelName(model)}, local` : 'Local model', mark: model && isMeta(model) ? 'meta' : 'local', letter: modelLetters(model) };
+  if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: !model || isMeta(model) ? 'meta' : 'alt', letter: modelLetters(model) };
+  if (adapter === 'claude-code') return { name: 'Claude Code', mark: 'alt', letter: 'CC' };
+  if (adapter === 'codex') return { name: 'Codex', mark: 'alt', letter: 'CX' };
+  if (adapter === 'goose') return { name: 'Goose', mark: 'alt', letter: 'GO' };
+  if (adapter === 'opencode') return { name: 'OpenCode', mark: 'alt', letter: 'OC' };
+  if (adapter === 'gemini-cli' || adapter === 'gemini-acp') return { name: 'Gemini CLI', mark: 'alt', letter: 'GE' };
+  if (adapter === 'aider') return { name: 'Aider', mark: 'alt', letter: 'AI' };
+  if (adapter === 'replay') return { name: 'Replay', mark: 'local', letter: 'RP' };
+  return { name: adapter ?? 'daemon', mark: 'local', letter: (adapter ?? 'd').slice(0, 2).toUpperCase() };
+}
+
+/** Two letters for a model: MW for Muse Wonder, MS for Muse Spark, GL for Glimmer. */
+function modelLetters(model: string | null | undefined): string {
+  const short = (model ?? '').split('/').at(-1) ?? '';
+  if (/wonder/i.test(short)) return 'MW';
+  if (/spark/i.test(short)) return 'MS';
+  if (/glimmer/i.test(short)) return 'GL';
+  return short.replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase() || 'MO';
 }
 
 export function hostName(host: string | null | undefined): string {

@@ -8,13 +8,13 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 }
 
 /** The agent's mark: a coloured square with a letter, and its name in words. Colour lives only here and on the rail. */
-export function VendorMark({ agent, showName = true, size = 16 }: { agent: Agent; showName?: boolean; size?: number }) {
+export function VendorMark({ agent, showName = true, size = 18 }: { agent: Agent; showName?: boolean; size?: number }) {
   return (
     <span className="inline-flex items-center gap-1.5 min-w-0">
       <span
         aria-hidden
-        className="inline-grid place-items-center shrink-0 rounded-sm font-mono text-[10px] font-medium leading-none"
-        style={{ width: size, height: size, background: markColor[agent.mark], color: 'var(--on-mark)' }}
+        className="inline-grid place-items-center shrink-0 rounded-sm font-mono text-[9px] font-semibold leading-none tracking-tight"
+        style={{ minWidth: size, height: size, padding: '0 2px', background: markColor[agent.mark], color: 'var(--on-mark)' }}
       >
         {agent.letter}
       </span>

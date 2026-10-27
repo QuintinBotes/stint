@@ -2,6 +2,7 @@ import type { Handoff } from '@stint-dev/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useParams, useSearchParams } from 'react-router';
+import { agentOf } from '../agents';
 import { api } from '../api';
 import { ApprovalGate } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
@@ -126,27 +127,22 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
   if (!bundle) return <p className="p-4 text-faint">Reading the task.</p>;
   const t = bundle.task;
 
-  const rail = (
-    <div className="h-full flex flex-col min-h-0" data-testid="rail-column">
-      <div className="px-4 pt-4 pb-2 border-b border-line">
-        <div className="flex items-start justify-between gap-2">
-          <h1 className="text-[15px] font-semibold leading-5">{t.title}</h1>
-          <StatusChip status={t.status} />
-        </div>
-        <div className="mt-1 flex items-center gap-3 text-[12px] text-muted">
+  const live = bundle.runs.find((r) => !r.endedAt);
+  const agentsUsed = new Set(bundle.runs.filter((r) => r.role === 'implementer').map((r) => r.adapter));
+  const holder = t.status === 'awaiting_approval' ? 'You, at the gate' : t.status === 'done' ? `Merged by ${!bundle.merge?.by || bundle.merge.by === 'human' || bundle.merge.by === 'you' ? 'you' : bundle.merge.by === 'policy' ? 'the auto-approve lane' : bundle.merge.by}` : live ? `${agentOf(live.adapter, live.host, live.model).name}, ${live.run}` : 'Nobody yet';
+  const v = bundle.verification;
+  const header = (
+    <header className="shrink-0 border-b border-line px-6 py-4 flex flex-wrap gap-x-10 gap-y-4" data-testid="task-header">
+      <div className="min-w-0 flex-1 basis-[520px]">
+        <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
           <span className="font-mono">{t.id}</span>
-          <span data-testid="task-cost">
-            Task total <CostMeter cost={bundle.cost} />
+          <StatusChip status={t.status} />
+          <span>
+            branch <span className="font-mono">{t.branch}</span>, base <span className="font-mono">{t.baseCommit.slice(0, 7)}</span>
           </span>
-          <span className="tabular">{events.length} events</span>
-        </div>
-        <div className="mt-2 flex gap-2">
-          <Button className="h-7" onClick={() => setShowAll((s) => !s)} aria-pressed={showAll} data-testid="show-all">
-            {showAll ? 'Show what matters' : 'Show all'}
-          </Button>
           {t.status !== 'done' ? (
             <Button
-              className={cx('h-7', autopilot.on && 'border-accent text-accent')}
+              className={cx('h-7 ml-auto', autopilot.on && 'border-accent text-accent')}
               onClick={toggleAutopilot}
               disabled={autoBusy}
               aria-pressed={autopilot.on}
@@ -156,6 +152,47 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
               {autopilot.on ? 'Autopilot on' : 'Autopilot'}
             </Button>
           ) : null}
+        </div>
+        <h1 className="mt-1.5 text-[26px] leading-[32px] font-semibold tracking-[-0.02em]">{t.title}</h1>
+        <p className="mt-1.5 text-[13px] text-muted max-w-[80ch]">{t.goal}</p>
+        <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Acceptance criteria" data-testid="header-acceptance">
+          {t.acceptance.map((a) => (
+            <li key={a} className="rounded-md border border-line bg-raised px-2 py-0.5 text-[12px]">
+              {a}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-1 text-[12px] self-start" data-testid="task-summary">
+        <dt className="text-muted">Task total</dt>
+        <dd className="font-semibold" data-testid="task-cost">
+          <CostMeter cost={bundle.cost} />
+        </dd>
+        <dt className="text-muted">Runs and hops</dt>
+        <dd className="tabular">
+          {bundle.runs.length} run{bundle.runs.length === 1 ? '' : 's'}, {agentsUsed.size} agent{agentsUsed.size === 1 ? '' : 's'}, {handoffCount} packet{handoffCount === 1 ? '' : 's'}
+        </dd>
+        <dt className="text-muted">Holder</dt>
+        <dd>{holder}</dd>
+        <dt className="text-muted">Tests</dt>
+        <dd className="tabular">{v ? `${v.passed} passed${v.failed ? `, ${v.failed} failed` : ''}${v.tamper === null ? ', unchanged' : ''}, by the daemon` : 'not run yet'}</dd>
+        <dt className="text-muted">Test command</dt>
+        <dd className="font-mono truncate max-w-[28ch]">{t.testCommand}</dd>
+      </dl>
+    </header>
+  );
+
+  const rail = (
+    <div className="h-full flex flex-col min-h-0" data-testid="rail-column">
+      <div className="px-4 pt-3 pb-2 border-b border-line">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-[15px] font-semibold">Timeline</h2>
+          <span className="flex items-center gap-2 text-[12px] text-muted">
+            <span className="tabular">{events.length} events</span>
+            <Button className="h-6 px-2 text-[12px]" onClick={() => setShowAll((s) => !s)} aria-pressed={showAll} data-testid="show-all">
+              {showAll ? 'Show what matters' : 'Show all'}
+            </Button>
+          </span>
         </div>
         {autopilot.text ? (
           <p className="mt-2 text-[12px] text-muted" data-testid="autopilot-step">
@@ -238,6 +275,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
   if (!wide) {
     return (
       <main className="flex-1 min-h-0 overflow-y-auto flex flex-col" data-testid="task-view">
+        {header}
         <div className="min-h-[60vh]">{rail}</div>
         <div className="border-t border-line">{work}</div>
         {memoryOpen ? memory : null}
@@ -245,8 +283,9 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     );
   }
   return (
-    <main className="flex-1 min-h-0" data-testid="task-view">
-      <Group orientation="horizontal" className="h-full">
+    <main className="flex-1 min-h-0 flex flex-col" data-testid="task-view">
+      {header}
+      <Group orientation="horizontal" className="flex-1 min-h-0">
         <Panel defaultSize="320px" minSize="260px" maxSize="520px">
           {rail}
         </Panel>

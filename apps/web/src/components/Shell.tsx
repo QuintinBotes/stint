@@ -57,33 +57,93 @@ function ModelChips({ models }: { models: ModelHealth[] }) {
   );
 }
 
+/** What the hosted credits have left, derived from metered spend; only hosts with a balance entered appear. */
+function useCredits(): Array<{ host: string; left: number }> {
+  const [rows, setRows] = useState<CostRow[] | null>(null);
+  useEffect(() => {
+    api
+      .costs('host')
+      .then(setRows)
+      .catch(() => setRows([]));
+  }, []);
+  return (rows ?? []).filter((r) => typeof r.creditsLeft === 'number').map((r) => ({ host: r.key, left: r.creditsLeft as number }));
+}
+
 export function TopBar({ health, onPalette }: { health: Health | null; onPalette: () => void }) {
   const week = useWeekCost();
+  const credits = useCredits();
+  const { pathname } = useLocation();
+  const task = /^\/t\/(T-\d+)/.exec(pathname)?.[1] ?? null;
+  const nav = [
+    { to: '/', label: 'Board', on: pathname === '/' || pathname.startsWith('/t/') },
+    { to: '/factory', label: 'Factory', on: pathname.startsWith('/factory') },
+    { to: '/skills', label: 'Skills', on: pathname.startsWith('/skills') },
+  ];
   return (
     <header className="h-12 shrink-0 flex items-center gap-3 px-4 border-b border-line bg-surface">
-      <Link to="/" className="text-[15px] font-semibold tracking-[-0.01em]">
-        Stint
-      </Link>
-      <nav className="hidden md:flex items-center gap-3 text-muted text-[13px]">
-        <Link to="/" className="hover:text-ink">
-          Board
+      <nav aria-label="Where you are" className="flex shrink-0 items-center gap-2 text-[13px]">
+        <Link to="/" className="text-[15px] font-semibold tracking-[-0.01em]">
+          Stint
         </Link>
-        <Link to="/factory" className="hover:text-ink">
-          Factory
-        </Link>
-        <Link to="/skills" className="hover:text-ink">
-          Skills
-        </Link>
+        {health?.repo ? (
+          <>
+            <span aria-hidden className="text-faint">/</span>
+            <span className="text-muted whitespace-nowrap" data-testid="repo-name">
+              {health.repo}
+            </span>
+          </>
+        ) : null}
+        {task ? (
+          <>
+            <span aria-hidden className="text-faint">/</span>
+            <span className="font-mono text-muted">{task}</span>
+          </>
+        ) : null}
       </nav>
-      <button type="button" onClick={onPalette} className="ml-2 flex items-center gap-2 h-8 px-2 rounded-md border border-line text-muted hover:text-ink">
-        <span className="hidden sm:inline">Commands</span>
+      <nav aria-label="Pages" className="hidden md:flex items-center gap-1 text-[13px] ml-2">
+        {nav.map((n) => (
+          <Link key={n.to} to={n.to} aria-current={n.on ? 'page' : undefined} className={cx('h-7 px-2.5 inline-flex items-center rounded-md', n.on ? 'bg-raised text-ink font-medium' : 'text-muted hover:text-ink')}>
+            {n.label}
+          </Link>
+        ))}
+      </nav>
+      <button
+        type="button"
+        onClick={onPalette}
+        className="ml-2 flex shrink-0 items-center justify-between gap-4 h-8 w-[240px] max-w-[30vw] px-2.5 rounded-md border border-line bg-raised text-faint hover:text-muted hover:border-line-strong"
+        aria-label="Search or run a command"
+      >
+        <span className="hidden sm:inline text-[13px] truncate whitespace-nowrap">Search or run a command</span>
         <Kbd>⌘K</Kbd>
       </button>
-      <div className="ml-auto flex items-center gap-2 min-w-0">
+      <div className="ml-auto flex items-center gap-3 min-w-0">
         <span className="hidden sm:inline text-[12px] text-muted tabular whitespace-nowrap" title="Spend this week, Monday to Sunday, as metered by the daemon">
-          This week {week === null ? 'not known yet' : money({ usd: week })}
+          This week <span className="text-ink font-semibold">{week === null ? 'not known yet' : money({ usd: week })}</span>
         </span>
+        {credits.length ? (
+          // the two balances closest to running out; all of them on hover
+          <span
+            className="hidden xl:inline text-[12px] text-muted tabular whitespace-nowrap"
+            title={`Derived from metered spend against the balance you entered, not read from the provider.\n${credits.map((c) => `${hostName(c.host)}: $${c.left.toFixed(2)}`).join('\n')}`}
+            data-testid="credits-left"
+          >
+            Credits left ≈{' '}
+            <span className="text-ink font-semibold">
+              {[...credits]
+                .sort((a, b) => a.left - b.left)
+                .slice(0, 2)
+                .map((c) => `$${c.left.toFixed(2)} ${hostName(c.host)}`)
+                .join(', ')}
+            </span>
+          </span>
+        ) : null}
         <div className="hidden lg:flex items-center gap-1.5 min-w-0 overflow-hidden" data-testid="health-chips">
+          {health ? (
+            <span className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-line px-2 h-6 text-[11px] font-medium" data-testid="daemon-pill" title={`Started ${new Date(health.startedAt).toLocaleString()}, version ${health.version}`}>
+              <span aria-hidden className="size-1.5 rounded-full bg-good" />
+              {health.mode === 'replay' ? 'Replay daemon' : 'Daemon'}
+            </span>
+          ) : null}
           {health && health.adapters.filter((a) => a.id !== 'replay').every((a) => a.capability.level !== 'supported') ? (
             <>
               {health.mode === 'replay' ? <StatusChip label="Replay" tone="good" /> : null}
@@ -92,7 +152,7 @@ export function TopBar({ health, onPalette }: { health: Health | null; onPalette
           ) : health ? (
             <>
               {health.adapters
-                .filter((a) => a.capability.level === 'supported')
+                .filter((a) => a.capability.level === 'supported' && a.id !== 'replay')
                 .map((a) => (
                   <span key={a.id} className="shrink-0" title={`${a.version ?? ''}${a.gate === 'none' ? '' : `; Stint's gate is ${a.gate}`}`}>
                     <StatusChip label={ADAPTER_NAMES[a.id] ?? a.id} tone="good" />
@@ -132,10 +192,10 @@ export function ReplayStrip({ health }: { health: Health | null }) {
   const r = health.replay;
   const clock = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
   return (
-    <div data-testid="replay-strip" className="h-7 shrink-0 flex items-center gap-3 px-4 border-b border-line bg-sunken text-[12px] text-muted">
-      <span className="text-ink">{r.live ? `Replay of a live run on ${localDate(r.recordedAt)}` : 'Replay, hand-written'}</span>
+    <div data-testid="replay-strip" className="h-8 shrink-0 flex items-center gap-3 px-4 border-b border-accent/30 bg-accent-tint text-[12px] text-ink">
+      <span className="font-medium">{r.live ? `Replay of a live run on ${localDate(r.recordedAt)}. No keys needed.` : 'Replay, hand-written. No keys needed.'}</span>
       {status ? (
-        <span className="tabular">
+        <span className="tabular text-muted">
           {status.playing ? (status.paused ? 'paused' : 'playing') : status.done ? 'finished' : 'stopped'}, {clock(status.at)} of {clock(status.total)}
         </span>
       ) : null}

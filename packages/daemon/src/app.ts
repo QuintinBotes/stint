@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join, normalize } from 'node:path';
 import {
   type CostGroup,
@@ -109,6 +109,17 @@ function tokenMatches(header: string | undefined, token: string): boolean {
 
 const contexts = new WeakMap<Hono, DaemonContext>();
 
+/** The name people call the repository: its package.json name, else its folder. */
+function repoName(root: string): string {
+  try {
+    const name = (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { name?: unknown }).name;
+    if (typeof name === 'string' && name) return name.replace(/^@[^/]+\//, '');
+  } catch {
+    // no package.json: the folder name will do
+  }
+  return root.split('/').filter(Boolean).at(-1) ?? 'repository';
+}
+
 /** The context behind an app, for tests and in-process callers. */
 export function daemonContext(app: Hono): DaemonContext {
   const ctx = contexts.get(app);
@@ -188,6 +199,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       mode: 'live',
       startedAt: opts.startedAt,
       pid: process.pid,
+      repo: repoName(ws.root),
       adapters: await adapterHealth(adapters, ws.config),
       pty: ptyHealth(),
       autopilot: await ctx.autopilot.status(),
@@ -208,6 +220,8 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
         task,
         cost: sumCosts(runs.map((r) => r.cost)),
         lastRun: runs.at(-1) ?? null,
+        // every agent and model that worked on it, in the order they first ran
+        agents: [...new Map(runs.filter((r) => r.adapter).map((r) => [`${r.adapter}|${r.model ?? ''}`, { adapter: r.adapter, host: r.host, model: r.model, role: r.role }])).values()],
         lastEventAt: events.at(-1)?.ts ?? task.updatedAt,
         summary: typeof lastMessage?.payload.text === 'string' ? lastMessage.payload.text.slice(0, 200) : null,
         autopilot: autopilotCard(events),
