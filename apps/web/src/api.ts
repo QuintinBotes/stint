@@ -166,6 +166,8 @@ export type PermissionOptionData = { optionId: string; name: string; kind: strin
 export type PendingPermission = { task: string; run: string; requestId: string; tool: string; title: string; options: PermissionOptionData[] };
 export type CostRow = Cost & { key: string; runs: number; roles?: string[]; creditsLeft?: number; derived?: true };
 export type DemoStatus = { playing: boolean; paused: boolean; at: number; total: number; title: string | null; live: boolean | null; recordedAt: string | null; done: boolean };
+/** The board card summary: a local model's line when there is one, else the last agent message. */
+export type TaskSummary = { summary: string; seq: number; source: 'model' | 'agent.message' | 'none'; host?: string; model?: string };
 export type ApiError = { code: string; message: string; hint: unknown };
 
 export class DaemonError extends Error {
@@ -239,6 +241,7 @@ export const api = {
   demoStatus: () => request<DemoStatus>('/api/demo/status'),
   createTask: (t: { title: string; goal: string; acceptance: string[]; testCommand?: string }) => post<Task>('/api/tasks', t),
   verify: (id: string) => post<Verification>(`/api/tasks/${id}/verify`),
+  summary: (id: string) => post<TaskSummary>(`/api/tasks/${id}/summary`),
   files: (id: string) => request<TaskFiles>(`/api/tasks/${id}/files`),
   fileContent: (id: string, path: string) => request<{ path: string; content: string | null; reason?: string }>(`/api/tasks/${id}/files/content?path=${encodeURIComponent(path)}`),
   openInEditor: (id: string, path?: string, line?: number) => post<{ opened: string; with: string }>(`/api/tasks/${id}/open`, { ...(path ? { path } : {}), ...(line ? { line } : {}) }),

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DaemonError, type Verification, api } from '../api';
 import { localTime } from '../format';
+import { StackTrace } from './StackTrace';
 import { Button, EmptyState, StatusChip, cx } from './ui';
 
 type TestLine = { name: string; ok: boolean };
@@ -82,6 +83,20 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
       .verificationOutput(taskId, v.run)
       .then((text) => live && setOutput(text))
       .catch((e: unknown) => live && setOutputNote(e instanceof DaemonError ? e.error.message : 'The output could not be read.'));
+    return () => {
+      live = false;
+    };
+  }, [taskId, v]);
+
+  // the files this task changed, so a frame in one of them can link to it in the diff
+  const [changedFiles, setChangedFiles] = useState<string[]>([]);
+  useEffect(() => {
+    if (!v || v.failed === 0) return;
+    let live = true;
+    api
+      .diffFiles(taskId)
+      .then((files) => live && setChangedFiles(files.map((f) => f.path)))
+      .catch(() => live && setChangedFiles([]));
     return () => {
       live = false;
     };
@@ -238,6 +253,8 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
           </div>
         ) : null}
       </article>
+
+      {output && v.failed > 0 ? <StackTrace taskId={taskId} output={output} changedFiles={changedFiles} /> : null}
 
       <section aria-label="Acceptance criteria" data-testid="acceptance">
         <h3 className="text-[13px] font-semibold mb-1">Acceptance criteria</h3>

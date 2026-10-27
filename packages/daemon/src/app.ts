@@ -36,6 +36,7 @@ import { runRoutes } from './routes/runs';
 import { skillRoutes } from './routes/skills';
 import { ptyRoutes } from './routes/pty';
 import { commentRoutes } from './routes/comments';
+import { summaryRoutes } from './routes/summary';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
@@ -395,6 +396,7 @@ function replayHealth(ctx: DaemonContext): Record<string, unknown> {
 /** Later specs (verify, assign, handoff, approve, graph, skills) add their routes here. */
 function registerRoutes(app: Hono, ctx: DaemonContext): void {
   workRoutes(app, ctx);
+  summaryRoutes(app, ctx);
   runRoutes(app, ctx);
   handoffRoutes(app, ctx);
   modelRoutes(app, ctx);

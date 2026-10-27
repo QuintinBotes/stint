@@ -1,10 +1,82 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { agentOf } from '../agents';
-import type { TaskCardData } from '../api';
+import { type TaskCardData, api } from '../api';
 import { age } from '../format';
 import { CostMeter, StatusChip, VendorMark, cx } from './ui';
 
 type CardTask = TaskCardData['task'];
+
+/** Model summaries already asked for, by task and its last event: at most one ask per card per seq. */
+const askedSummaries = new Set<string>();
+const modelSummaries = new Map<string, string>();
+
+type SummaryAsk = { key: string; taskId: string; cancelled: boolean; done: (summary: string | null) => void };
+const summaryQueue: SummaryAsk[] = [];
+let drainingSummaries = false;
+const rest = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Asks for summaries one at a time, after letting the board draw. A local model
+ * answers slowly, so a board of parallel asks would hold every connection the
+ * page has; a slow ask is followed by a rest, a cached one is not.
+ */
+async function drainSummaries(): Promise<void> {
+  if (drainingSummaries) return;
+  drainingSummaries = true;
+  await rest(1000);
+  while (summaryQueue.length) {
+    const ask = summaryQueue.shift() as SummaryAsk;
+    if (ask.cancelled) {
+      ask.done(null);
+      continue;
+    }
+    if (askedSummaries.has(ask.key)) {
+      ask.done(modelSummaries.get(ask.key) ?? null);
+      continue;
+    }
+    askedSummaries.add(ask.key);
+    const started = Date.now();
+    try {
+      const r = await api.summary(ask.taskId);
+      if (r.source === 'model' && r.summary) {
+        modelSummaries.set(ask.key, r.summary);
+        ask.done(r.summary);
+      } else ask.done(null);
+    } catch {
+      ask.done(null);
+    }
+    await rest(Date.now() - started > 1000 ? 700 : 30);
+  }
+  drainingSummaries = false;
+}
+
+/** The local model's card line when there is one, asked for after the board has drawn. */
+function useModelSummary(card: TaskCardData): string | null {
+  const key = `${card.task.id}@${card.lastEventAt}`;
+  const [summary, setSummary] = useState<string | null>(() => modelSummaries.get(key) ?? null);
+  useEffect(() => {
+    const hit = modelSummaries.get(key) ?? null;
+    if (hit) {
+      setSummary(hit);
+      return;
+    }
+    const ask: SummaryAsk = {
+      key,
+      taskId: card.task.id,
+      cancelled: false,
+      done: (got) => {
+        if (got && !ask.cancelled) setSummary(got);
+      },
+    };
+    summaryQueue.push(ask);
+    void drainSummaries();
+    return () => {
+      ask.cancelled = true;
+    };
+  }, [key, card.task.id]);
+  return summary;
+}
 
 /** How a task in the same split stands: merged, or its status, or what it still waits for. */
 function standing(t: CardTask, all: Map<string, CardTask>): string {
@@ -25,6 +97,7 @@ function holding(card: TaskCardData): string {
 
 export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, CardTask> }) {
   const { task, lastRun } = card;
+  const modelSummary = useModelSummary(card);
   const tasks = all ?? new Map<string, CardTask>();
   // a split task lists its subtasks in order, each with what it waits for: the dependency line (R-036)
   const children = [...tasks.values()].filter((t) => t.parent === task.id).sort((a, b) => a.id.localeCompare(b.id));
@@ -87,7 +160,11 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
           ))}
         </ol>
       ) : null}
-      {card.summary ? <p className="mt-2 text-[12px] text-muted line-clamp-3">{card.summary}</p> : null}
+      {modelSummary ?? card.summary ? (
+        <p className="mt-2 text-[12px] text-muted line-clamp-3" data-testid="card-summary" data-source={modelSummary ? 'model' : 'agent.message'}>
+          {modelSummary ?? card.summary}
+        </p>
+      ) : null}
       <div className="mt-2 flex items-center gap-2">
         {task.status === 'done' ? <StatusChip label="merged" tone="good" /> : <StatusChip status={task.status} />}
         {task.status === 'done' ? <span className="font-mono text-[11px] text-faint">Stint-Task: {task.id}</span> : null}

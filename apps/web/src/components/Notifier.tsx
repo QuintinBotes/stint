@@ -18,6 +18,95 @@ export function notice(e: StintEvent): { text: string; tone: 'warn' | 'bad' | 'i
   return null;
 }
 
+/** A person has to act: the gate is waiting, an agent asks permission, or autopilot stopped for them. */
+export function needsYou(e: StintEvent): boolean {
+  if (e.type === 'approval.requested' || e.type === 'permission.requested') return true;
+  return e.type === 'autopilot.stopped' && !!e.payload.needsYou;
+}
+
+const SOUND_KEY = 'stint.sound';
+
+/** The needs-you sound is on unless it was turned off in the palette. */
+export function soundOn(): boolean {
+  try {
+    return localStorage.getItem(SOUND_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+export function setSound(on: boolean): void {
+  try {
+    localStorage.setItem(SOUND_KEY, on ? 'on' : 'off');
+  } catch {
+    /* private window: the choice lasts for this tab only */
+  }
+}
+
+let audio: AudioContext | null = null;
+
+/** A short two-note sound made in code, so nothing needs an audio file. */
+export function playNeedsYouSound(): void {
+  if (!soundOn()) return;
+  try {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    audio ??= new Ctor();
+    void audio.resume().catch(() => undefined);
+    const at = audio.currentTime;
+    for (const [start, freq] of [
+      [0, 880],
+      [0.12, 660],
+    ] as const) {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.08, at + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + start + 0.1);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(at + start);
+      osc.stop(at + start + 0.11);
+    }
+  } catch {
+    /* a browser that will not play sound says so by silence */
+  }
+}
+
+/**
+ * Asks for desktop notification permission. Called only from the palette action, so
+ * the ask itself is the user gesture the browser wants.
+ */
+export function enableDesktopNotifications(): Promise<NotificationPermission | 'unsupported'> {
+  try {
+    if (typeof Notification === 'undefined') return Promise.resolve('unsupported');
+    if (Notification.permission === 'granted' || Notification.permission === 'denied') return Promise.resolve(Notification.permission);
+    return Notification.requestPermission();
+  } catch {
+    return Promise.resolve('unsupported');
+  }
+}
+
+/** An OS notification for a finished run or a person being needed, while the window is not the one being looked at. */
+function notifyOutside(e: StintEvent, text: string, open: () => void): void {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (e.type !== 'run.finished' && !needsYou(e)) return;
+    if (typeof document !== 'undefined' && document.hasFocus()) return;
+    const sent = new Notification('Stint', { body: text });
+    sent.onclick = () => {
+      try {
+        window.focus();
+      } catch {
+        /* the browser may keep its own focus rules */
+      }
+      open();
+    };
+  } catch {
+    /* a browser that will not notify says so by silence */
+  }
+}
+
 export function Notifier() {
   const navigate = useNavigate();
   useEffect(() => {
@@ -25,8 +114,12 @@ export function Notifier() {
     return subscribe('/api/stream', (e) => {
       if (Date.parse(e.ts) < since - 1000) return;
       const n = notice(e);
-      if (!n) return;
       const open = e.type === 'skill.proposed' ? '/skills' : e.task ? `/t/${e.task}` : '/';
+      const finished = e.type === 'run.finished' ? `${e.task}: ${agentOf(e.adapter ?? null, null, null).name} ${e.run} finished.` : null;
+      const text = n?.text ?? finished;
+      if (text) notifyOutside(e, text, () => navigate(open));
+      if (!n) return;
+      if (needsYou(e)) playNeedsYouSound();
       const opts = { action: { label: 'Open', onClick: () => navigate(open) } };
       if (n.tone === 'bad') toast.error(n.text, opts);
       else if (n.tone === 'warn') toast.warning(n.text, opts);

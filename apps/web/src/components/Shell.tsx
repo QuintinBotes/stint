@@ -6,6 +6,7 @@ import { type CostRow, DaemonError, type DemoStatus, type Health, type ModelHeal
 import { toast } from 'sonner';
 import { localDate, money } from '../format';
 import { useTasks } from '../hooks';
+import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
 import { Button, Kbd, StatusChip, cx } from './ui';
 
 function startOfWeek(now = new Date()): string {
@@ -372,11 +373,33 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
 
 /** Actions that need nothing from the router; the palette adds navigation and the open task's actions itself. */
 export function usePaletteActions(extra: { newTask: () => void }): Action[] {
+  const [sound, setSoundState] = useState(soundOn);
   return useMemo(
     () => [
       { id: 'new', label: 'New task', cli: 'stint new "..."', run: extra.newTask },
       { id: 'run-all', label: 'Run all planned tasks on autopilot', cli: 'stint run <task>', run: () => report(api.autopilotAll(true), 'Planned tasks are on autopilot') },
+      {
+        id: 'notifications',
+        label: 'Turn on desktop notifications',
+        cli: '',
+        run: () =>
+          void enableDesktopNotifications().then((result) => {
+            if (result === 'granted') toast.success('Desktop notifications are on. A run finishing or a task needing you will say so outside this window.');
+            else if (result === 'denied') toast.error('Desktop notifications stay off: the browser refused permission.');
+            else toast.error('This browser has no desktop notifications.');
+          }),
+      },
+      {
+        id: 'sound',
+        label: sound ? 'Turn sound off' : 'Turn sound on',
+        cli: '',
+        run: () => {
+          setSound(!sound);
+          setSoundState(!sound);
+          toast.success(sound ? 'The needs-you sound is off.' : 'The needs-you sound is on.');
+        },
+      },
     ],
-    [extra.newTask],
+    [extra.newTask, sound],
   );
 }
