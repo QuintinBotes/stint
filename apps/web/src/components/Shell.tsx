@@ -131,7 +131,8 @@ export function ReplayStrip({ health }: { health: Health | null }) {
   );
 }
 
-type Action = { id: string; label: string; cli: string; run: () => void };
+/** `key` is the shortcut on the page, shown beside the command that does the same from a terminal. */
+type Action = { id: string; label: string; cli: string; key?: string; run: () => void };
 
 /** What a daemon call said, as a toast: the daemon's own message when it refuses. */
 function report(promise: Promise<unknown>, done: string): void {
@@ -139,12 +140,21 @@ function report(promise: Promise<unknown>, done: string): void {
 }
 
 /** Actions on the task that is open, each with the command that does the same from a terminal; a closed task only offers its views. */
-function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: string) => void): Action[] {
+function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: string) => void, health: Health | null): Action[] {
   const tab = (t: string) => () => navigate(`/t/${id}?tab=${t}`);
   const closed = card ? ['approved', 'done', 'rejected', 'abandoned'].includes(card.task.status) : false;
   const onAutopilot = !!card?.autopilot?.on;
+  const running = !!card?.lastRun && !card.lastRun.endedAt;
   const views = new Set(['terminal', 'packet', 'diff']);
+  // one action per agent that can build now; none while a run is live, since a task holds one run at a time
+  const assign: Action[] = running
+    ? []
+    : (health?.adapters ?? [])
+        .filter((a) => a.id !== 'replay' && a.capability.level === 'supported' && a.roles.includes('implementer'))
+        .map((a) => ({ id: `assign-${a.id}`, label: `Assign to ${ADAPTER_NAMES[a.id] ?? a.id}`, cli: `stint assign ${id} ${a.id}`, run: () => report(api.assign(id, a.id), `${id}: ${ADAPTER_NAMES[a.id] ?? a.id} started`) }));
+  const base = card?.task.baseCommit?.slice(0, 7) ?? 'main';
   return [
+    ...assign,
     { id: 'verify', label: 'Verify: the daemon runs the tests', cli: `stint verify ${id}`, run: () => report(api.verify(id), `${id}: tests run by the daemon`) },
     { id: 'autopilot-on', label: 'Put on autopilot', cli: `stint run ${id}`, run: () => report(api.autopilot(id, true), `${id} is on autopilot`) },
     { id: 'autopilot-off', label: 'Take off autopilot', cli: `stint run ${id} --stop`, run: () => report(api.autopilot(id, false), `${id} is off autopilot`) },
@@ -152,13 +162,13 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
     { id: 'approve', label: 'Approve and merge', cli: `stint approve ${id}`, run: () => report(api.approve(id), `${id} merged`) },
     { id: 'changes', label: 'Request changes', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },
     { id: 'reject', label: 'Reject', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'reject' })) },
-    { id: 'terminal', label: 'Open the terminal in the worktree', cli: 't', run: tab('terminal') },
+    { id: 'terminal', label: 'Open the terminal in the worktree', key: 't', cli: `cd .stint/worktrees/${id}-${card?.lastRun?.run ?? 'r1'}`, run: tab('terminal') },
     { id: 'packet', label: 'Show the packet', cli: `stint packet ${id} --as prompt`, run: tab('packet') },
-    { id: 'diff', label: 'Show the diff', cli: 'd', run: tab('diff') },
+    { id: 'diff', label: 'Show the diff', key: 'd', cli: `git diff ${base}..stint/${id}`, run: tab('diff') },
   ].filter((a) => (closed ? views.has(a.id) : a.id !== (onAutopilot ? 'autopilot-on' : 'autopilot-off')));
 }
 
-export function Palette({ open, onClose, actions: global }: { open: boolean; onClose: () => void; actions: Action[] }) {
+export function Palette({ open, onClose, actions: global, health }: { open: boolean; onClose: () => void; actions: Action[]; health: Health | null }) {
   const { data: tasks } = useTasks();
   const navigate = useNavigate();
   const location = useLocation();
@@ -169,7 +179,7 @@ export function Palette({ open, onClose, actions: global }: { open: boolean; onC
     { id: 'factory', label: 'Go to the Factory', cli: '/factory', run: () => navigate('/factory') },
     { id: 'skills', label: 'Go to Skills', cli: 'stint skills list', run: () => navigate('/skills') },
   ];
-  const actions = [...(taskId ? taskActions(taskId, tasks?.find((c) => c.task.id === taskId), navigate) : []), ...global, ...go];
+  const actions = [...(taskId ? taskActions(taskId, tasks?.find((c) => c.task.id === taskId), navigate, health) : []), ...global, ...go];
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-[12vh] px-4" onMouseDown={onClose}>
       <Command
@@ -193,7 +203,10 @@ export function Palette({ open, onClose, actions: global }: { open: boolean; onC
                 className="flex items-center justify-between gap-3 px-2 h-9 rounded-md text-[13px] text-ink data-[selected=true]:bg-accent-tint"
               >
                 <span>{a.label}</span>
-                <span className="font-mono text-[11.5px] text-faint truncate">{a.cli}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  {a.key ? <Kbd>{a.key}</Kbd> : null}
+                  <span className="font-mono text-[11.5px] text-faint truncate">{a.cli}</span>
+                </span>
               </Command.Item>
             ))}
           </Command.Group>

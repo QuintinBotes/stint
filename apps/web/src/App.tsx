@@ -61,7 +61,7 @@ export function App() {
           <Route path="/skills" element={<Skills />} />
           <Route path="*" element={<Placeholder title="Not found">There is nothing at this address. The board is at the top left.</Placeholder>} />
         </Routes>
-        <Palette open={palette} onClose={() => setPalette(false)} actions={actions} />
+        <Palette open={palette} onClose={() => setPalette(false)} actions={actions} health={health.data} />
         <NewTaskDialog open={newTask} onClose={() => setNewTask(false)} />
         <Dialog title="Keyboard" open={help} onClose={() => setHelp(false)}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">

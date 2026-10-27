@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Specs R-050 to R-057 and eleven architecture decision records (`docs/adr/`), from a requirements audit of R-001 to R-049 on 27 October.
+- One status button for the daemon, agents and models, with the chat models on this machine that no route uses yet; LM Studio, llama.cpp and LiteLLM as hosts; Claude Code takes its base URL from its host.
+- The diff tab on @pierre/diffs with a file tree, viewed marks, per-hunk attribution from git blame and line comments the next agent receives; a windowed timeline with checkpoints that restore a run's code.
+- Cards with every state, the review's blockers, the full sign-off record, a permission tier per run and plan steps marked from the packet; the Factory's workspace graph, 7-day funnel, transcript-share figure, benchmark bars and credits left.
+- The first live golden eval: 9 of 9 tries passed.
+- `bun run dev` is a watch loop for the daemon and the UI; `bun run demo` is the replay.
+
+### Changed
+- The Stint agent's refusals check every part of a chain, see through git's global options, and refuse paths outside the worktree and links that lead out of it; grep skips credential files and links.
+- Every write under `.stint/` is atomic; `stint otel export` writes beside you.
+- Live commands hold off idle sleep on macOS, and the verifier's cap counts awake time only.
+
+### Fixed
+- The live golden eval checked its pinned commit out detached, which the daemon refuses.
+- Toggles that never showed their state; `[` and `]` losing the file list while events arrived; a replaced terminal dropped from the registry.
+
 ## 0.1.0, Meta Global AI Developer Hackathon (26 October to 4 November 2026)
 
 The first release. Everything here was built during the event; `PROGRESS.md` records each spec, who built it and how it was verified.

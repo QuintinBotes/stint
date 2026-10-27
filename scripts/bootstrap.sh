@@ -70,4 +70,4 @@ done
 
 if [ "$CHECK_ONLY" = 1 ]; then exit 0; fi
 say ""
-exec bun run dev
+exec bun run demo

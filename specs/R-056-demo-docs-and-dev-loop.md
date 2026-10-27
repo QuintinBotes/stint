@@ -20,9 +20,9 @@ Root scripts are in `package.json`; the palette is `taskActions` in `apps/web/sr
 9. MUST cover in UI tests: the Files tab and the timeline empty states; r4 and each segment's vendor colour on the T-0042 rail; the terminal filling its pane with the kill button visible.
 
 ## Acceptance
-1. `bun run dev` starts the daemon and vite, and a change to a daemon file restarts it: `scripts/test/dev.test.ts`.
+1. `bun run dev` runs the daemon under `bun --watch` beside vite, which proxies `/api` to it and puts its token in the page, and `bun run demo` is the replay; checked from the scripts, since running the loop would write `.stint/` into the checkout: `scripts/test/dev.test.ts`.
 2. The palette lists Assign with its CLI command: `apps/web/e2e/actions.spec.ts`.
-3. `stint demo --live --from review --take 2` starts at the review beat and writes take 2: `packages/cli/test/demo.live.test.ts`.
+3. `--from review` pauses from the review beat on (the earlier beats still run), `--offline-plan` plans locally, `--take 2` writes to its own folder, and preflight names the optional keys: `packages/cli/test/demo.beats.test.ts`; the whole live run stays in `packages/cli/test/demo.live.test.ts` under `STINT_LIVE=1`.
 4. The claims test fails when a README bench or golden number differs from the results files: `packages/core/test/docs.claims.test.ts`.
 5. The empty states, the rail colours and the terminal fit: `apps/web/e2e/empty.spec.ts`, `apps/web/e2e/timeline.spec.ts`, `apps/web/e2e/terminal.spec.ts`.
 

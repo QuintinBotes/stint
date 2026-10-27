@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DEFAULT_RECORDING, formatClock, loadRecording, parseClock, startDaemon } from '@stint-dev/daemon';
 import { defineCommand } from 'citty';
-import { runLiveDemo } from './demo/live';
+import { BEATS, type Beat, runLiveDemo } from './demo/live';
 import { recordWorkspace } from './demo/record';
 import { seedDemo } from './demo/seed';
 import { repoRoot } from './repo';
@@ -27,7 +27,7 @@ export const demo = defineCommand({
   args: {
     action: { type: 'positional', description: 'seed or record; omit to replay (or pass --live)', required: false },
     speed: { type: 'string', description: '1 is real time, 0 is instant', default: '1' },
-    from: { type: 'string', description: 'Start at mm:ss (earlier events are applied silently)', default: '0:00' },
+    from: { type: 'string', description: 'Replay: start at mm:ss (earlier events are applied silently). --live: start pausing at a beat (plan, build, hand, review, approve, next)', default: '0:00' },
     path: { type: 'string', description: 'Recording file (default demo/recording.jsonl)' },
     keep: { type: 'boolean', description: 'Keep the daemon running for the UI after the replay ends' },
     open: { type: 'boolean', description: 'Open the UI in the browser' },
@@ -37,6 +37,8 @@ export const demo = defineCommand({
     'allow-online': { type: 'boolean', description: 'Let the review beat run online on the hosted chain (--live)' },
     'kill-after': { type: 'string', description: 'Seconds after the first src/ change before the kill (--live)', default: '6' },
     'no-eval': { type: 'boolean', description: 'Approve the proposed skill without measuring it first (--live)' },
+    take: { type: 'string', description: 'Record the finished live run as take n under demo/recordings (--live)' },
+    'offline-plan': { type: 'boolean', description: 'Plan on the local model instead of the hosted chain (--live)' },
     repo: { type: 'string', description: 'Repository for seed and record (default: the git top level)' },
     out: { type: 'string', description: 'Recording file to write (record)' },
   },
@@ -80,7 +82,19 @@ export const demo = defineCommand({
       try {
         const killAfter = Number(args['kill-after']);
         keepAwake();
-        await runLiveDemo({ auto: args.auto, allowOnline: args['allow-online'], killAfterSeconds: Number.isFinite(killAfter) ? killAfter : 6, noEval: args['no-eval'] });
+        const from = args.from && args.from !== '0:00' ? args.from : undefined;
+        if (from && !(BEATS as readonly string[]).includes(from)) throw new Error(`--from with --live names a beat: ${BEATS.join(', ')}`);
+        const take = args.take !== undefined ? Number(args.take) : undefined;
+        if (take !== undefined && (!Number.isInteger(take) || take < 1)) throw new Error('--take is a take number, such as 2');
+        await runLiveDemo({
+          auto: args.auto,
+          allowOnline: args['allow-online'],
+          killAfterSeconds: Number.isFinite(killAfter) ? killAfter : 6,
+          noEval: args['no-eval'],
+          ...(from ? { from: from as Beat } : {}),
+          ...(args['offline-plan'] ? { offlinePlan: true } : {}),
+          ...(take ? { take: { n: take, repo: args.repo ? resolve(args.repo) : repoRoot() } } : {}),
+        });
         return;
       } catch (err) {
         fail(err);

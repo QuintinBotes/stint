@@ -7,6 +7,7 @@ import { recordEval } from '../eval';
 import { runSkillEvalLive } from '../eval/live';
 import { buildSkillEval, resolveSkillEvalTasks } from '../eval/results';
 import { assertPreflight, type PreflightDeps } from './preflight';
+import { recordWorkspace } from './record';
 import { seedDemo } from './seed';
 
 /** The slice of daemon API the beats drive. Tests point it at a daemon with fake adapters. */
@@ -81,8 +82,31 @@ export async function promptEnter(message: string): Promise<void> {
 }
 promptEnter.rl = null as ReturnType<typeof import('node:readline').createInterface> | null;
 
+/** The live beats in order; `--from` names one of them. */
+export const BEATS = ['plan', 'build', 'hand', 'review', 'approve', 'next'] as const;
+export type Beat = (typeof BEATS)[number];
+
+/** True when a beat pauses for Enter: --from starts the pauses there, and the beats before it still run, so the state is real. */
+export function pausesAt(beat: Beat, from?: Beat): boolean {
+  return BEATS.indexOf(beat) >= (from ? BEATS.indexOf(from) : 0);
+}
+
+/** The plan request: --offline-plan asks the local model instead of the hosted chain. */
+export function planBody(offlinePlan?: boolean): Record<string, string> {
+  return offlinePlan ? { host: 'ollama' } : {};
+}
+
+/** Where take n of a live run is kept: one folder per day and take, beside the earlier takes. */
+export function takePath(repo: string, take: number, day: string = new Date().toISOString().slice(0, 10)): string {
+  return join(repo, 'demo', 'recordings', `${day}-${take}`, 'recording.jsonl');
+}
+
 export type LiveBeatsOptions = {
   client: DemoClient;
+  /** Start pausing at this beat (--from); the beats before it run without stopping. */
+  from?: Beat;
+  /** Plan on the local model (--offline-plan). */
+  offlinePlan?: boolean;
   out?: (line: string) => void;
   pause?: (message: string) => Promise<void>;
   auto?: boolean;
@@ -107,7 +131,8 @@ export type LiveSummary = {
 /** Beats 2 to 8 against a seeded workspace with a daemon up. Beat 1 (seed) runs before the daemon starts. */
 export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
   const out = o.out ?? ((s: string) => process.stdout.write(`${s}\n`));
-  const pause = o.auto ? async () => undefined : (o.pause ?? promptEnter);
+  const always = o.auto ? async () => undefined : (o.pause ?? promptEnter);
+  const pause = (beat: Beat, message: string) => (pausesAt(beat, o.from) ? always(message) : Promise.resolve());
   const timeoutMs = o.timeoutMs ?? 15 * 60_000;
   const pollMs = o.pollMs ?? 500;
   const implementer = o.implementer ?? 'muse-code';
@@ -124,12 +149,12 @@ export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
   const has = (type: string, run?: string) => (es: Ev[]) => es.some((e) => e.type === type && (run === undefined || e.run === run));
 
   // Beat 2: Wonder plans.
-  await pause('Beat: Wonder plans T-0042. Press Enter. ');
+  await pause('plan', 'Beat: Wonder plans T-0042. Press Enter. ');
   out('Planning T-0042.');
-  await o.client.post('/api/tasks/T-0042/plan', {});
+  await o.client.post('/api/tasks/T-0042/plan', planBody(o.offlinePlan));
 
   // Beat 3: Muse Code builds, then it is killed once a src/ file has changed.
-  await pause('Beat: Muse Code builds, then the kill. Press Enter. ');
+  await pause('build', 'Beat: Muse Code builds, then the kill. Press Enter. ');
   const assigned = (await o.client.post('/api/tasks/T-0042/assign', { adapter: implementer, role: 'implementer' })) as { run: string };
   out(`Assigned ${implementer} to T-0042 as ${assigned.run}.`);
   const seen = await waitFor(
@@ -151,19 +176,19 @@ export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
   await waitFor('T-0042', has('handoff.created', assigned.run), `the packet from ${assigned.run}`);
 
   // Beat 4: a different agent finishes from the packet.
-  await pause('Beat: a different agent finishes. Press Enter. ');
+  await pause('hand', 'Beat: a different agent finishes. Press Enter. ');
   const handed = (await o.client.post('/api/tasks/T-0042/hand', { adapter: continuer })) as { run: string; packet: string };
   out(`Handed T-0042 to ${continuer} as ${handed.run} from packet ${handed.packet}.`);
   await waitFor('T-0042', has('verification.ran', handed.run), `verification of ${handed.run}`);
   await waitFor('T-0042', has('handoff.created', handed.run), `the packet from ${handed.run}`);
 
   // Beat 5: review offline.
-  await pause('Beat: review offline. Press Enter. ');
+  await pause('review', 'Beat: review offline. Press Enter. ');
   out('Reviewing T-0042.');
-  await reviewBeat(o.client, 'T-0042', { allowOnline: o.allowOnline, isOnline: o.isOnline, pause, out });
+  await reviewBeat(o.client, 'T-0042', { allowOnline: o.allowOnline, isOnline: o.isOnline, pause: always, out });
 
   // Beat 6: approve and merge, then learn.
-  await pause('Beat: approve and merge, then it learns. Press Enter. ');
+  await pause('approve', 'Beat: approve and merge, then it learns. Press Enter. ');
   await o.client.post('/api/tasks/T-0042/approve', {});
   out('Approved T-0042.');
   const learned = await waitFor('T-0042', (es) => es.some((e) => e.type === 'skill.proposed' || e.type === 'learn.skipped'), 'the learn step');
@@ -191,7 +216,7 @@ export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
   }
 
   // Beat 7: T-0043 with the skill mounted, stopped at the gate.
-  await pause('Beat: T-0043 runs with the skill. Press Enter. ');
+  await pause('next', 'Beat: T-0043 runs with the skill. Press Enter. ');
   const t43 = (await o.client.post('/api/tasks/T-0043/assign', { adapter: implementer, role: 'implementer' })) as { run: string };
   out(`Assigned ${implementer} to T-0043 as ${t43.run}.`);
   await waitFor('T-0043', has('verification.ran', t43.run), `verification of T-0043 ${t43.run}`);
@@ -244,6 +269,10 @@ export type LiveDemoOptions = {
   killAfterSeconds?: number;
   /** Skip measuring the proposed skill; the skill card then shows no eval line. */
   noEval?: boolean;
+  from?: Beat;
+  offlinePlan?: boolean;
+  /** Record the finished run as take n under demo/recordings in this repository (--take). */
+  take?: { n: number; repo: string };
   out?: (line: string) => void;
   preflight?: PreflightDeps;
 };
@@ -254,7 +283,8 @@ export type LiveDemoOptions = {
  */
 export async function runLiveDemo(o: LiveDemoOptions = {}): Promise<{ root: string; url: string; summary: LiveSummary }> {
   const out = o.out ?? ((s: string) => process.stdout.write(`${s}\n`));
-  await assertPreflight({ ...o.preflight, allowOnline: o.allowOnline ?? o.preflight?.allowOnline });
+  const ready = await assertPreflight({ ...o.preflight, allowOnline: o.allowOnline ?? o.preflight?.allowOnline });
+  for (const k of ready.optional.filter((x) => !x.set)) out(`Optional, not set: ${k.name} (${k.enables}).`);
   const root = freshFixture();
   await seedDemo(root);
   out('Seeded T-0040 (done), T-0042 and T-0043 (planned).');
@@ -267,11 +297,17 @@ export async function runLiveDemo(o: LiveDemoOptions = {}): Promise<{ root: stri
       auto: o.auto,
       allowOnline: o.allowOnline,
       killAfterSeconds: o.killAfterSeconds,
+      ...(o.from ? { from: o.from } : {}),
+      ...(o.offlinePlan ? { offlinePlan: true } : {}),
       ...(o.noEval ? {} : { evalSkill: (skill: string) => measureSkill(root, skill, 'T-0042') }),
     });
     out(`Live run finished at ${d.url}`);
     out(`Repo: ${root}`);
-    out(`Record it with: stint demo record --repo ${root} --out <file>`);
+    if (o.take) {
+      const file = takePath(o.take.repo, o.take.n);
+      const r = await recordWorkspace({ repo: root, out: file });
+      out(`Recorded take ${o.take.n}: ${r.out}, ${r.events} events.`);
+    } else out(`Record it with: stint demo record --repo ${root} --out <file>`);
     return { root, url: d.url, summary };
   } finally {
     await d.stop();

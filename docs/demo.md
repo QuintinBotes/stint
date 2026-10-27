@@ -34,7 +34,20 @@ The live runner runs these beats in order. Press Enter to move to the next one, 
 | 2:15 | It learned | waits for the learn step, measures the proposed skill on T-0042 with it and without (two short runs on fresh copies; `--no-eval` skips this), approves it, then assigns T-0043, verifies and reviews it, and stops at awaiting approval | the skill card's eval line, "with skill: N findings, without: M"; `skill.applied` on T-0043; the review finds nothing on what was flagged before |
 | 2:35 | Close | prints the per-task cost, the T-0042 packet tokens and hash, the URL, and the repository path to record from | the Factory's last panel: "Any harness, any model, one packet", every configured harness and host |
 
-After the run, record it and keep the recording:
+The times above are the script for the 2:35 video. A live run takes longer. The live take on 26 October (`demo/recordings/2026-10-26-1`) measured these, from the plan's start:
+
+| Beat | Took | Ended at |
+|---|---|---|
+| Plan (Muse Wonder) | 32 s | 0:32 |
+| Muse Code builds until the kill | 26 s | 0:58 |
+| The packet, with the digest of the diff | 30 s | 1:28 |
+| The Stint agent continues to green | 22 s, then 1 s of verification | 1:52 |
+| The packet for the reviewer | 34 s | 2:26 |
+| Review (that take ran it online) and the merge | 2 min 10 s | 4:36 |
+
+So the video cuts the waits, and the screen says it is a replay when it is one.
+
+To rehearse one beat, `--from review` runs the beats before it without stopping and pauses from the review on; `--offline-plan` plans on the local model; `--take 2` records the finished run under `demo/recordings/<date>-2/`. After the run, or without `--take`, record it and keep the recording:
 
 ```
 stint demo record --repo <printed path> --out demo/recordings/<date>.jsonl
