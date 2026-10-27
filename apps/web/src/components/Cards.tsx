@@ -1,5 +1,8 @@
 import { type Handoff, type Plan, type Review, countTokens, renderHandoff } from '@stint-dev/core';
 import { useState } from 'react';
+import { JsonView, darkStyles } from 'react-json-view-lite';
+import 'react-json-view-lite/dist/index.css';
+import { Link } from 'react-router';
 import { agentOf, hostName, modelName } from '../agents';
 import { Button, CostMeter, EmptyState, Section, StatusChip, VendorMark, cx } from './ui';
 
@@ -101,7 +104,9 @@ export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
       {view === 'prompt' ? (
         <pre className="font-mono text-[12px] leading-[18px] whitespace-pre-wrap bg-sunken rounded-md p-3">{prompt}</pre>
       ) : view === 'json' ? (
-        <pre className="font-mono text-[12px] leading-[18px] whitespace-pre-wrap bg-sunken rounded-md p-3">{JSON.stringify(handoff, null, 2)}</pre>
+        <div data-testid="packet-json">
+          <JsonView data={handoff} shouldExpandNode={(level) => level < 2} style={JSON_STYLE} />
+        </div>
       ) : (
         <div className="rounded-lg border border-line bg-raised divide-y divide-line">
           <Cell label="Summary">
@@ -172,7 +177,23 @@ export function HandoffCard({ handoff }: { handoff: Handoff | null }) {
 
 const LENS_NAMES: Record<string, string> = { general: 'General', security: 'Security', 'spec-fit': 'Spec fit' };
 
-export function ReviewCard({ review }: { review: Review | null }) {
+/** `decisions` are the task's recorded decisions, so a finding that would reverse one shows what it would reverse. */
+/** The raw packet as a tree that folds, in the app's own colours; only the indentation and icons come from the library. */
+const JSON_STYLE = {
+  ...darkStyles,
+  container: 'font-mono text-[12px] leading-[18px] bg-sunken rounded-md p-3 overflow-x-auto',
+  label: 'text-muted mr-1',
+  clickableLabel: 'text-muted mr-1 cursor-pointer',
+  stringValue: 'text-good break-words',
+  numberValue: 'text-accent',
+  booleanValue: 'text-warn',
+  nullValue: 'text-faint',
+  undefinedValue: 'text-faint',
+  otherValue: 'text-ink',
+  punctuation: 'text-faint',
+};
+
+export function ReviewCard({ review, decisions = [] }: { review: Review | null; decisions?: Array<{ id: string; text: string }> }) {
   if (!review) return <EmptyState testId="empty-review">The review appears here after a green verification.</EmptyState>;
   return (
     <article data-testid="review-card" className="flex flex-col gap-3 max-w-[72ch]">
@@ -216,16 +237,25 @@ export function ReviewCard({ review }: { review: Review | null }) {
                 <span className="font-semibold">{f.id}</span>
                 <StatusChip label={f.severity} tone={f.severity === 'blocker' ? 'bad' : f.severity === 'major' ? 'warn' : 'neutral'} />
                 {f.file ? (
-                  <code className="font-mono text-muted">
+                  <Link to={`?tab=diff&file=${encodeURIComponent(f.file)}`} className="font-mono text-muted hover:text-accent" data-testid="finding-file">
                     {f.file}
                     {f.line ? `:${f.line}` : ''}
-                  </code>
+                  </Link>
                 ) : null}
-                {f.contradictsDecision ? <StatusChip label={`contradicts ${f.contradictsDecision}, routed to the queue`} tone="warn" /> : null}
+                {f.contradictsDecision ? (
+                  <Link to="/factory" className="rounded-sm" data-testid="finding-queue">
+                    <StatusChip label={`contradicts ${f.contradictsDecision}, routed to the queue`} tone="warn" />
+                  </Link>
+                ) : null}
                 {review.lens === 'combined' && f.lens ? <StatusChip label={LENS_NAMES[f.lens] ?? f.lens} tone="neutral" /> : null}
                 {f.agreement && f.agreement > 1 ? <span className="text-muted">found by {f.agreement} reviewers</span> : null}
               </div>
               <p className="mt-1">{f.text}</p>
+              {f.contradictsDecision ? (
+                <p className="mt-2 border-l-2 border-warn pl-2 text-muted" data-testid="contradicted-decision">
+                  {f.contradictsDecision}: {decisions.find((d) => d.id === f.contradictsDecision)?.text ?? 'not found in this task\'s decisions'}. The decision stands until you settle it in the queue.
+                </p>
+              ) : null}
             </li>
           ))}
         </ol>

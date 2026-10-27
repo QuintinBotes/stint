@@ -13,3 +13,11 @@ test('The T-0042 verification card shows the passed count and who ran it, and th
   await expect(page.getByTestId('ask-of-next')).toBeVisible();
   await expect(page.getByTestId('ask-of-next')).toContainText('Check the unknown step first');
 });
+
+test('The packet card shows the raw packet as a tree that folds', async ({ page }) => {
+  await page.goto('/t/T-0042?tab=packet');
+  await page.getByRole('tab', { name: 'Raw JSON' }).or(page.getByRole('button', { name: 'Raw JSON' })).first().click();
+  const tree = page.getByTestId('packet-json');
+  await expect(tree).toContainText('askOfNext');
+  await expect(tree.getByRole('button').first()).toBeVisible();
+});

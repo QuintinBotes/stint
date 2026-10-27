@@ -35,6 +35,25 @@ function isLocalHost(config: HostConfig, env: Record<string, string | undefined>
   }
 }
 
+/**
+ * Ollama loads a model on first use, which takes minutes for a 30B model and can push other models out of memory,
+ * so a board card asks only a model already loaded (`/api/ps`). A local server with no `/api/ps` has no load step.
+ */
+async function loadedHere(host: HostConfig, model: string, env: Record<string, string | undefined> = process.env): Promise<boolean> {
+  const url = host.baseURL ?? (host.baseURLEnv ? env[host.baseURLEnv] : undefined);
+  if (!url) return false;
+  try {
+    const res = await fetch(new URL('/api/ps', url), { signal: AbortSignal.timeout(500) });
+    if (res.status === 404) return true;
+    if (!res.ok) return false;
+    const { models = [] } = (await res.json()) as { models?: Array<{ name?: string; model?: string }> };
+    const id = host.models[model] ?? model;
+    return models.some((m) => m.name === id || m.model === id);
+  } catch {
+    return false;
+  }
+}
+
 /** The recent events as plain lines a small model can summarise; payload detail stays short. */
 function eventLines(events: StintEvent[]): string {
   return events
@@ -72,11 +91,12 @@ export function summaryRoutes(app: Hono, ctx: DaemonContext): void {
       return text ? { summary: text, seq, source: 'agent.message' } : { summary: '', seq, source: 'none' };
     };
 
-    const chain = (ctx.ws.config.routes.summary ?? []).filter((entry) => {
-      const hostId = entry.split('/')[0] as string;
+    const chain: string[] = [];
+    for (const entry of ctx.ws.config.routes.summary ?? []) {
+      const [hostId = '', ...rest] = entry.split('/');
       const host = ctx.ws.config.hosts[hostId];
-      return !!host && isLocalHost(host);
-    });
+      if (host && isLocalHost(host) && (await loadedHere(host, rest.join('/')))) chain.push(entry);
+    }
     if (chain.length === 0) return c.json(fallback());
 
     const prompt = `Summarise what has happened on this task in one or two plain sentences for a board card. Say where the work has got to and what happens next, from the events alone. No preamble, nothing the events do not show.

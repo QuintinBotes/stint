@@ -6,8 +6,8 @@ import { makeApp, newTask, post, withFixtureRepo } from './helpers';
 
 type SummaryAnswer = { summary: string; seq: number; source: string; host?: string; model?: string };
 
-/** A local model server in Ollama's shape that counts every ask it gets. */
-function fakeModels(answer = 'The limiter work is under way.') {
+/** A local model server in Ollama's shape that counts every ask it gets; with `loaded` it also says which models are in memory. */
+function fakeModels(answer = 'The limiter work is under way.', loaded: string[] | null = null) {
   const asked: string[] = [];
   const server = Bun.serve({
     port: 0,
@@ -15,6 +15,7 @@ function fakeModels(answer = 'The limiter work is under way.') {
       const url = new URL(req.url);
       asked.push(url.pathname);
       if (url.pathname === '/api/tags') return Response.json({ models: [{ name: 'fake' }] });
+      if (url.pathname === '/api/ps' && loaded) return Response.json({ models: loaded.map((name) => ({ name, model: name })) });
       if (url.pathname === '/api/chat') return Response.json({ message: { content: JSON.stringify({ summary: answer }) }, prompt_eval_count: 40, eval_count: 8 });
       return new Response('not found', { status: 404 });
     },
@@ -117,5 +118,27 @@ test('With no local model pulled, the summary is the last agent message and no m
     });
   } finally {
     empty.stop(true);
+  }
+}, 60_000);
+
+test('A pulled model that is not loaded is never loaded for a card: the summary falls back, and once loaded the model answers', async () => {
+  for (const [loaded, source, chats] of [[[], 'agent.message', 0], [['fake'], 'model', 1]] as const) {
+    const models = fakeModels('Loaded and answering.', [...loaded]);
+    try {
+      await withFixtureRepo(async (repo) => {
+        writeConfig(repo, (config) => {
+          pointOllamaAt(models.url)(config);
+          config.routes.summary = ['ollama/fake'];
+        });
+        const { app, ws } = await makeApp(repo);
+        const t = await ws.createTask(newTask);
+        await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'agent.message', payload: { text: 'Added the limiter constant.' } });
+        const answer = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
+        expect(answer.source).toBe(source);
+        expect(models.chats()).toBe(chats);
+      });
+    } finally {
+      models.stop();
+    }
   }
 }, 60_000);

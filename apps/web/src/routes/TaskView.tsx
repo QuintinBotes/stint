@@ -150,6 +150,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
       live = false;
     };
   }, [id, diffVersion]);
+  const decisions = useMemo(() => events.filter((e) => e.type === 'decision.recorded').map((e) => ({ id: String(e.payload.id ?? ''), text: String(e.payload.text ?? '') })), [events]);
   const graphVersion = useMemo(() => events.filter((e) => GRAPH_EVENTS.has(e.type)).length, [events]);
   const locked = useMemo(() => [...new Set(events.filter((e) => e.type === 'acceptance.locked').flatMap((e) => ((e.payload.files as Array<{ path: string }> | undefined) ?? []).map((f) => f.path)))].sort(), [events]);
   const autopilot = useMemo(() => {
@@ -329,7 +330,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
             {packetNames.length ? <QuizPanel taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} /> : null}
           </div>
         ) : null}
-        {tab === 'review' ? <ReviewCard review={bundle.review} /> : null}
+        {tab === 'review' ? <ReviewCard review={bundle.review} decisions={decisions} /> : null}
         {tab === 'verification' ? <VerificationTab taskId={t.id} acceptance={t.acceptance} locked={locked} live={bundle.runs.some((r) => !r.endedAt)} onChanged={reload} /> : null}
       </div>
     </div>
