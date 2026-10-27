@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
-import { DaemonVerifier, RunRegistry, Worktrees, parseTestSummary } from '../src/index';
+import { DaemonVerifier, RunRegistry, Worktrees, execInGroup, parseTestSummary } from '../src/index';
 import { newTask, withFixtureRepo } from './helpers';
 
 test('verify on the fixture writes verification/r1.json with passed: 27, failed: 0, runBy: daemon; breaking one test yields failed: 1 and exitCode: 1', async () => {
@@ -31,4 +31,15 @@ test('parses Vitest and bun test summaries, and falls back when there is neither
   expect(parseTestSummary('      Tests  1 failed | 26 passed (27)\n')).toEqual({ passed: 26, failed: 1 });
   expect(parseTestSummary(' 66 pass\n 2 fail\n Ran 68 tests')).toEqual({ passed: 66, failed: 2 });
   expect(parseTestSummary('ok')).toBeNull();
+});
+
+test('The test cap counts awake time: a timer that fires after a sleep is set again, and a command that really runs over is still killed', async () => {
+  // a clock that stood still, as performance.now does while a Mac sleeps: the 100 ms timer fires, 0 ms were awake
+  const asleep = await execInGroup('sleep 0.4; echo finished', process.cwd(), { PATH: process.env.PATH ?? '' }, 100, () => 0);
+  expect(asleep).toMatchObject({ exitCode: 0, timedOut: false });
+  expect(asleep.output).toContain('finished');
+
+  const over = await execInGroup('sleep 2; echo finished', process.cwd(), { PATH: process.env.PATH ?? '' }, 150);
+  expect(over.timedOut).toBe(true);
+  expect(over.output).not.toContain('finished');
 });

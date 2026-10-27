@@ -8,6 +8,7 @@ import { recordWorkspace } from './demo/record';
 import { seedDemo } from './demo/seed';
 import { repoRoot } from './repo';
 import { readSSE } from './sse';
+import { keepAwake } from './awake';
 
 const FIXTURE_BUNDLE = join(import.meta.dir, '..', '..', '..', 'demo', 'repo.bundle');
 
@@ -78,6 +79,7 @@ export const demo = defineCommand({
     if (args.live) {
       try {
         const killAfter = Number(args['kill-after']);
+        keepAwake();
         await runLiveDemo({ auto: args.auto, allowOnline: args['allow-online'], killAfterSeconds: Number.isFinite(killAfter) ? killAfter : 6, noEval: args['no-eval'] });
         return;
       } catch (err) {

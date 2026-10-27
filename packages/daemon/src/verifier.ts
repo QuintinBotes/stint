@@ -67,26 +67,37 @@ export function parseCoverage(output: string): number | null {
 
 type Exec = { exitCode: number; output: string; durationMs: number; timedOut: boolean };
 
-/** Runs a shell command in its own process group so a cap kills the whole tree. */
-export function execInGroup(command: string, cwd: string, env: Record<string, string>, capMs: number): Promise<Exec> {
+/**
+ * Runs a shell command in its own process group so a cap kills the whole tree. The cap counts time the machine
+ * was awake: a laptop that sleeps mid-test fires the timer on waking, while `now` (performance.now) stood still,
+ * so the timer is set again for the awake time still owed instead of failing a test that never ran over.
+ */
+export function execInGroup(command: string, cwd: string, env: Record<string, string>, capMs: number, now: () => number = () => performance.now()): Promise<Exec> {
   return new Promise((resolve) => {
-    const t0 = performance.now();
+    const t0 = now();
     const child = spawn('/bin/sh', ['-c', command], { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks: Buffer[] = [];
     child.stdout.on('data', (b: Buffer) => chunks.push(b));
     child.stderr.on('data', (b: Buffer) => chunks.push(b));
     let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      try {
-        if (child.pid) process.kill(-child.pid, 'SIGKILL');
-      } catch {
-        child.kill('SIGKILL');
-      }
-    }, capMs);
+    const arm = (ms: number): ReturnType<typeof setTimeout> =>
+      setTimeout(() => {
+        const awake = now() - t0;
+        if (awake < capMs - 50) {
+          timer = arm(capMs - awake);
+          return;
+        }
+        timedOut = true;
+        try {
+          if (child.pid) process.kill(-child.pid, 'SIGKILL');
+        } catch {
+          child.kill('SIGKILL');
+        }
+      }, ms);
+    let timer = arm(capMs);
     child.on('close', (code) => {
       clearTimeout(timer);
-      resolve({ exitCode: code ?? 1, output: Buffer.concat(chunks).toString('utf8'), durationMs: Math.round(performance.now() - t0), timedOut });
+      resolve({ exitCode: code ?? 1, output: Buffer.concat(chunks).toString('utf8'), durationMs: Math.round(now() - t0), timedOut });
     });
   });
 }

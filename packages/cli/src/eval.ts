@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { SkillProposalSchema, parseSkillFrontmatter } from '@stint-dev/core';
 import { Workspace, readJsonIfExists, slugify, writeJsonAtomic } from '@stint-dev/core/node';
 import { defineCommand } from 'citty';
+import { keepAwake } from './awake';
 import { runGoldenLive, runSkillEvalLive } from './eval/live';
 import {
   type SkillEvalFile,
@@ -78,6 +79,7 @@ async function skillEval(args: { skill: string; tasks?: string; replay: boolean;
     const requested = args.tasks?.split(',').map((s) => s.trim()).filter(Boolean);
     const { defs, heldOut } = resolveSkillEvalTasks({ evidence: info.evidence, tags: info.tags, tasks: await ws.listTasks(), ...(requested?.length ? { requested } : {}) });
     if (!defs.length) throw new Error(`skill ${args.skill} has no evidence tasks in this workspace; name some with --tasks`);
+    keepAwake();
     const rows = await runSkillEvalLive({
       root,
       skillId: args.skill,
@@ -109,6 +111,7 @@ async function goldenEval(args: { k: number; replay: boolean; from?: string; out
   const results = await (async () => {
     if (args.replay) return loadGoldenReplay(args.from ? resolve(args.from) : join(benchDir, 'golden-runs'), args.k, titles);
     const tasks = await loadGoldenTasks(goldenDir);
+    keepAwake();
     for (const t of tasks) titles.set(t.name, t.title);
     const rows = await runGoldenLive({ tasks, k: args.k, implementer: args.implementer, outRunsDir: join(benchDir, 'golden-runs'), log: (line) => process.stderr.write(`${line}\n`) });
     return buildGoldenResults({ rows, k: args.k, replay: false, titles });

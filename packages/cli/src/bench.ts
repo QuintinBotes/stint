@@ -1,5 +1,6 @@
 import { join, resolve } from 'node:path';
 import { defineCommand } from 'citty';
+import { keepAwake } from './awake';
 import { runBenchLive } from './bench/live';
 import { BENCH_MODES, type BenchMode, formatSummary, loadBenchTasks, loadReplayResults, writeBenchOutputs } from './bench/results';
 import { repoRoot } from './repo';
@@ -48,6 +49,7 @@ export const bench = defineCommand({
       const outDir = args.out ? resolve(args.out) : join(root, 'bench');
       const modes = parseModes(args.modes);
       const taskCount = args.tasks !== undefined ? positiveInt(args.tasks, 'tasks') : undefined;
+      if (!args.replay) keepAwake();
       const results = args.replay
         ? await loadReplayResults(args.from ? resolve(args.from) : join(outDir, 'runs'), { ...(taskCount ? { tasks: taskCount } : {}), modes })
         : await runBenchLive({
