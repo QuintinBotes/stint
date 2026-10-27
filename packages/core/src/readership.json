@@ -1,8 +1,8 @@
 {
   "muse-code": {
-    "reads": { "AGENTS.md": "verified", ".agents/skills": "unknown" },
+    "reads": { "AGENTS.md": "verified", ".agents/skills": "verified" },
     "verifiedAgainst": "muse 1.4.13",
-    "how": "2026-10-26: with --trust-workspace and no tool calls, Muse Code answered two facts only the fixture's AGENTS.md states"
+    "how": "2026-10-26: with --trust-workspace and no tool calls, Muse Code answered two facts only the fixture's AGENTS.md states. 2026-10-27: it lists .agents/skills/<id>/SKILL.md as a project skill only when the workspace is trusted, answered a fact only a skill's description states with no tool call, and a fact only its body states after one read_skill call"
   },
   "stint-agent": {
     "reads": { "prompt.md": "verified" },
