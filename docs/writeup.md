@@ -22,6 +22,19 @@ Coding agents are good at a task until the session ends: the context fills up, t
 | Review costs nothing and needs no network | Muse Glimmer 30B reviews on the laptop through Ollama, at $0.00. A finding that would reverse a recorded decision waits for a person instead of being applied. |
 | It learns | A finding that recurs across tasks becomes a skill proposal with evidence. Once a person approves it, the next task runs with it and the reviewer finds nothing on that point. |
 
+## The factory around the hand-off
+
+The packet is the core; the rest of Stint is the loop that makes it safe to leave agents running:
+
+- **Verification an agent cannot fake.** The test files a task names are locked at plan time, and held-out scenarios run in a checkout the agent never sees. The verification tab says "33 passed, tests unchanged".
+- **Hand-offs that get smarter.** Repeated failure escalates to a stronger model or another agent. Best of n keeps the best green candidate. No model reviews its own work, and review runs per lens.
+- **Plans that remember.** The planner reads similar tasks and the decisions on the files it will touch, and splits big tasks into subtasks run in dependency order.
+- **Learning that is measured.** A learned skill starts on probation with an eval with and without it, and is proposed for retirement if it hurts. Golden tasks report pass@1 and pass^3.
+- **After merge and at the boundary.** Reverts, follow-ups and failing CI are linked back to the task. Keys stay in the daemon, egress is default-deny, every change gets a risk tier, and an auto-approve lane must earn its place on a shadow record.
+- **Any harness.** Muse Code and Stint's agent by default. Claude Code, Codex and any Agent Client Protocol agent are off-by-default config entries, all writing the same packet. A scoreboard can route by results, and OpenTelemetry traces go to any eval tool.
+
+The UI is tested end to end in a real browser against a live daemon, and every main screen passes an automated WCAG 2.2 AA check.
+
 ## Real and replayed
 
 `stint demo` replays a recording through the real daemon (real event log, real hash chain, real git commits and merge), so anyone can click through it without keys. The recording says on screen whether it was captured from a live run (and when) or hand-written. `stint demo --live` runs the same script for real.
@@ -49,4 +62,4 @@ See `docs/timeline.md`: part of the scaffold was committed on 26 October before 
 
 ## Roadmap
 
-Autopilot to the approval gate with hands-off recovery, many tasks in parallel, fine-tuning Muse Spark Open on approved packets and skills (Fireworks offers it as a base model), and more agents behind the same four-method adapter contract.
+Fine-tuning Muse Spark Open on approved packets and skills (Fireworks offers it as a base model), running the factory across machines from the same event log, and container images per agent for the docker sandbox.
