@@ -25,6 +25,23 @@ Four things limit the damage:
 - **The next agent's checks still run.** The tests-first lock and the daemon's tests catch a wrong continuation before it can be merged.
 - **The person merges, not an agent.**
 
+**Can an agent fake the tests?**
+Three things stop it:
+- **The daemon runs the tests.** It never takes the agent's word for whether they passed.
+- **The test files the plan names are locked** at the task's start commit. A run that weakens them turns the verification red, unless a person recorded a `tests:` decision saying why they had to change.
+- **Held-out scenarios run in a checkout the agent never sees.** Only their counts come back.
+
+The card says "33 passed, tests unchanged: test/webhooks.test.ts" only when a lock held.
+
+**Why trust a skill the factory learned?**
+You don't have to:
+- **A person approves every skill.** Nothing is written without that approval.
+- **It is measured.** The eval runs the task with the skill and without. Live on 27 October, both reviews came back clean, and the run with the skill cost $0.14 against $0.17.
+- **It is watched.** A new skill starts on probation and becomes active after it helps on three tasks. One that hurts more than it helps is proposed for retirement.
+
+**Will it merge without me?**
+Not by default. The auto-approve lane is off, and only config turns it on, for the risk tiers named there (low by default). Even then it stays closed until it has a shadow record: at least three decisions over 14 days (configurable) where the person agreed with what the policy would have done. One disagreement, or one revert of a change it would have approved, inside that window closes it again.
+
 **What did you build during the event?**
 All of it, from 26 October; see `docs/timeline.md` and `PROGRESS.md`. The specs were the plan, written before the event. Parts of the code were written by Muse Code on Muse Wonder Full from a brief, and those commits carry a `Model:` trailer.
 
