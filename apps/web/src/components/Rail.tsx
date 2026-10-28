@@ -205,6 +205,22 @@ export function describe(e: StintEvent): ReactNode {
       );
     case 'limits.changed':
       return <>Limits changed by {str(p.by) || 'a person'}</>;
+    case 'sharpen.asked': {
+      const asked = (p.questions as unknown[] | undefined)?.length ?? 0;
+      return (
+        <>
+          Sharpen round {str(p.round)}: {asked} question{asked === 1 ? '' : 's'} for you, {(p.assumed as unknown[] | undefined)?.length ?? 0} assumed
+        </>
+      );
+    }
+    case 'sharpen.answered':
+      return (
+        <>
+          {str(p.question || p.assumption)} answered by {str(p.by) || 'you'}, recorded as {str(p.decision)}
+        </>
+      );
+    case 'proofs.set':
+      return <>Proofs set for {(p.proofs as unknown[] | undefined)?.length ?? 0} criteria</>;
     case 'bestofn.started':
       return <>Building {str(p.n)} candidates at once: {(p.candidates as string[] | undefined)?.join(', ')}</>;
     case 'bestofn.picked':

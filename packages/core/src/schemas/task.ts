@@ -58,6 +58,11 @@ export const TaskLimitsSchema = z.strictObject({
   minutes: z.int().min(1).max(1440).nullable().optional(),
 });
 export type TaskLimits = z.infer<typeof TaskLimitsSchema>;
+/** How a criterion is proven: a test that must fail before and pass after, a held-out scenario, a check, or a person (R-064). */
+export const ProofKindSchema = z.enum(['test', 'scenario', 'check', 'human']);
+/** One criterion's proof; `criterion` counts from 1, the first line of `acceptance`. */
+export const TaskProofSchema = z.strictObject({ criterion: z.int().min(1).max(12), kind: ProofKindSchema, ref: z.string().min(1).max(200) });
+export type TaskProof = z.infer<typeof TaskProofSchema>;
 
 export const TaskSchema = z.strictObject({
   version: z.literal('stint.task/1'),
@@ -99,6 +104,8 @@ export const TaskSchema = z.strictObject({
   source: z.strictObject({ kind: z.enum(['manual', 'github', 'linear', 'gardening']), ref: z.string().max(200), url: z.url().optional() }).nullable().optional(),
   /** Builds, hand-offs, review rounds, spend and agent time autopilot may use before it stops and asks (R-062). */
   limits: TaskLimitsSchema.optional(),
+  /** The accepted proof of each acceptance criterion (R-064). */
+  proofs: z.array(TaskProofSchema).max(12).optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

@@ -99,6 +99,8 @@ export const ConfigSchema = z.strictObject({
     /** The packet quiz: who writes facts from the full record, and who answers them from the packet alone. */
     quiz: z.array(HostModelRef).optional(),
     recall: z.array(HostModelRef).optional(),
+    /** Who asks the questions before work starts; unset, the planner chain (R-064). */
+    sharpen: z.array(HostModelRef).optional(),
   }),
   /** USD per million tokens, keyed by `host/model`. */
   prices: z.record(z.string(), PriceSchema),
@@ -200,6 +202,8 @@ export const ConfigSchema = z.strictObject({
       targets: z.record(z.string(), z.strictObject({ min: z.number().optional(), max: z.number().optional() })).optional(),
     })
     .optional(),
+  /** Questions before work starts: how many a round asks, and whether autopilot asks them before it plans (R-064). */
+  sharpen: z.strictObject({ beforeAutopilot: z.boolean().default(false), maxQuestions: z.int().min(1).max(10).default(5) }).optional(),
   allowDirectEvents: z.boolean().optional(),
   branchRetentionDays: z.int().min(0).optional(),
 }).superRefine((cfg, ctx) => {
@@ -383,5 +387,6 @@ export const DEFAULT_CONFIG: Config = {
     },
   },
   metrics: { outcomeWindowDays: 7 },
+  sharpen: { beforeAutopilot: false, maxQuestions: 5 },
   branchRetentionDays: 7,
 };

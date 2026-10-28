@@ -40,6 +40,7 @@ import { ptyRoutes } from './routes/pty';
 import { commentRoutes } from './routes/comments';
 import { limitRoutes } from './routes/limits';
 import { summaryRoutes } from './routes/summary';
+import { sharpenRoutes } from './routes/sharpen';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
@@ -424,4 +425,5 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   metricRoutes(app, ctx);
   commentRoutes(app, ctx);
   limitRoutes(app, ctx);
+  sharpenRoutes(app, ctx);
 }

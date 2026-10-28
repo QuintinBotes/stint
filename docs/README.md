@@ -6,6 +6,7 @@ Every guide in this folder, one line each, grouped by what you came to do. New t
 
 - [`setup.md`](setup.md): the full setup guide: platforms, install, where keys load from, other agents, the offline review, updating and uninstalling.
 - [`agents.md`](agents.md): turning agents and models on, hosts and keys, and running Claude Code, Codex or an ACP agent on a Meta model.
+- [`sharpen.md`](sharpen.md): sharpening a task before it starts: the questions Stint asks and drops, what is always asked, answers as decisions, proofs, the CLI and the config.
 - [`skills.md`](skills.md): custom skills: write, import, upload, export, the pattern scan, review and probation, and the requireReview gate.
 - [`mcp.md`](mcp.md): serving Stint's tools over the Model Context Protocol with `stint mcp`.
 - [`otel.md`](otel.md): sending runs to an OpenTelemetry collector or an eval tool.

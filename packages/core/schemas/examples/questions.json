@@ -1,0 +1,54 @@
+{
+  "version": "stint.questions/1",
+  "questions": [
+    {
+      "text": "What should a tenant over the limit get back?",
+      "changes": "implementation",
+      "evidence": "The goal names 429 and Retry-After, but test/webhooks.test.ts expects 503 for every refused webhook.",
+      "options": [
+        { "label": "429 with Retry-After", "consequence": "Senders back off on their own; the 503 test changes for this case." },
+        { "label": "503 as today", "consequence": "No test changes, but senders retry at once and the limit does not hold." }
+      ],
+      "recommendation": { "option": "429 with Retry-After", "why": "It is what the goal says, and the standard answer for a rate limit." },
+      "safeDefault": { "exists": true, "option": "429 with Retry-After", "why": "A status code is cheap to change later." },
+      "blocks": [1],
+      "material": false
+    },
+    {
+      "text": "Do webhooks already queued before the limit count towards it?",
+      "changes": "scope",
+      "evidence": "src/lib/queue.ts retries failed webhooks, and the task does not say whether a retry is a new request.",
+      "options": [
+        { "label": "Retries count", "consequence": "A tenant with many failures hits the limit sooner." },
+        { "label": "Retries do not count", "consequence": "The limiter needs to know which requests are retries." }
+      ],
+      "recommendation": { "option": "Retries do not count", "why": "A retry is the same webhook, and counting it punishes a tenant for an outage." },
+      "safeDefault": { "exists": false },
+      "blocks": [1, 2],
+      "material": false
+    },
+    {
+      "text": "Where does the per-tenant limit come from when a tenant has none set?",
+      "changes": "proof",
+      "evidence": "src/config.ts has no rate limit key, and criterion 3 says the limit comes from config.",
+      "options": [
+        { "label": "One default in config", "consequence": "Every tenant without its own value gets the same limit." },
+        { "label": "No limit", "consequence": "Tenants without a value are never limited." },
+        { "label": "Refuse to start", "consequence": "A missing value stops the service at boot." }
+      ],
+      "recommendation": { "option": "One default in config", "why": "It keeps every tenant limited and is one value to change." },
+      "safeDefault": { "exists": true, "option": "One default in config", "why": "A default is easy to raise or remove." },
+      "blocks": [3],
+      "material": false
+    }
+  ],
+  "assumed": [
+    { "text": "The window is a sliding window of 60 seconds.", "why": "The goal says a window and names no shape; 60 seconds is easy to change in config." },
+    { "text": "Retry-After is given in whole seconds.", "why": "Seconds are the common form, and every client parses them." }
+  ],
+  "proofs": [
+    { "criterion": 1, "kind": "test", "ref": "429 with Retry-After", "why": "A test can send one webhook over the limit and read the status and header." },
+    { "criterion": 2, "kind": "test", "ref": "other tenants are not limited", "why": "The same test can send for a second tenant." },
+    { "criterion": 3, "kind": "check", "ref": "typecheck", "why": "The limit is read through loadConfig(), so a missing key fails the typecheck." }
+  ]
+}

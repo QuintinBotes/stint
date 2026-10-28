@@ -16,6 +16,7 @@ import { PermissionBanner } from '../components/Permissions';
 import { QuizPanel } from '../components/Quiz';
 import { Rail } from '../components/Rail';
 import { Scrubber, clockLabel, taskClock } from '../components/Scrubber';
+import { SharpenPanel } from '../components/SharpenPanel';
 import { Terminal } from '../components/Terminal';
 import { VerificationTab } from '../components/Verification';
 import { WhoContinues } from '../components/WhoContinues';
@@ -445,6 +446,7 @@ export function TaskView() {
       <WhoContinues bundle={bundle} onChoose={() => setTab('packet')} />
       <Queue decisionsOf={t.id} level={2} />
       <PermissionBanner permissions={pendingPermissions.filter((p) => p.run === (bundle.runs.find((r) => !r.endedAt)?.run ?? p.run))} />
+      <SharpenPanel bundle={bundle} events={events} />
       <div className="flex items-end gap-3 border-b border-rule">
         {/* one row on a phone: it scrolls sideways rather than wrapping onto two */}
         <div role="tablist" aria-label="Work area" className="flex min-w-0 flex-1 overflow-x-auto" onKeyDown={tabKeys}>

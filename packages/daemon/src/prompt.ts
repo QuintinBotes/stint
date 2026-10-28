@@ -14,6 +14,8 @@ export type PromptInput = {
   skills: MountedSkill[];
   diff: NumstatEntry[];
   ask?: string | null;
+  /** What sharpening settled and the accepted proofs, after the first build's ask (R-064). */
+  settled?: string;
 };
 
 const bullets = (items: string[], none: string) => (items.length ? items.map((i) => `- ${i}`).join('\n') : none);
@@ -69,6 +71,7 @@ export function renderPrompt(i: PromptInput): string {
           ? 'Continue from the packet: start with its ask of next.'
           : 'Implement the goal. Follow the plan where there is one.'),
     '',
+    ...(i.settled ? [i.settled, ''] : []),
   ];
   return [...stable, ...changing].join('\n');
 }

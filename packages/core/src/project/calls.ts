@@ -20,6 +20,7 @@ export function callsFromEvents(task: string, events: StintEvent[]): Spend[] {
     if (e.type === 'skill.proposed') call(e, 'learn', e.payload, `${task}/learn`);
     if (e.type === 'handoff.quizzed') for (const side of ['writer', 'answerer']) call(e, 'quiz', e.payload[side] as Record<string, unknown> | undefined, `${task}/quiz`);
     if (e.type === 'bestofn.picked') call(e, 'pick', e.payload, `${task}/pick`);
+    if (e.type === 'sharpen.asked') call(e, 'sharpen', e.payload, `${task}/sharpen`);
     if (e.type === 'cost.recorded') call(e, String(e.payload.for), e.payload, `${task}/${String(e.payload.for)}`);
   }
   return out;

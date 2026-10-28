@@ -342,7 +342,8 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
             .createTask({ title: String(f.get('title')), goal: String(f.get('goal')), acceptance, ...(f.get('test') ? { testCommand: String(f.get('test')) } : {}), ...(Object.keys(limits).length ? { limits } : {}) })
             .then((t) => {
               onClose();
-              navigate(`/t/${t.id}`);
+              // the task view starts the round itself, so its questions arrive where they are answered (R-064)
+              navigate(`/t/${t.id}${f.get('sharpen') ? '?sharpen=1' : ''}`);
             })
             .catch((err: unknown) => setError(`The task was not created: ${err instanceof Error ? err.message : String(err)}`));
         }}
@@ -398,6 +399,15 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
             <Explain word="limit" />
           </div>
         </details>
+        <div className="flex flex-col gap-1">
+          <label className="flex items-center gap-2.5 min-h-6 font-medium">
+            <input type="checkbox" name="sharpen" aria-describedby="sharpen-hint" />
+            Sharpen it first
+          </label>
+          <span id="sharpen-hint" className="text-small text-ink-2">
+            Before any agent starts, Stint asks the few questions whose answers change what gets built, and recommends an answer to each.
+          </span>
+        </div>
         {error ? (
           <p role="alert" className="text-red">
             {error}
