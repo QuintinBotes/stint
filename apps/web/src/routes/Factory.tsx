@@ -25,6 +25,15 @@ const NUM_HEAD = cx(rev.th, 'text-right');
 const ROW_HEAD = 'px-2.5 py-1.5 border border-rule-strong align-top font-medium text-ink-2 bg-ground';
 /** A wide table scrolls inside its panel on a narrow screen; the padding keeps the block's outer line inside the scroller. */
 const SCROLLER = 'overflow-x-auto p-px';
+
+/** A wide table's frame: on a narrow screen it scrolls sideways, and a keyboard can focus it to scroll. */
+function Scroller({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className={SCROLLER} role="region" aria-label={label} tabIndex={0}>
+      {children}
+    </div>
+  );
+}
 /** One bar row, as the design sets the loops and the spend: label, track, figure. */
 const BAR_ROW = 'grid grid-cols-[96px_minmax(0,1fr)_56px] sm:grid-cols-[150px_minmax(0,1fr)_56px] items-center gap-3 min-h-[30px] text-small';
 const TRACK = 'flex h-3.5 overflow-hidden rounded-[2px] bg-panel-2';
@@ -71,7 +80,7 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
           <span key={m.key} style={{ width: `${(m.total / Math.max(1, all)) * 100}%`, background: markColor[agentOf('openai-compatible', m.host, m.model).mark] }} title={`${modelName(m.model)}: ${tokens(m.total)} tokens`} />
         ))}
       </div>
-      <div className={SCROLLER}>
+      <Scroller label="Models at work table">
         <table className={cx(rev.table, 'min-w-[640px]')}>
           <thead>
             <tr>
@@ -104,7 +113,7 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </Scroller>
     </div>
   );
 }
@@ -126,7 +135,7 @@ function Benchmark({ data }: { data: BenchData }) {
   const colour = (base: boolean) => (base ? 'var(--rule-strong)' : 'var(--ink)');
   return (
     <div data-testid="bench" className="flex flex-col gap-3">
-      <div className={SCROLLER}>
+      <Scroller label="Benchmark table">
         <table className={cx(rev.table, 'table-fixed min-w-[640px]')}>
           <thead>
             <tr>
@@ -168,7 +177,7 @@ function Benchmark({ data }: { data: BenchData }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </Scroller>
       <p className={PROSE}>
         {data.synthetic ? 'Synthetic rows, ' : data.replay ? 'Rebuilt from recorded runs, ' : `Live on ${new Date(data.startedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}, `}
         {tasks} tasks from commit <span className="font-mono">{data.commit.slice(0, 7)}</span>: {ADAPTER_NAMES[data.implementer] ?? data.implementer} is stopped at the same step each time, then the Stint agent on {modelName(data.models[data.continuer] ?? null)} continues and the daemon runs the tests. Means per run. One run per task, so read it as a first measurement.
@@ -197,7 +206,7 @@ const STAGES: Array<[string, string]> = [
   ['done', 'Done'],
 ];
 
-/** The stage funnel: amber where a task needs you, green where it was verified and merged, ink for the rest. */
+/** The stage funnel: amber where a task needs you, full ink where it merged, softer ink for the rest. */
 function Loops({ counts }: { counts: Record<string, number> }) {
   const max = Math.max(1, ...Object.values(counts));
   return (
@@ -206,7 +215,7 @@ function Loops({ counts }: { counts: Record<string, number> }) {
         <li key={k} className={BAR_ROW}>
           <span className="min-w-0 truncate">{name}</span>
           <span className={TRACK}>
-            <span className="block h-full" style={{ width: `${((counts[k] ?? 0) / max) * 100}%`, background: k === 'awaiting_approval' ? 'var(--amber)' : k === 'done' ? 'var(--green)' : 'var(--ink-2)' }} />
+            <span className="block h-full" style={{ width: `${((counts[k] ?? 0) / max) * 100}%`, background: k === 'awaiting_approval' ? 'var(--amber)' : k === 'done' ? 'var(--ink)' : 'var(--ink-2)' }} />
           </span>
           <span className="tabular text-right">{counts[k] ?? 0}</span>
         </li>
@@ -360,7 +369,7 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
                 {p.skill}
               </Link>
             </div>
-            <div className={SCROLLER}>
+            <Scroller label={`${p.skill}, before and after`}>
               <table className={cx(rev.table, 'table-fixed')}>
                 <colgroup>
                   <col className="w-[112px] sm:w-[132px]" />
@@ -393,7 +402,7 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Scroller>
             <p className={PROSE}>One learned rule apart: the first task's review found the problem, and the next task ran with the rule mounted.</p>
           </div>
         );
@@ -410,7 +419,7 @@ function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
   if (rows.length === 0) return <EmptyState>Outcomes appear here once a change has merged and the daemon has seen what happened to it.</EmptyState>;
   return (
     <div data-testid="outcomes" className="flex flex-col gap-3">
-      <div className={SCROLLER}>
+      <Scroller label="Outcomes table">
         <table className={cx(rev.table, 'min-w-[480px]')}>
           <thead>
             <tr>
@@ -439,7 +448,7 @@ function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </Scroller>
       <p className={PROSE}>A task built by two agents counts for both. The daemon records a revert, a follow-up within 7 days, a failed CI run and a reported incident on the task that merged.</p>
     </div>
   );
@@ -472,7 +481,7 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
         <EmptyState>Each agent's record appears here once the daemon has verified one of its runs.</EmptyState>
       ) : (
         // narrower than the table, a phone says it scrolls; a keyboard can scroll it
-        <div className={SCROLLER} role="region" aria-label="Agents table, scrolls sideways on a narrow screen" tabIndex={0}>
+        <Scroller label="Agents table, scrolls sideways on a narrow screen">
           <p className={cx(NOTE, 'sm:hidden mb-2')}>The table scrolls sideways for every column.</p>
           <table className={cx(rev.table, 'min-w-[640px]')}>
             <thead>
@@ -522,7 +531,7 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
               </tr>
             </tfoot>
           </table>
-        </div>
+        </Scroller>
       )}
     </div>
   );
@@ -585,7 +594,7 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
       {state.records.length === 0 ? (
         <EmptyState>Each approve or reject you make is recorded beside what the policy would have done.</EmptyState>
       ) : (
-        <div className={SCROLLER}>
+        <Scroller label="Decisions table">
           <table className={cx(rev.table, 'min-w-[520px]')}>
             <thead>
               <tr>
@@ -612,7 +621,7 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
               ))}
             </tbody>
           </table>
-        </div>
+        </Scroller>
       )}
       <ul className={cx(NOTE, 'flex flex-col gap-1')}>
         {state.lanes.map((l) => (

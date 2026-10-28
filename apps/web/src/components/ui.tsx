@@ -19,14 +19,14 @@ export function Who({ agent, live = false, className }: { agent: Agent; live?: b
 
 export type ChipTone = 'neutral' | 'active' | 'good' | 'warn' | 'bad' | 'merged' | 'learned' | 'recommend';
 
-/** A chip's wash and ink: amber needs you, green verified or merged, red stopped, violet learned; a recommendation is an ink outline, not a state. */
+/** A chip's wash and ink: amber needs you, green verified, red stopped, violet learned; merged and approved are plain ink, and a recommendation is an ink outline, not a state. */
 const CHIP: Record<ChipTone, string> = {
   neutral: 'bg-panel-2 text-ink-2',
   active: 'bg-panel-2 text-ink',
   good: 'bg-green-wash text-green',
   warn: 'bg-amber-wash text-amber',
   bad: 'bg-red-wash text-red',
-  merged: 'bg-green-wash text-green',
+  merged: 'bg-panel-2 text-ink',
   learned: 'bg-violet-wash text-violet',
   recommend: 'bg-transparent text-ink shadow-[inset_0_0_0_1px_var(--ink)]',
 };
@@ -38,7 +38,7 @@ const STATUS: Record<string, { label: string; tone: ChipTone }> = {
   reviewing: { label: 'reviewing', tone: 'active' },
   in_review: { label: 'in review', tone: 'active' },
   awaiting_approval: { label: 'needs you', tone: 'warn' },
-  approved: { label: 'approved', tone: 'good' },
+  approved: { label: 'approved', tone: 'merged' },
   rejected: { label: 'rejected', tone: 'bad' },
   done: { label: 'done', tone: 'merged' },
   abandoned: { label: 'abandoned', tone: 'neutral' },

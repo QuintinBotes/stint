@@ -391,7 +391,7 @@ export function PlanCard({ plan, handoff, status }: { plan: Plan | null; handoff
                 <p>{s.text}</p>
                 <p className="font-mono text-small text-ink-2 break-words">{[...s.files, ...(s.test ? [s.test] : [])].join(', ')}</p>
               </div>
-              <StatusChip label={stepState} tone={stepState === 'done' ? 'good' : 'neutral'} />
+              <StatusChip label={stepState} tone={stepState === 'done' ? 'active' : 'neutral'} />
             </li>
           );
         })}
