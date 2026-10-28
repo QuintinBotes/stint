@@ -467,9 +467,11 @@ export function Rail({
   const v = useVirtualizer({
     count: virtual ? list.length : 0,
     getScrollElement: scroller,
-    estimateSize: (i) => (list[i]?.kind === 'head' ? 58 : list[i]?.kind === 'joint' ? 48 : list[i]?.kind === 'checkpoint' ? 28 : 26),
+    // measured on the replay in the drawer: a wrong guess makes every newly drawn row correct the layout while scrolling
+    estimateSize: (i) => (list[i]?.kind === 'head' ? 90 : list[i]?.kind === 'joint' ? 72 : list[i]?.kind === 'checkpoint' ? 38 : 50),
     getItemKey: (i) => list[i]?.key ?? i,
-    overscan: 12,
+    // at 12, each scroll step drew enough rows to miss the frame budget on a slow CI runner (p95 50 ms, 33 ms at 6)
+    overscan: 6,
     scrollMargin: offsetIn(root.current, scroller()),
   });
   // While the person scrolls up, rows measured above the fold do not move scrollTop: the window's corrections fought
