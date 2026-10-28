@@ -1,5 +1,5 @@
 // Typed client for the daemon. The daemon is the only writer of .stint/; the UI only reads and asks.
-import { type Cost, EVENT_TYPES, type Handoff, type Plan, type Review, type SkillFinding, type SkillSource, type StintEvent, type Task } from '@stint-dev/core';
+import { type Cost, EVENT_TYPES, type Handoff, type Plan, type Review, type SharpenState, type SkillFinding, type SkillSource, type StintEvent, type Task, type TaskProof } from '@stint-dev/core';
 
 export type CapabilityLevel = { level: 'supported' | 'partial' | 'unsupported' | 'unknown'; reason?: string; note?: string };
 export type AdapterHealth = {
@@ -300,6 +300,11 @@ export const api = {
   restoreCheckpoint: (id: string, run: string) => post<{ path: string; commit: string }>(`/api/tasks/${id}/runs/${run}/restore`, { what: 'code' }),
   autopilotAll: (on: boolean) => post<{ on: boolean; tasks: string[]; running: string[]; queued: string[] }>('/api/autopilot', { on }),
   autopilot: (id: string, on: boolean) => post<{ on: boolean; running: string[]; queued: string[] }>(`/api/tasks/${id}/autopilot`, { on }),
+  /** Sharpen (R-064): start a round, answer a question or change an assumption, take the recommendations, accept proofs. */
+  sharpen: (id: string) => post<SharpenState>(`/api/tasks/${id}/sharpen`),
+  answerSharpen: (id: string, answer: { question?: string; assumption?: string; option?: string; text?: string }) => post<{ decision: string }>(`/api/tasks/${id}/sharpen/answer`, answer),
+  takeRecommendations: (id: string) => post<{ decisions: string[] }>(`/api/tasks/${id}/sharpen/recommended`),
+  setProofs: (id: string, proofs: TaskProof[]) => post<{ proofs: TaskProof[] }>(`/api/tasks/${id}/proofs`, { proofs }),
 };
 
 export type Unsubscribe = () => void;

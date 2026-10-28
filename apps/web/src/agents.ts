@@ -97,6 +97,7 @@ export const ROLE_NAMES: Record<string, string> = {
   pick: 'picks a candidate',
   summary: 'writes card lines',
   triage: 'sorts issues',
+  sharpen: 'sharpens tasks',
 };
 
 /** Replayed events carry their place in the story; show that instead of the moment they were appended. */
