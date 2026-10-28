@@ -377,6 +377,9 @@ export async function pendingContradictions(ctx: DaemonContext): Promise<Pending
   return out;
 }
 
+// a merge commit's diff never changes, so git is asked for it once per commit
+const mergeChanges = new Map<string, string>();
+
 /**
  * Everything waiting for a person (R-052, SHOULD): contradictions first, then the skill proposals
  * no one has settled and the file-rename merges the projection detects, each until a person
@@ -412,10 +415,16 @@ export async function pendingQueue(ctx: DaemonContext): Promise<PendingQueueItem
     for (const e of events) {
       if (e.type !== 'merge.completed' || typeof e.payload.commit !== 'string') continue;
       const commit = e.payload.commit;
-      const r = await git(ctx.ws.root, ['diff', '-M', '--name-status', `${commit}^1`, commit]).catch(() => null);
-      if (!r || r.code !== 0) continue;
+      const key = `${ctx.ws.root}\0${commit}`;
+      let changes = mergeChanges.get(key);
+      if (changes === undefined) {
+        const r = await git(ctx.ws.root, ['diff', '-M', '--name-status', `${commit}^1`, commit]).catch(() => null);
+        if (!r || r.code !== 0) continue;
+        changes = r.stdout;
+        mergeChanges.set(key, changes);
+      }
       let n = 0;
-      for (const line of r.stdout.split('\n')) {
+      for (const line of changes.split('\n')) {
         const m = /^R[0-9]*\t(.+)\t(.+)$/.exec(line);
         if (!m) continue;
         n += 1;
