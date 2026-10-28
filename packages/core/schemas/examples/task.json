@@ -22,6 +22,8 @@
     { "criterion": 1, "kind": "test", "ref": "429 with Retry-After" },
     { "criterion": 3, "kind": "human", "ref": "The limit and window are in .env.example" }
   ],
+  "goalId": "G-0001",
+  "goalCriteria": [1, 2],
   "createdAt": "2026-11-02T14:36:00Z",
   "updatedAt": "2026-11-02T14:38:12Z"
 }

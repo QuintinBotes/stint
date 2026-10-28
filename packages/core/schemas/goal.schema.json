@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/goal/1",
+  "title": "stint.goal/1",
+  "description": "An outcome bigger than one task, with the criteria that prove it and limits for the whole goal. Stored at .stint/goals/G-0001.json and written only by the daemon; its events go to the workspace log with payload.goal. The planner splits it into tasks, and its result rolls up from their outcome records.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "id", "title", "outcome", "criteria", "nonGoals", "status", "tasks", "decisions", "createdAt", "updatedAt"],
+  "properties": {
+    "version": { "const": "stint.goal/1" },
+    "id": { "type": "string", "pattern": "^G-[0-9]{4,}$" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "outcome": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "What is true once the goal is met, in a paragraph." },
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "description": "The success criteria, counting from 1.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "proof": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "description": "How the criterion is proven, accepted after sharpening.",
+            "properties": {
+              "kind": { "type": "string", "enum": ["test", "scenario", "check", "human"] },
+              "ref": { "type": "string", "minLength": 1, "maxLength": 200 }
+            }
+          }
+        }
+      }
+    },
+    "nonGoals": { "type": "array", "maxItems": 8, "description": "What the goal leaves out.", "items": { "type": "string", "minLength": 1, "maxLength": 300 } },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Limits for the whole goal, the same shape as a task's. Spend and builds are counted across its tasks; null means no limit.",
+      "properties": {
+        "builds": { "type": ["integer", "null"], "minimum": 1, "maximum": 50 },
+        "handoffs": { "type": ["integer", "null"], "minimum": 0, "maximum": 20 },
+        "reviewRounds": { "type": ["integer", "null"], "minimum": 0, "maximum": 10 },
+        "usd": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1000 },
+        "minutes": { "type": ["integer", "null"], "minimum": 1, "maximum": 1440 }
+      }
+    },
+    "status": { "type": "string", "enum": ["draft", "ready", "running", "done", "abandoned"] },
+    "tasks": { "type": "array", "maxItems": 50, "description": "The tasks the goal was split into.", "items": { "type": "string", "pattern": "^T-[0-9]{4,}$" } },
+    "decisions": {
+      "type": "array",
+      "maxItems": 200,
+      "description": "What sharpening the goal settled; each task made from the goal starts its ledger with them.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "by", "at"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^D[0-9]+$" },
+          "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "by": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}

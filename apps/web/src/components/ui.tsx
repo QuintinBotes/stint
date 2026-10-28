@@ -80,6 +80,8 @@ const STATUS: Record<string, { label: string; tone: ChipTone }> = {
   done: { label: 'done', tone: 'merged' },
   abandoned: { label: 'abandoned', tone: 'neutral' },
   running: { label: 'running', tone: 'active' },
+  draft: { label: 'draft', tone: 'neutral' },
+  ready: { label: 'ready', tone: 'active' },
   completed: { label: 'finished', tone: 'neutral' },
   killed: { label: 'killed', tone: 'bad' },
   capped: { label: 'capped', tone: 'warn' },

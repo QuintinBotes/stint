@@ -1,9 +1,10 @@
-import { TaskProofSchema, sharpenState } from '@stint-dev/core';
-import type { Hono } from 'hono';
+import { GOAL_ID, TaskProofSchema } from '@stint-dev/core';
+import type { Context, Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
 import { DaemonError } from '../errors';
-import { answerSharpen, sharpen, takeRecommendations } from '../sharpen';
+import { settleGoal } from '../goals';
+import { answerSharpen, setProofs, sharpen, sharpenStateOf, takeRecommendations } from '../sharpen';
 
 const AnswerBody = z
   .strictObject({
@@ -17,34 +18,40 @@ const AnswerBody = z
 
 const ProofsBody = z.strictObject({ proofs: z.array(TaskProofSchema).max(12) });
 
-/** Sharpen a task before work starts (R-064). Every POST needs the daemon token, like every change. */
+/**
+ * Sharpen a task or a goal before work starts (R-064): the same routes under `/api/tasks/:id` and `/api/goals/:id`.
+ * Every POST needs the daemon token, like every change. A goal that becomes ready says so after each change.
+ */
 export function sharpenRoutes(app: Hono, ctx: DaemonContext): void {
-  app.post('/api/tasks/:id/sharpen', async (c) => c.json(await sharpen(ctx, c.req.param('id'))));
+  for (const base of ['tasks', 'goals'] as const) {
+    const at = `/api/${base}/:id`;
+    // a goal id under /api/tasks, or a task id under /api/goals, names nothing there
+    const own = (c: Context) => {
+      const id = c.req.param('id') as string;
+      if (GOAL_ID.test(id) !== (base === 'goals')) throw new DaemonError('not_found', `no ${base === 'goals' ? 'goal' : 'task'} ${id}`);
+      return id;
+    };
+    const settled = async <T>(id: string, value: T) => {
+      if (base === 'goals') await settleGoal(ctx, id);
+      return value;
+    };
 
-  app.get('/api/tasks/:id/sharpen', async (c) => {
-    const id = c.req.param('id');
-    const task = await ctx.ws.readTask(id);
-    return c.json(sharpenState(await ctx.ws.events(id).read(), task));
-  });
-
-  app.post('/api/tasks/:id/sharpen/answer', async (c) => {
-    const body = AnswerBody.parse(await c.req.json());
-    return c.json({ decision: await answerSharpen(ctx, c.req.param('id'), body, 'you') });
-  });
-
-  app.post('/api/tasks/:id/sharpen/recommended', async (c) => c.json({ decisions: await takeRecommendations(ctx, c.req.param('id'), 'you') }));
-
-  // the proof each criterion is judged by; the outcome record reads them from task.json
-  app.post('/api/tasks/:id/proofs', async (c) => {
-    const id = c.req.param('id');
-    const { proofs } = ProofsBody.parse(await c.req.json());
-    const task = await ctx.ws.readTask(id);
-    const outside = proofs.find((p) => p.criterion > task.acceptance.length);
-    if (outside) throw new DaemonError('invalid', `${id} has no criterion ${outside.criterion}`, `it has ${task.acceptance.length}`);
-    if (new Set(proofs.map((p) => p.criterion)).size !== proofs.length) throw new DaemonError('invalid', 'one proof per criterion');
-    const sorted = [...proofs].sort((a, b) => a.criterion - b.criterion);
-    await ctx.ws.writeTask(id, { proofs: sorted });
-    await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'proofs.set', payload: { proofs: sorted, from: task.proofs ?? [] } });
-    return c.json({ proofs: sorted });
-  });
+    app.post(`${at}/sharpen`, async (c) => c.json(await sharpen(ctx, own(c))));
+    app.get(`${at}/sharpen`, async (c) => c.json(await sharpenStateOf(ctx, own(c))));
+    app.post(`${at}/sharpen/answer`, async (c) => {
+      const id = own(c);
+      const body = AnswerBody.parse(await c.req.json());
+      return c.json({ decision: await settled(id, await answerSharpen(ctx, id, body, 'you')) });
+    });
+    app.post(`${at}/sharpen/recommended`, async (c) => {
+      const id = own(c);
+      return c.json({ decisions: await settled(id, await takeRecommendations(ctx, id, 'you')) });
+    });
+    // the proof each criterion is judged by; a task's outcome record reads them from task.json
+    app.post(`${at}/proofs`, async (c) => {
+      const id = own(c);
+      const { proofs } = ProofsBody.parse(await c.req.json());
+      return c.json({ proofs: await settled(id, await setProofs(ctx, id, proofs)) });
+    });
+  }
 }

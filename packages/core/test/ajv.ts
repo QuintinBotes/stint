@@ -16,7 +16,7 @@ export function makeAjv() {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
   const handoff = kitSchema('handoff');
-  for (const name of ['handoff', 'task', 'event', 'plan', 'review', 'skill', 'skill-proposal', 'metrics', 'questions', 'outcome']) ajv.addSchema(kitSchema(name));
+  for (const name of ['handoff', 'task', 'event', 'plan', 'review', 'skill', 'skill-proposal', 'metrics', 'questions', 'outcome', 'goal']) ajv.addSchema(kitSchema(name));
   for (const base of ['event', 'review']) {
     ajv.addSchema({ ...handoff, $id: `https://stint.dev/schemas/${base}/handoff.schema.json` });
   }

@@ -18,13 +18,22 @@ const KINDS: Array<{ kind: TaskProof['kind']; name: string; hint: string }> = [
 const field = 'h-9 rounded-[5px] border border-field bg-ground px-3 text-ink placeholder:text-ink-3';
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/**
- * Sharpen, above the tabs (R-064): before any run, a button that starts a round; then one card per open question,
- * the answered ones as one line with their decision, what Stint assumed, and the proof of each criterion.
- */
+/** What a round is about: a task before any run, or a goal before it is split. */
+export type SharpenSubject = { noun: 'task' | 'goal'; id: string; criteria: string[]; started: boolean };
+
+/** The task view's Sharpen, above the tabs: its state is a projection of the task's own log as it streams in. */
 export function SharpenPanel({ bundle, events }: { bundle: TaskBundle; events: StintEvent[] }) {
   const task = bundle.task;
   const st = useMemo(() => sharpenState(events, task), [events, task]);
+  return <Sharpen subject={{ noun: 'task', id: task.id, criteria: task.acceptance, started: bundle.runs.length > 0 }} st={st} />;
+}
+
+/**
+ * Sharpen (R-064), for a task or a goal: before work starts, a button that starts a round; then one card per open
+ * question, the answered ones as one line with their decision, what Stint assumed, and the proof of each criterion.
+ * `onChange` runs after each change, for a page whose state does not stream in.
+ */
+export function Sharpen({ subject, st, onChange }: { subject: SharpenSubject; st: SharpenState; onChange?: () => void }) {
   const { data: health } = useHealth();
   const [params, setParams] = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
@@ -32,18 +41,24 @@ export function SharpenPanel({ bundle, events }: { bundle: TaskBundle; events: S
   const [focusOn, setFocusOn] = useState<string | null>(null);
   const asked = useRef(false);
 
-  const act = useCallback((doing: string, p: Promise<unknown>) => {
-    setBusy(doing);
-    setError(null);
-    return p
-      .then(() => true)
-      .catch((e: unknown) => {
-        setError(daemonMessage(e));
-        return false;
-      })
-      .finally(() => setBusy(null));
-  }, []);
-  const start = useCallback(() => void act('Stint is reading the task, its files and what it remembers. The questions appear here.', api.sharpen(task.id)), [act, task.id]);
+  const act = useCallback(
+    (doing: string, p: Promise<unknown>) => {
+      setBusy(doing);
+      setError(null);
+      return p
+        .then(() => {
+          onChange?.();
+          return true;
+        })
+        .catch((e: unknown) => {
+          setError(daemonMessage(e));
+          return false;
+        })
+        .finally(() => setBusy(null));
+    },
+    [onChange],
+  );
+  const start = useCallback(() => void act(`${subject.noun === 'goal' ? 'Stint is reading the goal and the tracked files.' : 'Stint is reading the task, its files and what it remembers.'} The questions appear here.`, api.sharpen(subject.id)), [act, subject.id, subject.noun]);
 
   // "Sharpen it first" in the New task dialog opens the task with ?sharpen=1: the round starts once, and the flag goes
   useEffect(() => {
@@ -70,7 +85,7 @@ export function SharpenPanel({ bundle, events }: { bundle: TaskBundle; events: S
   }, [st, focusOn]);
 
   const answer = (ref: { question: string } | { assumption: string }, a: Answer) =>
-    void act('Recording your answer as a decision.', api.answerSharpen(task.id, { ...ref, ...a })).then((ok) => ok && setFocusOn('question' in ref ? ref.question : ref.assumption));
+    void act('Recording your answer as a decision.', api.answerSharpen(subject.id, { ...ref, ...a })).then((ok) => ok && setFocusOn('question' in ref ? ref.question : ref.assumption));
 
   const status = (
     <>
@@ -88,12 +103,12 @@ export function SharpenPanel({ bundle, events }: { bundle: TaskBundle; events: S
 
   if (st.round === 0) {
     // a replay calls no model, so it offers no round: the recorded story stays as it was
-    if (bundle.runs.length > 0 || !health || health.mode === 'replay') return null;
+    if (subject.started || !health || health.mode === 'replay') return null;
     return (
       <section className="flex flex-col gap-2" data-testid="sharpen-panel" aria-label="Sharpen">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Button onClick={start} disabled={!!busy} data-testid="sharpen-start">
-            Sharpen this task
+            Sharpen this {subject.noun}
           </Button>
           <Explain word="sharpen" />
         </div>
@@ -113,7 +128,7 @@ export function SharpenPanel({ bundle, events }: { bundle: TaskBundle; events: S
         </h2>
         <p className="mt-1 text-small text-ink-2">
           Round {st.round}: {plural(open.length, 'question')} open
-          {st.openMaterial.length ? `, ${plural(st.openMaterial.length, 'needs', 'need')} your answer` : ''}. Each answer is recorded as a decision the plan and every agent keep.
+          {st.openMaterial.length ? `, ${plural(st.openMaterial.length, 'needs', 'need')} your answer` : ''}. Each answer is recorded as a decision {subject.noun === 'goal' ? 'that every task made from the goal starts with' : 'the plan and every agent keep'}.
         </p>
       </div>
 
@@ -139,14 +154,14 @@ export function SharpenPanel({ bundle, events }: { bundle: TaskBundle; events: S
         <QuestionCard key={q.id} q={q} busy={!!busy} onAnswer={(a) => answer({ question: q.id }, a)} />
       ))}
       {rest ? (
-        <Button className="self-start" disabled={!!busy} data-testid="sharpen-recommended" onClick={() => void act('Taking the recommendations.', api.takeRecommendations(task.id))}>
+        <Button className="self-start" disabled={!!busy} data-testid="sharpen-recommended" onClick={() => void act('Taking the recommendations.', api.takeRecommendations(subject.id))}>
           Use the recommendations for the rest
         </Button>
       ) : null}
 
       {st.assumed.length ? <Assumed st={st} busy={!!busy} onChange={(id, text) => answer({ assumption: id }, { text })} /> : null}
 
-      <Proofs key={JSON.stringify([st.proofs.accepted, st.proofs.suggested])} st={st} acceptance={task.acceptance} busy={!!busy} onUse={(proofs) => void act('Recording the proofs.', api.setProofs(task.id, proofs))} />
+      <Proofs key={JSON.stringify([st.proofs.accepted, st.proofs.suggested])} st={st} acceptance={subject.criteria} busy={!!busy} onUse={(proofs) => void act('Recording the proofs.', api.setProofs(subject.id, proofs))} />
 
       {st.ready ? (
         <p data-testid="sharpen-ready" className="font-medium text-ink">

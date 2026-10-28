@@ -32,7 +32,10 @@ export type Step =
   | { kind: 'adopt'; candidate: string }
   | { kind: 'children'; children: string[] }
   | { kind: 'review'; verified: string }
-  | { kind: 'stop'; reason: string; needsYou: boolean; limit?: LimitName; used?: number; cap?: number };
+  | { kind: 'stop'; reason: string; needsYou: boolean; limit?: LimitName; used?: number; cap?: number; scope?: 'goal'; goal?: string };
+
+/** A task's goal with what all of the goal's tasks have used, so a build can be stopped at the goal's limits (R-064). */
+export type GoalLimits = { id: string; usage: { usd: number; builds: number }; limits: { usd: number | null; builds: number | null } };
 
 /** The events since autopilot was last switched on, or null when it is off. */
 export function autopilotTail(events: StintEvent[]): StintEvent[] | null {
@@ -172,24 +175,33 @@ const usd = (v: number) => `$${v.toFixed(2)}`;
  * more build, the median of this task's own; a hand-off also at the hand-off limit; a review-changes build also at
  * the review round limit.
  */
-function limitStop(events: StintEvent[], limits: Limits, next: 'work' | 'build' | 'hand' | 'changes', handReason = ''): Step | null {
+function limitStop(events: StintEvent[], limits: Limits, next: 'work' | 'build' | 'hand' | 'changes', handReason = '', goal?: GoalLimits): Step | null {
   const used = taskUsage(events);
   const stop = (limit: LimitName, reason: string): Step => ({ kind: 'stop', reason: `Needs you: ${reason}`, needsYou: true, limit, used: used[limit], cap: limits[limit] as number });
   const { builds, handoffs, reviewRounds, usd: spend, minutes } = limits;
   if (minutes !== null && used.minutes >= minutes) return stop('minutes', `the agent time limit is reached (${Math.floor(used.minutes)} of ${minutes} min).`);
   if (spend !== null && used.usd >= spend) return stop('usd', `the ${usd(spend)} spend limit is reached (${usd(used.usd)} spent).`);
   if (next === 'work') return null;
-  if (spend !== null) {
+  // what one more build costs: the median of this task's own builds, or nothing known before its first
+  const expected = (() => {
     const adopted = new Set(events.filter((e) => e.type === 'run.started' && e.payload.adoptedFrom).map((e) => e.run));
     const past = runsFromEvents(events)
       .filter((r) => r.role === 'implementer' && r.endedAt && !adopted.has(r.run) && typeof r.cost?.usd === 'number')
       .map((r) => r.cost?.usd as number)
       .sort((a, b) => a - b);
     const mid = past.length / 2;
-    const expected = past.length ? (past.length % 2 ? (past[Math.floor(mid)] as number) : ((past[mid - 1] as number) + (past[mid] as number)) / 2) : null;
-    if (expected !== null && used.usd + expected > spend) return stop('usd', `the next build would pass the ${usd(spend)} spend limit (${usd(used.usd)} spent; builds here cost about ${usd(expected)}).`);
-  }
+    return past.length ? (past.length % 2 ? (past[Math.floor(mid)] as number) : ((past[mid - 1] as number) + (past[mid] as number)) / 2) : null;
+  })();
+  if (spend !== null && expected !== null && used.usd + expected > spend) return stop('usd', `the next build would pass the ${usd(spend)} spend limit (${usd(used.usd)} spent; builds here cost about ${usd(expected)}).`);
   if (builds !== null && used.builds >= builds) return stop('builds', `the build limit is reached (${used.builds} of ${builds}).`);
+  // the goal's spend and builds count every one of its tasks; a build here is one more for the goal
+  if (goal) {
+    const { usd: goalUsd, builds: goalBuilds } = goal.limits;
+    const over = (limit: 'usd' | 'builds', reason: string): Step => ({ kind: 'stop', reason: `Needs you: ${reason}`, needsYou: true, limit, used: goal.usage[limit], cap: goal.limits[limit] as number, scope: 'goal', goal: goal.id });
+    if (goalUsd !== null && goal.usage.usd >= goalUsd) return over('usd', `the goal's ${usd(goalUsd)} spend limit is reached (${usd(goal.usage.usd)} spent across ${goal.id}'s tasks).`);
+    if (goalUsd !== null && expected !== null && goal.usage.usd + expected > goalUsd) return over('usd', `the next build would pass the goal's ${usd(goalUsd)} spend limit (${usd(goal.usage.usd)} spent across ${goal.id}'s tasks; builds here cost about ${usd(expected)}).`);
+    if (goalBuilds !== null && goal.usage.builds >= goalBuilds) return over('builds', `the goal's build limit is reached (${goal.usage.builds} of ${goalBuilds} across ${goal.id}'s tasks).`);
+  }
   // the wording the hop limit always had
   if (next === 'hand' && handoffs !== null && used.handoffs >= handoffs) return stop('handoffs', `${handReason}, after ${used.handoffs} handoffs.`);
   if (next === 'changes' && reviewRounds !== null && used.reviewRounds >= reviewRounds) return stop('reviewRounds', `the review still asks for changes after ${used.reviewRounds === 1 ? 'one round' : `${used.reviewRounds} rounds`}.`);
@@ -199,14 +211,14 @@ function limitStop(events: StintEvent[], limits: Limits, next: 'work' | 'build' 
 /**
  * The next thing autopilot does, as a pure function of the task's log: a daemon restart resumes from the
  * same place. It never approves; the furthest it goes on its own is the approval gate, and it stops before any
- * step that would pass one of the task's limits.
+ * step that would pass one of the task's limits, or a build that would pass its goal's.
  */
-export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean, limits: Limits, o: { sharpenFirst?: boolean } = {}): Step {
+export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean, limits: Limits, o: { sharpenFirst?: boolean; goal?: GoalLimits } = {}): Step {
   const tail = autopilotTail(events);
   if (!tail) return { kind: 'idle' };
   if (live) return { kind: 'wait', reason: 'a run is live' };
   if (task.status === 'done') return { kind: 'stop', reason: 'The task is merged.', needsYou: false };
-  const capped = (next: Parameters<typeof limitStop>[2], step: Step, handReason?: string): Step => limitStop(events, limits, next, handReason) ?? step;
+  const capped = (next: Parameters<typeof limitStop>[2], step: Step, handReason?: string): Step => limitStop(events, limits, next, handReason, o.goal) ?? step;
   // a best-of-n candidate builds from its parent's plan, and stops once its tests are green for the pick
   const candidate = !!task.parent && (task.tags ?? []).includes('candidate');
   const planned = candidate || events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
@@ -262,7 +274,7 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   const status = verification?.payload.status as string | undefined;
   if (last.endedBy !== 'completed' || status !== 'green') {
     const reason = `${last.adapter} ${last.run} ${why(last.endedBy, status)}`;
-    const over = limitStop(events, limits, 'hand', reason);
+    const over = limitStop(events, limits, 'hand', reason, o.goal);
     if (over) return over;
     const packetOf = (run: string) => (tail.filter((e) => e.type === 'handoff.created' && e.run === run).at(-1)?.payload.name as string | undefined) ?? null;
     // the smart friend: after repeated failures the next hop goes to a stronger agent or model, once
@@ -341,6 +353,22 @@ export class Autopilot {
     return { sharpenFirst: !!this.ctx.ws.config.sharpen?.beforeAutopilot };
   }
 
+  /** What nextStep needs beside the log: whether to sharpen first, and the task's goal with what its tasks have used. */
+  private async stepOptions(task: Task): Promise<{ sharpenFirst: boolean; goal?: GoalLimits }> {
+    const goal = task.goalId ? await this.ctx.ws.readGoal(task.goalId).catch(() => null) : null;
+    const caps = { usd: goal?.limits?.usd ?? null, builds: goal?.limits?.builds ?? null };
+    if (!goal || (caps.usd === null && caps.builds === null)) return this.sharpenFirst;
+    const usage = { usd: 0, builds: 0 };
+    for (const id of new Set([...goal.tasks, task.id])) {
+      const events = await this.ctx.ws.readTask(id).then(() => this.ctx.ws.events(id).read(), () => []);
+      const u = taskUsage(events);
+      usage.usd += u.usd;
+      usage.builds += u.builds;
+    }
+    usage.usd = Math.round(usage.usd * 10_000) / 10_000;
+    return { ...this.sharpenFirst, goal: { id: goal.id, usage, limits: caps } };
+  }
+
   async start(id: string, opts: { implementer?: string } = {}): Promise<void> {
     const events = await this.ctx.ws.events(id).read();
     if (!autopilotTail(events)) await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.started', payload: { settings: this.settings, ...(opts.implementer ? { implementer: opts.implementer } : {}) } });
@@ -382,7 +410,7 @@ export class Autopilot {
   async stepFor(id: string): Promise<'plan' | 'build' | 'verify' | 'review' | 'approve' | 'idle'> {
     const task = await this.ctx.ws.readTask(id);
     const events = await this.ctx.ws.events(id).read();
-    const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), effectiveLimits(task, this.ctx.ws.config), this.sharpenFirst);
+    const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), effectiveLimits(task, this.ctx.ws.config), await this.stepOptions(task));
     switch (s.kind) {
       case 'sharpen':
       case 'recommend':
@@ -466,11 +494,11 @@ export class Autopilot {
       const events = await ws.events(id).read();
       const tail = autopilotTail(events);
       const task = await ws.readTask(id);
-      const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), effectiveLimits(task, ws.config), this.sharpenFirst);
+      const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), effectiveLimits(task, ws.config), await this.stepOptions(task));
       if (s.kind === 'idle' || s.kind === 'wait' || !tail) return;
       if (s.kind === 'stop') {
         // a limit is recorded as its own event before the stop; the task's status stays as it is
-        if (s.limit) await ws.events(id).append({ task: id, vendor: 'daemon', type: 'limit.reached', payload: { limit: s.limit, used: s.used, cap: s.cap } });
+        if (s.limit) await ws.events(id).append({ task: id, vendor: 'daemon', type: 'limit.reached', payload: { limit: s.limit, used: s.used, cap: s.cap, ...(s.scope ? { scope: s.scope, goal: s.goal } : {}) } });
         return this.stop(id, s.reason, s.needsYou, s.limit);
       }
 

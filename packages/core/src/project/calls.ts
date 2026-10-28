@@ -8,7 +8,7 @@ const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 
 /**
  * Model calls that are not runs and record their cost on one event each: the learn step, both sides of a packet quiz,
- * the autopilot's pick among candidates, and `cost.recorded` for the rest (a packet digest in a task's log; a board
+ * the autopilot's pick among candidates, sharpen rounds, a goal's split into tasks, and `cost.recorded` for the rest (a packet digest in a task's log; a board
  * summary or an intake triage in the workspace log, which `task` names as `workspace`).
  */
 export function callsFromEvents(task: string, events: StintEvent[]): Spend[] {
@@ -21,6 +21,7 @@ export function callsFromEvents(task: string, events: StintEvent[]): Spend[] {
     if (e.type === 'handoff.quizzed') for (const side of ['writer', 'answerer']) call(e, 'quiz', e.payload[side] as Record<string, unknown> | undefined, `${task}/quiz`);
     if (e.type === 'bestofn.picked') call(e, 'pick', e.payload, `${task}/pick`);
     if (e.type === 'sharpen.asked') call(e, 'sharpen', e.payload, `${task}/sharpen`);
+    if (e.type === 'goal.planned') call(e, 'planner', e.payload, `${task}/planner`);
     if (e.type === 'cost.recorded') call(e, String(e.payload.for), e.payload, `${task}/${String(e.payload.for)}`);
   }
   return out;

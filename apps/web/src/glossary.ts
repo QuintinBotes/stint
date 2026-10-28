@@ -23,6 +23,7 @@ export const GLOSSARY = {
   limit: { word: 'Limit', ask: 'What is a limit?', plain: 'A cap you set on a task, on builds, hand-offs, spend or agent time. Stint stops and asks you before it would go past one.' },
   sharpen: { word: 'Sharpen', ask: 'What does sharpen do?', plain: 'Before work starts, Stint asks the few questions whose answers change what gets built or how it is proven, recommends an answer to each, and records yours as decisions.' },
   proof: { word: 'Proof', ask: 'What is a proof?', plain: 'What shows a criterion is met: a test that failed before the change and passes after, a hidden scenario, a check, or you.' },
+  goal: { word: 'Goal', ask: 'What is a goal?', plain: 'An outcome bigger than one task, with the criteria that prove it. Stint splits it into tasks and shows how each part went.' },
 } as const;
 
 export type Word = keyof typeof GLOSSARY;

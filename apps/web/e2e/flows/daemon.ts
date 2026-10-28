@@ -21,6 +21,11 @@ export function daemon(request: APIRequestContext) {
       expect(res.ok(), `${path} answered ${res.status()}: ${await res.text()}`).toBe(true);
       return (await res.json()) as T;
     },
+    async patch<T>(path: string, data: unknown): Promise<T> {
+      const res = await request.patch(path, { data, headers: await auth() });
+      expect(res.ok(), `${path} answered ${res.status()}: ${await res.text()}`).toBe(true);
+      return (await res.json()) as T;
+    },
     task: (id: string) => self.get<Task>(`/api/tasks/${id}`).then((b) => (b as unknown as { task: Task }).task),
     events: (id: string) => self.get<{ events: Event[] }>(`/api/tasks/${id}/events`).then((r) => r.events),
     /** A task made through the API, for flows that do not test making one. */

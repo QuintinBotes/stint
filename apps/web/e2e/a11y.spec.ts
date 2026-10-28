@@ -8,6 +8,7 @@ for (const [name, path] of [
   ['packet', '/t/T-0042?tab=packet'],
   ['verification', '/t/T-0042?tab=verification'],
   ['review', '/t/T-0042?tab=review'],
+  ['goals page', '/goals'],
   ['factory', '/factory'],
   ['skills', '/skills'],
 ] as const) {

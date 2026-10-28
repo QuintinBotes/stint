@@ -1,5 +1,5 @@
 // The fake agents and model server the flow tests run against, shared with the README commands test: a model server
-// standing in for the planner, reviewer, learn step, quiz, digest and sharpen, writer agents that each write one file, and the
+// standing in for the planner, reviewer, learn step, quiz, digest, sharpen and a goal's split, writer agents that each write one file, and the
 // config that points a workspace at them. Nothing here calls a hosted model or Ollama.
 import { join } from 'node:path';
 import { type Adapter, type Config, DEFAULT_CONFIG, type RunContext, type RunResult } from '@stint-dev/core';
@@ -42,7 +42,7 @@ const proposal = (prompt: string) => ({
 
 /** A sharpen round: one material question (who may decide), one with a safe default, one the repository can answer, and a test per criterion. */
 const questions = (prompt: string) => {
-  const criteria = [...(prompt.split('## The task')[1] ?? '').matchAll(/^(\d+)\. (.+)$/gm)].map((m) => m[2] as string);
+  const criteria = [...(prompt.split(/## The (?:task|goal)\n/)[1] ?? '').matchAll(/^(\d+)\. (.+)$/gm)].map((m) => m[2] as string);
   const ask = (text: string, changes: string, options: Array<[string, string]>, safe: boolean) => ({
     text,
     changes,
@@ -65,6 +65,12 @@ const questions = (prompt: string) => {
   };
 };
 
+/** A goal split: one task for each of the goal's first two criteria, the second waiting on the first. */
+const split = (prompt: string) => {
+  const criteria = [...(prompt.split('## The goal\n')[1] ?? '').matchAll(/^(\d+)\. (.+?)(?: \(proven by .+\))?$/gm)].map((m) => m[2] as string).slice(0, 2);
+  return { tasks: criteria.map((c, i) => ({ title: `Part ${i + 1}: ${c}`.slice(0, 120), goal: `${c}, as one task of the goal.`, acceptance: [c], covers: [i + 1], dependsOn: i ? [0] : [] })) };
+};
+
 /** A model server that answers each structured call by its schema, on a free port. */
 export function startFakeModels(): { port: number; stop: () => void } {
   const server = Bun.serve({
@@ -85,7 +91,8 @@ export function startFakeModels(): { port: number; stop: () => void } {
       else if (schema.includes('"duplicates"')) {
         const title = /Title: (.+)/.exec(prompt)?.[1] ?? 'An issue';
         answer = { size: 'S', title, goal: `Done when ${title.toLowerCase()}.`, acceptance: [`${title} works`], duplicates: [], risk: 'low', reason: 'Small and new.' };
-      } else if (schema.includes('"steps"')) answer = PLAN;
+      } else if (schema.includes('"covers"')) answer = split(prompt);
+      else if (schema.includes('"steps"')) answer = PLAN;
       else answer = { summary: 'The run wrote one file for its task.' };
       return Response.json({ message: { content: JSON.stringify(answer) }, prompt_eval_count: 120, eval_count: 30 });
     },

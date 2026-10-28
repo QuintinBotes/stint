@@ -22,7 +22,7 @@ describe('The three handoff examples validate with Ajv against schemas/handoff.s
   }
 
   test('packages/core/schemas/handoff.schema.json equals schemas/handoff.schema.json (ignoring $id)', () => {
-    for (const name of ['handoff', 'task', 'event', 'plan', 'review', 'skill', 'skill-proposal', 'questions']) {
+    for (const name of ['handoff', 'task', 'event', 'plan', 'review', 'skill', 'skill-proposal', 'questions', 'goal']) {
       const emitted = readJson(join(import.meta.dir, '..', 'schemas', `${name}.schema.json`)) as Record<string, unknown>;
       expect(stripId(emitted)).toEqual(stripId(kitSchema(name)));
     }

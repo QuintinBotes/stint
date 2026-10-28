@@ -2,9 +2,10 @@ import { type FSWatcher, watch } from 'node:fs';
 import { mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type Config, ConfigSchema, DEFAULT_CONFIG } from '../schemas/config';
+import { type Goal, GoalSchema } from '../schemas/goal';
 import { type Plan, PlanSchema } from '../schemas/plan';
 import { type Review, ReviewSchema } from '../schemas/review';
-import { type Budgets, type Check, type Task, TaskSchema } from '../schemas/task';
+import { type Budgets, type Check, GOAL_ID, type Task, type TaskLimits, TaskSchema } from '../schemas/task';
 import { DecisionLedger } from './decisions';
 import { EventLog } from './eventlog';
 import { KeyedQueue, readJsonIfExists, writeJsonAtomic, type AtomicHooks } from './files';
@@ -33,7 +34,12 @@ export type NewTask = {
   budgets?: Partial<Budgets>;
   links?: Task['links'];
   limits?: Task['limits'];
+  goalId?: string;
+  goalCriteria?: number[];
+  dependsOn?: string[];
 };
+
+export type NewGoal = { title: string; outcome: string; criteria: string[]; nonGoals?: string[]; limits?: TaskLimits };
 
 export function slugify(title: string): string {
   const slug = title
@@ -46,6 +52,7 @@ export function slugify(title: string): string {
 }
 
 const TASK_DIR = /^(T-[0-9]{4,})(-|$)/;
+const GOAL_FILE = /^(G-[0-9]{4,})\.json$/;
 // one create at a time per workspace, so two creates never read the same next id
 const creates = new KeyedQueue();
 
@@ -55,6 +62,7 @@ export class Workspace {
   readonly tasksDir: string;
   readonly cacheDir: string;
   readonly worktreesDir: string;
+  readonly goalsDir: string;
 
   private constructor(
     readonly root: string,
@@ -64,6 +72,7 @@ export class Workspace {
     this.tasksDir = join(this.stintDir, 'tasks');
     this.cacheDir = join(this.stintDir, 'cache');
     this.worktreesDir = join(this.stintDir, 'worktrees');
+    this.goalsDir = join(this.stintDir, 'goals');
   }
 
   /** Opens `.stint/` under `root`, creating it with the default config.json when missing. */
@@ -127,6 +136,8 @@ export class Workspace {
       links: i.links ?? { beadsId: null, issueUrl: null },
       pendingAsk: null,
       ...(i.limits ? { limits: i.limits } : {}),
+      ...(i.dependsOn?.length ? { dependsOn: i.dependsOn } : {}),
+      ...(i.goalId ? { goalId: i.goalId, goalCriteria: i.goalCriteria ?? [] } : {}),
       createdAt: now,
       updatedAt: now,
     });
@@ -183,6 +194,58 @@ export class Workspace {
       if (t) tasks.push(t);
     }
     return tasks.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  /** A new goal (R-064), `draft`, at `.stint/goals/G-0001.json`; one create at a time, so two never take the same id. */
+  createGoal(i: NewGoal): Promise<Goal> {
+    return creates.run(this.goalsDir, async () => {
+      const id = `G-${String(Math.max(0, ...(await this.goalIds()).map((g) => Number(g.slice(2)))) + 1).padStart(4, '0')}`;
+      const now = new Date().toISOString();
+      const parsed = GoalSchema.safeParse({
+        version: 'stint.goal/1',
+        id,
+        title: i.title,
+        outcome: i.outcome,
+        criteria: i.criteria.map((text) => ({ text })),
+        nonGoals: i.nonGoals ?? [],
+        ...(i.limits ? { limits: i.limits } : {}),
+        status: 'draft',
+        tasks: [],
+        decisions: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (!parsed.success) throw new StoreError('invalid', parsed.error.message);
+      await writeJsonAtomic(join(this.goalsDir, `${id}.json`), parsed.data);
+      return parsed.data;
+    });
+  }
+
+  async readGoal(id: string): Promise<Goal> {
+    // the id names a file, so anything but G-0001 is no goal rather than a path
+    const goal = GOAL_ID.test(id) ? await readJsonIfExists<Goal>(join(this.goalsDir, `${id}.json`)) : null;
+    if (!goal) throw new StoreError('not_found', `no goal ${id}`);
+    return goal;
+  }
+
+  /** Changes a goal: `edit` gets the current one and returns the fields to change; edits to one goal run one at a time. */
+  updateGoal(id: string, edit: (goal: Goal) => Partial<Goal>): Promise<Goal> {
+    return creates.run(join(this.goalsDir, id), async () => {
+      const current = await this.readGoal(id);
+      const parsed = GoalSchema.safeParse({ ...current, ...edit(current), id: current.id, version: current.version, createdAt: current.createdAt, updatedAt: new Date().toISOString() });
+      if (!parsed.success) throw new StoreError('invalid', parsed.error.message);
+      await writeJsonAtomic(join(this.goalsDir, `${id}.json`), parsed.data);
+      return parsed.data;
+    });
+  }
+
+  async listGoals(): Promise<Goal[]> {
+    return Promise.all((await this.goalIds()).sort().map((id) => this.readGoal(id)));
+  }
+
+  private async goalIds(): Promise<string[]> {
+    const names = await readdir(this.goalsDir).catch(() => [] as string[]);
+    return names.map((n) => GOAL_FILE.exec(n)?.[1]).filter((id): id is string => !!id);
   }
 
   async taskDir(id: string): Promise<string> {

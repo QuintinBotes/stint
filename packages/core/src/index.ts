@@ -10,6 +10,7 @@ export * from './schemas/capability';
 export * from './schemas/config';
 export * from './schemas/metrics';
 export * from './schemas/questions';
+export * from './schemas/goal';
 export { SHARPEN_CHANGES, isMaterial, questionProblem, sharpenRound, sharpenState } from './sharpen';
 export type { DroppedQuestion, ModelQuestion, ProofSuggestion, SharpenAnswer, SharpenAssumed, SharpenChange, SharpenQuestion, SharpenRound, SharpenState } from './sharpen';
 export * from './schemas/outcome';
@@ -17,6 +18,8 @@ export { METRIC_DEFS, METRIC_GROUPS, METRIC_GROUP, METRIC_IDS, WINDOWS, metrics,
 export type { MetricDef, MetricId, MetricsGolden, MetricsGroup, MetricsInput, MetricsSkill, WindowName } from './metrics/index';
 export { CRITERION_STATE_LABELS, durationWords, outcome, outcomeLine } from './project/outcome';
 export type { OutcomeInput } from './project/outcome';
+export { goalOutcome, isMerged } from './project/goalOutcome';
+export type { GoalOutcome } from './project/goalOutcome';
 export { renderHandoff, parseHandoffPrompt, HANDOFF_PREAMBLE, HEADINGS } from './render';
 export type { ParsedHandoffPrompt, RenderOptions } from './render';
 export { countTokens } from './tokens';

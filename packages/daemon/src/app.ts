@@ -42,6 +42,7 @@ import { commentRoutes } from './routes/comments';
 import { limitRoutes } from './routes/limits';
 import { summaryRoutes } from './routes/summary';
 import { sharpenRoutes } from './routes/sharpen';
+import { goalRoutes } from './routes/goals';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { type ActiveRun, RunRegistry } from './runs';
@@ -444,4 +445,5 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   commentRoutes(app, ctx);
   limitRoutes(app, ctx);
   sharpenRoutes(app, ctx);
+  goalRoutes(app, ctx);
 }
