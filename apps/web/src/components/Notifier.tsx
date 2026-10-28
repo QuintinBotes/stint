@@ -132,7 +132,11 @@ export function Notifier() {
       theme="dark"
       visibleToasts={3}
       closeButton
-      toastOptions={{ style: { background: 'var(--panel)', color: 'var(--ink)', border: '1px solid var(--rule-strong)', borderRadius: 5, boxShadow: 'none', fontFamily: 'var(--sans)', fontSize: 13, lineHeight: '18px' } }}
+      toastOptions={{
+        style: { background: 'var(--panel)', color: 'var(--ink)', border: '1px solid var(--rule-strong)', borderRadius: 5, boxShadow: 'none', fontFamily: 'var(--sans)', fontSize: 13, lineHeight: '18px' },
+        // our inks, not the library's: about 12:1, so the action still reads while the toast fades in
+        actionButtonStyle: { background: 'var(--ink)', color: 'var(--on-ink)', borderRadius: 5, fontWeight: 600, minHeight: 24 },
+      }}
     />
   );
 }

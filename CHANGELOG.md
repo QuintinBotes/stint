@@ -16,6 +16,10 @@
 - The default replay is labelled "Replay, hand-written" on screen again (ADR-0011).
 - fflate 0.8.3, which fixes a buffer over-read on Zip64 extra fields in skill bundles.
 
+### Accessibility (28 October)
+- Colours for colour-blind and low-vision people: the state inks (green verified, amber needs you, red stopped, violet learned) and the agent inks stay apart under protanopia, deuteranopia and tritanopia, every line of text meets 4.5:1 and small text 7:1 on the main surfaces, and the system's more-contrast setting brightens text and edges further.
+- No meaning rests on colour alone: + and - mark added and removed lines in a diff, the memory graph draws decisions, findings and files as different shapes, the Factory's charts separate and name their parts, and Windows High Contrast keeps focus, chips, meters and selections visible.
+
 ### Security and robustness (28 October)
 - Each run gets its own token that reaches only its task's agent routes; the macOS sandbox denies reads of `.stint/cache` and writes to `.git/hooks` and `.git/config`; the daemon's git runs with hooks off; verify runs inside the run's sandbox.
 - A run cut off by a crash or `stint down` is closed as killed on the next start; a torn line no longer breaks an event log; two tasks can no longer get the same id.
