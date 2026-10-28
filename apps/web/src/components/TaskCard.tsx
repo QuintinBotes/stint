@@ -1,11 +1,45 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { agentOf } from '../agents';
-import { type TaskCardData, api } from '../api';
+import { type TaskCardData, type Verification, api } from '../api';
 import { age } from '../format';
 import { CostMeter, StatusChip, Who, cx } from './ui';
 
 type CardTask = TaskCardData['task'];
+
+/** The latest verification of each task, by task and its last event, so a card asks again only when the task moved. */
+const verifications = new Map<string, Verification | null>();
+
+/** The task's latest verification, when it has one: the card's tests line. A planned task has never run, so it is not asked. */
+function useLastVerification(card: TaskCardData): Verification | null {
+  const key = `${card.task.id}@${card.lastEventAt}`;
+  const ask = card.task.status !== 'planned';
+  const [last, setLast] = useState<Verification | null>(() => verifications.get(key) ?? null);
+  useEffect(() => {
+    if (!ask) return;
+    if (verifications.has(key)) return setLast(verifications.get(key) ?? null);
+    let live = true;
+    api
+      .verifications(card.task.id)
+      .then((all) => {
+        const latest = all.reduce<Verification | null>((a, v) => (!a || v.at > a.at ? v : a), null);
+        verifications.set(key, latest);
+        if (live) setLast(latest);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [key, ask, card.task.id]);
+  return ask ? last : null;
+}
+
+/** The tests line in words, so its colour is never the only signal: how many passed, or how many of how many failed. */
+function testsLine(v: Verification): string {
+  const total = v.passed + v.failed;
+  if (v.status === 'green') return total ? `${v.passed} test${v.passed === 1 ? '' : 's'} passed` : 'Tests passed';
+  return v.failed ? `${v.failed} of ${total} test${total === 1 ? '' : 's'} failed` : 'Tests failed';
+}
 
 /** Model summaries already asked for, by task and its last event: at most one ask per card per seq. */
 const askedSummaries = new Set<string>();
@@ -98,10 +132,14 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
   const tasks = all ?? new Map<string, CardTask>();
   // a split task lists its subtasks in order, each with what it waits for: the dependency line (R-036)
   const children = [...tasks.values()].filter((t) => t.parent === task.id).sort((a, b) => a.id.localeCompare(b.id));
-  const agents = (card.agents ?? (lastRun?.adapter ? [{ adapter: lastRun.adapter, host: lastRun.host, model: lastRun.model, role: lastRun.role }] : [])).map((a) => agentOf(a.adapter, a.host, a.model));
+  const agents = (card.agents ?? []).map((a) => agentOf(a.adapter, a.host, a.model));
+  // the agent who last worked on it, and how many others did before
+  const latest = lastRun?.adapter ? agentOf(lastRun.adapter, lastRun.host, lastRun.model) : agents.at(-1);
+  const others = latest ? agents.filter((a) => a.name !== latest.name).length : 0;
   const live = !!lastRun && !lastRun.endedAt;
   const gate = task.status === 'awaiting_approval';
   const summary = modelSummary ?? card.summary;
+  const tests = useLastVerification(card);
   return (
     <article
       data-testid="task-card"
@@ -110,7 +148,7 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
     >
       <div className="flex items-center justify-between gap-2 min-w-0 text-small text-ink-2">
         <span className="font-mono">{task.id}</span>
-        {live && lastRun ? <Who agent={agentOf(lastRun.adapter, lastRun.host, lastRun.model)} live className="font-semibold text-ink" /> : task.status === 'done' ? <StatusChip label="merged" tone="merged" /> : <StatusChip status={task.status} />}
+        {task.status === 'done' ? <StatusChip label="merged" tone="merged" /> : <StatusChip status={task.status} />}
       </div>
       <h3 className="font-semibold">
         {/* the title's link covers the card, so the whole card opens the task; the controls on it sit above */}
@@ -119,7 +157,7 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
         </Link>
       </h3>
       {summary ? (
-        <p className="text-small text-ink-2 line-clamp-3" data-testid="card-summary" data-source={modelSummary ? 'model' : 'agent.message'}>
+        <p className="text-small text-ink-2 line-clamp-2" data-testid="card-summary" data-source={modelSummary ? 'model' : 'agent.message'}>
           {summary}
         </p>
       ) : (
@@ -163,9 +201,21 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
           ))}
         </ol>
       ) : null}
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-small text-ink-2" data-testid="card-agents">
-        {agents.length ? agents.map((a, i) => <Who key={`${a.name}-${i}`} agent={a} live={live && i === agents.length - 1} />) : <span className="text-ink-3">No run yet.</span>}
-      </div>
+      {tests ? (
+        <p className={cx('text-small font-medium tabular', tests.status === 'green' ? 'text-green' : 'text-red')} data-testid="card-tests">
+          {testsLine(tests)}
+        </p>
+      ) : null}
+      <p className="flex flex-wrap items-center gap-x-1.5 text-small text-ink-2" data-testid="card-agents">
+        {latest ? (
+          <>
+            <Who agent={latest} live={live} className={live ? 'font-semibold text-ink' : undefined} />
+            {others ? <span className="text-ink-3">and {others} more</span> : null}
+          </>
+        ) : (
+          <span className="text-ink-3">No run yet.</span>
+        )}
+      </p>
       <div className="flex items-baseline justify-between gap-2 text-small text-ink-2">
         <span>{when(card, live)}</span>
         <b className={cx('font-semibold', card.cost.usd ? 'text-ink' : 'text-ink-2')}>

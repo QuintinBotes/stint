@@ -35,8 +35,8 @@ test('Upload a zip on the Skills page: its findings show, the warn is acknowledg
   // the proposal waits in the queue, selected, with the daemon's findings
   const row = page.locator('[data-testid="skill-row"][data-skill="flow-run-checks"]');
   await expect(row.locator('[data-finding="executable-script"]')).toBeVisible();
-  await expect(row).toContainText('Scanned by pattern; this is not a security review.');
-  await expect(row.getByTestId('skill-eval')).toHaveText('not evaluated');
+  await expect(row).toContainText('Found by simple text patterns; this is not a security review.');
+  await expect(row.getByTestId('skill-eval')).toHaveText('not tested yet');
   await expect(row.getByTestId('approve-skill')).toBeDisabled();
   await row.getByTestId('ack-finding').check();
   await row.getByTestId('approve-skill').click();
