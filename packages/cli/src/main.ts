@@ -10,6 +10,7 @@ import { intake } from './intake';
 import { mcp } from './mcp';
 import { metricsCommand } from './metrics';
 import { otel } from './otel';
+import { outcomeCommand } from './outcome';
 import { reportCommand } from './report';
 import { approve, exportTask, reject, show } from './approve';
 import { hand, packet } from './packet';
@@ -28,7 +29,7 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
 
 export const main = defineCommand({
   meta: { name: 'stint', version: '0.1.0', description: 'The task outlives the agent.' },
-  subCommands: { up, init: initCommand, new: newTask, assign: assignTask, run: runTask, demo, costs, metrics: metricsCommand, packet, hand, approve, reject, show, export: exportTask, graph, skills, scenario, mcp, hook, bench, otel, report: reportCommand, eval: evalCommand, intake, doctor, keys },
+  subCommands: { up, init: initCommand, new: newTask, assign: assignTask, run: runTask, demo, costs, metrics: metricsCommand, packet, hand, approve, reject, show, export: exportTask, graph, skills, scenario, mcp, hook, bench, otel, report: reportCommand, outcome: outcomeCommand, eval: evalCommand, intake, doctor, keys },
 });
 
 if (import.meta.main) {

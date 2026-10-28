@@ -81,6 +81,16 @@ export function durationWords(ms: number): string {
   return `${Math.round(s / 86_400)} days`;
 }
 
+/** A criterion's state in words; the gate says more for `passing`. */
+export const CRITERION_STATE_LABELS: Record<CriterionState, string> = {
+  proven: 'Proven',
+  passing: 'Passes, not proven',
+  failing: 'Failing',
+  you_check: 'You check it',
+  checked_by_you: 'Checked by you',
+  not_checked: 'Not checked',
+};
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** The one line the gate shows: "3 builds, 1 hand-off, $0.61, 14 min to green". */

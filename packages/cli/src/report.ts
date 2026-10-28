@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { StintEvent, Task } from '@stint-dev/core';
 import { Workspace, metrics as computeMetrics, runsFromEvents, windowFor } from '@stint-dev/core/node';
+import { taskOutcome } from '@stint-dev/daemon';
 import { defineCommand } from 'citty';
 import { metricsLines } from './metrics';
 import { repoRoot } from './repo';
@@ -25,10 +26,11 @@ const when = (iso: string) => iso.slice(0, 16).replace('T', ' ');
 
 export type Report = { reviews: string[]; spend: string[]; metrics: string[] };
 
-export function reportRows(tasks: Array<{ task: Task; events: StintEvent[] }>): Report {
+/** `outcome` is the task's result in words (R-063), the Reviews table's last column. */
+export function reportRows(tasks: Array<{ task: Task; events: StintEvent[]; outcome?: string }>): Report {
   const reviews: string[] = [];
   const spend: string[] = [];
-  for (const { task, events } of tasks) {
+  for (const { task, events, outcome } of tasks) {
     const spec = specOf(task);
     let attempt = 0;
     for (const e of events) {
@@ -36,7 +38,7 @@ export function reportRows(tasks: Array<{ task: Task; events: StintEvent[] }>): 
       attempt += 1;
       const r = (e.payload.review ?? {}) as { model?: string; findings?: unknown[] };
       const findings = Array.isArray(r.findings) ? r.findings.length : Number(e.payload.findings ?? 0);
-      reviews.push(`| ${spec} | ${attempt} | ${String(e.payload.verdict ?? 'unknown').replace('_', ' ')} | ${r.model ?? e.adapter ?? 'reviewer'} | ${findings} | .stint/tasks/${task.id}/reviews/${e.run ?? 'latest'}.json |`);
+      reviews.push(`| ${spec} | ${attempt} | ${String(e.payload.verdict ?? 'unknown').replace('_', ' ')} | ${r.model ?? e.adapter ?? 'reviewer'} | ${findings} | .stint/tasks/${task.id}/reviews/${e.run ?? 'latest'}.json | ${outcome ?? ''} |`);
     }
     for (const r of runsFromEvents(events)) {
       if (!r.endedAt) continue;
@@ -79,7 +81,7 @@ export async function report(root: string, o: { specsOnly?: boolean } = {}): Pro
   const tasks = [];
   for (const task of await ws.listTasks()) {
     if (o.specsOnly && specOf(task) === task.id) continue;
-    tasks.push({ task, events: await ws.events(task.id).read() });
+    tasks.push({ task, events: await ws.events(task.id).read(), outcome: (await taskOutcome(ws, task.id)).resultLabel });
   }
   return { ...reportRows(tasks), metrics: metricsBlock(tasks, ws.config) };
 }
@@ -110,7 +112,7 @@ export const reportCommand = defineCommand({
       process.stdout.write(`PROGRESS.md: ${r.reviews.length} review rows, ${r.spend.length} spend rows from .stint/\n`);
       return;
     }
-    process.stdout.write('## Reviews\n\n| Spec | Attempt | Verdict | Reviewer | Findings | File |\n|---|---|---|---|---|---|\n');
+    process.stdout.write('## Reviews\n\n| Spec | Attempt | Verdict | Reviewer | Findings | File | Outcome |\n|---|---|---|---|---|---|---|\n');
     process.stdout.write(r.reviews.map((l) => `${l}\n`).join(''));
     process.stdout.write('\n## Spend\n\n| When | Spec | Agent | Tokens in/out | USD | Wall |\n|---|---|---|---|---|---|\n');
     process.stdout.write(r.spend.map((l) => `${l}\n`).join(''));
