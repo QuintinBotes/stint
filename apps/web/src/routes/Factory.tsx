@@ -14,6 +14,7 @@ const isMeta = (model: string) => /(^|\/)(muse-|llama)/i.test(model);
 
 /** A host's spend takes its vendor's ink: local for this machine, Meta's models wherever they are served. */
 const hostColour = (host: string) => markColor[hostMark(host)];
+const MARKS = Object.keys(markColor) as Mark[];
 
 const SMALL = 'h-8 px-2.5 text-small';
 const NOTE = 'text-small text-ink-2';
@@ -38,11 +39,11 @@ function Scroller({ label, children }: { label: string; children: ReactNode }) {
 const BAR_ROW = 'grid grid-cols-[96px_minmax(0,1fr)_64px] sm:grid-cols-[150px_minmax(0,1fr)_64px] items-center gap-3 min-h-[30px] text-small';
 const TRACK = 'flex h-3.5 overflow-hidden bg-panel-2';
 
-/** A vendor's ink square and its name, for a legend. */
-function Key({ colour, children }: { colour: string; children: ReactNode }) {
+/** A vendor's ink square and its name, for a legend; a hollow square is the spend that is no vendor's run. */
+function Key({ colour, children }: { colour: string | null; children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className="size-2.5 shrink-0" style={{ background: colour }} />
+      <span aria-hidden="true" className={cx('size-2.5 shrink-0', colour === null && 'border border-ink-3')} style={colour === null ? undefined : { background: colour }} />
       {children}
     </span>
   );
@@ -236,6 +237,9 @@ function CostByDay({ rows }: { rows: CostRow[] }) {
   }
   const list = [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-7);
   const max = Math.max(0.01, ...list.map(([, m]) => [...m.values()].reduce((s, v) => s + v, 0)));
+  // the legend says each host's spend in words, since two hosts of one model maker share an ink
+  const spent = new Map<string, number>();
+  for (const [, m] of list) for (const [h, v] of m) spent.set(h, (spent.get(h) ?? 0) + v);
   const hosts = [...new Set(rows.map((r) => r.key.split('|')[1] as string))];
   if (list.length === 0) return <EmptyState>Cost per day appears once a run ends.</EmptyState>;
   return (
@@ -259,7 +263,7 @@ function CostByDay({ rows }: { rows: CostRow[] }) {
       <div className={cx(NOTE, 'flex flex-wrap gap-x-4 gap-y-1')} data-testid="cost-legend">
         {hosts.map((h) => (
           <Key key={h} colour={hostColour(h)}>
-            {hostName(h)}
+            {hostName(h)} ${(spent.get(h) ?? 0).toFixed(2)}
           </Key>
         ))}
       </div>
@@ -758,6 +762,8 @@ function SpendByTask({ rows }: { rows: TaskSpend[] | null }) {
   if (rows.length === 0) return <EmptyState>Spend by task appears once a run ends.</EmptyState>;
   const max = Math.max(0.0001, ...rows.map((r) => r.total));
   const other = (r: TaskSpend) => Math.max(0, r.total - r.vendors.reduce((s, [, usd]) => s + usd, 0));
+  // every bar and the legend in one vendor order, so the nth part of a bar is the nth name under it
+  const order = (list: Array<[Mark, number]>) => list.toSorted(([a], [b]) => MARKS.indexOf(a) - MARKS.indexOf(b));
   const vendors = new Map<Mark, number>();
   for (const r of rows) for (const [m, usd] of r.vendors) vendors.set(m, (vendors.get(m) ?? 0) + usd);
   const others = rows.reduce((s, r) => s + other(r), 0);
@@ -769,24 +775,24 @@ function SpendByTask({ rows }: { rows: TaskSpend[] | null }) {
             <Link to={`/t/${r.task}`} className="font-mono no-underline hover:underline">
               {r.task}
             </Link>
-            <span className={TRACK} role="img" aria-label={`${r.task}: ${[...r.vendors.map(([m, usd]) => `${TEAM_NAMES[m]} $${usd.toFixed(2)}`), ...(other(r) > 0.005 ? [`other calls $${other(r).toFixed(2)}`] : [])].join(', ') || 'no run cost'}`}>
-              {r.vendors.map(([m, usd]) => (
+            <span className={cx(TRACK, 'gap-px')} role="img" aria-label={`${r.task}: ${[...order(r.vendors).map(([m, usd]) => `${TEAM_NAMES[m]} $${usd.toFixed(2)}`), ...(other(r) > 0.005 ? [`other calls $${other(r).toFixed(2)}`] : [])].join(', ') || 'no run cost'}`}>
+              {order(r.vendors).map(([m, usd]) => (
                 // a run that cost nothing still shows its vendor, as a sliver
                 <span key={m} style={{ width: `${(Math.max(usd, max * 0.01) / max) * 100}%`, background: markColor[m] }} />
               ))}
-              {other(r) > 0.005 ? <span style={{ width: `${(other(r) / max) * 100}%` }} className="bg-rule-strong" /> : null}
+              {other(r) > 0.005 ? <span style={{ width: `${(other(r) / max) * 100}%` }} className="border border-ink-3" /> : null}
             </span>
             <span className="text-right tabular">${r.total.toFixed(2)}</span>
           </li>
         ))}
       </ul>
       <div className={cx(NOTE, 'flex flex-wrap gap-x-4 gap-y-1')}>
-        {[...vendors.entries()].map(([m, usd]) => (
+        {order([...vendors.entries()]).map(([m, usd]) => (
           <Key key={m} colour={markColor[m]}>
             {TEAM_NAMES[m]} ${usd.toFixed(2)}
           </Key>
         ))}
-        {others > 0.005 ? <Key colour="var(--rule-strong)">Planning and review calls ${others.toFixed(2)}</Key> : null}
+        {others > 0.005 ? <Key colour={null}>Planning and review calls ${others.toFixed(2)}</Key> : null}
       </div>
     </div>
   );

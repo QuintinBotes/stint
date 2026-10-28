@@ -96,7 +96,8 @@ export function StatusChip({ status, label, tone }: { status?: string; label?: s
   const s = status ? STATUS[status] : undefined;
   const t = tone ?? s?.tone ?? 'neutral';
   return (
-    <span data-status={status} className={cx('inline-flex items-center h-6 px-2 rounded-[3px] text-small font-medium whitespace-nowrap', CHIP[t])}>
+    // a wash is dropped in Windows High Contrast; a border keeps the chip a chip
+    <span data-status={status} className={cx('inline-flex items-center h-6 px-2 rounded-[3px] text-small font-medium whitespace-nowrap forced-colors:border', CHIP[t])}>
       {/* sentence case on screen; the words stay as the daemon and the tests name them */}
       <span className="inline-block first-letter:uppercase">{label ?? s?.label ?? status}</span>
     </span>
@@ -175,7 +176,7 @@ export function Kbd({ children }: { children: ReactNode }) {
 
 /** A tab in a tab list: ink-2 at rest, ink with a 2 px ink underline when chosen. */
 export const tabClass = (on: boolean) =>
-  cx('inline-flex items-center gap-1.5 min-h-10 px-3 -mb-px whitespace-nowrap font-medium', on ? 'text-ink shadow-[inset_0_-2px_0_var(--ink)]' : 'text-ink-2 hover:text-ink');
+  cx('inline-flex items-center gap-1.5 min-h-10 px-3 -mb-px whitespace-nowrap font-medium', on ? 'text-ink shadow-[inset_0_-2px_0_var(--ink)] forced-colors:border-b-2' : 'text-ink-2 hover:text-ink');
 
 /** A heading in the design's heading role, with an aside on the right. */
 export function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {

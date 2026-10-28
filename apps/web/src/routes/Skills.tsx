@@ -468,7 +468,7 @@ export function Skills() {
                       type="button"
                       aria-current={s.id === selected?.id ? 'true' : undefined}
                       onClick={() => pick(s.id)}
-                      className={cx(COLUMNS, 'w-full items-center min-h-[60px] px-3 py-2.5 border-b border-rule text-left', s.id === selected?.id ? 'bg-panel shadow-[inset_0_0_0_1px_var(--rule-strong)]' : 'hover:bg-panel')}
+                      className={cx(COLUMNS, 'w-full items-center min-h-[60px] px-3 py-2.5 border-b border-rule text-left', s.id === selected?.id ? 'bg-panel shadow-[inset_0_0_0_1px_var(--rule-strong)] forced-colors:outline' : 'hover:bg-panel')}
                     >
                       <span className="flex flex-col gap-0.5 min-w-0">
                         <span className="flex flex-wrap items-center gap-2">

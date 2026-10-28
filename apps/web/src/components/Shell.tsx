@@ -66,7 +66,7 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
             key={n.to}
             to={n.to}
             aria-current={n.on ? 'page' : undefined}
-            className={cx('inline-flex items-center h-9 px-2.5 rounded-[3px] font-medium no-underline hover:bg-panel hover:text-ink', n.on ? 'text-ink shadow-[inset_0_-2px_0_var(--ink)]' : 'text-ink-2')}
+            className={cx('inline-flex items-center h-9 px-2.5 rounded-[3px] font-medium no-underline hover:bg-panel hover:text-ink', n.on ? 'text-ink shadow-[inset_0_-2px_0_var(--ink)] forced-colors:border-b-2' : 'text-ink-2')}
           >
             {n.label}
           </Link>

@@ -30,6 +30,16 @@ const COLOUR: Record<string, string> = {
 const str = (v: unknown) => (typeof v === 'string' ? v : null);
 /** A run takes its vendor's ink; every other node takes its type's ink. */
 const fill = (n: GraphNode) => (n.type === 'run' ? markColor[agentOf(str(n.data.adapter), str(n.data.host), str(n.data.model)).mark] : (COLOUR[n.type] ?? 'var(--ink-3)'));
+/**
+ * A node's mark: a decision is a square, a finding a diamond, a file a ring, the rest a dot, so the types differ by shape and
+ * not by ink alone. `bg` is what it sits on: its edge keeps lines behind it apart, and fills a file's ring.
+ */
+function Mark({ type, r, ink, bg = 'var(--panel)' }: { type: string; r: number; ink: string; bg?: string }) {
+  if (type === 'decision') return <rect data-mark x={-r * 0.9} y={-r * 0.9} width={r * 1.8} height={r * 1.8} fill={ink} stroke={bg} strokeWidth={1.5} />;
+  if (type === 'finding') return <polygon data-mark points={`0,${-r * 1.3} ${r * 1.3},0 0,${r * 1.3} ${-r * 1.3},0`} fill={ink} stroke={bg} strokeWidth={1.5} />;
+  if (type === 'file') return <circle data-mark r={r - 0.75} fill={bg} stroke={ink} strokeWidth={1.5} />;
+  return <circle data-mark r={r} fill={ink} stroke={bg} strokeWidth={1.5} />;
+}
 const TYPE_NAMES: Array<[string, string]> = [
   ['task', 'task'],
   ['decision', 'decision'],
@@ -250,7 +260,7 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
               <>
                 {/* a 24 px target round a small node, so a finger or pointer can hit it */}
                 {activate ? <circle r={12} fill="transparent" /> : null}
-                <circle r={radius(n, centre)} fill={fill(n)} stroke="var(--panel)" strokeWidth={1.5} />
+                <Mark type={n.type} r={radius(n, centre)} ink={fill(n)} />
               </>
             )}
             {spot ? (
@@ -563,7 +573,9 @@ function Legend() {
           {t === 'skill' ? (
             <span aria-hidden="true" className="inline-block w-4 h-2.5 rounded-[12px] border border-violet bg-violet-wash" />
           ) : (
-            <span aria-hidden="true" className="inline-block size-2.5 rounded-full" style={{ background: COLOUR[t] }} />
+            <svg aria-hidden="true" width={12} height={12} viewBox="-6 -6 12 12" className="shrink-0">
+              <Mark type={t} r={4.5} ink={COLOUR[t] ?? 'var(--ink-3)'} bg="none" />
+            </svg>
           )}
           {name}
         </span>

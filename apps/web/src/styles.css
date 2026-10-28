@@ -155,3 +155,29 @@ input[type='range']::-moz-range-thumb {
   background: var(--ink);
   border: 2px solid var(--panel);
 }
+
+/* Windows High Contrast drops box shadows and backgrounds: focus becomes a system-coloured outline on every control (unlayered,
+   so it wins over a component's own outline-none), and the clock keeps a visible track and thumb. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  input[type='range'] {
+    forced-color-adjust: none;
+  }
+  input[type='range']::-webkit-slider-runnable-track {
+    background: CanvasText;
+  }
+  input[type='range']::-moz-range-track {
+    background: CanvasText;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    background: CanvasText;
+    border-color: Canvas;
+  }
+  input[type='range']::-moz-range-thumb {
+    background: CanvasText;
+    border-color: Canvas;
+  }
+}
