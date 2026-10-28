@@ -1,5 +1,5 @@
 import { Command } from 'cmdk';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { ADAPTER_NAMES } from '../agents';
 import { type CostRow, type DemoStatus, type Health, type TaskCardData, api, daemonMessage } from '../api';
@@ -9,7 +9,7 @@ import { useTasks } from '../hooks';
 import { setSingleKeys, useSingleKeys } from '../shortcuts';
 import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
 import { StatusMenu } from './StatusMenu';
-import { Button, Kbd, cx } from './ui';
+import { Button, Kbd, cx, trapTab } from './ui';
 
 function startOfWeek(now = new Date()): string {
   const d = new Date(now);
@@ -44,7 +44,7 @@ function useCredits(): Array<{ host: string; left: number }> {
   return (rows ?? []).filter((r) => typeof r.creditsLeft === 'number').map((r) => ({ host: r.key, left: r.creditsLeft as number }));
 }
 
-export function TopBar({ health, unreachable, onPalette }: { health: Health | null; unreachable: boolean; onPalette: () => void }) {
+export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Health | null; unreachable: boolean; onPalette: () => void; onHelp: () => void }) {
   const week = useWeekCost();
   const credits = useCredits();
   const { pathname } = useLocation();
@@ -56,7 +56,7 @@ export function TopBar({ health, unreachable, onPalette }: { health: Health | nu
   return (
     <header className="shrink-0 flex flex-wrap items-center gap-x-5 gap-y-2 min-h-[52px] px-4 md:px-6 py-2 bg-shell border-b border-rule">
       <div className="flex items-baseline gap-2.5 min-w-0">
-        <Link to="/" className="text-[18px] leading-6 font-[650] tracking-[-0.01em] no-underline">
+        <Link to="/" className="text-section tracking-[-0.01em] no-underline">
           Stint
         </Link>
         {health?.repo ? (
@@ -82,7 +82,7 @@ export function TopBar({ health, unreachable, onPalette }: { health: Health | nu
         type="button"
         onClick={onPalette}
         data-testid="palette-button"
-        className="inline-flex shrink-0 items-center gap-2.5 h-9 px-2.5 md:min-w-[240px] rounded-[5px] border border-rule-strong bg-ground text-ink-2 text-left hover:border-ink-2"
+        className="inline-flex shrink-0 items-center gap-2.5 h-9 px-2.5 md:min-w-[240px] rounded-[5px] border border-field bg-ground text-ink-2 text-left hover:border-ink-2"
       >
         <span className="hidden md:inline flex-1">Search or run a command</span>
         <span className="md:hidden">Search</span>
@@ -93,6 +93,9 @@ export function TopBar({ health, unreachable, onPalette }: { health: Health | nu
           This week <b className="text-ink font-semibold">{week === null ? 'not known yet' : money({ usd: week })}</b>
         </span>
         <StatusMenu health={health} unreachable={unreachable} credits={credits} />
+        <button type="button" onClick={onHelp} aria-keyshortcuts="?" data-testid="help-button" className="inline-flex items-center h-9 px-2.5 rounded-[5px] font-medium text-ink hover:bg-panel">
+          Help
+        </button>
       </div>
     </header>
   );
@@ -116,7 +119,7 @@ export function ReplayStrip({ health }: { health: Health | null }) {
   return (
     <div data-testid="replay-strip" className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 px-4 md:px-6 py-1.5 border-b border-rule text-small text-ink-2">
       <span className="inline-flex items-center h-6 px-2 rounded-[3px] bg-panel-2 font-medium">Replay</span>
-      <span>{r.live ? `Replay of a live run on ${localDate(r.recordedAt)}. No keys needed.` : 'Replay, hand-written. No keys needed.'}</span>
+      <span>{r.live ? `A recording of a live run on ${localDate(r.recordedAt)}. Nothing runs and nothing is charged.` : 'A recorded demo. Nothing runs and nothing is charged.'}</span>
       {status ? (
         <span className="hidden sm:inline whitespace-nowrap">
           {status.playing ? (status.paused ? 'paused' : 'playing') : status.done ? 'finished' : 'stopped'}, {clock(status.at)} of {clock(status.total)}
@@ -235,7 +238,10 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
         aria-label="Search or run a command"
         className="relative w-full max-w-[640px] flex flex-col rounded-[5px] border border-rule-strong bg-panel shadow-[var(--shadow)] overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === 'Escape' && onClose()}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose();
+          trapTab(e);
+        }}
       >
         <div className="flex items-center gap-2.5 min-h-14 px-3.5 border-b border-rule-strong focus-within:border-ink">
           <Command.Input autoFocus placeholder="Search or run a command" className="flex-1 min-w-0 h-13 bg-transparent text-[16px] leading-6 text-ink outline-none focus-visible:outline-none placeholder:text-ink-3" />
@@ -262,6 +268,11 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
 
 export function Dialog({ title, open, onClose, children, width = 'max-w-[520px]' }: { title: string; open: boolean; onClose: () => void; children: ReactNode; width?: string }) {
   useRestoreFocus(open);
+  const box = useRef<HTMLDivElement>(null);
+  // focus moves into the dialog when it opens, unless a field inside already took it
+  useEffect(() => {
+    if (open && !box.current?.contains(document.activeElement)) box.current?.focus();
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -272,13 +283,18 @@ export function Dialog({ title, open, onClose, children, width = 'max-w-[520px]'
   return (
     <div className="fixed inset-0 z-50 bg-shell/70 flex items-start justify-center pt-[10vh] px-4" onMouseDown={onClose}>
       <div
+        ref={box}
+        tabIndex={-1}
         role="dialog"
         aria-modal
         aria-label={title}
-        className={cx('relative w-full max-h-[85vh] overflow-y-auto rounded-[5px] border border-rule-strong bg-panel p-6', width)}
+        className={cx('relative w-full max-h-[85vh] outline-none overflow-y-auto rounded-[5px] border border-rule-strong bg-panel p-6', width)}
         onMouseDown={(e) => e.stopPropagation()}
         // a key pressed in a dialog stays in it: the page's single-key shortcuts do not fire behind it; Escape and Cmd+K still reach the window
-        onKeyDown={(e) => e.key !== 'Escape' && !e.metaKey && !e.ctrlKey && e.stopPropagation()}
+        onKeyDown={(e) => {
+          trapTab(e);
+          if (e.key !== 'Escape' && !e.metaKey && !e.ctrlKey) e.stopPropagation();
+        }}
       >
         <h2 className="text-section mb-4">{title}</h2>
         {children}
@@ -290,7 +306,7 @@ export function Dialog({ title, open, onClose, children, width = 'max-w-[520px]'
 export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
-  const field = 'w-full rounded-[5px] border border-rule-strong bg-ground px-3 py-2 text-ink placeholder:text-ink-3';
+  const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 text-ink placeholder:text-ink-3';
   const label = 'flex flex-col gap-1.5 font-medium';
   return (
     <Dialog title="New task" open={open} onClose={onClose}>

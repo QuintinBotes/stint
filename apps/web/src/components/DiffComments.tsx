@@ -63,7 +63,7 @@ export function CommentEditor({
         onKeyDown={(e) => {
           if (e.key === 'Escape') onCancel();
         }}
-        className="w-full rounded-[5px] border border-rule bg-ground px-2 py-1 text-body outline-none focus-visible:border-ink"
+        className="w-full rounded-[5px] border border-field bg-ground px-2 py-1 text-body outline-none focus-visible:border-ink"
       />
       {error ? (
         <p role="alert" className="text-red text-small">

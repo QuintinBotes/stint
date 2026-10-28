@@ -398,7 +398,7 @@ function SkillProposal({ s, onDecided }: { s: SkillRecord; onDecided: () => void
             act(() => api.rejectSkill(s.id, reason));
           }}
         >
-          <input required value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Why reject ${s.id}`} placeholder="Why not?" className="flex-1 min-w-0 h-8 rounded-[5px] border border-rule-strong bg-ground px-2.5 text-ink placeholder:text-ink-3" />
+          <input required value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Why reject ${s.id}`} placeholder="Why not?" className="flex-1 min-w-0 h-8 rounded-[5px] border border-field bg-ground px-2.5 text-ink placeholder:text-ink-3" />
           <Button className="h-8 px-2.5 text-small" tone="danger" type="submit" disabled={busy}>
             Reject
           </Button>

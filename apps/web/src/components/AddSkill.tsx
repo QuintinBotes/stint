@@ -174,7 +174,7 @@ function Footer({ ready, blocked, busy, failure, onSubmit, onCancel }: { ready: 
 }
 
 const label = 'flex flex-col gap-2 text-body font-semibold';
-const field = 'w-full rounded-[5px] border border-rule-strong bg-ground px-3 py-2 font-normal text-ink placeholder:text-ink-3';
+const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 font-normal text-ink placeholder:text-ink-3';
 const fileField = 'text-small font-normal text-ink-2 file:mr-3 file:h-8 file:px-3 file:rounded-[5px] file:border file:border-solid file:border-rule-strong file:bg-transparent file:text-body file:font-semibold file:text-ink hover:file:border-ink-2';
 
 type Picked = { kind: Extract<SkillSource['kind'], 'zip' | 'upload' | 'folder'>; ref: string; send: SkillBundleFile[]; files: SkillBundleFile[]; extra: SkillFinding[] };

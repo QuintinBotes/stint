@@ -90,7 +90,7 @@ export function HandoffCard({ handoff, status, name }: { handoff: Handoff | null
       </h2>
       {/* the heavy ink-3 line goes round the caption too */}
       <div className="outline outline-ink-3">
-        <table className={rev.table}>
+        <table className={rev.block}>
           <caption className={cx(rev.caption, 'font-mono')}>{handoff.version}</caption>
           <tbody>
             <tr>

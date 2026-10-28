@@ -77,7 +77,7 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
               </Button>
               <select
                 aria-label="Merge into"
-                className="h-8 rounded-[5px] border border-rule-strong bg-ground px-2 text-small text-ink"
+                className="h-8 rounded-[5px] border border-field bg-ground px-2 text-small text-ink"
                 value={merging[i.id] ?? i.triage?.duplicates[0] ?? ''}
                 onChange={(e) => setMerging((m) => ({ ...m, [i.id]: e.target.value }))}
               >

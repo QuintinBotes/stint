@@ -1,7 +1,44 @@
 import type { Cost } from '@stint-dev/core';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ComponentProps, KeyboardEvent, ReactNode } from 'react';
 import { type Agent, markColor } from '../agents';
 import { money, tokens } from '../format';
+import { GLOSSARY, type Word } from '../glossary';
+
+/** Keeps Tab inside a modal: past the last control it wraps to the first, and Shift+Tab the other way. */
+export function trapTab(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== 'Tab') return;
+  const all = [...e.currentTarget.querySelectorAll<HTMLElement>('a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex="-1"])')].filter((el) => el.getClientRects().length > 0);
+  const first = all[0];
+  const last = all.at(-1);
+  if (!first || !last) return;
+  if (e.shiftKey ? document.activeElement === first : document.activeElement === last) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  }
+}
+
+/** The ARIA tabs pattern on a tab list: arrow keys, Home and End move between tabs and choose the one they land on. Each tab takes tabIndex 0 when chosen, else -1. */
+export function tabKeys(e: KeyboardEvent<HTMLElement>) {
+  const tabs = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')];
+  const i = tabs.indexOf(document.activeElement as HTMLElement);
+  if (i < 0) return;
+  const to = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+  if (to < 0) return;
+  e.preventDefault();
+  tabs[to]?.focus();
+  tabs[to]?.click();
+}
+
+/** A word explained in plain language, behind a question the reader can open: a native disclosure, so any keyboard and screen reader can use it. */
+export function Explain({ word, className }: { word: Word; className?: string }) {
+  const g = GLOSSARY[word];
+  return (
+    <details className={cx('text-small text-ink-2', className)}>
+      <summary className="w-fit cursor-pointer underline decoration-dotted decoration-ink-3 underline-offset-4 hover:text-ink">{g.ask}</summary>
+      <p className="mt-1 max-w-[60ch]">{g.plain}</p>
+    </details>
+  );
+}
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
@@ -11,7 +48,7 @@ export function cx(...parts: Array<string | false | null | undefined>): string {
 export function Who({ agent, live = false, className }: { agent: Agent; live?: boolean; className?: string }) {
   return (
     <span className={cx('inline-flex items-center gap-1.5 min-w-0 whitespace-nowrap', className)}>
-      <span aria-hidden="true" className={cx('size-2.5 shrink-0 rounded-[2px]', live && 'live-spine')} style={{ background: markColor[agent.mark] }} />
+      <span aria-hidden="true" className={cx('size-2.5 shrink-0 ', live && 'live-spine')} style={{ background: markColor[agent.mark] }} />
       <span className="truncate">{agent.name}</span>
     </span>
   );
@@ -112,17 +149,26 @@ export function Button({ tone = 'quiet', className, ...rest }: ComponentProps<'b
   );
 }
 
-/** The revision block's parts (DESIGN.md): a rule-strong table under the heavy ink-3 object line, its caption and header cells on panel, its body cells on ground. */
+/**
+ * Table parts (DESIGN.md): a rule-strong grid, caption and header cells on panel, body cells on ground. `block` adds the heavy
+ * ink-3 object line, kept for the revision block, the packet header and a skill's versions; every other table is plain.
+ */
 export const rev = {
   // text-left here, so a header cell starts at the left and a figure's cell can say text-right without a second alignment
-  table: 'w-full border-collapse text-left text-small outline outline-ink-3',
+  table: 'w-full border-collapse text-left text-small',
+  block: 'w-full border-collapse text-left text-small outline outline-ink-3',
   caption: 'caption-top px-2.5 py-2 text-left font-semibold border border-b-0 border-rule-strong bg-panel',
   th: 'px-2.5 py-1.5 border border-rule-strong align-top font-medium text-ink-2 bg-panel',
   td: 'px-2.5 py-1.5 border border-rule-strong align-top bg-ground',
 };
 
+/** A key hint on a control. Hidden from screen readers, so a button's name is its words alone; the control carries aria-keyshortcuts instead. */
 export function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-[3px] border border-current font-mono text-[12px] font-medium leading-none opacity-80">{children}</kbd>;
+  return (
+    <kbd aria-hidden="true" className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-[3px] border border-current font-mono text-small font-medium leading-none opacity-80">
+      {children}
+    </kbd>
+  );
 }
 
 /** A tab in a tab list: ink-2 at rest, ink with a 2 px ink underline when chosen. */

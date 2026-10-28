@@ -286,7 +286,7 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
                     <label className="font-semibold" htmlFor="gate-text">
                       {asking === 'reject' ? 'Why reject it? The reason becomes a decision.' : 'What should change? This becomes the next ask.'}
                     </label>
-                    <textarea id="gate-text" required autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} className="w-full rounded-[5px] border border-rule-strong bg-ground px-2.5 py-2 text-body text-ink resize-y" />
+                    <textarea id="gate-text" required autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} className="w-full rounded-[5px] border border-field bg-ground px-2.5 py-2 text-body text-ink resize-y" />
                     <div className="grid grid-cols-2 gap-2">
                       <Button tone={asking === 'reject' ? 'danger' : 'primary'} type="submit" className={small}>
                         {asking === 'reject' ? 'Reject' : 'Request changes'}

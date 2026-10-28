@@ -14,6 +14,8 @@
   --panel-2: #1b486d;
   --rule: #30597d;
   --rule-strong: #52789c;
+  /* a field's edge: 3:1 on every surface, so an input is found by its outline (WCAG 1.4.11) */
+  --field: #7798ba;
   --ink: #eef3f8;
   --ink-2: #c0d1e2;
   --ink-3: #a9bfd6;
@@ -34,5 +36,7 @@
   --term-ink: #e3edf6;
   --focus: #ffcb62;
   --shadow: 0 12px 32px rgba(0, 12, 26, 0.55);
+  /* the pinned approval row casts upward, over the runs that scroll under it */
+  --shadow-pinned: 0 -14px 22px rgba(0, 10, 22, 0.28);
   color-scheme: dark;
 }

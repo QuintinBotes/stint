@@ -119,7 +119,7 @@ function Revisions({ s }: { s: SkillRecord }) {
   return (
     // the heavy ink-3 line goes round the caption too, as on the task's revision block
     <div className="outline outline-ink-3">
-      <table className={cx(rev.table, 'table-fixed')} data-testid="skill-revisions">
+      <table className={cx(rev.block, 'table-fixed')} data-testid="skill-revisions">
         <caption className={rev.caption}>Revisions</caption>
         <colgroup>
           <col className="w-16" />
@@ -297,7 +297,7 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
               onChange={(e) => setReason(e.target.value)}
               aria-label={`Why reject ${s.id}`}
               placeholder="Why not? The same evidence will not raise it again."
-              className="flex-1 min-w-[200px] h-9 rounded-[5px] border border-rule-strong bg-ground px-2.5 text-ink placeholder:text-ink-3"
+              className="flex-1 min-w-[200px] h-9 rounded-[5px] border border-field bg-ground px-2.5 text-ink placeholder:text-ink-3"
             />
             <Button tone="danger" type="submit">
               Reject
@@ -384,7 +384,7 @@ export function Skills() {
       { replace: true },
     );
   const pick = (id: string) => setParam('skill', id);
-  const select = 'h-9 rounded-[5px] border border-rule-strong bg-ground px-2 text-ink';
+  const select = 'h-9 rounded-[5px] border border-field bg-ground px-2 text-ink';
   const learned = sorted.filter((s) => s.origin === 'learn-loop').length;
   const written = sorted.length - learned;
   return (

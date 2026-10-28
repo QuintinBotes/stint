@@ -11,6 +11,7 @@
   --color-panel-2: var(--panel-2);
   --color-rule: var(--rule);
   --color-rule-strong: var(--rule-strong);
+  --color-field: var(--field);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
@@ -126,18 +127,16 @@ input[type='checkbox'] {
 /* The clock: a thin quiet track and a solid thumb, so the slider is found without being the brightest thing on screen. */
 input[type='range'] {
   appearance: none;
-  height: 20px;
+  height: 24px;
   background: transparent;
   cursor: pointer;
 }
 input[type='range']::-webkit-slider-runnable-track {
   height: 2px;
-  border-radius: 1px;
   background: var(--ink-3);
 }
 input[type='range']::-moz-range-track {
   height: 2px;
-  border-radius: 1px;
   background: var(--ink-3);
 }
 input[type='range']::-webkit-slider-thumb {

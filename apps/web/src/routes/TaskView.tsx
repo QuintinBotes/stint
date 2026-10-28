@@ -429,7 +429,7 @@ export function TaskView() {
         <Rail events={visible} runs={bundle.runs} showAll={showAll} selected={selected} onSelect={(s) => setParam('ev', String(s))} onOpenPacket={openPacket} rewound={!!asOf} />
       </div>
       {/* the revision block, pinned under the rail; its soft shadow is the one on the page */}
-      <div className="shrink-0 z-10 min-[760px]:sticky bottom-0 px-3 pt-3 pb-4 border-t border-rule-strong bg-panel shadow-[0_-14px_22px_rgb(0_10_22/0.28)] min-[1180px]:max-h-[60%] min-[1180px]:overflow-y-auto">
+      <div className="shrink-0 z-10 min-[760px]:sticky bottom-0 px-3 pt-3 pb-4 border-t border-rule-strong bg-panel shadow-[var(--shadow-pinned)] min-[1180px]:max-h-[60%] min-[1180px]:overflow-y-auto">
         <ApprovalGate bundle={bundle} events={events} seen={asOf ? visible : null} onDone={reload} />
       </div>
     </aside>

@@ -118,7 +118,7 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
       </fieldset>
       <label className="flex flex-col gap-1.5" htmlFor="hand-ask">
         <span className="text-small text-ink-2">Add to the ask (optional)</span>
-        <textarea id="hand-ask" rows={3} value={ask} placeholder="Anything the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[5px] border border-rule-strong bg-ground px-2.5 py-2 text-body text-ink placeholder:text-ink-3 resize-y" />
+        <textarea id="hand-ask" rows={3} value={ask} placeholder="Anything the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[5px] border border-field bg-ground px-2.5 py-2 text-body text-ink placeholder:text-ink-3 resize-y" />
       </label>
       <div className="flex flex-col gap-2">
         <Button tone="primary" className="self-start" onClick={hand} disabled={busy || live || !choice} data-testid="hand-button">
