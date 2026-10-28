@@ -356,11 +356,8 @@ function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk
         )}
         , {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
       </p>
-      <p className="mt-1 flex items-center gap-2 text-small text-ink-2">
-        Who approves{' '}
-        <span data-testid="permission-tier">
-          <StatusChip label={tier.label} tone={tier.tone} />
-        </span>
+      <p className="mt-0.5 text-small text-ink-2">
+        Approval: <span data-testid="permission-tier">{tier.label}</span>
       </p>
     </header>
   );

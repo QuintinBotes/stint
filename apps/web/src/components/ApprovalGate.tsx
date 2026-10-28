@@ -207,26 +207,24 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
           <tr>
             <td colSpan={4} className="p-2.5 border border-rule-strong bg-panel">
               <div className="flex flex-col gap-2.5">
-                {done ? null : (
-                  <div className="flex items-baseline justify-between gap-2">
-                    <b className="font-semibold">Your approval</b>
-                    <span className={cx(open ? 'text-amber' : 'text-ink-2')}>{open ? 'Waiting for you' : 'Not yet'}</span>
-                  </div>
-                )}
                 {seen ? (
                   <p className="text-ink-2" data-testid="gate-rewound">
                     You are looking at an earlier moment; this approval is the task as it is now.
                   </p>
                 ) : null}
-                {!done && files.length > 0 ? (
+                {!done && (reason || files.length > 0) ? (
                   <p className="text-ink-2" data-testid="gate-evidence">
-                    {files.length} file{files.length === 1 ? '' : 's'} changed, +{added} -{removed}, on <span className="font-mono">{bundle.task.branch}</span>.{' '}
-                    <span className={cx(seenFiles < files.length && open && 'text-amber')} data-testid="gate-viewed">
-                      You have viewed {seenFiles} of {files.length}.
-                    </span>
+                    {reason ? <span className={open ? 'text-ink' : undefined}>{reason} </span> : null}
+                    {files.length > 0 ? (
+                      <>
+                        {files.length} file{files.length === 1 ? '' : 's'} changed, +{added} -{removed}.{' '}
+                        <span className={cx(seenFiles < files.length && open && 'text-amber')} data-testid="gate-viewed">
+                          You have viewed {seenFiles} of {files.length}.
+                        </span>
+                      </>
+                    ) : null}
                   </p>
                 ) : null}
-                {reason && !done ? <p className={open ? 'text-ink' : 'text-ink-2'}>{reason}</p> : null}
                 {bundle.risk ? (
                   <p className="flex flex-wrap items-baseline gap-2" data-testid="risk-line">
                     <StatusChip label={`${bundle.risk.tier} risk`} tone={bundle.risk.tier === 'high' ? 'bad' : bundle.risk.tier === 'medium' ? 'warn' : 'neutral'} />
