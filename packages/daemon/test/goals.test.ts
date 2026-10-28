@@ -3,7 +3,7 @@ import { LIMIT_DEFAULTS, type SharpenState, type StintEvent } from '@stint-dev/c
 import { type Workspace, costs } from '@stint-dev/core/node';
 import { nextStep } from '../src/autopilot';
 import { fakeModels, setup, stopped, until } from './autopilot.fixtures';
-import { post, withFixtureRepo } from './helpers';
+import { auth, post, withFixtureRepo } from './helpers';
 
 const GOAL = { title: 'Webhooks survive a noisy tenant', outcome: 'One noisy tenant slows only itself.', criteria: ['429 with Retry-After', 'Other tenants are served as before'], nonGoals: ['Billing for extra webhooks'] };
 
@@ -134,6 +134,12 @@ test('A goal made, sharpened, answered and split into two tasks: the proposal cr
       expect((await post(app, `/api/tasks/${a?.id}/plan`, {})).status).toBe(200);
       expect(models.prompts.at(-1)).toContain('Settled before work started:');
       expect(models.prompts.at(-1)).toContain('Answer: Retries do not count');
+
+      // a person raises the goal's spend limit; the change is recorded, and the goal's builds stay as they were
+      const raised = await app.request(`/api/goals/${g.id}/limits`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ usd: 8 }) });
+      expect(raised.status).toBe(200);
+      expect((await ws.readGoal(g.id)).limits).toEqual({ usd: 8, builds: 5 });
+      expect((await ws.workspaceEvents().read()).find((e) => e.type === 'limits.changed')?.payload).toEqual({ goal: g.id, from: { usd: 5, builds: 5 }, to: { usd: 8, builds: 5 }, by: 'you' });
 
       // a person abandons it; an abandoned goal is not split again
       expect((await post(app, `/api/goals/${g.id}/abandon`, {})).status).toBe(200);
