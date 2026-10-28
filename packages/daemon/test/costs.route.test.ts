@@ -6,7 +6,7 @@ import { makeApp, newTask, withFixtureRepo } from './helpers';
 type Row = { key: string; usd: number; runs: number; creditsLeft?: number; derived?: boolean };
 
 describe('/api/costs', () => {
-  test('GET /api/costs?group=day on the replayed recording returns one row per day with the sum equal to the task totals plus the learn step', async () => {
+  test('GET /api/costs?group=day on the replayed recording returns one row per day with the sum equal to the task totals, the learn step included', async () => {
     await withFixtureRepo(async (repo) => {
       const { app, ws } = await makeApp(repo);
       const r = new Replayer(ws);
@@ -16,9 +16,9 @@ describe('/api/costs', () => {
       const tasks = (await (await app.request('/api/costs?group=task')).json()) as Row[];
       expect(new Set(days.map((d) => d.key)).size).toBe(days.length);
       const sum = (rows: Row[]) => Math.round(rows.reduce((s, x) => s + x.usd, 0) * 10_000) / 10_000;
-      // a task's total is its runs; the day also carries the learn step's $0.015 on Baseten
-      expect(sum(days)).toBe(Math.round((sum(tasks) + 0.015) * 10_000) / 10_000);
-      expect(tasks.find((t) => t.key === 'T-0042')?.usd.toFixed(2)).toBe('0.61');
+      // a task's total is everything spent on it, so T-0042 carries its learn step's $0.015 on Baseten too
+      expect(sum(days)).toBe(sum(tasks));
+      expect(tasks.find((t) => t.key === 'T-0042')?.usd.toFixed(2)).toBe('0.63');
     });
   }, 60_000);
 
@@ -32,8 +32,7 @@ describe('/api/costs', () => {
       const sum = (rows: Row[]) => Math.round(rows.reduce((s, x) => s + x.usd, 0) * 10_000) / 10_000;
       // a replay stamps its events when it plays them, so all six runs and the learn step land in the week it was played
       expect(await get('week')).toEqual([expect.objectContaining({ key: weekOf(new Date()), usd: 0.7581, runs: 6, unpriced: 0 })]);
-      for (const group of ['run', 'day', 'host', 'model', 'day-host']) expect([group, sum(await get(group))]).toEqual([group, 0.7581]);
-      expect(sum(await get('task'))).toBe(0.7431);
+      for (const group of ['task', 'run', 'day', 'host', 'model', 'day-host']) expect([group, sum(await get(group))]).toEqual([group, 0.7581]);
       expect((await get('host')).find((h) => h.key === 'baseten')).toMatchObject({ usd: 0.015, runs: 0, creditsLeft: 99.985 });
       const bad = await app.request('/api/costs?group=month');
       expect(bad.status).toBe(400);

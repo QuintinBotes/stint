@@ -16,7 +16,7 @@ test('R-063: stint outcome prints the result, one line per criterion with its ev
     expect(lines[1]).toBe('  1. Passes, not proven: The admin API answers 429 with Retry-After over the limit');
     expect(lines[2]).toBe('     The tests pass in r1, but no test showed it failing first.');
     expect(lines[3]).toBe('  2. Passes, not proven: The suite stays green');
-    expect(lines).toContain('Loops: 1 build, 0 hand-offs, 0 review rounds');
+    expect(lines).toContain('Loops: 1 build of 8, 0 hand-offs of 3, 0 review rounds of 1');
     expect(lines.find((l) => l.startsWith('Spend: '))).toStartWith('Spend: $0.13; agent time ');
     expect(lines.find((l) => l.startsWith('Times: '))).toContain('green after ');
     expect(lines).toContain('Review: 1 round (approve), 0 findings');

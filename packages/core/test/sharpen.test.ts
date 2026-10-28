@@ -153,7 +153,7 @@ describe('sharpenState', () => {
   });
 });
 
-test('A sharpen round costs money under the role sharpen, in the week and not in the task total', async () => {
+test('A sharpen round costs money under the role sharpen, in the week and in the task total', async () => {
   const { dir, cleanup } = tempDir('stint-sharpen-cost-');
   try {
     const ws = await Workspace.open(dir);
@@ -161,7 +161,7 @@ test('A sharpen round costs money under the role sharpen, in the week and not in
     await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'sharpen.asked', payload: { round: 1, questions: [], assumed: [], proofs: [], dropped: [], host: 'meta-api', model: 'muse-wonder-1.0', cost: { inputTokens: 2000, cachedTokens: 0, outputTokens: 300, usd: 0.014 } } });
     expect((await costs(ws, { group: 'run' })).map((r) => [r.key, r.usd, r.runs])).toEqual([['T-0001/sharpen', 0.014, 0]]);
     expect((await costs(ws, { group: 'model' })).find((r) => r.key === 'meta-api/muse-wonder-1.0')).toMatchObject({ usd: 0.014, roles: ['sharpen'] });
-    expect(await costs(ws, { group: 'task' })).toEqual([]);
+    expect((await costs(ws, { group: 'task' })).map((r) => [r.key, r.usd, r.runs])).toEqual([[t.id, 0.014, 0]]);
   } finally {
     cleanup();
   }

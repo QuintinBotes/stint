@@ -122,6 +122,11 @@ export function runsFromEvents(events: StintEvent[]): RunSummary[] {
   return [...runs.values()].sort((a, b) => Number(a.run.slice(1)) - Number(b.run.slice(1)));
 }
 
+/** What a task cost: its runs and its other model calls (learn, quiz, digest, pick, sharpen), as the limit meter counts it (R-062). */
+export function taskCost(id: string, runs: Array<{ cost: Cost | null }>, events: StintEvent[]): Cost {
+  return sumCosts([...runs.map((r) => r.cost), ...callsFromEvents(id, events).map((c) => c.cost)]);
+}
+
 /** Sums costs; an unpriced or estimated part makes the total `estimated`, and its USD counts as 0. */
 export function sumCosts(costs: Array<Cost | null | undefined>): Cost {
   const total: Cost = { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0 };
@@ -171,7 +176,7 @@ export async function taskBundle(ws: Workspace, id: string): Promise<TaskBundle>
     review: await ws.readReview(id),
     verification: latestVerification,
     runs,
-    cost: sumCosts(runs.map((r) => r.cost)),
+    cost: taskCost(id, runs, events),
     merge,
     outcomes: outcomesFromEvents(events),
     release,
@@ -203,7 +208,7 @@ export type CostGroup = 'task' | 'run' | 'day' | 'week' | 'host' | 'model' | 'da
 /**
  * Cost rows across every task. A run counts once, when its `run.finished` lands, and a run still going counts nothing
  * yet; `day` is the local date it ended and `week` the local Monday-to-Sunday week, keyed by its Monday. Every other
- * grouping includes the calls that are not runs; a task's total is its runs, so the `task` grouping leaves them out.
+ * grouping includes the calls that are not runs, the `task` grouping too: a task's total is everything spent on it.
  */
 export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<CostRow[]> {
   const groups = new Map<string, Spend[]>();
@@ -222,7 +227,7 @@ export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<Cos
   for (const task of await ws.listTasks()) {
     const events = await ws.events(task.id).read();
     const runs: Spend[] = runsFromEvents(events).flatMap((r) => (r.endedAt ? [{ at: r.endedAt, key: `${task.id}/${r.run}`, host: r.host, adapter: r.adapter, model: r.model, role: r.role, cost: r.cost, run: true }] : []));
-    add(task.id, o.group === 'task' ? runs : [...runs, ...callsFromEvents(task.id, events)]);
+    add(task.id, [...runs, ...callsFromEvents(task.id, events)]);
   }
   if (o.group !== 'task') add('workspace', callsFromEvents('workspace', await ws.workspaceEvents().read()));
   return [...groups.entries()]

@@ -21,5 +21,5 @@ test('stint demo --speed 0 --json ends with a summary line and exits 0 without k
   expect(r.exitCode).toBe(0);
   const last = jsonLines(r.stdout).at(-1);
   expect(last).toMatchObject({ done: true, lastAt: '2:35' });
-  expect(last?.tasks).toContainEqual({ id: 'T-0042', status: 'done', usd: 0.6103 });
+  expect(last?.tasks).toContainEqual({ id: 'T-0042', status: 'done', usd: 0.6253 });
 }, 60_000);

@@ -107,7 +107,7 @@ test('A run counts once, however many events repeat its cost: the packet, the re
   }
 });
 
-test('Week and day totals include learn and quiz spend, each counted once; a task total is its runs', async () => {
+test('Week, day and task totals include learn and quiz spend, each counted once', async () => {
   const { ws, cleanup } = await workspaceWith([
     ...run('r1', '2026-10-27T09:00:00Z', '2026-10-27T09:10:00Z', priced(0.3)),
     { type: 'skill.proposed', ts: '2026-10-27T09:20:00Z', payload: { id: 'limiter-config-via-env', host: 'baseten', model: 'muse-spark-open', cost: priced(0.015) } },
@@ -120,7 +120,7 @@ test('Week and day totals include learn and quiz spend, each counted once; a tas
   ]);
   try {
     const rows = async (group: Parameters<typeof costs>[1]['group']) => (await costs(ws, { group })).map((r) => [r.key, r.usd, r.runs]);
-    expect(await rows('task')).toEqual([['T-0001', 0.3, 1]]);
+    expect(await rows('task')).toEqual([['T-0001', 0.345, 1]]);
     expect(await rows('week')).toEqual([['2026-10-26', 0.345, 1]]);
     expect(await rows('day')).toEqual([[localDay('2026-10-27T09:10:00Z'), 0.345, 1]]);
     expect(await rows('run')).toEqual([['T-0001/learn', 0.015, 0], ['T-0001/quiz', 0.03, 0], ['T-0001/r1', 0.3, 1]]);
@@ -158,7 +158,7 @@ test('Each run is billed to who answered it: Muse Code to the Meta Model API, an
   }
 });
 
-test('The pick, the digest, board summaries and triage count in the week once each; a task total is still its runs', async () => {
+test('The pick, the digest, board summaries and triage count in the week once each, and the pick and digest in the total of the task that made them', async () => {
   const { ws, dir, cleanup } = await workspaceWith([
     ...run('r1', '2026-10-27T09:00:00Z', '2026-10-27T09:10:00Z', priced(0.3)),
     { type: 'cost.recorded', ts: '2026-10-27T09:11:00Z', payload: { for: 'digest', host: 'meta-api', model: 'muse-spark-1.3', cost: priced(0.004) } },
@@ -174,7 +174,7 @@ test('The pick, the digest, board summaries and triage count in the week once ea
     appendFileSync(log, line(2, '2026-10-27T10:05:00Z', { for: 'triage', item: 'github-12', host: 'meta-api', model: 'muse-wonder-1.0', cost: priced(0.01) }));
     appendFileSync(log, line(3, '2026-10-27T10:06:00Z', { for: 'triage', item: 'github-13', host: 'nowhere', model: 'unknown-model', cost: priced(null) }));
     const rows = async (group: Parameters<typeof costs>[1]['group']) => (await costs(ws, { group })).map((r) => [r.key, r.usd, r.runs, r.unpriced]);
-    expect(await rows('task')).toEqual([['T-0001', 0.3, 1, 0]]);
+    expect(await rows('task')).toEqual([['T-0001', 0.31, 1, 0]]);
     expect(await rows('week')).toEqual([['2026-10-26', 0.32, 1, 1]]);
     expect(await rows('run')).toEqual([
       ['T-0001/digest', 0.004, 0, 0],

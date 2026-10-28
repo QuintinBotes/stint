@@ -9,7 +9,7 @@ export type { RunMeta, VerificationCheck, VerificationRecord } from './store/run
 export { StoreError, Workspace, slugify } from './store/workspace';
 export type { NewTask, StoreErrorCode } from './store/workspace';
 export { KeyedQueue, readJsonIfExists, stableJSON, writeFileAtomic, writeJsonAtomic } from './store/files';
-export { billingHost, costs, latestHandoff, outcomesFromEvents, runsFromEvents, sumCosts, taskBundle } from './project/index';
+export { billingHost, costs, latestHandoff, outcomesFromEvents, runsFromEvents, sumCosts, taskBundle, taskCost } from './project/index';
 export type { CostGroup, CostRow, OutcomeRecord, RunSummary, TaskBundle } from './project/index';
 export { asOf, constrains, constrainsFiles, filesTogether, similarText, findingThemes, graphCachePath, openFindings, project, similar, skillsHelped } from './graph/index';
 export type { ConstrainsRow, FilesTogetherRow, Graph, GraphEdge, GraphEdgeType, GraphNode, GraphNodeType, GraphOptions, OpenFindingRow, ProjectOptions, SimilarRow, SkillsHelpedRow } from './graph/index';

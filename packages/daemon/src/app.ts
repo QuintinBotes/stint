@@ -9,8 +9,8 @@ import {
   type Workspace,
   costs,
   runsFromEvents,
-  sumCosts,
   taskBundle,
+  taskCost,
 } from '@stint-dev/core/node';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
@@ -231,7 +231,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       const verified = await ws.verification(task.id).latest().catch(() => null);
       cards.push({
         task,
-        cost: sumCosts(runs.map((r) => r.cost)),
+        cost: taskCost(task.id, runs, events),
         lastRun: runs.at(-1) ?? null,
         // every agent and model that worked on it, in the order they first ran
         agents: [...new Map(runs.filter((r) => r.adapter).map((r) => [`${r.adapter}|${r.model ?? ''}`, { adapter: r.adapter, host: r.host, model: r.model, role: r.role }])).values()],

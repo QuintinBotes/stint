@@ -24,7 +24,7 @@ describe('replay', () => {
       expect(b.task.status).toBe('done');
       expect(b.verification?.passed).toBe(33);
       expect(b.review?.findings.map((f) => f.id)).toEqual(['F1', 'F2']);
-      expect(b.cost.usd?.toFixed(2)).toBe('0.61');
+      expect(b.cost.usd?.toFixed(2)).toBe('0.63');
       expect((await ws.decisions('T-0042').read()).map((d) => d.id)).toEqual(['D1', 'D2', 'D3']);
       expect((await ws.readTask('T-0040')).status).toBe('done');
 
