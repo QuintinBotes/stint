@@ -54,6 +54,14 @@ export const QUESTIONS = {
   proofs: [{ criterion: 1, kind: 'test', ref: '429 with Retry-After', why: 'A test can read the status and the header.' }],
 };
 
+/** A goal split into two tasks; the numbers outside the goal (criterion 9, a task waiting on itself) are the model's mistakes. */
+export const SPLIT = {
+  tasks: [
+    { title: 'Count webhooks per tenant', goal: 'Each tenant has its own counter and window.', acceptance: ['429 with Retry-After'], covers: [1, 9], dependsOn: [] },
+    { title: 'Serve the other tenants', goal: 'A tenant under its limit is served as before.', acceptance: ['Other tenants get 200'], covers: [2], dependsOn: [0, 1] },
+  ],
+};
+
 /** Plays the planner, the reviewer and sharpen: answers by the schema it is asked for, and keeps each prompt. */
 export function fakeModels() {
   const asked: string[] = [];
@@ -68,10 +76,11 @@ export function fakeModels() {
         // the pick among green candidates names the first one it was shown
         const pick = body.includes('Pick the one a careful reviewer would merge') ? { pick: /### (T-\d+)/.exec(body)?.[1], reason: 'The first is as simple as the rest.' } : null;
         const questions = body.includes('stint.questions/1');
+        const split = body.includes('"covers"');
         const review = body.includes('"verdict"');
-        asked.push(pick ? 'pick' : questions ? 'sharpen' : review ? 'review' : 'plan');
+        asked.push(pick ? 'pick' : questions ? 'sharpen' : split ? 'split' : review ? 'review' : 'plan');
         prompts.push(body);
-        return Response.json({ message: { content: JSON.stringify(pick ?? (questions ? QUESTIONS : review ? APPROVE : PLAN)) }, prompt_eval_count: 100, eval_count: 20 });
+        return Response.json({ message: { content: JSON.stringify(pick ?? (questions ? QUESTIONS : split ? SPLIT : review ? APPROVE : PLAN)) }, prompt_eval_count: 100, eval_count: 20 });
       }
       return new Response('no', { status: 404 });
     },
