@@ -116,6 +116,26 @@ export function loadKeys(
 /** Puts every loaded key that the environment does not already have into it, and returns where each came from. */
 export function applyKeys(repoRoot: string, opts: { checkout?: string } = {}): ReturnType<typeof loadKeys> {
   const loaded = loadKeys(repoRoot, opts);
-  for (const [name, value] of Object.entries(loaded.values)) if (!process.env[name]) process.env[name] = value;
+  for (const [name, value] of Object.entries(loaded.values)) {
+    if (!process.env[name]) process.env[name] = value;
+    applied.add(name);
+  }
   return loaded;
+}
+
+/** The keys Stint put in or found in the environment: the defaults' names and every name applyKeys loaded. */
+const applied = new Set<string>(namesFrom(DEFAULT_CONFIG));
+
+// NAME=value or NAME: value, where the name says it holds a credential
+const NAMED_SECRET = /\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)([ \t]*[=:][ \t]*)\S+/g;
+
+/** Text with credentials redacted: a credential-like name's value, and the value of any key Stint loaded wherever it appears (R-040). */
+export function scrubSecrets(text: string): string {
+  let out = text.replace(NAMED_SECRET, '$1$2[redacted]');
+  for (const name of applied) {
+    const value = process.env[name];
+    // short values (a port, a flag) would redact ordinary words
+    if (value && value.length >= 8) out = out.split(value).join('[redacted]');
+  }
+  return out;
 }

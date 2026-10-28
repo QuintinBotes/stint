@@ -2,6 +2,7 @@ import { appendFile, copyFile, mkdir, readFile, truncate } from 'node:fs/promise
 import { dirname } from 'node:path';
 import { monotonicFactory } from 'ulid';
 import { canonicalJSON, sha256Hex } from '../canonical';
+import { scrubSecrets } from '../keys';
 import { type NewEvent, type StintEvent, StintEventSchema, classifyEvent } from '../schemas/event';
 import { KeyedQueue } from './files';
 
@@ -10,6 +11,10 @@ const ulid = monotonicFactory();
 const queue = new KeyedQueue();
 const instances = new Map<string, EventLog>();
 const anyListeners = new Set<(e: StintEvent) => void>();
+/** What a person typed and what a tool printed can hold a credential; it is redacted before it is stored (R-040). */
+const SCRUBBED = new Set(['human.command', 'agent.tool_result']);
+const scrubDeep = (v: unknown): unknown =>
+  typeof v === 'string' ? scrubSecrets(v) : Array.isArray(v) ? v.map(scrubDeep) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrubDeep(x)])) : v;
 
 /** The hash chain: NUL-separated canonical fields plus the previous hash. */
 export function eventHash(e: Pick<StintEvent, 'seq' | 'ts' | 'task' | 'run' | 'adapter' | 'type' | 'payload'>, prev: string): string {
@@ -41,7 +46,8 @@ export class EventLog {
   append(input: NewEvent | (Omit<NewEvent, 'type'> & { type: string })): Promise<StintEvent> {
     return queue.run(this.path, async () => {
       const tail = await this.loadTail();
-      const classified = classifyEvent(input);
+      const typed = classifyEvent(input);
+      const classified = SCRUBBED.has(typed.type) ? { ...typed, payload: scrubDeep(typed.payload) as Record<string, unknown> } : typed;
       const draft = { ...classified, id: ulid(), seq: tail.seq + 1, ts: new Date().toISOString() };
       const event = StintEventSchema.parse({ ...draft, prev: tail.hash, hash: eventHash(draft, tail.hash) });
       await mkdir(dirname(this.path), { recursive: true });

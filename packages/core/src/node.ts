@@ -19,5 +19,5 @@ export { metricsOtlpBody, otlpBody, taskSpans, traceIdOf } from './project/otel'
 export type { OtlpSpan } from './project/otel';
 export type { ScoreRow } from './project/scoreboard';
 export type { Relay, RelayLane, RelayLink, RelayMark, RelayRun } from './project/relay';
-export { STINT_CHECKOUT, applyKeys, knownKeyNames, loadKeys, parseKeyFile, userKeyFile } from './keys';
+export { STINT_CHECKOUT, applyKeys, knownKeyNames, loadKeys, parseKeyFile, scrubSecrets, userKeyFile } from './keys';
 export type { KeySource } from './keys';
