@@ -33,3 +33,23 @@ export const GoalSchema = z.strictObject({
   updatedAt: z.iso.datetime({ offset: true }),
 });
 export type Goal = z.infer<typeof GoalSchema>;
+
+/**
+ * The planner's split of a goal into 1 to 6 tasks, which a person sees before any is created: each task's criteria,
+ * the goal criteria it covers (from 1) and the earlier tasks it waits for (indexes from 0).
+ */
+export const GoalSplitSchema = z.strictObject({
+  tasks: z
+    .array(
+      z.strictObject({
+        title: z.string().min(1).max(120),
+        goal: z.string().min(1).max(2000),
+        acceptance: z.array(z.string().min(1).max(300)).min(1).max(8),
+        covers: z.array(z.int().min(1).max(12)).max(12),
+        dependsOn: z.array(z.int().min(0).max(5)).max(5),
+      }),
+    )
+    .min(1)
+    .max(6),
+});
+export type ProposedTask = z.infer<typeof GoalSplitSchema>['tasks'][number];
