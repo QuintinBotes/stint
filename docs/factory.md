@@ -19,6 +19,7 @@ This page is for anyone who wants the whole picture: what each screen of the web
   - the auto-approve lane's shadow record;
   - scheduled upkeep;
   - every harness and host this workspace can use.
+- **Goals** (`/goals`): outcomes bigger than one task. The list shows each goal's status, how many of its criteria are met, its tasks and its spend against its limit. A goal's page shows its outcome, each criterion with its state and the tasks covering it, Sharpen, Split into tasks, the tasks with how each went, and its spend and build meters ([`sharpen.md`](sharpen.md#goals)).
 - **Skills** (`/skills`): what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
 
 <p align="center"><img alt="The Factory: what the agents did in four figures, then the agents table, with every other measure in named sections below" src="../assets/screenshot-factory.png" width="900"></p>
@@ -76,6 +77,10 @@ When a limit is reached, the daemon records `limit.reached` with the limit, what
 - **Hand to another agent:** the hand-to control on the packet tab.
 
 From a terminal, `stint limits <task>` prints the meters, and `stint limits <task> --max-builds 10` or `--none usd` changes them. Changing a limit this way does not restart autopilot; `stint run <task>` does.
+
+### A goal's limits
+
+A goal can set a spend limit and a build limit for all of its tasks together. Before a build of a task with a goal, autopilot adds up the spend and the builds of every task in the goal and stops when the goal's limit is reached, or when one more build at the task's usual cost would pass its spend limit. It records `limit.reached` with `scope: "goal"` and the goal's id, and the stop names the goal: "Needs you: the goal's $5.00 spend limit is reached ($5.10 spent across G-0001's tasks)." The task view then sends you to the goal, where "Change the goal's limits" raises them (`PATCH /api/goals/:id/limits`, recorded as `limits.changed` with the goal's id). Each task made from a goal takes its share of the goal's spend and builds as its own limits, so a task usually stops at its own limit first; the goal's limit holds when you raise a task's own. The goal's own sharpen round and split are not counted against it.
 
 ## Stint as a tool for any agent
 

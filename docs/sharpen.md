@@ -81,3 +81,31 @@ The routes behind them, each POST needing the daemon token: `POST /api/tasks/:id
 ```
 
 `maxQuestions` is 1 to 10. A round's cost is recorded on `sharpen.asked` and counts in the week under the role "sharpens tasks", like the other model calls that are not runs.
+
+## Goals
+
+A goal is an outcome bigger than one task, with the criteria that prove it and limits for all of its tasks. It is `stint.goal/1` ([`schemas/goal.schema.json`](../schemas/goal.schema.json)), stored at `.stint/goals/G-0001.json` and written only by the daemon. Its events go to the workspace log, `.stint/workspace/events.jsonl`, each with the goal's id in `payload.goal`: `goal.created`, `sharpen.asked`, `sharpen.answered`, `proofs.set`, `goal.planned`, `goal.tasks_created`, `goal.status` and `limits.changed`.
+
+**Sharpening a goal** uses the same engine and the same rules as a task. The goal's criteria take the place of acceptance, and the prompt carries its title, outcome, criteria, what is not in scope, the tracked files, its decisions and the earlier rounds. Answers go to `goal.decisions` as `D1`, `D2` and on; answering a question again adds a decision, and the latest answer is the one that stands. Accepted proofs go on the goal's criteria.
+
+**Its status** is `draft` until it is sharpened, no material question is open and each criterion has a proof; then it is `ready`. Choosing "Split into tasks" also makes a draft ready. It is `running` once tasks are made from it and `done` once its rollup says so. Only a person abandons it.
+
+**Splitting it into tasks** asks the planner chain for 1 to 6 tasks, each with a title, a goal, acceptance, the goal criteria it covers (from 1) and the earlier tasks it waits for. The split is only a proposal: `goal.planned` records it and what the call cost, which counts under the role "plans", and no task exists yet. You check the proposed tasks, change a title or a check, then create them. Each is made through the normal task path with:
+
+- `goalId` and `goalCriteria`, the goal criteria it covers;
+- `dependsOn`, so it starts only once the tasks it waits for are merged;
+- its share of the goal's spend and builds as its own limits;
+- a ledger that starts with the goal's standing decisions, by `goal`, with `goal:G-0001/D1` as evidence. The plan and the first build carry them under "Before work started".
+
+**How it went** rolls up from each task's outcome record (`goalOutcome` in `packages/core/src/project/goalOutcome.ts`). Each goal criterion takes the weakest state among the criteria of the tasks that cover it, weakest first: failing, not checked, you check it, passing, checked by you, proven. A criterion is met when it is proven or checked by you, and one no task covers is not checked. The rollup also gives each task's result, spend and builds against the goal's limits, and how many tasks are merged. A goal is done when every task is merged (a reverted merge does not count) and every criterion is met. How a goal's limits stop autopilot is in [`factory.md`](factory.md#a-goals-limits).
+
+| Command | What it does |
+|---|---|
+| `stint goal new "<title>" --outcome "<what is true>" --criterion "<check>" --criterion "<check>"` | Makes a goal; `--non-goal` adds what it leaves out, `--max-usd` and `--max-builds` its limits |
+| `stint goal sharpen G-0001` | Sharpens it like `stint sharpen`, with `--recommended` and `--json` |
+| `stint answer G-0001 Q1 A` | Answers one of its questions |
+| `stint goal plan G-0001` | Shows the proposed tasks and asks before creating them; `--yes` creates them without asking |
+| `stint goal show G-0001` | Prints the rollup the way `stint outcome` prints a task; `--json` for the record |
+| `stint goal list` | Each goal with its status, criteria met, tasks and spend |
+
+The routes, each POST needing the daemon token: `POST /api/goals` and `GET /api/goals`; `GET /api/goals/:id` (the goal, its rollup, its sharpen state and any proposal not yet made into tasks); the same sharpen routes as a task under `/api/goals/:id`, with `POST /api/goals/:id/proofs`; `POST /api/goals/:id/plan` (the proposal) and `POST /api/goals/:id/tasks` (`{ tasks }`, as proposed or edited); `POST /api/goals/:id/abandon`; and `PATCH /api/goals/:id/limits`. In the web UI, Goals sits between Board and Factory, and "New goal" is on the Goals page and in the command palette.

@@ -133,7 +133,7 @@ Merged T-0001 into main as 3f2a9c1.
 | `stint run <task> --wait` | Plan, build, verify and review, stopping at your approval |
 | `stint hand <task> <agent>` | Hand the task to another agent from its packet |
 | `stint packet <task>` | Show the packet the next agent reads |
-| `stint sharpen <task>` | Answer the few questions that change what gets built, before work starts |
+| `stint sharpen <task>`, `stint goal new "<title>" --outcome "<what is true>" --criterion "<check>"` | Answer the few questions that change what gets built, before work starts; make a goal above tasks |
 | `stint approve <task>`, `stint reject <task> --reason "<why>"` | Merge the verified change, or send it back with the reason as the next run's ask; `stint outcome <task>` then says how it went |
 | `stint costs --by host` | Spend by task, run, day, week or host |
 | `stint keys list` | Where each key comes from, never its value |
@@ -169,7 +169,7 @@ Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Mu
 - Every view is projected from each task's hash-chained `events.jsonl`, so the folder is readable without Stint.
 - Each run gets its own worktree; the daemon runs the tests and locks the test files the plan and the task name ([`docs/verify.md`](docs/verify.md)).
 - Every ending writes a packet (`stint.handoff/1`), never a transcript ([`docs/packet.md`](docs/packet.md)).
-- Before work starts, Sharpen asks the few questions whose answers change what gets built or how it is proven, recommends an answer to each, and records yours as decisions the plan and every agent keep ([`docs/sharpen.md`](docs/sharpen.md)).
+- Before work starts, Sharpen asks the few questions whose answers change what gets built or how it is proven, recommends an answer to each, and records yours as decisions the plan and every agent keep. A goal above tasks is sharpened the same way, split into tasks you check first, and rolled up from how each went ([`docs/sharpen.md`](docs/sharpen.md)).
 - Adapters drive the agents and never touch the store ([`docs/adapters.md`](docs/adapters.md)).
 - The factory around the hand-off: escalation, best of n, memory, skills and evals, outcomes after merge ([`docs/factory.md`](docs/factory.md)).
 
