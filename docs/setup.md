@@ -67,7 +67,7 @@ stint keys list
 
 ## Your first task
 
-The README's [Use it on your repository](../README.md#use-it-on-your-repository) walks through it with the expected output: `stint init`, keys, `stint up`, `stint new`, `stint run`, the gate and `stint approve`. Three things to know before you start:
+The README's [Use it on your repository](../README.md#use-it-on-your-repository) walks through it with the expected output: `stint init`, keys, `stint up`, `stint new`, `stint run`, the gate and `stint approve`. After a merge, `stint outcome <task>` says how the task went: each criterion and its proof, the loops, the spend and what happened since. Three things to know before you start:
 
 - **A clean tree.** A run starts from your last commit in its own worktree under `.stint/worktrees/`, on the branch `stint/<task>`. Uncommitted changes to tracked files stop it with `dirty_tree`, so commit or stash them first.
 - **The test command.** The daemon runs the task's test command itself after every run. It is `testCommand` in `.stint/config.json` (`bun test` until you change it), or `stint new --test "<command>"` for one task.

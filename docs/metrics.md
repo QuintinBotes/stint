@@ -26,6 +26,44 @@ Mature merges: a merge from yesterday has had no time to be reverted, so countin
 
 Why `outcome.cost_per_good_merge` is the headline cost: `outcome.cost_per_merge` divides the spend on merged tasks by merges, which hides the tasks that were abandoned and the merges that later escaped a defect. `cost_per_good_merge` puts every terminal task's spend in the numerator, waste included, and only good merges in the denominator. It is the factory's unit cost, and it is the number to watch week to week.
 
+## How it went
+
+The metrics above add up many tasks. `outcome()` in `packages/core/src/project/outcome.ts` answers for one task: how did it go? It is a pure projection over the task's log and its verification records, and its output is `stint.outcome/1` (`schemas/outcome.schema.json`). Read it with `stint outcome <task>` (add `--json` for the record), at `GET /api/tasks/:id/outcome`, in the "How it went" line above Approve at the gate, under the title block of a merged, rejected or abandoned task, and in the Outcome column of the `stint report` Reviews table.
+
+Each acceptance criterion has one state. A criterion's proof, when it has one, is its entry in `task.proofs`, of kind `test`, `scenario`, `check` or `human`, with a `ref` that names the test (any failing name that contains it), the scenario or the check. The latest verification is the record with the newest time. From strongest to weakest:
+
+- Proven. A `test` proof whose test failed earlier on this task, at lock time (`acceptance.locked` `failing`) or in an earlier `verification.ran` `failing`, and the latest verification is green. A `scenario` proof whose scenario passed on the latest verification. A `check` proof whose check passed on the latest verification. With no proof, every criterion counts as proven when tests first locked tests that failed at lock time and the latest verification is green, because the locked tests were written for the criteria.
+- Passing, not proven. The latest verification is green, but nothing shows the proof failed first; or there is no proof and no tests-first lock. The gate says "Passes, but no test showed it failing first."
+- Failing. A `test` proof matches a name in the latest `failing`, a named scenario or check failed, or there is no proof and the latest verification is red.
+- You check it. The proof is of kind `human` and the task is not approved yet. After approval it reads "checked by you", with who approved it. An approval by the auto-approve lane leaves it as "you check it", because no person checked it.
+- Not checked. There is no verification yet; or the named scenario or check did not run in the latest one; or the tests are red and the proof's test is not among the failing names Stint read.
+
+Each criterion carries one sentence of evidence a person can check, such as "limiter.test.ts > 429 with Retry-After failed at lock time and passes in r3."
+
+Each task has one result:
+
+- in progress;
+- waiting for you, at the gate;
+- stopped at a limit: autopilot stopped after `limit.reached`, and no run has started since;
+- stopped, needs you: any other `autopilot.stopped` with `needsYou`, and no run has started since;
+- rejected;
+- abandoned;
+- merged;
+- merged, then reverted;
+- merged, needed a follow-up;
+- merged, CI failed;
+- merged, incident.
+
+The after-merge results count only events within `config.metrics.outcomeWindowDays` of the merge (7 days by default): the window the outcome metrics judge a merge by, and the one the follow-up scan looks within. When more than one applies, the worst wins: reverted, then incident, then CI failed, then follow-up. Once the window has passed with none of them, the result is "merged, held up". Until then it is "merged", and the task view says "Watching for reverts and follow-ups until" the window's last day.
+
+Beside the criteria, the record carries:
+
+- the loops (builds, hand-offs and review rounds, counted as limits count them) and the task's limits;
+- the spend in dollars, with unpriced calls counted, never priced at $0, and the agent time in minutes;
+- times in milliseconds from the task's creation to the first green verification, to the first approval request and to the merge (`leadTime`), and the wait from the first approval request to your answer;
+- the review: rounds, each verdict, and the latest review's findings by severity;
+- each packet hand-off, with who wrote it, who it was for and its size in tokens.
+
 ## Suggested starting targets
 
 These are suggestions, not measured norms. No targets ship by default. Set them under `config.metrics.targets` in `.stint/config.json`; `stint metrics --check` then exits 1 and names each metric that misses, which makes it usable in CI.

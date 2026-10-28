@@ -133,7 +133,7 @@ Merged T-0001 into main as 3f2a9c1.
 | `stint run <task> --wait` | Plan, build, verify and review, stopping at your approval |
 | `stint hand <task> <agent>` | Hand the task to another agent from its packet |
 | `stint packet <task>` | Show the packet the next agent reads |
-| `stint approve <task>` | Merge the verified change |
+| `stint approve <task>` | Merge the verified change; `stint outcome <task>` then says how it went |
 | `stint reject <task> --reason "<why>"` | Send it back with the reason as the next run's ask |
 | `stint costs --by host` | Spend by task, run, day, week or host |
 | `stint keys list` | Where each key comes from, never its value |
