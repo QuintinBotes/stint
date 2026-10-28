@@ -460,7 +460,7 @@ export class Autopilot {
         }
         if (s.kind === 'recommend') {
           await takeRecommendations(this.ctx, id, 'autopilot');
-          await this.step(id, 'sharpen', `Took the recommended answer for ${s.questions.join(', ')}; none of them is material.`);
+          await this.step(id, 'sharpen', `Took the recommended answer for ${s.questions.join(', ')}; ${s.questions.length === 1 ? 'it is not' : 'none of them is'} material.`);
           continue;
         }
         if (s.kind === 'plan') {
