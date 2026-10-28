@@ -13,7 +13,7 @@ import {
   countTokens,
   renderHandoff,
 } from '@stint-dev/core';
-import { constrains, hashHandoff } from '@stint-dev/core/node';
+import { constrains, hashHandoff, scrubSecrets } from '@stint-dev/core/node';
 import type { Enrichment } from './adapter';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
@@ -64,8 +64,7 @@ const clip = (s: string, n: number) => {
 };
 const list = (items: string[]) => [...new Set(items.map((i) => clip(i, ITEM)).filter(Boolean))].slice(0, LIST);
 // a credential an agent echoed into its own words never reaches a packet
-const SECRET = /\b([A-Z][A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)=\S+/g;
-const scrub = (s: string) => s.replace(SECRET, '$1=[redacted]');
+const scrub = scrubSecrets;
 
 /** A run's events, and the events of the whole task up to its end. */
 export function runSlice(events: StintEvent[], run: string) {

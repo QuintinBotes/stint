@@ -13,6 +13,7 @@ export type ErrorCode =
   | 'run_active'
   | 'not_found'
   | 'unauthorized'
+  | 'forbidden'
   | 'invalid'
   | 'packet_too_large'
   | 'verification_red'
@@ -32,6 +33,7 @@ const STATUS: Record<ErrorCode, ContentfulStatusCode> = {
   run_active: 409,
   not_found: 404,
   unauthorized: 401,
+  forbidden: 403,
   invalid: 400,
   packet_too_large: 422,
   verification_red: 409,

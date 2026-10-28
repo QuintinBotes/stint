@@ -1,17 +1,19 @@
+import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { type Cost, type PermissionRequest, type Role, type Task, countTokens, priceUsage } from '@stint-dev/core';
+import { type Cost, type PermissionRequest, type Role, type StintEvent, type Task, countTokens, priceUsage } from '@stint-dev/core';
 import { runsFromEvents, writeJsonAtomic } from '@stint-dev/core/node';
 import { lockPlanTests } from './acceptance';
 import type { Adapter, RunResult } from './adapter';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
-import { drainDockerBlocked, prepareRun } from './sandbox';
+import { daemonPort, drainDockerBlocked, prepareRun } from './sandbox';
 import { git } from './git';
 import { earlierHops } from './handoff';
 import { renderPrompt } from './prompt';
 import { sharpenBrief } from './sharpen';
+import { currentWorktree, verifyBranch } from './routes/work';
 import { skillsForTask } from './skills';
 import { worktreePath } from './worktree';
 
@@ -87,7 +89,7 @@ async function writeActive(ctx: DaemonContext, value: Record<string, string> | n
 /** Starts a run: worktree, skills, prompt, run.started, then the adapter in the background. */
 export async function assign(ctx: DaemonContext, taskId: string, input: AssignInput): Promise<Assigned> {
   const ws = ctx.ws;
-  let task = await ws.readTask(taskId);
+  const task = await ws.readTask(taskId);
   const adapter: Adapter | undefined = ctx.adapters.find((a) => a.id === input.adapter);
   if (!adapter) {
     const ids = ctx.adapters.map((a) => a.id);
@@ -99,7 +101,16 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   if (input.steps !== undefined && (!Number.isInteger(input.steps) || input.steps < 1)) {
     throw new DaemonError('invalid', `steps must be a positive whole number, not ${input.steps}`);
   }
-  if (ctx.runs.get(taskId)) throw new DaemonError('run_active', `${taskId} already has a live run`, 'stop it or wait for it to end');
+  if (!ctx.runs.reserve(taskId)) throw new DaemonError('run_active', `${taskId} already has a live run`, 'stop it or wait for it to end');
+  try {
+    return await begin(ctx, taskId, input, task, adapter);
+  } finally {
+    ctx.runs.release(taskId);
+  }
+}
+
+async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, task: Task, adapter: Adapter): Promise<Assigned> {
+  const ws = ctx.ws;
   // tester and learn runs draw on the implementer's budget unless the task gives them their own
   const budget = task.budgets[input.role] ?? task.budgets.implementer;
   const spent = await spentByRole(ctx, taskId, input.role);
@@ -141,8 +152,11 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   // with no plan there was no plan time: the first assign locks the tests as they are now (R-029)
   await lockPlanTests(ctx, taskId);
   const wt = await ctx.worktrees.create(task, run);
+  // the agent's process calls the daemon with a token good only for this run's own routes, never the daemon's (R-040)
+  const token = randomBytes(24).toString('hex');
+  const port = daemonPort(ctx);
   // a sandbox that is configured but cannot run refuses the run before anything is recorded
-  const sandbox = await prepareRun(ctx, taskId, run, wt.path, adapter).catch(async (err: unknown) => {
+  const sandbox = await prepareRun(ctx, taskId, run, wt.path, adapter, { STINT_RUN_TOKEN: token, ...(port ? { STINT_DAEMON_PORT: String(port) } : {}) }).catch(async (err: unknown) => {
     await ctx.worktrees.remove(task, run).catch(() => undefined);
     throw err;
   });
@@ -180,6 +194,7 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     startedAt,
     abort,
     inFlight: null as string | null,
+    token: token as string | undefined,
     permissions: new Map<string, { requestId: string; tool: string; title: string; options: PermissionRequest['options']; resolve: (answer: { optionId: string } | 'cancelled') => void }>(),
     done: Promise.resolve() as Promise<unknown>,
   };
@@ -244,27 +259,14 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
       await events.append({ ...base, type: 'agent.message', payload: { text: `The adapter failed: ${message}` } });
       result = { endedBy: abort.signal.aborted ? 'killed' : 'failed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true } };
     }
+    // the run is over: its token opens nothing any more
+    live.token = undefined;
     await snaps.stop();
     if (ws.config.sandbox?.kind === 'docker') await drainDockerBlocked(ctx);
-    const commit = existsSync(wt.path) ? await ctx.worktrees.commit(task, run, wt.path, result.endedBy) : null;
-    const cost = priced(ctx, adapter.id, { ...result, model: result.model ?? model });
-    if (cost.usd === null) await events.append({ task: taskId, run, vendor: 'daemon', type: 'cost.unpriced', payload: { key: priceKey(adapter.id, result.host, result.model ?? model) } });
-    await ws.runs(taskId).updateMeta(run, { endedAt: new Date().toISOString(), endedBy: result.endedBy, cost, ...(result.sessionId ? { sessionId: result.sessionId } : {}) });
     // Muse names the open tool without arguments; its PreToolUse hook adds them when it names the same tool
     const own = result.endedBy === 'killed' ? (result.inFlight ?? null) : null;
     const hooked = live.inFlight;
-    const inFlight = own && hooked?.startsWith(`${own} `) ? hooked : own;
-    await events.append({
-      ...base,
-      type: 'run.finished',
-      payload: { endedBy: result.endedBy, cost, host: result.host ?? 'local-cli', model: result.model ?? model ?? null, inFlight, commit, ...(result.sessionId ? { sessionId: result.sessionId } : {}) },
-    });
-    await writeActive(ctx, null);
-    ctx.runs.remove(taskId, run);
-    await ws.writeTask(taskId, { status: 'verifying', assignee: null });
-    const v = existsSync(wt.path) ? await ctx.verifier.verify(await ws.readTask(taskId), run, wt.path) : null;
-    await ws.writeTask(taskId, { status: v?.status === 'green' ? 'reviewing' : 'building' });
-    await ctx.afterRun?.(taskId, run, result);
+    await closeRun(ctx, task, base, wt.path, result, model, own && hooked?.startsWith(`${own} `) ? hooked : own);
   })().catch(async (err: unknown) => {
     ctx.runs.remove(taskId, run);
     process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `run ${taskId} ${run} failed to close: ${err instanceof Error ? err.message : String(err)}` })}\n`);
@@ -274,6 +276,64 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   ctx.pending.add(done);
   void done.finally(() => ctx.pending.delete(done));
   return { run, worktree: relative(ws.root, wt.path), done };
+}
+
+type RunBase = { task: string; run: string; adapter: string; vendor: StintEvent['vendor'] };
+
+/** Closes a run that ended, one a restart cut off included: commit, run.finished, the daemon's verification, then the packet. */
+async function closeRun(ctx: DaemonContext, task: Task, base: RunBase, worktree: string, result: RunResult, model: string | undefined, inFlight: string | null): Promise<void> {
+  const { ws } = ctx;
+  const { task: taskId, run, adapter } = base;
+  const events = ws.events(taskId);
+  const commit = existsSync(worktree) ? await ctx.worktrees.commit(task, run, worktree, result.endedBy) : null;
+  const cost = priced(ctx, adapter, { ...result, model: result.model ?? model });
+  if (cost.usd === null) await events.append({ task: taskId, run, vendor: 'daemon', type: 'cost.unpriced', payload: { key: priceKey(adapter, result.host, result.model ?? model) } });
+  await ws.runs(taskId).updateMeta(run, { endedAt: new Date().toISOString(), endedBy: result.endedBy, cost, ...(result.sessionId ? { sessionId: result.sessionId } : {}) });
+  await events.append({
+    ...base,
+    type: 'run.finished',
+    payload: { endedBy: result.endedBy, cost, host: result.host ?? 'local-cli', model: result.model ?? model ?? null, inFlight, commit, ...(result.sessionId ? { sessionId: result.sessionId } : {}) },
+  });
+  await writeActive(ctx, null);
+  ctx.runs.remove(taskId, run);
+  await ws.writeTask(taskId, { status: 'verifying', assignee: null });
+  const v = existsSync(worktree) ? await ctx.verifier.verify(await ws.readTask(taskId), run, worktree) : null;
+  await ws.writeTask(taskId, { status: v?.status === 'green' ? 'reviewing' : 'building' });
+  await ctx.afterRun?.(taskId, run, result);
+}
+
+const logError = (message: string) => process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message })}\n`);
+
+/**
+ * On start nothing is live, so a run the log leaves open was cut off by a crash or a stop: it is closed as killed
+ * through the same path as any killed run. A task left verifying is verified again. Autopilot resumes after this,
+ * so it never waits on a run that will not end (R-025).
+ */
+export async function recoverRuns(ctx: DaemonContext): Promise<void> {
+  for (const t of await ctx.ws.listTasks()) {
+    try {
+      const events = await ctx.ws.events(t.id).read();
+      for (const r of runsFromEvents(events).filter((x) => !x.endedAt)) {
+        const started = events.find((e) => e.type === 'run.started' && e.run === r.run);
+        // a replayed run was recorded, not lost; a live one is still running
+        if (!started || started.payload.replay === true || ctx.runs.get(t.id)) continue;
+        const base: RunBase = { task: t.id, run: r.run, adapter: started.adapter ?? 'unknown', vendor: started.vendor ?? 'other' };
+        const killed: RunResult = { endedBy: 'killed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true } };
+        await ctx.ws.events(t.id).append({ ...base, type: 'agent.message', payload: { text: 'This run was cut off because the daemon restarted, so it is closed as killed.' } });
+        // a plan or review call has no worktree, commit or verification: it only ends
+        if (typeof started.payload.worktree !== 'string') await ctx.ws.events(t.id).append({ ...base, type: 'run.finished', payload: { endedBy: 'killed', cost: killed.cost, reason: 'the daemon restarted' } });
+        else await closeRun(ctx, t, base, worktreePath(ctx.ws, t.id, r.run), killed, r.model ?? undefined, null);
+      }
+      const task = await ctx.ws.readTask(t.id);
+      if (task.status !== 'verifying' || ctx.runs.get(t.id)) continue;
+      const wt = await currentWorktree(ctx, t.id).catch(() => null);
+      const last = runsFromEvents(await ctx.ws.events(t.id).read()).filter((r) => r.role === 'implementer').at(-1);
+      const v = wt ? await ctx.verifier.verify(task, wt.run, wt.path) : last ? await verifyBranch(ctx, task, last.run) : null;
+      await ctx.ws.writeTask(t.id, { status: v?.status === 'green' ? 'reviewing' : 'building' });
+    } catch (err) {
+      logError(`a run of ${t.id} that a restart cut off could NOT be closed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 }
 
 /** Stops a live run: SIGKILL to the agent's process group, then waits up to 5 s for the run to close. */

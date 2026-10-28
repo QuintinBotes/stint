@@ -141,15 +141,20 @@ export class Worktrees implements WorktreeManager {
     const seen = new Map<string, string>();
     let busy: Promise<void> = Promise.resolve();
     const tick = () => {
-      busy = busy.then(async () => {
-        if (!existsSync(path)) return;
-        for (const f of await this.snapshot(task, path).catch(() => [])) {
-          const key = `${f.added}/${f.removed}`;
-          if (seen.get(f.path) === key) continue;
-          seen.set(f.path, key);
-          await this.ws.events(task.id).append({ task: task.id, run, vendor: 'daemon', type: 'file.changed', payload: { ...f, run }, links: [{ kind: 'file', ref: f.path }] });
-        }
-      });
+      busy = busy
+        .then(async () => {
+          if (!existsSync(path)) return;
+          for (const f of await this.snapshot(task, path).catch(() => [])) {
+            const key = `${f.added}/${f.removed}`;
+            if (seen.get(f.path) === key) continue;
+            seen.set(f.path, key);
+            await this.ws.events(task.id).append({ task: task.id, run, vendor: 'daemon', type: 'file.changed', payload: { ...f, run }, links: [{ kind: 'file', ref: f.path }] });
+          }
+        })
+        // a failed snapshot is said out loud; a rejection on a timer would end the daemon
+        .catch((err: unknown) => {
+          process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `a snapshot of ${task.id} ${run} did NOT run: ${err instanceof Error ? err.message : String(err)}` })}\n`);
+        });
       return busy;
     };
     const timer = setInterval(() => void tick(), everyMs);

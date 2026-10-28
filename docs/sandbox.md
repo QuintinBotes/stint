@@ -35,14 +35,15 @@ On its own the proxy only covers tools that honour the proxy variables, which mo
 **`sandbox-exec`** (macOS) runs the agent under a profile.
 - It can write only to:
   - its worktree;
-  - the repository's `.git` (its commits land there);
+  - the repository's `.git` (its commits land there), except its hooks and its config;
   - temp folders;
   - the usual agent state and cache folders in your home: `~/.config`, `~/.cache`, `~/.bun`, `~/.npm`, `~/Library/Application Support` and `~/Library/Caches`;
   - any paths in `sandbox.writable`.
+- It cannot read `.stint/cache`, which holds the daemon's token.
 - It can open network connections only to the egress proxy and the daemon.
 
 **`docker`** runs the agent in a container.
-- Only the worktree and the repository's `.git` are mounted, at the same paths as on your machine.
+- Only the worktree and the repository's `.git` are mounted, at the same paths as on your machine. The git hooks and config are mounted read-only, and `.stint/cache` is never mounted.
 - With egress on, the container sits on an internal network (`stint-egress`) with no route out. Its only way out is a proxy sidecar, which applies the same allow list and logs refusals back onto the run.
 - The image is `sandbox.image` (default `node:22`) and must contain the agent's command line.
 - Hooks that call the daemon don't work from inside a container.
@@ -52,6 +53,12 @@ On its own the proxy only covers tools that honour the proxy variables, which mo
 If the configured sandbox can't run (docker not running, or `sandbox-exec` on Linux), Stint refuses the run and says why. It never quietly runs an agent outside the boundary you asked for.
 
 The Stint agent's file tools run inside the daemon and are held to the worktree by its path checks. Its shell commands run in the sandbox.
+
+Whatever the sandbox:
+- Each run gets its own token, `STINT_RUN_TOKEN`, with the daemon's port in `STINT_DAEMON_PORT`. The token reaches only the routes the agent's hooks and `stint mcp` call for that task and run, answers 403 anywhere else, and stops working when the run ends. Approving, merging and managing skills need the daemon token.
+- The daemon runs git with hooks turned off, so a hook an agent wrote never runs outside its sandbox.
+- The daemon's own test runs on the agent's code use the same sandbox as the agent.
+- The keys of every configured host are kept out of a run's environment whatever they are called, and so is a base URL that carries a password or a key.
 
 ## Risk and the auto-approve lane
 

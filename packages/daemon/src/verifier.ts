@@ -66,19 +66,40 @@ export function parseCoverage(output: string): number | null {
 }
 
 type Exec = { exitCode: number; output: string; durationMs: number; timedOut: boolean };
+type Prepared = { env: Record<string, string>; wrap?: (argv: string[]) => string[] };
+
+const HEAD_BYTES = 64 * 1024;
+const TAIL_BYTES = 512 * 1024;
 
 /**
  * Runs a shell command in its own process group so a cap kills the whole tree. The cap counts time the machine
  * was awake: a laptop that sleeps mid-test fires the timer on waking, while `now` (performance.now) stood still,
  * so the timer is set again for the awake time still owed instead of failing a test that never ran over.
  */
-export function execInGroup(command: string, cwd: string, env: Record<string, string>, capMs: number, now: () => number = () => performance.now()): Promise<Exec> {
+export function execInGroup(command: string, cwd: string, env: Record<string, string>, capMs: number, now: () => number = () => performance.now(), wrap: (argv: string[]) => string[] = (a) => a): Promise<Exec> {
   return new Promise((resolve) => {
     const t0 = now();
-    const child = spawn('/bin/sh', ['-c', command], { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    const chunks: Buffer[] = [];
-    child.stdout.on('data', (b: Buffer) => chunks.push(b));
-    child.stderr.on('data', (b: Buffer) => chunks.push(b));
+    const [bin, ...args] = wrap(['/bin/sh', '-c', command]) as [string, ...string[]];
+    const child = spawn(bin, args, { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    // a head and a tail: the summary and the failing names a runner prints are at the end, and the memory stays bounded
+    let head = Buffer.alloc(0);
+    let tail = Buffer.alloc(0);
+    let dropped = 0;
+    const keep = (b: Buffer) => {
+      if (head.length < HEAD_BYTES) {
+        const n = Math.min(HEAD_BYTES - head.length, b.length);
+        head = Buffer.concat([head, b.subarray(0, n)]);
+        b = b.subarray(n);
+      }
+      if (b.length === 0) return;
+      tail = Buffer.concat([tail, b]);
+      if (tail.length > TAIL_BYTES * 2) {
+        dropped += tail.length - TAIL_BYTES;
+        tail = tail.subarray(tail.length - TAIL_BYTES);
+      }
+    };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
     let timedOut = false;
     const arm = (ms: number): ReturnType<typeof setTimeout> =>
       setTimeout(() => {
@@ -97,7 +118,12 @@ export function execInGroup(command: string, cwd: string, env: Record<string, st
     let timer = arm(capMs);
     child.on('close', (code) => {
       clearTimeout(timer);
-      resolve({ exitCode: code ?? 1, output: Buffer.concat(chunks).toString('utf8'), durationMs: Math.round(now() - t0), timedOut });
+      if (tail.length > TAIL_BYTES) {
+        dropped += tail.length - TAIL_BYTES;
+        tail = tail.subarray(tail.length - TAIL_BYTES);
+      }
+      const marker = dropped ? Buffer.from(`\n[stint: ${dropped} bytes of output were left out here]\n`) : Buffer.alloc(0);
+      resolve({ exitCode: code ?? 1, output: Buffer.concat([head, marker, tail]).toString('utf8'), durationMs: Math.round(now() - t0), timedOut });
     });
   });
 }
@@ -123,16 +149,22 @@ type CoverageOutcome = { coverage: { base: number | null; branch: number | null 
 
 /** The daemon runs the tests itself; an agent saying "tests pass" is a claim, this record is the fact. */
 export class DaemonVerifier implements Verifier {
-  /** The egress proxy URL for a run, when egress is on (R-040). */
-  proxyUrl?: (task: string, run: string) => Promise<string | null>;
+  /** The environment and sandbox a test run gets, as an agent run would (R-040); unset, a plain stripped environment. */
+  prepare?: (task: string, run: string, dir: string, extra: Record<string, string>) => Promise<Prepared>;
 
   constructor(
     private readonly ws: Workspace,
     private readonly capMs = 10 * 60_000,
   ) {}
 
+  /** Runs one command of the suite on the task's code, inside the run's sandbox when one is configured. */
+  private async exec(task: Task, run: string, command: string, dir: string): Promise<Exec> {
+    const extra = { CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+    const p: Prepared = this.prepare ? await this.prepare(task.id, run, dir, extra) : { env: { ...runEnv(task.id, run, dir, { hosts: this.ws.config.hosts }), ...extra } };
+    return execInGroup(command, dir, p.env, this.capMs, undefined, p.wrap);
+  }
+
   async verify(task: Task, run: string, worktree: string): Promise<VerificationRecord> {
-    const env = { ...runEnv(task.id, run, worktree, { proxy: (await this.proxyUrl?.(task.id, run)) ?? null }), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
     const defs = [
       { name: 'tests', command: task.testCommand, kind: 'test' as const },
       ...(task.checks ?? this.ws.config.verify?.checks ?? []),
@@ -143,7 +175,7 @@ export class DaemonVerifier implements Verifier {
     let testsParsed: { passed: number; failed: number } | null = null;
     let testsTimedOut = false;
     for (const def of defs) {
-      const r = await execInGroup(def.command, worktree, env, this.capMs);
+      const r = await this.exec(task, run, def.command, worktree);
       outputs.push(r.output);
       const isTests = def.name === 'tests' && def.command === task.testCommand && tests === null;
       if (isTests) {
@@ -196,7 +228,7 @@ export class DaemonVerifier implements Verifier {
       outputRef,
       at: new Date().toISOString(),
       ...(testsTimedOut ? { timedOut: true } : {}),
-      ...(/^[0-9a-f]{40}$/.test(head) ? { commit: head } : {}),
+      ...(/^([0-9a-f]{40}|[0-9a-f]{64})$/.test(head) ? { commit: head } : {}),
       ...(reason ? { reason } : {}),
       checks,
       ...(tamper !== undefined ? { tamper } : {}),
@@ -280,8 +312,7 @@ export class DaemonVerifier implements Verifier {
           : RUNNER.test(task.testCommand) && !SHELL_OPS.test(task.testCommand)
             ? `${task.testCommand} ${files.map(quote).join(' ')}`
             : task.testCommand;
-        const env = { ...runEnv(task.id, run, path, { proxy: (await this.proxyUrl?.(task.id, run)) ?? null }), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
-        const r = await execInGroup(command, path, env, this.capMs);
+        const r = await this.exec(task, run, command, path);
         const ok = r.exitCode === 0 && !r.timedOut;
         const counts = parseTestSummary(r.output) ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 };
         const failing = failingTests(r.output);
@@ -305,10 +336,7 @@ export class DaemonVerifier implements Verifier {
     const command = coverageCommand(task.testCommand);
     if (!command) return { coverage: null, reason: 'the test command is not a bun or Vitest run, so no coverage was run' };
     try {
-      const inWorktree = async (dir: string) => {
-        const env = { ...runEnv(task.id, run, dir, { proxy: (await this.proxyUrl?.(task.id, run)) ?? null }), CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
-        return parseCoverage((await execInGroup(command, dir, env, this.capMs)).output);
-      };
+      const inWorktree = async (dir: string) => parseCoverage((await this.exec(task, run, command, dir)).output);
       const branch = await inWorktree(worktree);
       let base: number | null = null;
       const path = join(this.ws.cacheDir, 'verify', `${task.id}-${Date.now()}-coverage-base`);

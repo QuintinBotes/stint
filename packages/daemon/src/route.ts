@@ -9,15 +9,31 @@ export type ChainAttempt = { host: string; model: string; reason: string; detail
 export class ChainExhaustedError extends Error {
   readonly attempts: ChainAttempt[];
   readonly role: string;
+  /** What the invalid answers along the chain cost; null when none came back. */
+  readonly cost: Cost | null;
 
-  constructor(role: string, attempts: ChainAttempt[]) {
+  constructor(role: string, attempts: ChainAttempt[], cost: Cost | null = null) {
     super(
       `chain for role ${role} is exhausted: ${attempts.map((a) => `${a.host}/${a.model} (${a.reason})`).join(', ') || 'no entries'}`,
     );
     this.name = 'ChainExhaustedError';
     this.role = role;
     this.attempts = attempts;
+    this.cost = cost;
   }
+}
+
+/** Summed spend; unpriced, and so estimated, when any part has no price. */
+function addCosts(parts: Cost[]): Cost {
+  const unpriced = parts.some((c) => c.usd === null);
+  const usd = unpriced ? null : Math.round(parts.reduce((s, c) => s + (c.usd ?? 0), 0) * 10_000) / 10_000;
+  return {
+    inputTokens: parts.reduce((s, c) => s + c.inputTokens, 0),
+    cachedTokens: parts.reduce((s, c) => s + c.cachedTokens, 0),
+    outputTokens: parts.reduce((s, c) => s + c.outputTokens, 0),
+    usd,
+    ...(unpriced || parts.some((c) => c.estimated) ? { estimated: true } : {}),
+  };
 }
 
 export type ChainCallContext = {
@@ -112,6 +128,8 @@ export async function walkChain<T>(args: {
   const emit: RouteEmit = args.emit ?? (() => undefined);
   const timeoutMs = args.timeoutMs ?? ROLE_TIMEOUTS[args.role] ?? 60_000;
   const attempts: ChainAttempt[] = [];
+  // invalid answers were paid for; their cost is added to whatever answers in the end
+  const failedCosts: Cost[] = [];
   const entries = args.chain.map(splitEntry);
 
   for (let index = 0; index < entries.length; index++) {
@@ -183,13 +201,14 @@ export async function walkChain<T>(args: {
       if (hasCost && result.cost.usd === null && !(result.cost.estimated && noUsage)) {
         await emit({ type: 'cost.unpriced', payload: { role: args.role, key: `${result.host}/${result.model}`, host: result.host, model: result.model } });
       }
-      return result;
+      return failedCosts.length ? { ...result, cost: addCosts([...failedCosts, result.cost]) } : result;
     } catch (error) {
       const { reason, retryable, detail } = errorReason(error);
       if (!retryable) throw error;
+      if (isRecord(error) && isRecord(error.cost)) failedCosts.push(error.cost as unknown as Cost);
       await moveOn({ host: entry.hostId, model: entry.model, reason, detail });
     }
   }
 
-  throw new ChainExhaustedError(args.role, attempts);
+  throw new ChainExhaustedError(args.role, attempts, failedCosts.length ? addCosts(failedCosts) : null);
 }

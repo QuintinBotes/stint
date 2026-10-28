@@ -31,6 +31,18 @@ export function toolFromPayload(text: string): { tool: string; args: Record<stri
   }
 }
 
+/** Inside a run the daemon hands its port and a token for this run only, since a sandbox cannot read daemon.json (R-040). */
+export function daemonFromEnv(env: NodeJS.ProcessEnv = process.env): { port: number; token: string } | null {
+  const port = Number(env.STINT_DAEMON_PORT);
+  return env.STINT_RUN_TOKEN && port > 0 ? { port, token: env.STINT_RUN_TOKEN } : null;
+}
+
+/** daemon.json, for a run with no sandbox and no run token, or a client outside a run. */
+function readDaemon(info: string): { port: number; token: string } {
+  if (!existsSync(info)) throw new Error('no daemon.json');
+  return JSON.parse(readFileSync(info, 'utf8')) as { port: number; token: string };
+}
+
 export const hook = defineCommand({
   meta: { name: 'hook', description: 'Called by the agent\'s hooks inside a Stint run; never blocks the agent' },
   args: { event: { type: 'positional', required: true, description: 'PreCompact, SubagentStop or PreToolUse' } },
@@ -42,8 +54,7 @@ export const hook = defineCommand({
     const info = join(repoOfWorktree(worktree), '.stint', 'cache', 'daemon.json');
     let addr = info;
     try {
-      if (!existsSync(info)) throw new Error('no daemon.json');
-      const d = JSON.parse(readFileSync(info, 'utf8')) as { port: number; token: string };
+      const d = daemonFromEnv() ?? readDaemon(info);
       addr = `127.0.0.1:${d.port}`;
       const headers = { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' };
       const base = `http://${addr}/api/tasks/${task}`;

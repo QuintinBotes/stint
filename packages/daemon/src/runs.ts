@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { PermissionOption } from '@stint-dev/core';
 
 /** A permission question waiting for a person, held on its live run (R-033). */
@@ -23,14 +24,28 @@ export type ActiveRun = {
   inFlight?: string | null;
   /** Permission questions this run is waiting on, by request id (R-033). */
   permissions?: Map<string, PendingPermission>;
+  /** The token the agent's process calls the daemon with, good only for this run's own routes; unset once it ends (R-040). */
+  token?: string;
   done: Promise<unknown>;
 };
 
 export class RunRegistry {
   private byTask = new Map<string, ActiveRun>();
+  private starting = new Set<string>();
 
   get(task: string): ActiveRun | undefined {
     return this.byTask.get(task);
+  }
+
+  /** Holds a task while a run is being started, so a second start cannot pass the live-run check meanwhile. */
+  reserve(task: string): boolean {
+    if (this.byTask.has(task) || this.starting.has(task)) return false;
+    this.starting.add(task);
+    return true;
+  }
+
+  release(task: string): void {
+    this.starting.delete(task);
   }
 
   add(r: ActiveRun): void {
@@ -39,6 +54,16 @@ export class RunRegistry {
 
   remove(task: string, run: string): void {
     if (this.byTask.get(task)?.run === run) this.byTask.delete(task);
+  }
+
+  /** The live run a run token belongs to. */
+  byToken(given: string): ActiveRun | undefined {
+    const a = Buffer.from(given);
+    return [...this.byTask.values()].find((r) => {
+      if (!r.token) return false;
+      const b = Buffer.from(r.token);
+      return a.length === b.length && timingSafeEqual(a, b);
+    });
   }
 
   holds(worktree: string): boolean {

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { checkCommand, checkPath, isCredentialPath } from './refusals';
+import { checkCommand, checkPath } from './refusals';
 
 export const OUTPUT_CAP = 8 * 1024;
 const BASH_CAP_MS = 120_000;
@@ -49,28 +49,32 @@ export function checkCall(name: string, raw: string): { ok: true; args: Record<s
 export type ToolOutcome = { ok: boolean; output: string; refused?: string; summary: string; args: Record<string, unknown> };
 
 const cap = (s: string) => (s.length > OUTPUT_CAP ? `${s.slice(0, OUTPUT_CAP)}\n[output truncated at ${OUTPUT_CAP} bytes]` : s);
-const SKIP = new Set(['node_modules', '.git', 'dist', '.stint']);
+export const SKIP = new Set(['node_modules', '.git', 'dist', '.stint']);
 
-async function grep(root: string, pattern: string, under: string): Promise<string> {
-  const re = new RegExp(pattern);
-  const hits: string[] = [];
-  const walk = async (dir: string) => {
-    for (const entry of await readdir(dir, { withFileTypes: true })) {
-      if (hits.length >= 200 || SKIP.has(entry.name)) continue;
-      const full = join(dir, entry.name);
-      // a link could lead out of the worktree, and a credential file is never read, whatever the pattern
-      if (entry.isSymbolicLink() || isCredentialPath(full.slice(root.length + 1))) continue;
-      if (entry.isDirectory()) await walk(full);
-      else if ((await stat(full)).size < 512_000) {
-        const lines = (await readFile(full, 'utf8')).split('\n');
-        lines.forEach((l, i) => {
-          if (hits.length < 200 && re.test(l)) hits.push(`${full.slice(root.length + 1)}:${i + 1}: ${l.slice(0, 200)}`);
-        });
-      }
-    }
-  };
-  await walk(join(root, under));
-  return hits.length ? hits.join('\n') : 'no matches';
+const GREP_CAP_MS = 5_000;
+const GREP_MAX_PATTERN = 500;
+
+/** The search runs in a worker with JavaScript regex semantics; a pattern that runs over the cap ends it (R-013). */
+async function grep(root: string, pattern: string, under: string): Promise<{ ok: boolean; output: string }> {
+  if (pattern.length > GREP_MAX_PATTERN) return { ok: false, output: `the pattern is longer than ${GREP_MAX_PATTERN} characters; make it shorter` };
+  try {
+    new RegExp(pattern);
+  } catch (err) {
+    return { ok: false, output: `the pattern is not a valid regular expression: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  const worker = new Worker(new URL('./grep.worker.ts', import.meta.url).href);
+  return new Promise((resolve) => {
+    const done = (r: { ok: boolean; output: string }) => {
+      clearTimeout(timer);
+      worker.terminate();
+      resolve(r);
+    };
+    const timer = setTimeout(() => done({ ok: false, output: 'the pattern took too long; make it simpler' }), GREP_CAP_MS);
+    worker.onmessage = (e: MessageEvent<{ hits?: string[]; error?: string }>) =>
+      done(e.data.error !== undefined ? { ok: false, output: `error: ${e.data.error}` } : { ok: true, output: e.data.hits?.length ? e.data.hits.join('\n') : 'no matches' });
+    worker.onerror = (e) => done({ ok: false, output: `error: ${e.message}` });
+    worker.postMessage({ root, pattern, under });
+  });
 }
 
 function bash(command: string, cwd: string, env: Record<string, string>, signal: AbortSignal, wrap?: (argv: string[]) => string[]): Promise<{ code: number | null; output: string }> {
@@ -144,8 +148,9 @@ export async function runTool(name: string, raw: Record<string, unknown>, worktr
         return { ok: true, output: names.join('\n') || '(empty)', summary: `${names.length} entries`, args };
       }
       case 'grep': {
-        const out = await grep(worktree, String(args.pattern), p.path);
-        return { ok: true, output: cap(out), summary: out === 'no matches' ? 'no matches' : `${out.split('\n').length} matches`, args };
+        const r = await grep(worktree, String(args.pattern), p.path);
+        if (!r.ok) return { ok: false, output: r.output, summary: r.output.slice(0, 120), args };
+        return { ok: true, output: cap(r.output), summary: r.output === 'no matches' ? 'no matches' : `${r.output.split('\n').length} matches`, args };
       }
       default:
         return { ok: false, output: `unknown tool ${name}`, summary: 'unknown tool', args };

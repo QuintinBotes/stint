@@ -96,7 +96,9 @@ export async function builtTask(repo: string, verification: 'green' | 'red' = 'g
   for (let i = 0; i < 600 && !(await ws.events(t.id).read()).some((e) => e.type === 'verification.ran'); i++) await Bun.sleep(50);
   for (let i = 0; i < 200 && !(await ws.events(t.id).read()).some((e) => e.type === 'handoff.created'); i++) await Bun.sleep(25);
   const green = verification === 'green';
-  await ws.verification(t.id).write({ run: 'r1', command: 'bun run test', exitCode: green ? 0 : 1, passed: green ? 33 : 30, failed: green ? 0 : 3, durationMs: 1700, runBy: 'daemon', status: verification, outputRef: 'verification/r1.out.txt', at: new Date().toISOString() });
+  // the commit the tests ran on: approve merges only that commit
+  const commit = (await ws.verification(t.id).latest())?.commit;
+  await ws.verification(t.id).write({ run: 'r1', command: 'bun run test', exitCode: green ? 0 : 1, passed: green ? 33 : 30, failed: green ? 0 : 3, durationMs: 1700, runBy: 'daemon', status: verification, outputRef: 'verification/r1.out.txt', at: new Date().toISOString(), ...(commit ? { commit } : {}) });
   await ws.writeTask(t.id, { status: 'awaiting_approval' });
   return { app, ws, t };
 }
