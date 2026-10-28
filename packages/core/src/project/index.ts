@@ -4,6 +4,7 @@ import type { Plan } from '../schemas/plan';
 import type { Review } from '../schemas/review';
 import type { Task } from '../schemas/task';
 import { canonicalJSON, sha256Hex } from '../canonical';
+import { localDay, weekOf } from '../cost';
 import type { VerificationRecord } from '../store/runs';
 import type { Workspace } from '../store/workspace';
 
@@ -112,7 +113,9 @@ export function runsFromEvents(events: StintEvent[]): RunSummary[] {
       r.endedAt = e.ts;
       r.endedBy = e.payload.endedBy as EndedBy;
       r.cost = e.payload.cost as Cost;
-      if (!r.host && typeof e.payload.host === 'string') r.host = e.payload.host;
+      // the host and model that answered, as the packet records them: a run starts as local-cli or on the first host of its chain
+      r.host = str(e.payload.host) ?? r.host;
+      r.model = str(e.payload.model) ?? r.model;
     }
   }
   return [...runs.values()].sort((a, b) => Number(a.run.slice(1)) - Number(b.run.slice(1)));
@@ -179,40 +182,66 @@ export function latestHandoff(ws: Workspace, id: string): Promise<Handoff | null
   return ws.handoffs(id).latest();
 }
 
-export type CostRow = Cost & { key: string; runs: number; creditsLeft?: number; derived?: true; roles?: string[] };
+/**
+ * `runs` counts the row's runs; learn and quiz calls add spend but are not runs. `unpriced` counts the runs and calls
+ * with no price: their spend is unknown, so it is not in `usd` and not $0.
+ */
+export type CostRow = Cost & { key: string; runs: number; unpriced: number; creditsLeft?: number; derived?: true; roles?: string[] };
 
-/** Local CLIs (Muse Code) run Meta models billed to the Meta Model API (D-018). */
-export function billingHost(host: string | null): string {
-  return host === 'local-cli' || host === null ? 'meta-api' : host;
+/**
+ * Who a run's spend is charged to, as its price key names it (D-029, R-032): the host that answered; for a local
+ * CLI, the Meta Model API when it is Muse Code, else the agent itself, whose account Stint cannot see, so no
+ * configured host's credits are drawn.
+ */
+export function billingHost(host: string | null, adapter: string | null): string {
+  if (host && host !== 'local-cli') return host;
+  return adapter === 'muse-code' ? 'meta-api' : (adapter ?? 'unknown');
 }
-export type CostGroup = 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host';
+export type CostGroup = 'task' | 'run' | 'day' | 'week' | 'host' | 'model' | 'day-host';
 
-/** Cost rows across every task, from `run.finished` events. `day` is the UTC date of the run's end. */
+type Spend = { at: string; key: string; host: string | null; adapter: string | null; model: string | null; role: string | null; cost: Cost | null; run: boolean };
+
+/** Model calls that are not runs and record their cost on one event each: the learn step and both sides of a packet quiz. */
+function callsFromEvents(task: string, events: StintEvent[]): Spend[] {
+  const out: Spend[] = [];
+  const call = (e: StintEvent, role: string, side: Record<string, unknown> | undefined, key: string) => {
+    if (side && typeof side.cost === 'object' && side.cost !== null) out.push({ at: e.ts, key, host: str(side.host), adapter: null, model: str(side.model), role, cost: side.cost as Cost, run: false });
+  };
+  for (const e of events) {
+    if (e.type === 'skill.proposed') call(e, 'learn', e.payload, `${task}/learn`);
+    if (e.type === 'handoff.quizzed') for (const side of ['writer', 'answerer']) call(e, 'quiz', e.payload[side] as Record<string, unknown> | undefined, `${task}/quiz`);
+  }
+  return out;
+}
+
+/**
+ * Cost rows across every task. A run counts once, when its `run.finished` lands, and a run still going counts nothing
+ * yet; `day` is the local date it ended and `week` the local Monday-to-Sunday week, keyed by its Monday. Week and day
+ * totals include learn and quiz spend; a task's total is its runs, so the `task` grouping leaves them out.
+ */
 export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<CostRow[]> {
-  const groups = new Map<string, Array<Cost | null>>();
+  const groups = new Map<string, Spend[]>();
   const roles = new Map<string, Set<string>>();
   for (const task of await ws.listTasks()) {
-    for (const r of runsFromEvents(await ws.events(task.id).read())) {
-      if (!r.endedAt) continue;
-      const key =
-        o.group === 'task'
-          ? task.id
-          : o.group === 'run'
-            ? `${task.id}/${r.run}`
-            : o.group === 'day'
-              ? r.endedAt.slice(0, 10)
-              : o.group === 'model'
-                ? `${billingHost(r.host)}/${r.model ?? 'unknown'}`
-                : o.group === 'day-host'
-                  ? `${r.endedAt.slice(0, 10)}|${billingHost(r.host)}`
-                  : billingHost(r.host);
+    const events = await ws.events(task.id).read();
+    const runs: Spend[] = runsFromEvents(events).flatMap((r) => (r.endedAt ? [{ at: r.endedAt, key: `${task.id}/${r.run}`, host: r.host, adapter: r.adapter, model: r.model, role: r.role, cost: r.cost, run: true }] : []));
+    for (const s of o.group === 'task' ? runs : [...runs, ...callsFromEvents(task.id, events)]) {
+      const day = localDay(s.at);
+      const host = billingHost(s.host, s.adapter);
+      const key = { task: task.id, run: s.key, day, week: weekOf(s.at), host, model: `${host}/${s.model ?? 'unknown'}`, 'day-host': `${day}|${host}` }[o.group];
       const list = groups.get(key) ?? [];
-      list.push(r.cost);
+      list.push(s);
       groups.set(key, list);
-      if (r.role) roles.set(key, new Set([...(roles.get(key) ?? []), r.role]));
+      if (s.role) roles.set(key, new Set([...(roles.get(key) ?? []), s.role]));
     }
   }
   return [...groups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, list]) => ({ key, ...sumCosts(list), runs: list.length, ...(o.group === 'model' ? { roles: [...(roles.get(key) ?? [])].sort() } : {}) }));
+    .map(([key, list]) => ({
+      key,
+      ...sumCosts(list.map((s) => s.cost)),
+      runs: list.filter((s) => s.run).length,
+      unpriced: list.filter((s) => (s.cost?.usd ?? null) === null).length,
+      ...(o.group === 'model' ? { roles: [...(roles.get(key) ?? [])].sort() } : {}),
+    }));
 }

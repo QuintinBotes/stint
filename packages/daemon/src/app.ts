@@ -276,7 +276,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
 
   app.get('/api/costs', async (c) => {
     const group = (c.req.query('group') ?? 'task') as CostGroup;
-    if (!['task', 'run', 'day', 'host', 'model', 'day-host'].includes(group)) throw new DaemonError('invalid', `unknown group ${group}`, 'task, run, day, host, model or day-host');
+    if (!['task', 'run', 'day', 'week', 'host', 'model', 'day-host'].includes(group)) throw new DaemonError('invalid', `unknown group ${group}`, 'task, run, day, week, host, model or day-host');
     const rows = await costs(ws, { group });
     if (group !== 'host') return c.json(rows);
     // credits left are derived: the balance the person entered minus what the daemon metered
@@ -284,7 +284,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     const hosts = new Set([...rows.map((r) => r.key), ...Object.keys(credits)]);
     return c.json(
       [...hosts].sort().map((key) => {
-        const row = rows.find((r) => r.key === key) ?? { key, inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0, runs: 0 };
+        const row = rows.find((r) => r.key === key) ?? { key, inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0, runs: 0, unpriced: 0 };
         const start = credits[key];
         return start === undefined ? row : { ...row, creditsLeft: Math.round((start - (row.usd ?? 0)) * 10_000) / 10_000, derived: true as const };
       }),

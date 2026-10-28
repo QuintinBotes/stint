@@ -16,7 +16,7 @@ export type { ParsedHandoffPrompt, RenderOptions } from './render';
 export { countTokens } from './tokens';
 export * from './skills/bundle';
 export * from './skills/patterns';
-export { priceUsage } from './cost';
+export { localDay, priceUsage, weekOf } from './cost';
 export type { Usage } from './cost';
 export { formatIssues } from './issues';
 export { LATEST_MERGED, SECTION_END, SECTION_START, latestMergedLine, withLatestMerged } from './agentsSection';
