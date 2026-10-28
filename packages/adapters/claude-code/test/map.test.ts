@@ -55,7 +55,7 @@ describe('Claude Code mapper', () => {
       const emitted: Array<{ type: string; payload: Record<string, unknown> }> = [];
       const wrapped: string[][] = [];
       const result = await adapter.run({
-        task: { id: 'T-0042' } as never,
+        task: { id: 'T-0042', testCommand: 'bun run test' } as never,
         run: 'r1',
         role: 'implementer',
         worktree: tmp.dir,
@@ -73,7 +73,8 @@ describe('Claude Code mapper', () => {
         },
         transcript: async (line) => ({ pointer: 'transcript.jsonl:1', byteLen: line.length }),
       });
-      expect(wrapped[0]).toEqual(['claude', '-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits', '--model', 'muse-glimmer:30b-mlx']);
+      // the task's own test command is the one shell command the run may use without asking
+      expect(wrapped[0]).toEqual(['claude', '-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits', '--model', 'muse-glimmer:30b-mlx', '--allowedTools', 'Bash(bun run test:*)']);
       expect(readFileSync(join(tmp.dir, 'args.txt'), 'utf8')).toContain('stream-json');
       expect(emitted.map((e) => e.type)).toEqual(['agent.message', 'agent.tool_call', 'agent.tool_result', 'agent.message']);
       expect(result).toMatchObject({
@@ -99,6 +100,14 @@ describe('Claude Code mapper', () => {
     const args = claudeArgs({ model: 'muse-glimmer:30b-mlx', sessionId: 'sess-9' });
     expect(args).toEqual(['claude', '-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits', '--model', 'muse-glimmer:30b-mlx', '--resume', 'sess-9']);
     for (const flag of ['bypassPermissions', '--dangerously-skip-permissions', '--yolo']) expect(args.join(' ')).not.toContain(flag);
+  });
+
+  test('the task test command is allowed as one prefix rule, and everything else still asks', () => {
+    const args = claudeArgs({ testCommand: 'bun run test' });
+    expect(args.slice(-2)).toEqual(['--allowedTools', 'Bash(bun run test:*)']);
+    expect(args).toContain('acceptEdits');
+    for (const flag of ['bypassPermissions', '--dangerously-skip-permissions', '--disallowedTools']) expect(args.join(' ')).not.toContain(flag);
+    expect(claudeArgs({})).not.toContain('--allowedTools');
   });
 });
 

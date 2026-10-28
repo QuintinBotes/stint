@@ -50,6 +50,10 @@ Handing a task to an id that is not registered is refused, and the message lists
 
 The `claude-code` preset uses the native harness: `claude -p --output-format stream-json --verbose --permission-mode acceptEdits`, with the prompt on stdin and `--model` taken from the manifest's `model`. Stint maps the session start, assistant text, tool use, tool results and the final result (usage, cost and session id) onto the timeline, and resumes with `--resume <session>`. The gate is observed.
 
+Approvals stay on: the run may edit files, and the one shell command it may run without asking is the task's own test command (`--allowedTools "Bash(<test command>:*)"`), so it can check its work before the daemon verifies it. Any other command still asks, and nothing bypasses permissions.
+
+With your Anthropic key in the key file (`stint keys set ANTHROPIC_API_KEY`), runs bill your API account rather than a Claude subscription. An organisation key that is not scoped to a workspace is refused with "must include the anthropic-workspace-id header": either create the key inside a workspace in the Anthropic Console, or add `ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: <workspace id>` to the key file, which the preset passes through.
+
 To run the Claude Code harness on Glimmer on your own machine, name a host in the preset. Ollama serves an Anthropic-compatible endpoint on the same address as the rest of its API, so Stint gives the run `ANTHROPIC_BASE_URL` from the host's address (without its `/v1`) and, for a host that needs no key, a placeholder `ANTHROPIC_AUTH_TOKEN`:
 
 ```json

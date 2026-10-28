@@ -313,7 +313,7 @@ export const DEFAULT_CONFIG: Config = {
       vendor: 'anthropic',
       enabled: false,
       harness: 'claude-code',
-      env: ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY'],
+      env: ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_CUSTOM_HEADERS'],
       resume: { flag: '--resume' },
       capabilities: { resume: true, schemaOutput: true, sandbox: false, costReporting: true },
     },
