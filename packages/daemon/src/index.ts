@@ -25,3 +25,4 @@ export * from './outcomes';
 export * from './gates';
 export * from './metricsInput';
 export * from './scenarios';
+export { taskOutcome } from './routes/outcome';

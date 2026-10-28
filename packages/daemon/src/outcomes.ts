@@ -17,7 +17,7 @@ import { updateSkillStatuses } from './skills';
  * change. Every scan is idempotent through the events already recorded.
  */
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const COMMIT = /^[0-9a-f]{7,40}$/i;
 const str = (v: unknown): string | null => (typeof v === 'string' && v.length > 0 ? v : null);
 
@@ -100,10 +100,12 @@ async function scanRevertsAndFollowups(ctx: DaemonContext, result: ScanResult): 
     const mergedFiles = filesByTask.get(merge.task) ?? new Set<string>();
     if (mergedFiles.size === 0) continue;
     const mergedAt = Date.parse(merge.ts);
+    // a follow-up counts within the outcome window the metrics and outcome() judge a merge by (R-061, R-063)
+    const windowMs = (ctx.ws.config.metrics?.outcomeWindowDays ?? 7) * DAY_MS;
     for (const other of tasks) {
       if (other.id === merge.task) continue;
       const createdAt = Date.parse(other.createdAt);
-      if (Number.isNaN(createdAt) || createdAt < mergedAt || createdAt - mergedAt > WEEK_MS) continue;
+      if (Number.isNaN(createdAt) || createdAt < mergedAt || createdAt - mergedAt > windowMs) continue;
       const overlap = [...(filesByTask.get(other.id) ?? [])].filter((f) => mergedFiles.has(f)).sort();
       if (overlap.length === 0) continue;
       if (events.some((e) => e.type === 'outcome.followup' && str(e.payload.followup) === other.id)) continue;
