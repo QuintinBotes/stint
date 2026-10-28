@@ -140,7 +140,7 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
           className="absolute right-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-32px)] max-h-[70vh] overflow-y-auto rounded-[5px] border border-rule-strong bg-panel p-4"
         >
           <Group title="Stint">
-            <Row dot="var(--ink)" name={health.mode === 'replay' ? 'Replaying a recorded demo' : 'Running on this machine'} detail={`version ${health.version}, started ${localTime(health.startedAt)}${health.repo ? `, in ${health.repo}` : ''}`} />
+            <Row dot="var(--ink)" name={health.mode === 'replay' ? (health.replay?.live ? 'Replaying a recording of a live run' : 'Replaying a hand-written demo') : 'Running on this machine'} detail={`version ${health.version}, started ${localTime(health.startedAt)}${health.repo ? `, in ${health.repo}` : ''}`} />
           </Group>
           <Group title={`Agents, ${ready.length} ready`}>
             {ready.map((a) => (

@@ -49,7 +49,7 @@ These hold in every file you write. A spec cannot override them; a `Deviation:` 
 9. **Nothing identifies the author** beyond the GitHub handle: no real email, no em dashes in source or docs, no hard-coded reviewer name. `scripts/guard-identity.mjs` fails CI on any of these. No client material and no employer-internal platform names anywhere.
 10. **Pins are law.** Versions in section 6 are the only versions; adding a dependency needs a `Decision:` line in `PROGRESS.md` with the reason.
 11. **Dark is the default theme.** `light` and `stage` are opt-in. The CLI's colours and the demo recording are dark.
-12. **Words, not decoration.** Sentence case, plain words, present tense, no emoji in UI or CLI output, no gradients, no icons where a word does. Honest copy: "run by the daemon", "in-flight step unknown", "replay of a live run on 2 Nov".
+12. **Words, not decoration.** Sentence case, plain words, present tense, no emoji in UI or CLI output, no gradients, no icons where a word does. Honest copy: "run by Stint", "in-flight step unknown", "Replay, hand-written", "a recording of a live run on 2 Nov".
 
 ## 4. Architecture and repo layout
 
@@ -146,7 +146,7 @@ Models by role, as fallback chains the daemon walks in order (a 429, a 5xx or a 
 
 - **One spec per iteration.** `LOOP.md` tells you how to pick it, build it, verify it and record it. Never work on two specs at once; never start a spec whose `Depends on` is not `done`.
 - **Tests first.** Turn each acceptance criterion into a test before writing the code it tests. `bun test` and `bun run typecheck` must be green before a spec is `done`; CI (ubuntu + macos) must be green before a gate.
-- **Small, named commits.** `R-0xx: <what>` with trailers `Spec: R-0xx` and `Model: <adapter/model>`. From R-017 on, Stint's own merges carry `Stint-Task:` trailers too (the repo builds itself with itself).
+- **Small, named commits.** A plain sentence saying what changed, ending with the trailer `Spec: R-0xx` and no other trailer (no co-author or model lines). From R-017 on, Stint's own merges carry `Stint-Task:` trailers too (the repo builds itself with itself).
 - **Record, don't remember.** Every decision goes into `PROGRESS.md` under Decisions with a reason; every deviation from a spec gets a `Deviation:` line; every question for the human goes under Blocked.
 - **Hand off like the product does.** If you stop before a spec is green, leave a handoff note in `PROGRESS.md` in packet shape (done, open, leftOut, risks, askOfNext, ≤ 600 tokens) and set the status to `handed`. The next iteration, possibly another vendor, continues from that note and the worktree, not from your transcript.
 - **Do not touch**: `specs/` (except a `Deviation:` note), `schemas/` (except through the spec that owns a schema), `demo/repo` history, pins, CI matrix, licence, anything under `.stint/` by hand.

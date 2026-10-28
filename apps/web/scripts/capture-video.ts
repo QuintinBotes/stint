@@ -77,15 +77,15 @@ try {
   await at(page, 14);
   await tab(page, 'Plan');
   await at(page, 40);
-  await tab(page, 'Diff');
+  await tab(page, 'Changes');
   await at(page, 60);
   await tab(page, 'Terminal');
   await at(page, 68);
   await tab(page, 'Packet');
   await at(page, 82);
-  await tab(page, 'Diff');
+  await tab(page, 'Changes');
   await at(page, 94);
-  await tab(page, 'Verification');
+  await tab(page, 'Tests');
   await at(page, 104);
   await tab(page, 'Review');
   // the skill is proposed at 129, measured at 131 and approved at 132; its card shows the eval with it and without

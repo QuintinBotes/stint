@@ -4,7 +4,9 @@ test('bun run build:web succeeds and the daemon serves / with the shell', async 
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Stint', exact: true })).toBeVisible();
   await expect(page.getByTestId('board')).toBeVisible();
-  await expect(page.getByTestId('replay-strip')).toContainText('A recorded demo');
+  // the default replay is hand-written, and the strip says so (ADR-0011)
+  await expect(page.getByTestId('replay-strip')).toContainText('Replay, hand-written');
+  await expect(page.getByTestId('replay-strip')).toContainText('A hand-written demo story, played back.');
   await page.keyboard.press('Meta+k');
   await expect(page.getByPlaceholder('Search or run a command')).toBeVisible();
   await expect(page.getByText('Run all planned tasks on autopilot')).toBeVisible();

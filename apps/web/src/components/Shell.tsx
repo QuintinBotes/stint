@@ -122,8 +122,9 @@ export function ReplayStrip({ health }: { health: Health | null }) {
   const clock = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
   return (
     <div data-testid="replay-strip" className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 px-4 md:px-6 py-1.5 border-b border-rule text-small text-ink-2">
-      <span className="inline-flex items-center h-6 px-2 rounded-[3px] bg-panel-2 font-medium">Replay</span>
-      <span>{r.live ? `A recording of a live run on ${localDate(r.recordedAt)}. Nothing runs and nothing is charged.` : 'A recorded demo. Nothing runs and nothing is charged.'}</span>
+      {/* honest about what it is (ADR-0011): a hand-written story, or a recording of a live run with its date */}
+      <span className="inline-flex items-center h-6 px-2 rounded-[3px] bg-panel-2 font-medium">{r.live ? 'Replay' : 'Replay, hand-written'}</span>
+      <span>{r.live ? `A recording of a live run on ${localDate(r.recordedAt)}. Nothing runs and nothing is charged.` : 'A hand-written demo story, played back. Nothing runs and nothing is charged.'}</span>
       {status ? (
         <span className="hidden sm:inline whitespace-nowrap">
           {status.playing ? (status.paused ? 'paused' : 'playing') : status.done ? 'finished' : 'stopped'}, {clock(status.at)} of {clock(status.total)}
@@ -174,7 +175,7 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
     ...(atGate ? [{ id: 'approve', label: 'Approve and merge', key: 'a', cli: `stint approve ${id}`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'approve' })) }] : []),
     { id: 'changes', label: 'Request changes', key: 'r', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },
     { id: 'reject', label: 'Reject', key: 'x', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'reject' })) },
-    { id: 'verify', label: 'Run the tests', cli: `stint verify ${id}`, run: () => report(api.verify(id), `${id}: tests run by Stint`) },
+    { id: 'verify', label: 'Run the tests', cli: '', run: () => report(api.verify(id), `${id}: tests run by Stint`) },
     { id: 'hand', label: 'Hand to another agent', cli: `stint hand ${id} <agent>`, run: tab('packet') },
     { id: 'autopilot-on', label: `Put on autopilot${live}`, cli: `stint run ${id}`, run: () => report(api.autopilot(id, true), `${id} is on autopilot`) },
     { id: 'autopilot-off', label: 'Take off autopilot', cli: `stint run ${id} --stop`, run: () => report(api.autopilot(id, false), `${id} is off autopilot`) },
@@ -221,6 +222,8 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
     <Command.Item
       key={a.id}
       value={`${a.label} ${a.cli}`}
+      // the action's id is a word people search by too: Verify finds Run the tests, which has no CLI of its own
+      keywords={[a.id]}
       onSelect={() => {
         a.run();
         onClose();

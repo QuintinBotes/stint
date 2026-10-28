@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Added (28 October)
+- Limits you set on a task (R-062): builds, hand-offs, review rounds, spend and agent time, with config defaults, meters in the task view, and a stop that names the limit and offers Raise the limit or Hand to another agent. `stint new --max-*`, `stint limits`, `PATCH /api/tasks/:id/limits`.
+- How it went (R-063): one outcome record per task, with each criterion proven, passing but not proven, failing or yours to check; loops against limits, spend, times, the review and what happened after the merge. On the gate and under a finished task's title; `stint outcome`, `GET /api/tasks/:id/outcome`.
+- Sharpen (R-064): before work starts, the few questions whose answers change what gets built, each with a recommendation; questions the repository can answer are dropped in code, material ones are always asked, and answers become decisions every later run keeps. Proofs per criterion. `stint sharpen`, `stint answer`, `stint proofs`.
+- Goals (R-064): an outcome above tasks with criteria and limits across its tasks; sharpen it, split it into tasks you check before any is created, and see how each part went. A Goals page, `stint goal`.
+- Every model call's cost is counted: the diff digest, the autopilot's pick, board card summaries, intake triage, Sharpen and goal splits, and answers that came back invalid.
+
+### Changed (28 October)
+- A task's total spend includes its model calls that are not runs, so the header, the board card, the limit meter and How it went agree.
+- A hand-off is an implementer run that starts from another run's packet, counted the same in the meters, How it went and the limits.
+- A task autopilot stopped to ask you sits in the board's Needs you lane.
+- The default replay is labelled "Replay, hand-written" on screen again (ADR-0011).
+- fflate 0.8.3, which fixes a buffer over-read on Zip64 extra fields in skill bundles.
+
+### Security and robustness (28 October)
+- Each run gets its own token that reaches only its task's agent routes; the macOS sandbox denies reads of `.stint/cache` and writes to `.git/hooks` and `.git/config`; the daemon's git runs with hooks off; verify runs inside the run's sandbox.
+- A run cut off by a crash or `stint down` is closed as killed on the next start; a torn line no longer breaks an event log; two tasks can no longer get the same id.
+- Approve merges only a verified commit, and only the latest verification's tamper result stands.
+- Lines typed in the terminal and tool output are scrubbed of secrets before they reach the event log; test output is capped; event logs are cached; the Stint agent's search runs off the daemon's thread with a 5 second cap.
+
 ### Added
 - Specs R-050 to R-057 and eleven architecture decision records (`docs/adr/`), from a requirements audit of R-001 to R-049 on 27 October.
 - One status button for the daemon, agents and models, with the chat models on this machine that no route uses yet; LM Studio, llama.cpp and LiteLLM as hosts; Claude Code takes its base URL from its host.
