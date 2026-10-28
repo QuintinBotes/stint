@@ -1,6 +1,6 @@
 import type { StintEvent } from '@stint-dev/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type Health, type TaskBundle, type TaskCardData, api, subscribe } from './api';
+import { type GoalListItem, type GoalView, type Health, type TaskBundle, type TaskCardData, api, subscribe } from './api';
 
 export type Loadable<T> = { data: T | null; error: string | null; loading: boolean; reload: () => void };
 
@@ -81,6 +81,22 @@ export function useTasks(): Loadable<TaskCardData[]> {
   const refresh = useTrailing(t.reload, 250);
   useEffect(() => subscribe('/api/stream', refresh, refresh), [refresh]);
   return t;
+}
+
+/** The goals, refetched when anything happens anywhere: a goal rolls up from its tasks (R-064). */
+export function useGoals(): Loadable<GoalListItem[]> {
+  const g = useLoad(api.goals, []);
+  const refresh = useTrailing(g.reload, 500);
+  useEffect(() => subscribe('/api/stream', refresh, refresh), [refresh]);
+  return g;
+}
+
+/** One goal's view (its rollup, sharpen state and any split waiting), refetched when anything happens anywhere. */
+export function useGoal(id: string): Loadable<GoalView> {
+  const g = useLoad(() => api.goal(id), [id]);
+  const refresh = useTrailing(g.reload, 300);
+  useEffect(() => subscribe('/api/stream', refresh, refresh), [refresh]);
+  return g;
 }
 
 /** One task's bundle (task, plan, packet, review, verification, runs, cost), refetched as its events arrive. */

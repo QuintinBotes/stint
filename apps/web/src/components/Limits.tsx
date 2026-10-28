@@ -1,5 +1,6 @@
 import { type LimitName, type Limits as Caps, type StintEvent, taskUsage } from '@stint-dev/core';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { api, daemonMessage } from '../api';
 import { money } from '../format';
 import { Button, Explain, cx } from './ui';
@@ -13,6 +14,29 @@ const METERS: Array<{ k: LimitName; word: string }> = [
 const NAME: Record<LimitName, string> = { builds: 'build', handoffs: 'hand-off', reviewRounds: 'review round', usd: 'spend', minutes: 'agent time' };
 const MAX: Record<LimitName, number> = { builds: 50, handoffs: 20, reviewRounds: 10, usd: 1000, minutes: 1440 };
 const show = (k: LimitName, v: number) => (k === 'usd' ? money({ usd: v }) : String(Math.round(v)));
+
+/** One meter: used of cap with a bar, amber once it is reached. The task's limits and a goal's both use it. */
+export function Meter({ id, word, value, used, cap, reached = false, note = '', dot = false }: { id: string; word: string; value: string; used: number; cap: number | null; reached?: boolean; note?: string; dot?: boolean }) {
+  return (
+    <li data-testid={`meter-${id}`} className={cx('inline-flex items-center gap-2 whitespace-nowrap', reached && 'text-amber')}>
+      {dot ? (
+        <span aria-hidden="true" className="hidden min-[760px]:inline text-ink-3">
+          ·
+        </span>
+      ) : null}
+      <span>
+        {word} <span className={cx('tabular font-semibold', reached ? 'text-amber' : 'text-ink')}>{value}</span>
+        {note}
+        {reached ? ', reached' : ''}
+      </span>
+      {cap === null ? null : (
+        <span aria-hidden="true" className="inline-block w-12 h-1 bg-rule">
+          <span className={cx('block h-full', reached ? 'bg-amber' : 'bg-ink')} style={{ width: `${Math.min(100, cap > 0 ? (used / cap) * 100 : 100)}%` }} />
+        </span>
+      )}
+    </li>
+  );
+}
 
 /**
  * The task's limits in the title block (R-062): one row of meters, used of cap, and when autopilot stopped at a limit,
@@ -38,7 +62,11 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
   // the stop stands until autopilot is switched on again or a run starts some other way, such as a hand-off
   const stop = useMemo(() => {
     const last = events.findLast((e) => e.type.startsWith('autopilot.') || e.type === 'run.started');
-    return last?.type === 'autopilot.stopped' && typeof last.payload.limit === 'string' ? { limit: last.payload.limit as LimitName, reason: String(last.payload.reason ?? '') } : null;
+    if (last?.type !== 'autopilot.stopped' || typeof last.payload.limit !== 'string') return null;
+    // a goal's limit (R-064) is raised on the goal's page, not here
+    const at = events.findLast((e) => e.type === 'limit.reached');
+    const goal = at?.payload.scope === 'goal' ? String(at.payload.goal ?? '') : null;
+    return { limit: last.payload.limit as LimitName, reason: String(last.payload.reason ?? ''), ...(goal ? { scope: 'goal' as const, goal } : {}) };
   }, [events]);
   if (!caps) return null;
 
@@ -80,34 +108,37 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
       <ul aria-label="Limits" className="grid grid-cols-1 gap-y-1.5 min-[760px]:flex min-[760px]:flex-wrap min-[760px]:items-center gap-x-3 text-small text-ink-2">
         {METERS.map(({ k, word }, i) => {
           const c = caps[k];
-          const here = reached === k;
           return (
-            <li key={k} data-testid={`meter-${k}`} className={cx('inline-flex items-center gap-2 whitespace-nowrap', here && 'text-amber')}>
-              {i > 0 ? (
-                <span aria-hidden="true" className="hidden min-[760px]:inline text-ink-3">
-                  ·
-                </span>
-              ) : null}
-              <span>
-                {word}{' '}
-                <span className={cx('tabular font-semibold', here ? 'text-amber' : 'text-ink')}>
-                  {show(k, used[k])}
-                  {c === null ? '' : ` of ${show(k, c)}`}
-                  {k === 'minutes' ? ' min' : ''}
-                </span>
-                {k === 'usd' && used.unpriced ? `, ${used.unpriced} not priced` : ''}
-                {here ? ', reached' : ''}
-              </span>
-              {c === null ? null : (
-                <span aria-hidden="true" className="inline-block w-12 h-1 bg-rule">
-                  <span className={cx('block h-full', here ? 'bg-amber' : 'bg-ink')} style={{ width: `${Math.min(100, (used[k] / c) * 100)}%` }} />
-                </span>
-              )}
-            </li>
+            <Meter
+              key={k}
+              id={k}
+              word={word}
+              dot={i > 0}
+              used={used[k]}
+              cap={c}
+              reached={reached === k && stop?.scope !== 'goal'}
+              value={`${show(k, used[k])}${c === null ? '' : ` of ${show(k, c)}`}${k === 'minutes' ? ' min' : ''}`}
+              note={k === 'usd' && used.unpriced ? `, ${used.unpriced} not priced` : ''}
+            />
           );
         })}
       </ul>
-      {reached && stop ? (
+      {stop?.scope === 'goal' ? (
+        <section data-testid="limit-stop" aria-labelledby="limit-stop-title" className="flex flex-col gap-3 max-w-[80ch] p-3 rounded-[5px] border border-amber bg-amber-wash text-body text-ink">
+          <p id="limit-stop-title">
+            <b className="font-semibold text-amber">Needs you:</b> {stop.reason.replace(/^Needs you: /, '')} Autopilot stopped before it would go past it.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to={`/goals/${stop.goal}`} className="inline-flex items-center h-9 px-3.5 rounded-[5px] border border-ink bg-ink text-on-ink font-semibold no-underline hover:bg-ink-2" data-testid="limit-goal">
+              Raise the goal's limits on {stop.goal}
+            </Link>
+            <Button onClick={hand} data-testid="limit-hand">
+              Hand to another agent
+            </Button>
+          </div>
+          <Explain word="goal" />
+        </section>
+      ) : reached && stop ? (
         <section data-testid="limit-stop" aria-labelledby="limit-stop-title" className="flex flex-col gap-3 max-w-[80ch] p-3 rounded-[5px] border border-amber bg-amber-wash text-body text-ink">
           <p id="limit-stop-title">
             <b className="font-semibold text-amber">Needs you:</b> {stop.reason.replace(/^Needs you: /, '')} Autopilot stopped before it would go past it.

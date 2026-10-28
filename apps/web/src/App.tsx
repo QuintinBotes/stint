@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
-import { Dialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions } from './components/Shell';
+import { Dialog, NewGoalDialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions } from './components/Shell';
 import { Notifier } from './components/Notifier';
 import { Kbd } from './components/ui';
 import { GLOSSARY } from './glossary';
@@ -8,7 +8,8 @@ import { singleKey } from './shortcuts';
 import { useHealth } from './hooks';
 import { Board } from './routes/Board';
 
-// the Factory and Skills load when first opened, so the board and the task view start sooner
+// the Goals, Factory and Skills load when first opened, so the board and the task view start sooner
+const Goals = lazy(() => import('./routes/Goals').then((m) => ({ default: m.Goals })));
 const Factory = lazy(() => import('./routes/Factory').then((m) => ({ default: m.Factory })));
 const Skills = lazy(() => import('./routes/Skills').then((m) => ({ default: m.Skills })));
 import { Placeholder, TaskView } from './routes/TaskView';
@@ -34,9 +35,11 @@ export function App() {
   const health = useHealth();
   const [palette, setPalette] = useState(false);
   const [newTask, setNewTask] = useState(false);
+  const [newGoal, setNewGoal] = useState(false);
   const [help, setHelp] = useState(false);
   const openNewTask = useCallback(() => setNewTask(true), []);
-  const actions = usePaletteActions({ newTask: openNewTask });
+  const openNewGoal = useCallback(() => setNewGoal(true), []);
+  const actions = usePaletteActions({ newTask: openNewTask, newGoal: openNewGoal });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,6 +78,17 @@ export function App() {
         <Routes>
           <Route path="/" element={<Board onNewTask={openNewTask} />} />
           <Route path="/t/:id" element={<TaskView />} />
+          {['/goals', '/goals/:id'].map((path) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <Suspense fallback={<p className="p-6 text-ink-2">Opening Goals.</p>}>
+                  <Goals onNewGoal={openNewGoal} />
+                </Suspense>
+              }
+            />
+          ))}
           <Route
             path="/factory"
             element={
@@ -95,6 +109,7 @@ export function App() {
         </Routes>
         <Palette open={palette} onClose={() => setPalette(false)} actions={actions} health={health.data} />
         <NewTaskDialog open={newTask} onClose={() => setNewTask(false)} />
+        <NewGoalDialog open={newGoal} onClose={() => setNewGoal(false)} />
         <Dialog title="Help" open={help} onClose={() => setHelp(false)} width="max-w-[640px]">
           <p className="text-ink-2 mb-5">Stint gives coding work to AI agents, checks it with your tests, and waits for you to approve before anything is merged.</p>
           <h3 className="font-semibold mb-2">Words used here</h3>

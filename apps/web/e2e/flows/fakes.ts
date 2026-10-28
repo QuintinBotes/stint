@@ -67,7 +67,7 @@ const questions = (prompt: string) => {
 
 /** A goal split: one task for each of the goal's first two criteria, the second waiting on the first. */
 const split = (prompt: string) => {
-  const criteria = [...(prompt.split('## The goal\n')[1] ?? '').matchAll(/^(\d+)\. (.+)$/gm)].map((m) => m[2] as string).slice(0, 2);
+  const criteria = [...(prompt.split('## The goal\n')[1] ?? '').matchAll(/^(\d+)\. (.+?)(?: \(proven by .+\))?$/gm)].map((m) => m[2] as string).slice(0, 2);
   return { tasks: criteria.map((c, i) => ({ title: `Part ${i + 1}: ${c}`.slice(0, 120), goal: `${c}, as one task of the goal.`, acceptance: [c], covers: [i + 1], dependsOn: i ? [0] : [] })) };
 };
 

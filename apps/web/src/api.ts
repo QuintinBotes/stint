@@ -1,5 +1,5 @@
 // Typed client for the daemon. The daemon is the only writer of .stint/; the UI only reads and asks.
-import { type Cost, EVENT_TYPES, type Handoff, type Limits, type Plan, type Review, type SharpenState, type SkillFinding, type SkillSource, type StintEvent, type Task, type TaskLimits, type TaskProof, type TaskUsage } from '@stint-dev/core';
+import { type Cost, EVENT_TYPES, type Goal, type GoalOutcome, type Handoff, type ProposedTask, type Limits, type Plan, type Review, type SharpenState, type SkillFinding, type SkillSource, type StintEvent, type Task, type TaskLimits, type TaskProof, type TaskUsage } from '@stint-dev/core';
 
 export type CapabilityLevel = { level: 'supported' | 'partial' | 'unsupported' | 'unknown'; reason?: string; note?: string };
 export type AdapterHealth = {
@@ -308,11 +308,24 @@ export const api = {
   autopilotAll: (on: boolean) => post<{ on: boolean; tasks: string[]; running: string[]; queued: string[] }>('/api/autopilot', { on }),
   autopilot: (id: string, on: boolean) => post<{ on: boolean; running: string[]; queued: string[] }>(`/api/tasks/${id}/autopilot`, { on }),
   /** Sharpen (R-064): start a round, answer a question or change an assumption, take the recommendations, accept proofs. */
-  sharpen: (id: string) => post<SharpenState>(`/api/tasks/${id}/sharpen`),
-  answerSharpen: (id: string, answer: { question?: string; assumption?: string; option?: string; text?: string }) => post<{ decision: string }>(`/api/tasks/${id}/sharpen/answer`, answer),
-  takeRecommendations: (id: string) => post<{ decisions: string[] }>(`/api/tasks/${id}/sharpen/recommended`),
-  setProofs: (id: string, proofs: TaskProof[]) => post<{ proofs: TaskProof[] }>(`/api/tasks/${id}/proofs`, { proofs }),
+  sharpen: (id: string) => post<SharpenState>(`${subjectPath(id)}/sharpen`),
+  answerSharpen: (id: string, answer: { question?: string; assumption?: string; option?: string; text?: string }) => post<{ decision: string }>(`${subjectPath(id)}/sharpen/answer`, answer),
+  takeRecommendations: (id: string) => post<{ decisions: string[] }>(`${subjectPath(id)}/sharpen/recommended`),
+  setProofs: (id: string, proofs: TaskProof[]) => post<{ proofs: TaskProof[] }>(`${subjectPath(id)}/proofs`, { proofs }),
+  /** Goals above tasks (R-064): the list, one goal's view, a new goal, its split and the tasks made from it, its limits. */
+  goals: () => request<{ goals: GoalListItem[] }>('/api/goals').then((r) => r.goals),
+  goal: (id: string) => request<GoalView>(`/api/goals/${id}`),
+  createGoal: (g: { title: string; outcome: string; criteria: string[]; nonGoals?: string[]; limits?: TaskLimits }) => post<Goal>('/api/goals', g),
+  planGoal: (id: string) => post<{ tasks: ProposedTask[] }>(`/api/goals/${id}/plan`),
+  createGoalTasks: (id: string, tasks: ProposedTask[]) => post<{ tasks: Task[] }>(`/api/goals/${id}/tasks`, { tasks }),
+  setGoalLimits: (id: string, limits: TaskLimits) => request<Goal>(`/api/goals/${id}/limits`, { method: 'PATCH', body: JSON.stringify(limits) }),
 };
+
+/** A goal's sharpen routes sit under /api/goals, a task's under /api/tasks; the id says which. */
+const subjectPath = (id: string) => (/^G-/.test(id) ? `/api/goals/${id}` : `/api/tasks/${id}`);
+
+export type GoalListItem = { goal: Goal; outcome: GoalOutcome };
+export type GoalView = GoalListItem & { titles: Record<string, string>; sharpen: SharpenState; proposal: ProposedTask[] | null };
 
 export type Unsubscribe = () => void;
 

@@ -44,6 +44,7 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
   const { pathname } = useLocation();
   const nav = [
     { to: '/', label: 'Board', on: pathname === '/' || pathname.startsWith('/t/') },
+    { to: '/goals', label: 'Goals', on: pathname.startsWith('/goals') },
     { to: '/factory', label: 'Factory', on: pathname.startsWith('/factory') },
     { to: '/skills', label: 'Skills', on: pathname.startsWith('/skills') },
   ];
@@ -202,6 +203,7 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
   const taskId = /^\/t\/(T-\d+)/.exec(location.pathname)?.[1] ?? null;
   const go: Action[] = [
     { id: 'board', label: 'Board', cli: '/', run: () => navigate('/') },
+    { id: 'goals', label: 'Goals', cli: 'stint goal list', run: () => navigate('/goals') },
     { id: 'factory', label: 'Factory', cli: '/factory', run: () => navigate('/factory') },
     { id: 'skills', label: 'Skills', cli: 'stint skills list', run: () => navigate('/skills') },
     ...(tasks ?? []).map((c) => ({ id: `task-${c.task.id}`, label: `${c.task.id}, ${c.task.title}`, cli: `/t/${c.task.id}`, run: () => navigate(`/t/${c.task.id}`) })),
@@ -424,13 +426,99 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
+/** A new goal (R-064): an outcome, its criteria and non-goals one per line, and limits for all its tasks. */
+export function NewGoalDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+  const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 text-ink placeholder:text-ink-3';
+  const label = 'flex flex-col gap-1.5 font-medium';
+  const lines = (v: FormDataEntryValue | null) =>
+    String(v ?? '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  return (
+    <Dialog title="New goal" open={open} onClose={onClose}>
+      <form
+        className="flex flex-col gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          const limits: TaskLimits = {};
+          if (f.get('usd')) limits.usd = Number(f.get('usd'));
+          if (f.get('builds')) limits.builds = Number(f.get('builds'));
+          const nonGoals = lines(f.get('nonGoals'));
+          setError(null);
+          api
+            .createGoal({ title: String(f.get('title')), outcome: String(f.get('outcome')), criteria: lines(f.get('criteria')), ...(nonGoals.length ? { nonGoals } : {}), ...(Object.keys(limits).length ? { limits } : {}) })
+            .then((g) => {
+              onClose();
+              navigate(`/goals/${g.id}`);
+            })
+            .catch((err: unknown) => setError(`The goal was not created: ${daemonMessage(err)}`));
+        }}
+      >
+        <p className="text-small text-ink-2 -mt-2">Describe an outcome bigger than one task. Stint can sharpen it with you, then split it into tasks you check before any is created.</p>
+        <label className={label}>
+          Title
+          <input name="title" required maxLength={120} className={field} />
+        </label>
+        <label className={label}>
+          Outcome: what is true once it is met
+          <textarea name="outcome" required maxLength={2000} rows={3} className={field} />
+        </label>
+        <label className={label}>
+          Success criteria, one per line
+          <textarea name="criteria" required rows={3} className={field} />
+        </label>
+        <label className={label}>
+          Not in scope, one per line
+          <textarea name="nonGoals" rows={2} aria-describedby="non-goals-hint" className={field} />
+          <span id="non-goals-hint" className="text-small font-normal text-ink-2">
+            Optional. What the goal leaves out, so no task takes it on.
+          </span>
+        </label>
+        <details data-testid="new-goal-limits" className="rounded-[5px] border border-rule">
+          <summary className="min-h-9 px-3 py-2 rounded-[5px] font-medium cursor-pointer hover:bg-panel-2">Limits</summary>
+          <div className="flex flex-col gap-3 px-3 pb-3">
+            <p className="text-small text-ink-2">Counted across all the goal's tasks. Autopilot stops a build that would go past one, and each task takes its share. Leave a field empty for no limit.</p>
+            <div className="grid grid-cols-1 min-[440px]:grid-cols-2 gap-3">
+              <label className={label}>
+                Spend in dollars
+                <input name="usd" type="number" min={0.01} max={1000} step={0.01} inputMode="decimal" placeholder="No limit" className={cx(field, 'tabular')} />
+              </label>
+              <label className={label}>
+                Builds
+                <input name="builds" type="number" min={1} max={50} step={1} inputMode="numeric" placeholder="No limit" className={cx(field, 'tabular')} />
+              </label>
+            </div>
+            <Explain word="limit" />
+          </div>
+        </details>
+        {error ? (
+          <p role="alert" className="text-red">
+            {error}
+          </p>
+        ) : null}
+        <div className="flex gap-2 justify-end">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button tone="primary" type="submit">
+            Create goal
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 /** Actions that need nothing from the router; the palette adds navigation and the open task's actions itself. */
-export function usePaletteActions(extra: { newTask: () => void }): Action[] {
+export function usePaletteActions(extra: { newTask: () => void; newGoal: () => void }): Action[] {
   const [sound, setSoundState] = useState(soundOn);
   const singleKeys = useSingleKeys();
   return useMemo(
     () => [
       { id: 'new', label: 'New task', key: 'n', cli: 'stint new "..."', group: 'go' as const, run: extra.newTask },
+      { id: 'new-goal', label: 'New goal', cli: 'stint goal new "..." --outcome "..." --criterion "..."', group: 'go' as const, run: extra.newGoal },
       { id: 'run-all', label: 'Run all planned tasks on autopilot', cli: 'stint run <task>', group: 'actions' as const, run: () => report(api.autopilotAll(true), 'Planned tasks are on autopilot') },
       {
         id: 'notifications',
@@ -466,6 +554,6 @@ export function usePaletteActions(extra: { newTask: () => void }): Action[] {
         },
       },
     ],
-    [extra.newTask, sound, singleKeys],
+    [extra.newTask, extra.newGoal, sound, singleKeys],
   );
 }

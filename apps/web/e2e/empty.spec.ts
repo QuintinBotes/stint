@@ -51,3 +51,10 @@ test('The Files tab and the run rail show their empty states in an empty task', 
   await expect(rail.getByTestId('run-segment')).toHaveCount(0);
   await expect(rail).toContainText('Task created');
 });
+
+test('The Goals page in the replay shows its empty state, with New goal as its action, and Goals sits between Board and Factory', async ({ page }) => {
+  await page.goto('/goals');
+  await expect(page.getByTestId('goals-empty')).toHaveText('No goals yet: make one, and the tasks Stint splits it into appear under it.');
+  await expect(page.getByTestId('new-goal')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link')).toHaveText(['Board', 'Goals', 'Factory', 'Skills']);
+});
