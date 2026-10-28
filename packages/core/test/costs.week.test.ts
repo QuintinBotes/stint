@@ -10,7 +10,7 @@ afterEach(() => {
   else process.env.TZ = zone;
 });
 
-type Line = { run: string; type: string; ts: string; payload?: Record<string, unknown> };
+type Line = { run?: string; adapter?: string; type: string; ts: string; payload?: Record<string, unknown> };
 const priced = (usd: number | null, extra: Partial<Cost> = {}): Cost => ({ inputTokens: 1000, cachedTokens: 0, outputTokens: 100, usd, ...extra });
 
 /** A task whose log has these lines at these times, written as the daemon would have, so `ts` is the run's real clock. */
@@ -22,7 +22,7 @@ async function workspaceWith(lines: Line[]): Promise<{ ws: Workspace; dir: strin
   let seq = (await ws.events(t.id).read()).length;
   for (const l of lines) {
     seq += 1;
-    const e = { id: `01M5WBKEC0GGGGGGGGGGGG${String(seq).padStart(4, '0')}`, seq, ts: l.ts, task: t.id, run: l.run, adapter: 'stint-agent', vendor: 'meta', type: l.type, payload: l.payload ?? {} };
+    const e = { id: `01M5WBKEC0GGGGGGGGGGGG${String(seq).padStart(4, '0')}`, seq, ts: l.ts, task: t.id, ...(l.run ? { run: l.run, adapter: l.adapter ?? 'stint-agent' } : {}), vendor: 'meta', type: l.type, payload: l.payload ?? {} };
     appendFileSync(path, `${JSON.stringify(e)}\n`);
   }
   return { ws, dir, cleanup };
@@ -102,6 +102,57 @@ test('A run counts once, however many events repeat its cost: the packet, the re
       const rows = await costs(ws, { group });
       expect([group, sum(rows), rows.reduce((s, r) => s + r.runs, 0)]).toEqual([group, 0.35, 3]);
     }
+  } finally {
+    cleanup();
+  }
+});
+
+test('Week and day totals include learn and quiz spend, each counted once; a task total is its runs', async () => {
+  const { ws, cleanup } = await workspaceWith([
+    ...run('r1', '2026-10-27T09:00:00Z', '2026-10-27T09:10:00Z', priced(0.3)),
+    { type: 'skill.proposed', ts: '2026-10-27T09:20:00Z', payload: { id: 'limiter-config-via-env', host: 'baseten', model: 'muse-spark-open', cost: priced(0.015) } },
+    {
+      run: 'r1',
+      type: 'handoff.quizzed',
+      ts: '2026-10-27T09:30:00Z',
+      payload: { name: 'h1', writer: { host: 'meta-api', model: 'muse-wonder-1.0', cost: priced(0.02) }, answerer: { host: 'meta-api', model: 'muse-spark-1.3', cost: priced(0.01) } },
+    },
+  ]);
+  try {
+    const rows = async (group: Parameters<typeof costs>[1]['group']) => (await costs(ws, { group })).map((r) => [r.key, r.usd, r.runs]);
+    expect(await rows('task')).toEqual([['T-0001', 0.3, 1]]);
+    expect(await rows('week')).toEqual([['2026-10-26', 0.345, 1]]);
+    expect(await rows('day')).toEqual([[localDay('2026-10-27T09:10:00Z'), 0.345, 1]]);
+    expect(await rows('run')).toEqual([['T-0001/learn', 0.015, 0], ['T-0001/quiz', 0.03, 0], ['T-0001/r1', 0.3, 1]]);
+    expect(await rows('host')).toEqual([['baseten', 0.015, 0], ['meta-api', 0.33, 1]]);
+    const models = await costs(ws, { group: 'model' });
+    expect(models.map((r) => [r.key, r.usd, r.roles])).toEqual([
+      ['baseten/muse-spark-open', 0.015, ['learn']],
+      ['meta-api/muse-spark-1.3', 0.31, ['implementer', 'quiz']],
+      ['meta-api/muse-wonder-1.0', 0.02, ['quiz']],
+    ]);
+  } finally {
+    cleanup();
+  }
+});
+
+test('Each run is billed to who answered it: Muse Code to the Meta Model API, another local CLI to itself, a fallback to its host', async () => {
+  const at = (r: string, adapter: string, started: Record<string, unknown>, finished: Record<string, unknown>, usd: number): Line[] => [
+    { run: r, adapter, type: 'run.started', ts: '2026-10-27T09:00:00Z', payload: { role: 'implementer', ...started } },
+    { run: r, adapter, type: 'run.finished', ts: '2026-10-27T09:10:00Z', payload: { endedBy: 'completed', cost: priced(usd), ...finished } },
+  ];
+  const { ws, cleanup } = await workspaceWith([
+    ...at('r1', 'muse-code', { host: 'local-cli', model: 'muse-spark-1.3' }, { host: 'local-cli', model: 'muse-spark-1.3' }, 0.3),
+    ...at('r2', 'claude-code', { host: 'local-cli', model: 'sonnet' }, { host: 'local-cli', model: 'sonnet' }, 0.5),
+    ...at('r3', 'codex', { host: 'local-cli', model: null }, { host: 'local-cli' }, 0.2),
+    // the Stint agent starts as local-cli and records the host that answered when it ends
+    ...at('r4', 'stint-agent', { host: 'local-cli', model: 'muse-spark-1.3' }, { host: 'fireworks', model: 'muse-spark-open' }, 0.1),
+    // a review on Glimmer that fell back to Muse Spark on the Meta Model API, as on 26 October
+    ...at('r5', 'openai-compatible', { role: 'reviewer', host: 'ollama', model: 'muse-glimmer:30b-mlx' }, { host: 'meta-api', model: 'muse-spark-1.3' }, 0.0142),
+  ]);
+  try {
+    expect((await costs(ws, { group: 'host' })).map((r) => [r.key, r.usd])).toEqual([['claude-code', 0.5], ['codex', 0.2], ['fireworks', 0.1], ['meta-api', 0.3142]]);
+    expect((await costs(ws, { group: 'model' })).map((r) => r.key)).toEqual(['claude-code/sonnet', 'codex/unknown', 'fireworks/muse-spark-open', 'meta-api/muse-spark-1.3']);
   } finally {
     cleanup();
   }
