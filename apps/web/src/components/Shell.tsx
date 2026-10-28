@@ -260,7 +260,7 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
   );
 }
 
-export function Dialog({ title, open, onClose, children }: { title: string; open: boolean; onClose: () => void; children: ReactNode }) {
+export function Dialog({ title, open, onClose, children, width = 'max-w-[520px]' }: { title: string; open: boolean; onClose: () => void; children: ReactNode; width?: string }) {
   useRestoreFocus(open);
   useEffect(() => {
     if (!open) return;
@@ -271,7 +271,15 @@ export function Dialog({ title, open, onClose, children }: { title: string; open
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center pt-[10vh] px-4" onMouseDown={onClose}>
-      <div role="dialog" aria-modal aria-label={title} className="w-full max-w-[520px] rounded-[4px] border border-rule-strong bg-ground p-5 shadow-[var(--shadow)]" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-modal
+        aria-label={title}
+        className={cx('w-full max-h-[85vh] overflow-y-auto rounded-[4px] border border-rule-strong bg-ground p-5 shadow-[var(--shadow)]', width)}
+        onMouseDown={(e) => e.stopPropagation()}
+        // a key pressed in a dialog stays in it: the page's single-key shortcuts do not fire behind it; Escape and Cmd+K still reach the window
+        onKeyDown={(e) => e.key !== 'Escape' && !e.metaKey && !e.ctrlKey && e.stopPropagation()}
+      >
         <h2 className="text-[19px] leading-[24px] font-bold stretch-112 tracking-[-0.01em] mb-4">{title}</h2>
         {children}
       </div>

@@ -89,3 +89,15 @@ test('A skill mounts on an untagged task similar to its evidence task, by simila
     for (let i = 0; i < 400 && !(await ws.events(untagged.id).read()).some((e) => e.type === 'handoff.created' && e.run === run); i++) await Bun.sleep(50);
   });
 }, 120_000);
+
+test('A skill with an empty roles list mounts for every role, as stint skills list says, and a listed role still limits it', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { ws } = await makeApp(repo, [fakeAdapter('edit')]);
+    writeMountSkill(repo, 'any-role', ['roles: []']);
+    writeMountSkill(repo, 'reviewers-only', ['roles: [reviewer]']);
+    const t = await ws.createTask({ ...newTask, title: 'Any work' });
+    expect((await skillsForTask(ws, t, 'implementer')).map((s) => s.name)).toContain('any-role');
+    expect((await skillsForTask(ws, t, 'planner')).map((s) => s.name)).toContain('any-role');
+    expect((await skillsForTask(ws, t, 'implementer')).map((s) => s.name)).not.toContain('reviewers-only');
+  });
+}, 60_000);

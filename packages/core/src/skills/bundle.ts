@@ -254,3 +254,8 @@ export function scanSkillBundle(input: SkillBundleFile[]): SkillFinding[] {
   }
   return findings;
 }
+
+/** The exact line a mounted skill gets in prompt.md, under "Skills mounted for this run"; the Setup sheet previews it. */
+export function skillPromptLine(s: { name: string; description: string }): string {
+  return `- ${s.name}: ${s.description}`;
+}

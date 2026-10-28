@@ -44,3 +44,28 @@ test('The task view rewound to the red flag, on the terminal tab, has no WCAG A 
   const found = await axe(page);
   expect(found, found.join('\n')).toEqual([]);
 });
+
+test('The Add skill dialog, on each tab and with a preview, has no WCAG A or AA violations and no sideways scroll at 390 px', async ({ page }) => {
+  await page.goto('/skills');
+  await page.waitForLoadState('networkidle');
+  await page.getByTestId('add-skill').click();
+  const dialog = page.getByRole('dialog', { name: 'Add skill' });
+  await dialog.getByTestId('skill-file').setInputFiles({ name: 'SKILL.md', mimeType: 'text/markdown', buffer: Buffer.from('---\nname: a11y-check\ndescription: Checks the dialog.\n---\n\nRun scripts/run.sh first; see https://example.com for more.\n') });
+  await expect(dialog.getByTestId('skill-preview')).toBeVisible();
+  await dialog.getByTestId('add-skill-tab-write').click();
+  await dialog.getByTestId('skill-name').fill('a11y-check');
+  await dialog.getByTestId('skill-description').fill('Checks the dialog.');
+  for (const tab of ['Upload', 'From git', 'Write']) {
+    await dialog.getByRole('tab', { name: tab }).click();
+    const found = await axe(page);
+    expect(found, `${tab}: ${found.join('\n')}`).toEqual([]);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const tab of ['Upload', 'From git', 'Write']) {
+    await dialog.getByRole('tab', { name: tab }).click();
+    const sideways = await dialog.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(sideways, tab).toBeLessThanOrEqual(0);
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('add-skill')).toBeFocused();
+});

@@ -1,5 +1,5 @@
 // Typed client for the daemon. The daemon is the only writer of .stint/; the UI only reads and asks.
-import { type Cost, EVENT_TYPES, type Handoff, type Plan, type Review, type StintEvent, type Task } from '@stint-dev/core';
+import { type Cost, EVENT_TYPES, type Handoff, type Plan, type Review, type SkillFinding, type SkillSource, type StintEvent, type Task } from '@stint-dev/core';
 
 export type CapabilityLevel = { level: 'supported' | 'partial' | 'unsupported' | 'unknown'; reason?: string; note?: string };
 export type AdapterHealth = {
@@ -33,7 +33,7 @@ export type Health = {
 };
 export type SkillEvalSide = { runs: number; findings: number; passed: number; failed: number; verified: number; inputTokens: number; cachedTokens: number; outputTokens: number; usd: number | null };
 export type SkillEvalSummary = { id: string; with: SkillEvalSide; without: SkillEvalSide; card: string; createdAt?: string; synthetic?: true; replay?: boolean };
-export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number; hurt: number; retireProposed: boolean; eval?: SkillEvalSummary };
+export type SkillRecord = { id: string; name: string; description: string; roles: string[]; tags: string[]; origin: string; status: string; evidence: string[]; stale: boolean; appliedIn: string[]; helped: number; hurt: number; retireProposed: boolean; eval?: SkillEvalSummary; source?: SkillSource; findings?: SkillFinding[]; updateProposed?: boolean };
 export type PhaseGates = {
   phase2: { met: boolean; passPowK: number | null; k: number | null; tamperEscapes: number; detail: string };
   phase3: { met: boolean; tier: string | null; shadowDays: number; reverts: number; detail: string };
@@ -214,7 +214,7 @@ export function setToken(t: string): void {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body) headers.set('Content-Type', 'application/json');
+  if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   if (init.method && init.method !== 'GET' && token) headers.set('Authorization', `Bearer ${token}`);
   const res = await fetch(`${base}${path}`, { ...init, headers });
   const isJson = res.headers.get('Content-Type')?.includes('application/json');
@@ -277,7 +277,11 @@ export const api = {
   decidePermission: (id: string, run: string, requestId: string, optionId: string) => post<unknown>(`/api/tasks/${id}/runs/${run}/permission`, { requestId, optionId }),
   settle: (name: string, action: 'keep' | 'supersede') => post<unknown>(`/api/graph/pending/${name}`, { action }),
   skills: () => request<SkillRecord[]>('/api/skills'),
-  approveSkill: (id: string) => post<unknown>(`/api/skills/${id}/approve`),
+  approveSkill: (id: string, acknowledge: string[] = []) => post<unknown>(`/api/skills/${id}/approve`, acknowledge.length ? { acknowledge } : {}),
+  /** A file, zip or folder as multipart, or the editor's files as JSON; the daemon validates again either way (R-060). */
+  importSkill: (body: FormData | { files: Array<{ path: string; base64: string }>; source: SkillSource; id?: string }) =>
+    request<{ id: string; findings: SkillFinding[] }>('/api/skills/import', { method: 'POST', body: body instanceof FormData ? body : JSON.stringify(body) }),
+  exportSkillUrl: (id: string) => `${base}/api/skills/${id}/export`,
   rejectSkill: (id: string, reason: string) => post<unknown>(`/api/skills/${id}/reject`, { reason }),
   retireSkill: (id: string) => post<unknown>(`/api/skills/${id}/retire`),
   keepSkill: (id: string) => post<unknown>(`/api/skills/${id}/keep`),

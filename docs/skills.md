@@ -34,6 +34,16 @@ From the CLI, in a repository with the daemon running:
 - `stint skills new <id> --description <text>` writes a skill in place, with `--from-file` for a body you already wrote.
 - `stint skills export <id>` writes an approved skill out as `<id>.zip`. The other side adds it with `stint skills add`. Exporting and re-importing the same folder gives the same digest, so a shared skill is recognisable on arrival.
 
+On the Setup sheet (`/skills`), Add skill opens a dialog with three tabs:
+
+- Upload: drop a `.zip` or a `SKILL.md`, or choose a folder. A lone markdown file goes in as the skill's `SKILL.md`, and a folder leaves out `.git` and `.DS_Store`.
+- From git: a repository URL, with an optional ref and path. The browser cannot clone, so this tab writes out the exact `stint skills add` command, with a Copy button, to run in the repository.
+- Write: name, description, roles, tags and a body, with a live token count.
+
+Before anything is sent, Upload and Write show a preview, checked in the browser with the same validator and scan the daemon uses: the files, the parsed frontmatter, the findings, and the exact line agents will see in `prompt.md`. A block finding keeps Add to the queue off. The daemon still checks the bundle again on arrival, and when it refuses, the dialog shows its message and findings as it gave them.
+
+Every skill card shows where the skill came from (written by a person, imported, or learned from reviews) and its source, with a link for a git repository over https. An approved skill has Download, which saves the same zip as `stint skills export`, and Edit, which opens Write filled in from the approved folder. The rest of the folder rides along unchanged, so approving the edit replaces `SKILL.md` and keeps the other files. A proposal gets Download and Edit once it is approved. The list filters by origin and by status, `unreviewed` included.
+
 Clients can also post a bundle to `POST /api/skills/import` with the daemon token, as multipart form data (a zip, a `SKILL.md`, or a folder as several parts) or as JSON with base64 files. The daemon is the gate in every case: it validates the bundle again, in memory, before anything touches disk. Nothing is written under `.agents/skills` at import time. The bundle waits at `.stint/cache/proposals/<id>/` with a digest over its sorted paths and contents, its source, and its scan findings, and a `skill.imported` event records it on the workspace log. Importing an id that already exists queues an update instead; approving it replaces the folder and bumps the minor version.
 
 ## What the scan checks, and what it does not
@@ -41,7 +51,7 @@ Clients can also post a bundle to `POST /api/skills/import` with the daemon toke
 `stint skills add` and `stint skills new` say it plainly when they print the findings: scanned by pattern; this is not a security review. The scan flags shapes, not intent:
 
 - Block: a credential pattern anywhere in the bundle, or a file that fails validation. A blocked proposal cannot be approved.
-- Warn: executable scripts, instructions to download and run remote code, reads of credential files, sending data to a URL, phrases that override the instructions in force, and base64 runs over 1 KB. Each warning needs a person's acknowledgement at approval (`stint skills approve <id> --ack <ids>`).
+- Warn: executable scripts, instructions to download and run remote code, reads of credential files, sending data to a URL, phrases that override the instructions in force, and base64 runs over 1 KB. Each warning needs a person's acknowledgement at approval (`stint skills approve <id> --ack <ids>`). On the Setup sheet, the card lists the findings with the same sentence beside them, and each warning has a checkbox; Approve stays off until every one is ticked, and a block finding turns it off with the reason. An unreviewed folder is scanned in the browser from its export, since the daemon scans only what is imported.
 - Note: every external host the text names, binary assets with their size, and top-level entries a skill does not usually have.
 
 The scan does not run the skill, read for meaning, or check that the advice is right. A clean scan means no known bad shape was found. Reading the skill before approving it is still the review.
@@ -52,7 +62,7 @@ The validator runs before the scan and shapes the bundle: exactly one `SKILL.md`
 
 Approving writes the whole folder to `.agents/skills/<id>/`, sets `status: probation`, commits only those files with `Stint-Skill:` and `Stint-Skill-Source:` trailers, mirrors `SKILL.md` when Claude Code is enabled, and records consent as the folder digest. Rejecting remembers the reason and the digest, so the same bundle is not proposed again.
 
-Probation earns `active` at three tasks it helped on, and a skill that hurts more than it helps gets a retirement proposal; the counts are in [evals.md](evals.md). `stint eval --skill <id>` measures a skill with and without it mounted. An imported skill with no evidence tasks is judged on the three tasks most similar to its name and description (narrowed to tasks sharing a tag when it has tags), or on the golden set when there are none. The summary names the tasks it used. Approval never waits for an eval; the eval line appears on the Setup sheet (`/skills`) once one has run.
+Probation earns `active` at three tasks it helped on, and a skill that hurts more than it helps gets a retirement proposal; the counts are in [evals.md](evals.md). `stint eval --skill <id>` measures a skill with and without it mounted. An imported skill with no evidence tasks is judged on the three tasks most similar to its name and description (narrowed to tasks sharing a tag when it has tags), or on the golden set when there are none. The summary names the tasks it used. Approval never waits for an eval; the card on the Setup sheet (`/skills`) shows the eval line once one has run, and says "not evaluated" until then.
 
 ## Unknown skills wait: requireReview
 

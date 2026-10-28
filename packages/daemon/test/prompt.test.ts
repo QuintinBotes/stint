@@ -26,3 +26,13 @@ test('prompt.md for a second turn shares a byte-identical prefix up to the packe
   expect(second).toContain('You are picking up work in progress.');
   expect(second.indexOf('## Packet from the previous run')).toBeLessThan(second.indexOf('## Changes on the task branch so far'));
 });
+
+test('the mounted skills section of prompt.md is one "- name: description" line per skill, or None.', () => {
+  const two = [
+    { name: 'review-voice-policy', description: 'How review policies work.' },
+    { name: 'limits-come-from-config', description: 'Read limits from config, not literals.' },
+  ];
+  const section = (p: string) => p.slice(p.indexOf('## Skills mounted for this run'), p.indexOf('## Plan'));
+  expect(section(renderPrompt({ task, plan, skills: two, diff: [] }))).toBe('## Skills mounted for this run\n- review-voice-policy: How review policies work.\n- limits-come-from-config: Read limits from config, not literals.\n\n');
+  expect(section(renderPrompt({ task, plan, skills: [], diff: [] }))).toBe('## Skills mounted for this run\nNone.\n\n');
+});

@@ -1,4 +1,4 @@
-import { type Handoff, type Plan, type Task, renderHandoff } from '@stint-dev/core';
+import { type Handoff, type Plan, type Task, renderHandoff, skillPromptLine } from '@stint-dev/core';
 import type { NumstatEntry } from './git';
 
 export type MountedSkill = { name: string; description: string };
@@ -44,10 +44,7 @@ export function renderPrompt(i: PromptInput): string {
     bullets(t.acceptance, '- none given'),
     '',
     '## Skills mounted for this run',
-    bullets(
-      i.skills.map((s) => `${s.name}: ${s.description}`),
-      'None.',
-    ),
+    i.skills.length ? i.skills.map(skillPromptLine).join('\n') : 'None.',
     '',
     '## Plan',
     i.plan

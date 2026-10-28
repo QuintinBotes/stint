@@ -247,7 +247,8 @@ function mountsFor(root: string, role: Role, tags: string[] | undefined, similar
     const fm = s.frontmatter;
     if (fm.status !== 'active' && fm.status !== 'probation') continue;
     if (!mountable(root, s.id, s.content, gate)) continue;
-    if (fm.roles && !fm.roles.includes(role)) continue;
+    // an empty roles list means every role, as for tags and as `stint skills list` shows it
+    if (fm.roles?.length && !fm.roles.includes(role)) continue;
     const tagged = Boolean(fm.tags && fm.tags.length > 0);
     let by: SkillMountRule = 'role';
     if (tags && tagged) {
