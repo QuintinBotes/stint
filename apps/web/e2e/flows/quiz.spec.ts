@@ -7,6 +7,8 @@ test('Check this packet on the Packet tab runs the quiz and shows its score and 
   await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'muse-code', role: 'implementer' });
   await d.until(t.id, (ev) => ev.some((e) => e.type === 'handoff.created'));
   await page.goto(`/t/${t.id}?tab=packet`);
+  // the check sits behind its own disclosure under the packet
+  await page.getByTestId('quiz').locator('summary').click();
   await page.getByRole('button', { name: 'Check this packet' }).click();
   await expect(page.getByTestId('quiz-score')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('quiz')).toContainText(/\d/);

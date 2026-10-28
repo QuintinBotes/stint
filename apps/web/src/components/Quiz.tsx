@@ -18,43 +18,52 @@ export function QuizPanel({ taskId, name, events }: { taskId: string; name: stri
       .catch((e: unknown) => setError(e instanceof DaemonError ? e.error.message : String(e)))
       .finally(() => setBusy(false));
   };
+  const misses = recorded ? [...recorded.blockingMisses, ...recorded.advisoryMisses] : [];
   return (
-    <section className="rounded-[5px] border border-rule bg-panel p-4" data-testid="quiz">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-body font-semibold">Is this packet enough?</h3>
-        <Button className="h-8 px-2.5 text-small" onClick={run} disabled={busy}>
+    <details className="max-w-[760px] pt-3 border-t border-rule" data-testid="quiz">
+      <summary className="w-fit min-h-6 cursor-pointer font-semibold hover:underline underline-offset-4">
+        Is this packet enough?
+        {recorded ? <span className="font-normal text-ink-2 tabular">{` ${recorded.correct} of ${recorded.total} facts recovered`}</span> : null}
+      </summary>
+      <div className="mt-2 flex flex-col gap-2 text-body">
+        <p className="text-small text-ink-2 max-w-[60ch]">
+          Muse Wonder writes true or false statements from everything the run did. Muse Glimmer, on this machine, answers them from the packet alone. A wrong answer is something the next agent would not know.
+        </p>
+        {recorded ? (
+          <>
+            <p className="flex flex-wrap items-center gap-2" data-testid="quiz-score">
+              <span className="text-section font-semibold tabular">
+                {recorded.correct} of {recorded.total} facts
+              </span>
+              <span className="text-ink-2">recovered from the packet alone</span>
+              {recorded.blockingMisses.length ? <StatusChip label={`${recorded.blockingMisses.length} blocking missed`} tone="bad" /> : <StatusChip label="nothing blocking missed" tone="neutral" />}
+            </p>
+            {misses.length ? (
+              <ul className="flex flex-col gap-1">
+                {misses.map((m) => (
+                  <li key={m.id} className="text-small">
+                    <span className={m.blocking ? 'text-red font-medium' : 'text-ink-2'}>{m.blocking ? 'Blocking' : 'Missed'}</span> <span className="text-ink">{m.text}</span>{' '}
+                    <span className="text-ink-3">
+                      (it is {String(m.truth)}; the packet gave: {m.answer})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="text-small text-ink-3">
+              Statements by {modelName(recorded.writer.model)} ({money(recorded.writer.cost)}), answered by {modelName(recorded.answerer.model)} ({recorded.answerer.host === 'ollama' ? 'on this machine, free' : money(recorded.answerer.cost)}).
+            </p>
+          </>
+        ) : null}
+        <Button className="self-start h-8 px-2.5 text-small" onClick={run} disabled={busy}>
           {busy ? 'Checking' : recorded ? 'Check again' : 'Check this packet'}
         </Button>
+        {error ? (
+          <p className="text-small text-red" role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
-      {!recorded ? (
-        <p className="text-small text-ink-2 mt-2 max-w-[56ch]">
-          Muse Wonder writes true and false statements from everything the run did; Muse Glimmer, on this machine, answers them from the packet alone and must quote it. A miss is something the next agent would not know.
-        </p>
-      ) : (
-        <div className="mt-3 text-body">
-          <p className="flex items-center gap-2" data-testid="quiz-score">
-            <span className="text-section font-semibold tabular">
-              {recorded.correct}/{recorded.total}
-            </span>
-            <span className="text-ink-2">facts recovered from the packet alone</span>
-            {recorded.blockingMisses.length ? <StatusChip label={`${recorded.blockingMisses.length} blocking`} tone="warn" /> : <StatusChip label="nothing blocking missed" tone="good" />}
-          </p>
-          {[...recorded.blockingMisses, ...recorded.advisoryMisses].length ? (
-            <ul className="mt-2 flex flex-col gap-1">
-              {[...recorded.blockingMisses, ...recorded.advisoryMisses].map((m) => (
-                <li key={m.id} className="text-small">
-                  <span className={m.blocking ? 'text-amber font-medium' : 'text-ink-2'}>{m.blocking ? 'Blocking' : 'Missed'}</span>{' '}
-                  <span className="text-ink">{m.text}</span> <span className="text-ink-3">(it is {String(m.truth)}; the packet gave: {m.answer})</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="text-small text-ink-3 mt-2">
-            Statements by {modelName(recorded.writer.model)} ({money(recorded.writer.cost)}), answered by {modelName(recorded.answerer.model)} ({recorded.answerer.host === 'ollama' ? 'on this machine, free' : money(recorded.answerer.cost)}).
-          </p>
-        </div>
-      )}
-      {error ? <p className="text-small text-red mt-2">{error}</p> : null}
-    </section>
+    </details>
   );
 }

@@ -29,12 +29,12 @@ test('The Hand to picker never recommends the leaving agent when another is read
     const vendor = (fromHealth as { vendor: string }).vendor;
     const names: Record<string, string> = { meta: 'Meta', anthropic: 'Anthropic', openai: 'OpenAI', local: 'Local', other: 'Other' };
     await expect(row.getByTestId('hand-vendor')).toHaveText(names[vendor] ?? `${vendor.charAt(0).toUpperCase()}${vendor.slice(1)}`);
-    await expect(row.getByTestId('hand-roles')).toContainText('implementer');
+    await expect(row.getByTestId('hand-roles')).toContainText('builds');
     const note = row.getByTestId('capability-note');
     await expect(note).toContainText('resume');
     await expect(note).toContainText('structured output');
     await expect(note).toContainText('sandbox');
     await expect(note).toContainText('cost');
-    await expect(row.getByTestId('hand-gate')).toContainText(/Gate:|Turned off/);
+    await expect(row.getByTestId('hand-gate')).toContainText(/Stint (checks|watches|does not check)|Turned off/);
   }
 });

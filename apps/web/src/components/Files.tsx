@@ -51,23 +51,20 @@ export function FilesTab({ taskId }: { taskId: string }) {
   }, [data, onlyChanged, filter]);
 
   const open = (p?: string) => {
-    api.openInEditor(taskId, p).then((r) => toast.success(`Opened ${p ?? 'the worktree'} in ${r.with}`)).catch((e: unknown) => toast.error(said(e)));
+    api.openInEditor(taskId, p).then((r) => toast.success(`Opened ${p ?? 'the folder'} in ${r.with}`)).catch((e: unknown) => toast.error(said(e)));
   };
 
   if (error) return <EmptyState testId="files-error">{error}</EmptyState>;
   if (!data) return <EmptyState testId="files-loading">Reading the task's files.</EmptyState>;
-  const where = data.editable ? `the worktree ${data.worktree}` : `branch ${data.ref}, read-only: the worktree is gone after merge or before the first run`;
+  const where = data.editable ? `Showing the task's copy of the code, in ${data.worktree}.` : `Showing branch ${data.ref}, read-only: the task's copy of the code exists only from its first run until the merge.`;
 
   return (
     <section data-testid="files" className="flex flex-col gap-3 min-h-0">
       <header className="flex flex-wrap items-center gap-2 text-small">
-        <span className="text-ink-2">Showing {where}.</span>
-        <span className="ml-auto flex items-center gap-2">
-          {data.editable ? null : <span className="text-ink-2">No worktree to open in an editor.</span>}
-          <Button disabled={!data.editable} onClick={() => open()} data-testid="open-worktree">
-            Open the worktree in your editor
-          </Button>
-        </span>
+        <span className="text-ink-2 min-w-0 break-words">{where}</span>
+        <Button className="ml-auto" disabled={!data.editable} onClick={() => open()} data-testid="open-worktree">
+          Open the folder in your editor
+        </Button>
       </header>
       <div className="grid md:grid-cols-[minmax(220px,300px)_1fr] gap-3 min-h-0">
         <nav aria-label="Files" className="flex flex-col gap-2 min-w-0">
@@ -77,7 +74,7 @@ export function FilesTab({ taskId }: { taskId: string }) {
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter files"
               aria-label="Filter files"
-              className="flex-1 min-w-0 h-8 rounded-[5px] border border-field bg-ground px-2 text-body focus-visible:border-ink outline-none"
+              className="flex-1 min-w-0 h-8 rounded-[5px] border border-field bg-ground px-2 text-body placeholder:text-ink-3"
             />
             <Button aria-pressed={onlyChanged} onClick={() => setOnlyChanged((v) => !v)} className="h-8" disabled={data.changed.length === 0}>
               Changed ({data.changed.length})
@@ -105,8 +102,11 @@ export function FilesTab({ taskId }: { taskId: string }) {
                         {p.slice(slash + 1)}
                       </span>
                       {c ? (
-                        <span className="ml-auto shrink-0 tabular text-small">
-                          <span className="text-green">+{c.added}</span> <span className="text-ink-2">-{c.removed}</span>
+                        <span className="ml-auto shrink-0 tabular text-small text-ink-2">
+                          <span className="sr-only">{`, ${c.added} lines added, ${c.removed} removed`}</span>
+                          <span aria-hidden="true">
+                            +{c.added} -{c.removed}
+                          </span>
                         </span>
                       ) : null}
                     </button>

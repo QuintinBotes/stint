@@ -1,13 +1,16 @@
 import { expect, test } from '@playwright/test';
 
-test('The T-0042 review card shows the offline badge and the finding routed to the queue against D3', async ({ page }) => {
+test('The T-0042 review card shows it ran on this machine and the finding routed to the queue against D3', async ({ page }) => {
   await page.goto('/t/T-0042?tab=review');
   const card = page.getByTestId('review-card');
-  // the recording's reviewer ran locally on Glimmer, so the card carries the offline badge
-  await expect(card.getByText('offline', { exact: true })).toBeVisible();
+  // the recording's reviewer ran locally on Glimmer, so the card says it ran on this machine
+  await expect(card.getByText('on this machine', { exact: true })).toBeVisible();
+  // the verdict is a recommendation, not a verified result, so nothing on the card is green
+  await expect(card.locator('.text-green')).toHaveCount(0);
   const finding = card.getByTestId('finding').filter({ hasText: 'A fixed window counter would use less memory' });
   await expect(finding).toBeVisible();
-  await expect(finding).toContainText('contradicts D3, routed to the queue');
+  await expect(finding.getByTestId('contradicted-decision')).toContainText('Would reverse decision D3');
+  await expect(finding.getByTestId('finding-queue')).toContainText('Settle it in the queue');
   // D3 itself stands in the timeline beside the card, in its own words
   await expect(page.getByText('Sliding window over fixed window, so a burst at a window edge cannot double the limit').first()).toBeVisible();
 });
