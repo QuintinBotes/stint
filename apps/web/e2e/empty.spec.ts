@@ -14,10 +14,10 @@ test('Every panel in an empty task shows its empty-state sentence, and every car
   await expect(page.getByTestId('memory-panel').getByTestId('empty-memory')).toBeVisible();
   const expected: Record<string, string> = {
     diff: 'The diff appears here once a run commits to the task branch.',
-    terminal: 'No worktree to open a shell in.',
+    terminal: 'No copy of the code to open a terminal in.',
     plan: 'The plan arrives here when the planner finishes.',
     packet: 'The packet appears here when a run ends, however it ends.',
-    review: 'The review appears here after a green verification.',
+    review: 'The review appears here after the tests pass.',
     verification: 'Verification runs here when the run ends.',
   };
   for (const [tab, sentence] of Object.entries(expected)) {

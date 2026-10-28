@@ -21,7 +21,7 @@ This page is for anyone who wants the whole picture: what each screen of the web
   - every harness and host this workspace can use.
 - **Skills** (`/skills`): what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
 
-<p align="center"><img alt="The Factory: the week in four figures, then verification and outcomes for the last 30 days, each with its sample size" src="../assets/screenshot-factory.png" width="900"></p>
+<p align="center"><img alt="The Factory: what the agents did in four figures, then the agents table, with every other measure in named sections below" src="../assets/screenshot-factory.png" width="900"></p>
 
 ## The loop around the hand-off
 

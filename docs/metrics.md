@@ -14,7 +14,7 @@ Shared terms:
 
 ## On the Factory
 
-The Factory shows the panel "Verification and outcomes" right after its four figures. It has four groups: verification, outcomes, human load and learning. Each figure shows its value in its unit (a ratio as a percent, money in dollars, a time as a duration), its `n`, and "on target" or "below target" when you set a target. Each label links to its section on this page. A group says "small sample" once when any of its figures rests on fewer than five cases. Metrics with no value yet wait behind "Not enough data yet". A switch picks the window: 7, 30 or 90 days, or all; 30 days is the default. The figures row above reads the same response: merges from `outcome.merged`, runs per merged task from `efficiency.hops`, and the transcript share and packet size from `efficiency.transcript_share` and `efficiency.packet_tokens`. Spend this week keeps its own weekly source, since no metric is that number.
+The Factory opens on "What the agents did": a period switch (7, 30 or 90 days, or all; 30 days is the default), then tasks merged (`outcome.merged`, with `efficiency.hops`), spend this week (its own weekly source), passed the tests first time (`verify.first_pass`) and hand-offs that passed (`verify.handoff_success`), and a line with the packet size and the transcript share. "All measures" lists every metric by group with a plain label and a one-line definition, its sample, and "On target" or "Below target" when you set a target; each label links to its section on this page. A small sample is said once, above the groups.
 
 ## Reading these numbers
 

@@ -74,7 +74,7 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
           !gone &&
           setState({
             kind: 'closed',
-            reason: ready ? 'The terminal session ended.' : 'No worktree to open a shell in. A run makes one, and a merge removes it.',
+            reason: ready ? 'The terminal session ended.' : 'No copy of the code to open a terminal in. A run makes one, and a merge removes it.',
           });
         const typed = term.onData((d) => {
           if (ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(d));

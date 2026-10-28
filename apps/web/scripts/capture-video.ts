@@ -100,11 +100,15 @@ try {
   await page.waitForTimeout(1500);
 
   await nav(page, 'Factory');
-  await page.getByTestId('models-at-work').waitFor();
+  await page.getByTestId('kpis').waitFor();
   await page.waitForTimeout(5000);
+  // the Factory keeps its detail in named disclosures; the video opens the three it shows
+  for (const id of ['panel-relay', 'panel-models', 'panel-bench']) await page.getByTestId(id).locator('summary').click();
+  await scrollTo(page, 'panel-relay', 4500);
   await scrollTo(page, 'models-at-work', 4500);
   await scrollTo(page, 'panel-bench', 6000);
-  await scrollTo(page, 'any-harness', 5000);
+  await page.getByTestId('panel-any-harness').locator('summary').click();
+  await scrollTo(page, 'panel-any-harness', 5000);
   await page.setContent(END_CARD);
   await page.waitForTimeout(5000);
 

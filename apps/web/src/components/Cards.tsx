@@ -283,7 +283,7 @@ export function ReviewCard({ review, decisions = [], status }: { review: Review 
   if (!review)
     return (
       <PlannedEmpty testId="empty-review" status={status} settled="No review was recorded on this task.">
-        The review appears here after a green verification.
+        The review appears here after the tests pass.
       </PlannedEmpty>
     );
   return (

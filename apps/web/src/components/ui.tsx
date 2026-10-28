@@ -110,7 +110,7 @@ export function CostMeter({ cost, detail = false, className }: { cost: Cost | nu
       {detail ? (
         <span className="text-ink-3">
           {' '}
-          {tokens(cost.inputTokens)} in, {tokens(cost.outputTokens)} out
+          {tokens(cost.inputTokens)} tokens in, {tokens(cost.outputTokens)} out
         </span>
       ) : null}
     </span>

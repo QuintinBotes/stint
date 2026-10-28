@@ -73,10 +73,10 @@ export async function phaseGates(ws: Workspace): Promise<PhaseGates> {
 
   const phase2Met = Boolean(golden && golden.k >= 3 && golden.passPowK >= 0.8 && tamperEscapes === 0);
   const phase2Detail = !golden
-    ? 'No golden results yet. Run stint eval --golden --k 3.'
+    ? 'No sample task results yet. Run stint eval --golden --k 3.'
     : phase2Met
-      ? `Golden pass^${golden.k} is ${pct(golden.passPowK)} over ${golden.tasks} tasks, with no tamper escapes.`
-      : `Golden pass^${golden.k} is ${pct(golden.passPowK)} (the gate needs 80% at k 3 or more), with ${tamperEscapes} tamper escape${tamperEscapes === 1 ? '' : 's'}.`;
+      ? `${pct(golden.passPowK)} of sample tasks passed all ${golden.k} tries over ${golden.tasks} tasks, and none merged after changing locked tests.`
+      : `${pct(golden.passPowK)} of sample tasks passed all ${golden.k} tries (the gate needs 80% with 3 tries or more), and ${tamperEscapes} merged after changing locked tests.`;
 
   let best: { tier: string; shadowDays: number; reverts: number; wouldApprove: number } | null = null;
   const tasks = await ws.listTasks();
@@ -90,10 +90,10 @@ export async function phaseGates(ws: Workspace): Promise<PhaseGates> {
   }
   const phase3Met = Boolean(best && best.shadowDays >= 14 && best.reverts === 0 && best.wouldApprove > 0);
   const phase3Detail = !best
-    ? 'No shadow approvals recorded yet.'
+    ? 'No auto-approve trial recorded yet.'
     : phase3Met
-      ? `Tier ${best.tier} has been shadow-approved for ${best.shadowDays} days with no reverts.`
-      : `Tier ${best.tier}: ${best.shadowDays} shadow days (the gate needs 14), ${best.reverts} revert${best.reverts === 1 ? '' : 's'}.`;
+      ? `${best.tier} risk has had the policy's trial choices on record for ${best.shadowDays} days, with nothing reverted.`
+      : `${best.tier} risk: ${best.shadowDays} days of trial choices on record (the gate needs 14), ${best.reverts} reverted.`;
 
   return {
     phase2: { met: phase2Met, passPowK: golden?.passPowK ?? null, k: golden?.k ?? null, tamperEscapes, detail: phase2Detail },

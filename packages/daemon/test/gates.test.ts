@@ -19,7 +19,7 @@ test('a repository with no golden results of its own, and not the demo fixture, 
     const { app } = await makeApp(tmp.dir);
     const empty = (await (await app.request('/api/phase-gates')).json()) as Awaited<ReturnType<typeof phaseGates>>;
     expect(empty.phase2.met).toBe(false);
-    expect(empty.phase2.detail).toContain('No golden results yet');
+    expect(empty.phase2.detail).toContain('No sample task results yet');
     expect(empty.golden).toBeNull();
   } finally {
     tmp.cleanup();

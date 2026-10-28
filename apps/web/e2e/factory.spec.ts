@@ -55,7 +55,7 @@ test('The Factory shows the phase gates with their reasons', async ({ page }) =>
   await expect(gates).toContainText('Phase 3');
   // the replay fixture has no golden results of its own, so it shows Stint's, measured on it; phase 3 has no shadow record
   await expect(gates).toContainText('100% of tasks passed every try');
-  await expect(gates).toContainText('No shadow approvals recorded yet');
+  await expect(gates).toContainText('No auto-approve trial recorded yet');
   await expect(gates).toContainText('not yet');
 });
 

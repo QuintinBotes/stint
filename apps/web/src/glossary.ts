@@ -18,6 +18,7 @@ export const GLOSSARY = {
   autopilot: { word: 'Autopilot', ask: 'What is autopilot?', plain: 'Plans, builds, tests and reviews on its own, handing off when a run fails. It always stops for your approval.' },
   branch: { word: 'Branch', ask: 'What is a branch?', plain: 'Each task works on its own copy of the code, so nothing touches the main branch until you approve.' },
   tokens: { word: 'Tokens', ask: 'What are tokens?', plain: 'The units AI models read, write and are billed in; a token is about four characters of text.' },
+  sample: { word: 'Sample tasks', ask: 'What are sample tasks?', plain: 'A fixed set of practice tasks Stint runs several times, to check that agents pass every time and not just once.' },
   replay: { word: 'Replay', ask: 'What is the replay?', plain: 'A recorded demo. Nothing runs and nothing is charged.' },
 } as const;
 
