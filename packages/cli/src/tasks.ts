@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { StintEvent } from '@stint-dev/core';
 import { defineCommand } from 'citty';
 import { getDaemon, postDaemon } from './client';
+import { limitArgs, limitsFromFlags } from './limits';
 import { repoRoot } from './repo';
 
 const repoArg = { repo: { type: 'string', description: 'Repository root (default: the git top level)' } } as const;
@@ -51,10 +52,13 @@ export const newTask = defineCommand({
     'from-bead': { type: 'string', description: 'Copy the title and description from a Beads issue' },
     issue: { type: 'string', description: 'A link to the issue this task tracks' },
     spec: { type: 'string', description: 'Make the task from a spec file: its title, goal, acceptance and verify command' },
+    ...limitArgs,
     ...repoArg,
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
+    const limits = limitsFromFlags(args);
+    const withLimits = Object.keys(limits).length ? { limits } : {};
     if (args.spec) {
       let spec: ReturnType<typeof taskFromSpec>;
       try {
@@ -63,7 +67,7 @@ export const newTask = defineCommand({
         process.stderr.write(`${args.spec}: ${err instanceof Error ? err.message : String(err)}\n`);
         process.exit(1);
       }
-      const t = await postDaemon<{ id: string }>(root, '/api/tasks', { ...spec, ...(args.test ? { testCommand: args.test } : {}) });
+      const t = await postDaemon<{ id: string }>(root, '/api/tasks', { ...spec, ...(args.test ? { testCommand: args.test } : {}), ...withLimits });
       process.stdout.write(`${t.id}\n`);
       return;
     }
@@ -90,6 +94,7 @@ export const newTask = defineCommand({
       acceptance,
       ...(args.test ? { testCommand: args.test } : {}),
       links: { beadsId: args['from-bead'] ?? null, issueUrl: args.issue ?? null },
+      ...withLimits,
     });
     process.stdout.write(`${t.id}\n`);
   },

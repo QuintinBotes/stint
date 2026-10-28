@@ -20,6 +20,7 @@ export const GLOSSARY = {
   tokens: { word: 'Tokens', ask: 'What are tokens?', plain: 'The units AI models read, write and are billed in; a token is about four characters of text.' },
   sample: { word: 'Sample tasks', ask: 'What are sample tasks?', plain: 'A fixed set of practice tasks Stint runs several times, to check that agents pass every time and not just once.' },
   replay: { word: 'Replay', ask: 'What is the replay?', plain: 'A recorded demo. Nothing runs and nothing is charged.' },
+  limit: { word: 'Limit', ask: 'What is a limit?', plain: 'A cap you set on a task, on builds, hand-offs, spend or agent time. Stint stops and asks you before it would go past one.' },
 } as const;
 
 export type Word = keyof typeof GLOSSARY;

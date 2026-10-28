@@ -5,6 +5,7 @@ import {
   type CostGroup,
   type StintEvent,
   EventLog,
+  TaskLimitsSchema,
   type Workspace,
   costs,
   runsFromEvents,
@@ -37,6 +38,7 @@ import { runRoutes } from './routes/runs';
 import { skillRoutes } from './routes/skills';
 import { ptyRoutes } from './routes/pty';
 import { commentRoutes } from './routes/comments';
+import { limitRoutes } from './routes/limits';
 import { summaryRoutes } from './routes/summary';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
@@ -99,6 +101,7 @@ const NewTaskBody = z.strictObject({
     .optional(),
   tags: z.array(z.string()).optional(),
   links: z.strictObject({ beadsId: z.string().max(80).nullable().optional(), issueUrl: z.url().nullable().optional() }).optional(),
+  limits: TaskLimitsSchema.optional(),
 });
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -420,4 +423,5 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   gateRoutes(app, ctx);
   metricRoutes(app, ctx);
   commentRoutes(app, ctx);
+  limitRoutes(app, ctx);
 }

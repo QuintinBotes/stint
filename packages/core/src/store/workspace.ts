@@ -32,6 +32,7 @@ export type NewTask = {
   baseCommit?: string;
   budgets?: Partial<Budgets>;
   links?: Task['links'];
+  limits?: Task['limits'];
 };
 
 export function slugify(title: string): string {
@@ -119,6 +120,7 @@ export class Workspace {
       budgets: { ...this.config.budgets, ...i.budgets },
       links: i.links ?? { beadsId: null, issueUrl: null },
       pendingAsk: null,
+      ...(i.limits ? { limits: i.limits } : {}),
       createdAt: now,
       updatedAt: now,
     });

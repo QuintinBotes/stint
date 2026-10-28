@@ -62,6 +62,8 @@ export const EVENT_TYPES = [
   'provider.fallback',
   'cost.unpriced',
   'cost.recorded',
+  'limit.reached',
+  'limits.changed',
   'runtime.unclassified',
 ] as const;
 

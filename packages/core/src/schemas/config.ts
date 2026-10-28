@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { METRIC_IDS } from '../metrics/ids';
-import { CheckSchema } from './task';
+import { CheckSchema, TaskLimitsSchema } from './task';
 
 const HostModelRef = z.string().regex(/^[a-z0-9-]+\/.+$/, 'expected host/model');
 
@@ -121,6 +121,8 @@ export const ConfigSchema = z.strictObject({
       bestOf: z.int().min(1).max(3).optional(),
     })
     .optional(),
+  /** The limits a task takes when it sets none of its own; unset, `autopilot.maxHops` is the hand-off limit (R-062). */
+  limits: TaskLimitsSchema.optional(),
   /** The verify suite beside testCommand, and what a changed locked test does (R-029). */
   verify: z
     .strictObject({

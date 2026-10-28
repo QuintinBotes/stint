@@ -9,6 +9,7 @@ import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
 import { DiffView, readViewedFiles, writeViewedFiles } from '../components/DiffView';
 import { FilesTab } from '../components/Files';
 import { HandTo } from '../components/HandTo';
+import { Limits } from '../components/Limits';
 import { MemoryPanel, Queue } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
 import { PermissionBanner } from '../components/Permissions';
@@ -380,6 +381,7 @@ export function TaskView() {
           </Button>
         ) : null}
       </div>
+      <Limits taskId={t.id} events={events} onHand={() => setTab('packet')} />
     </header>
   );
 

@@ -1,5 +1,5 @@
 import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
-import type { Config, Cost, StintEvent, Task } from '@stint-dev/core';
+import { type Config, type Cost, type LimitName, type Limits, type StintEvent, type Task, effectiveLimits, taskUsage } from '@stint-dev/core';
 import { runsFromEvents } from '@stint-dev/core/node';
 import { z } from 'zod';
 import { lockAcceptance } from './acceptance';
@@ -29,7 +29,7 @@ export type Step =
   | { kind: 'adopt'; candidate: string }
   | { kind: 'children'; children: string[] }
   | { kind: 'review'; verified: string }
-  | { kind: 'stop'; reason: string; needsYou: boolean };
+  | { kind: 'stop'; reason: string; needsYou: boolean; limit?: LimitName; used?: number; cap?: number };
 
 /** The events since autopilot was last switched on, or null when it is off. */
 export function autopilotTail(events: StintEvent[]): StintEvent[] | null {
@@ -160,19 +160,54 @@ export function noProgress(tail: StintEvent[], impl: Array<{ run: string; endedB
 const why = (endedBy: string | null, verdict: string | undefined) =>
   endedBy && endedBy !== 'completed' ? `ended ${endedBy}` : `finished with a ${verdict ?? 'missing'} verification`;
 
+const usd = (v: number) => `$${v.toFixed(2)}`;
+
+/**
+ * The limit the next step would break, as the stop that says so, or null when it may go ahead (R-062). Counts are
+ * the task's whole log, so switching autopilot off and on resets nothing. `next` is the kind of work: any new work
+ * stops at the time and spend limits; a build or a hand-off also at the build limit and the expected cost of one
+ * more build, the median of this task's own; a hand-off also at the hand-off limit; a review-changes build also at
+ * the review round limit.
+ */
+function limitStop(events: StintEvent[], limits: Limits, next: 'work' | 'build' | 'hand' | 'changes', handReason = ''): Step | null {
+  const used = taskUsage(events);
+  const stop = (limit: LimitName, reason: string): Step => ({ kind: 'stop', reason: `Needs you: ${reason}`, needsYou: true, limit, used: used[limit], cap: limits[limit] as number });
+  const { builds, handoffs, reviewRounds, usd: spend, minutes } = limits;
+  if (minutes !== null && used.minutes >= minutes) return stop('minutes', `the agent time limit is reached (${Math.floor(used.minutes)} of ${minutes} min).`);
+  if (spend !== null && used.usd >= spend) return stop('usd', `the ${usd(spend)} spend limit is reached (${usd(used.usd)} spent).`);
+  if (next === 'work') return null;
+  if (spend !== null) {
+    const adopted = new Set(events.filter((e) => e.type === 'run.started' && e.payload.adoptedFrom).map((e) => e.run));
+    const past = runsFromEvents(events)
+      .filter((r) => r.role === 'implementer' && r.endedAt && !adopted.has(r.run) && typeof r.cost?.usd === 'number')
+      .map((r) => r.cost?.usd as number)
+      .sort((a, b) => a - b);
+    const mid = past.length / 2;
+    const expected = past.length ? (past.length % 2 ? (past[Math.floor(mid)] as number) : ((past[mid - 1] as number) + (past[mid] as number)) / 2) : null;
+    if (expected !== null && used.usd + expected > spend) return stop('usd', `the next build would pass the ${usd(spend)} spend limit (${usd(used.usd)} spent; builds here cost about ${usd(expected)}).`);
+  }
+  if (builds !== null && used.builds >= builds) return stop('builds', `the build limit is reached (${used.builds} of ${builds}).`);
+  // the wording the hop limit always had
+  if (next === 'hand' && handoffs !== null && used.handoffs >= handoffs) return stop('handoffs', `${handReason}, after ${used.handoffs} handoffs.`);
+  if (next === 'changes' && reviewRounds !== null && used.reviewRounds >= reviewRounds) return stop('reviewRounds', `the review still asks for changes after ${used.reviewRounds === 1 ? 'one round' : `${used.reviewRounds} rounds`}.`);
+  return null;
+}
+
 /**
  * The next thing autopilot does, as a pure function of the task's log: a daemon restart resumes from the
- * same place. It never approves; the furthest it goes on its own is the approval gate.
+ * same place. It never approves; the furthest it goes on its own is the approval gate, and it stops before any
+ * step that would pass one of the task's limits.
  */
-export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean): Step {
+export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean, limits: Limits): Step {
   const tail = autopilotTail(events);
   if (!tail) return { kind: 'idle' };
   if (live) return { kind: 'wait', reason: 'a run is live' };
   if (task.status === 'done') return { kind: 'stop', reason: 'The task is merged.', needsYou: false };
+  const capped = (next: Parameters<typeof limitStop>[2], step: Step, handReason?: string): Step => limitStop(events, limits, next, handReason) ?? step;
   // a best-of-n candidate builds from its parent's plan, and stops once its tests are green for the pick
   const candidate = !!task.parent && (task.tags ?? []).includes('candidate');
   const planned = candidate || events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
-  if (!planned) return { kind: 'plan' };
+  if (!planned) return capped('work', { kind: 'plan' });
   // a task its plan split waits on its subtasks (R-036)
   const split = events.find((e) => e.type === 'task.decomposed');
   if (split) return { kind: 'children', children: (split.payload.children as string[]) ?? [] };
@@ -189,7 +224,10 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   if (s.testsFirst) {
     // the plan-time lock is not the tests-first lock: only its own scope ends the specify leg (R-029)
     const lockAt = tail.findIndex((e) => e.type === 'acceptance.locked' && e.payload.scope !== 'plan');
-    if (lockAt < 0) return specifyStep(tail);
+    if (lockAt < 0) {
+      const sp = specifyStep(tail);
+      return sp.kind === 'specify' ? capped('build', sp) : sp;
+    }
     fromLock = tail.slice(lockAt);
   }
 
@@ -200,21 +238,21 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
     if ((s.bestOf ?? 1) > 1 && !candidate) {
       const started = tail.find((e) => e.type === 'bestofn.started');
       const picked = tail.find((e) => e.type === 'bestofn.picked');
-      if (!started) return { kind: 'bestof', n: s.bestOf as number };
+      if (!started) return capped('work', { kind: 'bestof', n: s.bestOf as number });
       if (!picked) return { kind: 'bestof-wait', candidates: (started.payload.candidates as string[]) ?? [] };
       return { kind: 'adopt', candidate: String(picked.payload.pick) };
     }
     const preferred = candidate ? (tail[0]?.payload.implementer as string | undefined) : undefined;
-    return { kind: 'build', ...(preferred ? { adapter: preferred } : {}), reason: s.testsFirst ? 'The acceptance tests are locked and fail.' : 'Nothing is built yet.' };
+    return capped('build', { kind: 'build', ...(preferred ? { adapter: preferred } : {}), reason: s.testsFirst ? 'The acceptance tests are locked and fail.' : 'Nothing is built yet.' });
   }
   if (!last.endedBy) return { kind: 'wait', reason: `${last.run} has not finished` };
 
   const verification = tail.filter((e) => e.type === 'verification.ran' && e.run === last.run).at(-1);
   const status = verification?.payload.status as string | undefined;
   if (last.endedBy !== 'completed' || status !== 'green') {
-    const hops = tail.filter((e) => e.type === 'autopilot.step' && e.payload.step === 'hand').length;
     const reason = `${last.adapter} ${last.run} ${why(last.endedBy, status)}`;
-    if (hops >= s.maxHops) return { kind: 'stop', reason: `Needs you: ${reason}, after ${hops} handoffs.`, needsYou: true };
+    const over = limitStop(events, limits, 'hand', reason);
+    if (over) return over;
     const packetOf = (run: string) => (tail.filter((e) => e.type === 'handoff.created' && e.run === run).at(-1)?.payload.name as string | undefined) ?? null;
     // the smart friend: after repeated failures the next hop goes to a stronger agent or model, once
     const failures = impl.filter((r) => r.endedBy !== 'killed' && (r.endedBy !== 'completed' || tail.filter((e) => e.type === 'verification.ran' && e.run === r.run).at(-1)?.payload.status !== 'green')).length;
@@ -236,16 +274,14 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
     const failed = after.some((e) => e.type === 'run.finished' && e.payload.endedBy === 'failed' && tail.some((s2) => s2.type === 'run.started' && s2.run === e.run && s2.payload.role === 'reviewer'));
     if (failed) return { kind: 'stop', reason: 'Waiting for your approval. No reviewer could answer, so read the diff yourself.', needsYou: false };
     const v = verification?.payload as { command?: string; passed?: number; failed?: number };
-    return { kind: 'review', verified: `${v.command ?? 'tests'} ${v.passed ?? 0}/${(v.passed ?? 0) + (v.failed ?? 0)} green` };
+    return capped('work', { kind: 'review', verified: `${v.command ?? 'tests'} ${v.passed ?? 0}/${(v.passed ?? 0) + (v.failed ?? 0)} green` });
   }
   const r = review.payload.review as { verdict: string; findings?: Array<{ text: string }>; blockers?: string[] } | undefined;
   const verdict = (review.payload.verdict as string | undefined) ?? r?.verdict;
   if (verdict === 'approve') return { kind: 'stop', reason: 'Waiting for your approval.', needsYou: false };
   if (verdict === 'block') return { kind: 'stop', reason: `Needs you: the review blocked it: ${(r?.blockers ?? []).join('; ') || 'see the review'}`, needsYou: true };
-  const rounds = tail.filter((e) => e.type === 'autopilot.step' && e.payload.step === 'build' && e.payload.changes).length;
-  if (rounds >= 1) return { kind: 'stop', reason: 'Needs you: the review still asks for changes after one round.', needsYou: true };
   const ask = (r?.findings ?? []).map((f) => f.text).join('\n').slice(0, 2000) || 'Address the review.';
-  return { kind: 'build', adapter: last.adapter ?? undefined, ask, reason: 'The review asked for changes.' };
+  return capped('changes', { kind: 'build', adapter: last.adapter ?? undefined, ask, reason: 'The review asked for changes.' });
 }
 
 /** Drives tasks on autopilot: one serialized tick per task, at most `parallel` tasks holding a slot. */
@@ -296,10 +332,10 @@ export class Autopilot {
     this.kick(id);
   }
 
-  async stop(id: string, reason: string, needsYou = false): Promise<void> {
+  async stop(id: string, reason: string, needsYou = false, limit?: LimitName): Promise<void> {
     this.claimed.delete(id);
     if (!autopilotTail(await this.ctx.ws.events(id).read())) return;
-    await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.stopped', payload: { reason, needsYou } });
+    await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.stopped', payload: { reason, needsYou, ...(limit ? { limit } : {}) } });
     // a slot may have opened
     for (const t of await this.ctx.ws.listTasks()) if (t.id !== id) this.kick(t.id);
   }
@@ -331,7 +367,7 @@ export class Autopilot {
   async stepFor(id: string): Promise<'plan' | 'build' | 'verify' | 'review' | 'approve' | 'idle'> {
     const task = await this.ctx.ws.readTask(id);
     const events = await this.ctx.ws.events(id).read();
-    const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id));
+    const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), effectiveLimits(task, this.ctx.ws.config));
     switch (s.kind) {
       case 'plan':
         return 'plan';
@@ -412,9 +448,14 @@ export class Autopilot {
     for (let guard = 0; guard < 8; guard++) {
       const events = await ws.events(id).read();
       const tail = autopilotTail(events);
-      const s = nextStep(events, await ws.readTask(id), this.settings, !!this.ctx.runs.get(id));
+      const task = await ws.readTask(id);
+      const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), effectiveLimits(task, ws.config));
       if (s.kind === 'idle' || s.kind === 'wait' || !tail) return;
-      if (s.kind === 'stop') return this.stop(id, s.reason, s.needsYou);
+      if (s.kind === 'stop') {
+        // a limit is recorded as its own event before the stop; the task's status stays as it is
+        if (s.limit) await ws.events(id).append({ task: id, vendor: 'daemon', type: 'limit.reached', payload: { limit: s.limit, used: s.used, cap: s.cap } });
+        return this.stop(id, s.reason, s.needsYou, s.limit);
+      }
 
       // a subtask starts only once the tasks it depends on are merged (R-036)
       const blocked: string[] = [];

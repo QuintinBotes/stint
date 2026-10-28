@@ -114,7 +114,7 @@ A model name Stint can't find is refused. Stint never swaps in another model wit
 
 ## When agents fail
 
-Autopilot hands a red or killed run to the next implementer in `autopilot.implementers`, with the packet the run left. Three settings change that:
+Autopilot hands a red or killed run to the next implementer in `autopilot.implementers`, with the packet the run left. It stops and asks you once the task reaches one of its limits: 8 builds, 3 hand-offs and 1 review round by default, set per task or in `limits` in the config ([`factory.md`](factory.md#limits-you-set)). A config with no `limits` keeps `autopilot.maxHops` as the hand-off limit. Three settings change who gets the next hop:
 
 - `escalateAfter` and `escalate`: after this many failed verifications (2 by default), the next hop goes to the first available entry of `escalate` instead, once. An entry is an agent id, or an agent and a model such as `stint-agent@meta-api/muse-spark-1.3`. The event `escalation.triggered` records who it went from and to, and how many runs failed.
 - `bestOf`: build the task 2 or 3 times at once from the same plan. Each attempt is a child task (a candidate) with its own branch, built by the next implementer in the list. The daemon verifies each one. When more than one is green, the reviewer chain picks between their diffs; when no reviewer can answer, the smaller change wins. The task then takes over the picked branch, the daemon verifies it again, and it goes to review and your approval like any other task. The other candidates stay on their branches and are not merged.
