@@ -1,6 +1,6 @@
 # Stint build kit
 
-This page is for anyone who wants to know how Stint was built, or to run the same loop: the spec-driven build kit, how to start it, and how it decides what to do next. The kit was written before the event; R-001 copied it into the repository root on 26 October.
+This page is for anyone who wants to know how Stint was built, or to run the same loop: the spec-driven build kit, how to start it, and how it decides what to do next. The kit was written before the event; R-001 copied it into the repository root on 26 October. The specs after R-024, and R-013 as it now reads, were written during the event, as the build went ([`timeline.md`](timeline.md)).
 
 ```text
 AGENTS.md        the brief every agent reads first: what Stint is, the demo, 12 non-negotiables, layout, formats, pins, how to work
@@ -8,8 +8,8 @@ GOAL.md          the goal and the 13-line definition of done, the four gates, th
 LOOP.md          one build iteration: orient, pick the first eligible spec, tests first, verify, record, commit, stop
 REVIEW.md        one review iteration by a different model: run Verify, check acceptance, interfaces, non-negotiables, scope, honesty
 PROGRESS.md      the ledger: specs with status, gates, decisions, deviations, reviews, blocked questions, spend
-specs/           SPEC-000 (how specs work), F-001 (the demo fixture), R-001 to R-061 (the build, one spec per task)
-schemas/         the contracts: handoff, task, event, plan, review, skill, skill proposal, metrics (JSON Schema 2020-12)
+specs/           SPEC-000 (how specs work), F-001 (the demo fixture), R-001 to R-064 (the build, one spec per task)
+schemas/         the contracts: handoff, task, event, plan, review, skill, skill proposal, metrics, outcome, questions, goal (JSON Schema 2020-12)
 design/          tokens.json and tokens.css from the Stint design system (dark default) for R-007
 scripts/loop.sh  runs the loop: Muse Code builds on one Meta model, reviews on another, models swap on a double hand-off, stops for humans
 scripts/gate.sh  the checks for gates 1 to 4

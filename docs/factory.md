@@ -4,22 +4,22 @@ This page is for anyone who wants the whole picture: what each screen of the web
 
 ## What you see
 
-- **Board** (`/`): every task by stage, each card showing the agents that worked on it and who holds it now. Issues pulled from GitHub or Linear wait in an intake panel until you accept them. Run all puts every planned task on autopilot.
-- **Task view** (`/t/<task>`): the task, its acceptance criteria and its spend across the top. The runs are on the left, one agent after another with every hand-off. In the middle:
-  - the diff, and the worktree's files with "Open in your editor";
-  - a terminal in the worktree;
-  - the plan and the packet;
-  - the review, one row per lens;
-  - the daemon's verification: "33 passed, tests unchanged".
+- **Board** (`/`): every task by stage, each card showing the agents that worked on it and who holds it now. A task autopilot stopped to ask you sits in Needs you, whatever its stage, until a run starts again. Issues pulled from GitHub or Linear wait in an intake panel until you accept them. Run all planned puts every planned task on autopilot.
+- **Task view** (`/t/<task>`): the title block across the top, with the task's state, spend and runs, and a meter for each of its [limits](#limits-you-set). The runs are on the left, one agent after another with every hand-off, with a clock above them that goes back in time and the revision block under them. The approval gate closes that block: it opens only on a green verification, and shows the change's risk tier and how the task went ([`metrics.md`](metrics.md#how-it-went)). In the middle, Sharpen's questions while a task has them ([`sharpen.md`](sharpen.md)), then the tabs:
+  - Changes, the diff; Files, the worktree's files with "Open in your editor";
+  - Terminal, a terminal in the worktree;
+  - Plan and Packet;
+  - Review, one row per lens;
+  - Tests, the daemon's verification: "33 passed, tests unchanged, run by Stint".
 
-  The memory panel on the right shows similar tasks, the decisions that constrain this one, and a scrubber that goes back in time. The approval gate opens only on a green verification, and shows the change's risk tier.
+  Memory opens beside the work on request (the Memory button, or m): similar tasks and the decisions that constrain this one, as they stood at the clock's time. A merged, rejected or abandoned task shows how it went under its title block.
+- **Goals** (`/goals`, between Board and Factory in the top bar): outcomes bigger than one task. The list shows each goal's status, how many of its criteria are met, its tasks and its spend against its limit. A goal's page shows its outcome, each criterion with its state and the tasks covering it, Sharpen, Split into tasks, the tasks with how each went, its spend and build meters with "Change the goal's limits", and "Abandon this goal" ([`sharpen.md`](sharpen.md#goals)).
 - **Factory** (`/factory`): who carried each task and what they handed on, which Muse model did what and what it cost. Also there:
   - a scoreboard per agent and model;
   - outcomes after merge (reverts, follow-ups, failing CI);
   - the auto-approve lane's shadow record;
   - scheduled upkeep;
   - every harness and host this workspace can use.
-- **Goals** (`/goals`): outcomes bigger than one task. The list shows each goal's status, how many of its criteria are met, its tasks and its spend against its limit. A goal's page shows its outcome, each criterion with its state and the tasks covering it, Sharpen, Split into tasks, the tasks with how each went, and its spend and build meters ([`sharpen.md`](sharpen.md#goals)).
 - **Skills** (`/skills`): what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
 
 <p align="center"><img alt="The Factory: what the agents did in four figures, then the agents table, with every other measure in named sections below" src="../assets/screenshot-factory.png" width="900"></p>
@@ -35,10 +35,12 @@ Each part has its own page:
   - No model reviews its own work.
   - Reviews run per lens: general, security and spec fit ([`agents.md`](agents.md)).
 - **Plans that remember.** The planner reads similar tasks and the decisions on the files it will touch. It splits big tasks into subtasks that run in dependency order.
+- **A clear start, and limits you set.** Before work starts, Sharpen asks the few questions that change what gets built and records your answers as decisions ([`sharpen.md`](sharpen.md)). Autopilot stops and asks you before a task would pass one of its [limits](#limits-you-set), or its goal's.
+- **How each task went.** One record per task says, for each criterion, whether it was proven, only passes, fails or waits for you, with the loops, the spend and what happened after merge ([`metrics.md`](metrics.md#how-it-went)).
 - **Learning that is measured.** A learned skill starts on probation, carries an eval with and without it, and is proposed for retirement if it hurts. Golden tasks report pass@1 and pass^3 ([`evals.md`](evals.md)).
 - **After merge.** Reverts, follow-up work, failing CI and incidents are linked to the task that caused them. Approve can open a pull request and follow its checks ([`release.md`](release.md)).
 - **Boundaries.**
-  - Keys stay in the daemon.
+  - Keys stay in the daemon, and each run calls it with a token of its own that reaches only its own task.
   - A default-deny egress proxy and a sandbox-exec or docker sandbox per run, both off by default.
   - Risk tiers on every change.
   - An auto-approve lane that is off and must be earned on a shadow record ([`sandbox.md`](sandbox.md)).
@@ -58,7 +60,7 @@ Each task has limits on what autopilot may use before it stops and asks you:
 | Builds | 8 | Agent runs that build the change. Work taken over from a best-of-n candidate counts on the candidate. |
 | Hand-offs | 3 | Times another agent starts from a run's packet, whether autopilot, an escalation or a person handed it on. |
 | Review rounds | 1 | Builds started because a review asked for changes. |
-| Spend | no limit | Dollars spent on the task's runs and its other model calls: the packet digest, the pick, the learn step and the quiz. |
+| Spend | no limit | Dollars spent on the task's runs and its other model calls: Sharpen, the packet digest, the pick, the learn step and the quiz. A model answer Stint had to throw away still counts, because it was paid for. |
 | Agent time | no limit | Minutes from the start to the end of each run, a run still going included. |
 
 The counts cover the task's whole life, so switching autopilot off and on does not reset them. Autopilot checks before each step. It starts no build or hand-off past the build limit, no hand-off past the hand-off limit, and no build a review asked for past the review round limit. Once the spend or agent time limit is reached, it starts nothing new. It also skips a build whose expected cost would pass the spend limit; the expected cost is the median of this task's earlier builds.
@@ -69,14 +71,14 @@ Set them in the New task dialog under Limits, with `stint new "<title>" --max-bu
 "limits": { "builds": 8, "handoffs": 3, "reviewRounds": 1, "usd": null, "minutes": null }
 ```
 
-A task's own value wins over the default, and `null` means no limit. A config with no `limits` keeps `autopilot.maxHops` as the hand-off limit, so an older config means what it did.
+A task's own value wins over the default, and `null` means no limit. Builds go from 1 to 50, hand-offs from 0 to 20, review rounds from 0 to 10, spend from just above $0 to $1,000, and agent time from 1 to 1,440 minutes. A config with no `limits` keeps `autopilot.maxHops` as the hand-off limit, so an older config means what it did.
 
-When a limit is reached, the daemon records `limit.reached` with the limit, what was used and the cap. It then stops autopilot with "Needs you" and a plain reason, such as "Needs you: the build limit is reached (8 of 8)." The task's status stays as it was. The task view shows a meter per limit in its title block; the one reached turns amber, with two ways on:
+When a limit is reached, the daemon records `limit.reached` with the limit, what was used and the cap. It then stops autopilot with "Needs you" and a plain reason that quotes the same figures as the meter, such as "Needs you: the build limit is reached (8 of 8)." The task's status stays as it was, and the Board shows it in Needs you. The task view's title block shows a meter for builds, hand-offs, spend and agent time; the one reached turns amber, with two ways on:
 
 - **Raise the limit:** type the new limit in place. Stint records `limits.changed` and puts the task back on autopilot.
-- **Hand to another agent:** the hand-to control on the packet tab.
+- **Hand to another agent:** opens the packet tab at its hand-to control. The stop clears once that run starts.
 
-From a terminal, `stint limits <task>` prints the meters, and `stint limits <task> --max-builds 10` or `--none usd` changes them. Changing a limit this way does not restart autopilot; `stint run <task>` does.
+From a terminal, `stint limits <task>` prints every meter, review rounds included, and `stint limits <task> --max-builds 10` or `--none usd` changes them. Changing a limit this way does not restart autopilot; `stint run <task>` does. Both go through `PATCH /api/tasks/:id/limits`, and `GET /api/tasks/:id/limits` returns the limits and what the task has used. A merged, approved or abandoned task has no work left to limit, so its limits cannot change.
 
 ### A goal's limits
 

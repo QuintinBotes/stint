@@ -130,7 +130,7 @@ Merged T-0001 into main as 3f2a9c1.
 | `stint up` | Start the daemon and the UI for this repository |
 | `stint doctor` | Check the machine and repository, with a fix for each problem |
 | `stint new "<title>" --accept "<criteria>"` | Create a task |
-| `stint run <task> --wait` | Plan, build, verify and review, stopping at your approval |
+| `stint run <task> --wait` | Plan, build, verify and review, stopping at your approval or a limit you set; `stint limits <task>` shows and changes the limits |
 | `stint hand <task> <agent>` | Hand the task to another agent from its packet |
 | `stint packet <task>` | Show the packet the next agent reads |
 | `stint sharpen <task>`, `stint goal new "<title>" --outcome "<what is true>" --criterion "<check>"` | Answer the few questions that change what gets built, before work starts; make a goal above tasks |
@@ -171,7 +171,7 @@ Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Mu
 - Every ending writes a packet (`stint.handoff/1`), never a transcript ([`docs/packet.md`](docs/packet.md)).
 - Before work starts, Sharpen asks the few questions whose answers change what gets built or how it is proven, recommends an answer to each, and records yours as decisions the plan and every agent keep. A goal above tasks is sharpened the same way, split into tasks you check first, and rolled up from how each went ([`docs/sharpen.md`](docs/sharpen.md)).
 - Adapters drive the agents and never touch the store ([`docs/adapters.md`](docs/adapters.md)).
-- The factory around the hand-off: escalation, best of n, memory, skills and evals, outcomes after merge ([`docs/factory.md`](docs/factory.md)).
+- The factory around the hand-off: limits you set on each task, escalation, best of n, memory, skills and evals, how each task went and what happened after merge ([`docs/factory.md`](docs/factory.md)).
 
 ## More
 

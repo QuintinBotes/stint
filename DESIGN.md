@@ -92,7 +92,7 @@ components:
 
 Stint is a working tool, so the screens are a standard agent workspace first: board lanes by state, a task view with a run rail, tabs, and a memory panel, a command palette, and plain tables. The world is a drawing office, and it lends exactly four things: the blueprint palette, technical type, drawing-sheet density, and one signature move.
 
-**The revision block.** A task is a drawing that many hands revise. Its run history is set like a drawing's revision table: run, change, by (vendor ink plus name), daemon check. The approval row closes the block, with Approve and merge as its last cell. The same block is the packet header (a title-block key and value table) and a skill's version history. The task header is the drawing's title block: ID and title on one line, then a field strip for state, spend, and runs.
+**The revision block.** A task is a drawing that many hands revise. Its run history is set like a drawing's revision table: run, change, by (vendor ink plus name), daemon check. The approval row closes the block, with Approve and merge as its last cell. The same block is the packet header (a title-block key and value table) and a skill's version history. The task header is the drawing's title block: ID and title on one line, then a field strip for state, spend, and runs, then the limit meters.
 
 Copy is the product's own: task, run, packet, decision, finding, skill, verify, gate. Sentence case, present tense, and no metaphor vocabulary.
 
@@ -123,7 +123,7 @@ Nothing is set below 12px.
 
 The 8px grid has 36px controls and 36px rows.
 
-- **Task view:** title block across the top, then three columns: rail 320, work area fluid, memory 360.
+- **Task view:** title block across the top, then two columns: rail 320 and work area fluid. Memory, 360, opens as a third column on request (the Memory button, or m).
 - **Below 1180px**, memory drops under the work area.
 - **Below 760px**, everything stacks in reading order: title block, runs, work, memory. Gutters are 16px, and the topbar becomes wordmark, nav, a Search button, and one health line.
 - **Board:** lanes use auto-fit columns of at least 200px, with Needs you first.
@@ -153,7 +153,7 @@ These are standard controls: button (primary ink-filled, secondary outlined, dis
 Signature components:
 - **The revision block.** A bordered table with a pinned approval row.
 - **The run rail.** A 4px vendor-inked axis per run, with a square packet joint between runs that shows the token count.
-- **The title block.** The task's ID and title, with a field strip for state, spend, and runs.
+- **The title block.** The task's ID and title, with a field strip for state, spend, and runs, and a row of limit meters under it. A meter is used of cap with a square bar, and turns amber once its limit is reached.
 
 Opacity changes driven by the scrubber fade over 220ms ease-out. That motion is off under prefers-reduced-motion.
 

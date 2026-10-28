@@ -44,7 +44,7 @@ The UI shows the gate beside each agent, and the packet attributes every refusal
 | `acp` | any Agent Client Protocol agent, such as goose, opencode or Gemini CLI, off by default | its own | observed |
 | `cli` | any other command-line agent under `agents` in config, off by default | its own | observed |
 
-Planning, review, the learn step, the packet digest and the quiz are not adapters. They are model calls the daemon makes through a chain of OpenAI-compatible hosts: the Meta Model API, Fireworks, Baseten, Modal, and Ollama on your machine. A busy host falls through to the next one, and the fallback appears on the timeline.
+Planning, review, Sharpen's questions, a goal's split into tasks, the learn step, the packet digest and the quiz are not adapters. They are model calls the daemon makes through a chain of OpenAI-compatible hosts: the Meta Model API, Fireworks, Baseten, Modal, and Ollama on your machine. A busy host, or one that answers twice with output that does not fit the schema the call asked for, falls through to the next one, and the fallback appears on the timeline. The cost of every call is counted, an answer that was thrown away included ([`metrics.md`](metrics.md#on-the-factory)).
 
 ## Adding one
 
