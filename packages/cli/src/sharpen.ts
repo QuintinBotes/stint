@@ -24,11 +24,11 @@ function questionText(q: Question): string {
   ].join('\n');
 }
 
-function summary(st: SharpenState): string {
+function summary(st: SharpenState, proofsAt: string): string {
   const left = st.openMaterial.length;
   return [
     ...(st.assumed.length ? ['Assumed:', ...st.assumed.map((a) => `  ${a.id} ${a.changed ? `${a.changed.text} (changed, ${a.changed.decision})` : a.text}`)] : []),
-    st.proofs.missing.length ? `Criteria with no accepted proof: ${st.proofs.missing.join(', ')}. See them with: stint proofs <task>` : 'Every criterion has an accepted proof.',
+    st.proofs.missing.length ? `Criteria with no accepted proof: ${st.proofs.missing.join(', ')}. ${proofsAt}` : 'Every criterion has an accepted proof.',
     st.ready ? 'Ready: every criterion has a proof and nothing waits on you.' : left ? `${left} question${left === 1 ? '' : 's'} still need${left === 1 ? 's' : ''} your answer.` : 'No question waits on you.',
   ].join('\n');
 }
@@ -42,38 +42,44 @@ export const sharpenCommand = defineCommand({
     ...repoArg,
   },
   async run({ args }) {
-    const root = repoRoot(args.repo);
-    const path = `/api/tasks/${args.task}/sharpen`;
-    let st = await getDaemon<SharpenState>(root, path);
-    // a new round only when nothing from the last one is still open
-    if (st.open.length === 0) st = await postDaemon<SharpenState>(root, path, {});
-    if (args.recommended) {
-      await postDaemon(root, `${path}/recommended`, {});
-      st = await getDaemon<SharpenState>(root, path);
-    }
-    if (args.json) {
-      process.stdout.write(`${JSON.stringify(st)}\n`);
-      return;
-    }
-    const lines = console[Symbol.asyncIterator]();
-    for (const q of st.questions.filter((x) => st.open.includes(x.id))) {
-      const rec = LETTERS[q.options.findIndex((o) => o.label === q.recommendation.option)];
-      process.stdout.write(`\n${questionText(q)}\nAnswer with a letter, your own words, or Enter for ${rec}: `);
-      const line = await lines.next();
-      if (line.done) break;
-      const said = String(line.value).trim();
-      const option = said ? optionFor(q, said) : q.recommendation.option;
-      const r = await postDaemon<{ decision: string }>(root, `${path}/answer`, option ? { question: q.id, option } : { question: q.id, text: said });
-      process.stdout.write(`Recorded as ${r.decision}.\n`);
-    }
-    process.stdout.write(`\n${summary(await getDaemon<SharpenState>(root, path))}\n`);
+    await sharpenAt(repoRoot(args.repo), `/api/tasks/${args.task}/sharpen`, args, 'See them with: stint proofs <task>');
   },
 });
+
+/**
+ * One sharpen session at a task's or a goal's sharpen route: a new round when nothing is open, the recommendations
+ * when asked, then each open question at the prompt, or the state as JSON.
+ */
+export async function sharpenAt(root: string, path: string, o: { recommended?: boolean; json?: boolean }, proofsAt: string): Promise<void> {
+  let st = await getDaemon<SharpenState>(root, path);
+  // a new round only when nothing from the last one is still open
+  if (st.open.length === 0) st = await postDaemon<SharpenState>(root, path, {});
+  if (o.recommended) {
+    await postDaemon(root, `${path}/recommended`, {});
+    st = await getDaemon<SharpenState>(root, path);
+  }
+  if (o.json) {
+    process.stdout.write(`${JSON.stringify(st)}\n`);
+    return;
+  }
+  const lines = console[Symbol.asyncIterator]();
+  for (const q of st.questions.filter((x) => st.open.includes(x.id))) {
+    const rec = LETTERS[q.options.findIndex((opt) => opt.label === q.recommendation.option)];
+    process.stdout.write(`\n${questionText(q)}\nAnswer with a letter, your own words, or Enter for ${rec}: `);
+    const line = await lines.next();
+    if (line.done) break;
+    const said = String(line.value).trim();
+    const option = said ? optionFor(q, said) : q.recommendation.option;
+    const r = await postDaemon<{ decision: string }>(root, `${path}/answer`, option ? { question: q.id, option } : { question: q.id, text: said });
+    process.stdout.write(`Recorded as ${r.decision}.\n`);
+  }
+  process.stdout.write(`\n${summary(await getDaemon<SharpenState>(root, path), proofsAt)}\n`);
+}
 
 export const answerCommand = defineCommand({
   meta: { name: 'answer', description: 'Answer a sharpen question, or change an assumption, as a decision' },
   args: {
-    task: { type: 'positional', required: true, description: 'Task id' },
+    task: { type: 'positional', required: true, description: 'Task id, or a goal id such as G-0001' },
     id: { type: 'positional', required: true, description: 'A question such as Q1, or an assumption such as A1' },
     answer: { type: 'positional', required: true, description: 'A letter for an option, or your own words' },
     json: { type: 'boolean', description: 'Machine-readable output' },
@@ -81,7 +87,7 @@ export const answerCommand = defineCommand({
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
-    const path = `/api/tasks/${args.task}/sharpen`;
+    const path = `/api/${/^G-/.test(args.task) ? 'goals' : 'tasks'}/${args.task}/sharpen`;
     const said = (args._ as string[]).slice(2).join(' ').trim() || args.answer;
     const q = (await getDaemon<SharpenState>(root, path)).questions.find((x) => x.id === args.id);
     const option = q ? optionFor(q, said) : null;
