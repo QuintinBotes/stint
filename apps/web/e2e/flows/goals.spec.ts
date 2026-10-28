@@ -35,7 +35,7 @@ test('A goal made from the Goals page is sharpened, split into tasks a person ed
   const card = page.getByTestId('sharpen-card-Q1');
   await expect(card).toContainText('Who may turn the new behaviour off once it ships?');
   await expect(card).toContainText('Needs your answer');
-  await card.getByRole('button', { name: 'Answer' }).click();
+  await card.getByTestId('sharpen-answer-Q1').click();
   await expect(page.getByTestId('sharpen-answered-Q1').getByTestId('sharpen-decision')).toHaveText('D1');
   await page.getByTestId('sharpen-recommended').click();
   await expect(page.getByTestId('sharpen-answered-Q2')).toBeVisible();
@@ -137,4 +137,11 @@ test("A task stopped at its goal's build limit says so and sends you to the goal
   await stop.getByTestId('limit-goal').click();
   await expect(page).toHaveURL(new RegExp(`/goals/${g.id}$`));
   await expect(page.getByTestId('meter-goal-builds')).toContainText('Builds 1 of 1, reached');
+
+  // abandoning takes two clicks, and a closed goal offers nothing more to do
+  await page.getByTestId('abandon-goal').click();
+  await expect(page.getByRole('status').filter({ hasText: `Click again to abandon ${g.id}` })).toBeVisible();
+  await page.getByTestId('abandon-goal').click();
+  await expect(page.getByTestId('goal-page')).toContainText(/abandoned/i);
+  await expect(page.getByTestId('abandon-goal')).toHaveCount(0);
 });

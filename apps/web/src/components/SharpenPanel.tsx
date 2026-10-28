@@ -177,10 +177,12 @@ export function Sharpen({ subject, st, onChange }: { subject: SharpenSubject; st
 function QuestionCard({ q, busy, onAnswer }: { q: Question; busy: boolean; onAnswer: (a: Answer) => void }) {
   const [choice, setChoice] = useState(q.recommendation.option);
   const [other, setOther] = useState('');
+  // Enter in the text field answers with the text; anywhere else it answers with the chosen option
   const submit = (e: FormEvent) => {
     e.preventDefault();
     onAnswer(other.trim() ? { text: other.trim() } : { option: choice });
   };
+  const chosen = LETTERS[q.options.findIndex((o) => o.label === choice)];
   const letter = LETTERS[q.options.findIndex((o) => o.label === q.safeDefault.option)];
   const safe = q.safeDefault.exists ? `Safe default: ${q.safeDefault.option ? `${letter}, ${q.safeDefault.option}` : 'yes'}.${q.safeDefault.why ? ` ${q.safeDefault.why}` : ''}` : 'No safe default: a wrong answer is costly to undo.';
   return (
@@ -211,13 +213,18 @@ function QuestionCard({ q, busy, onAnswer }: { q: Question; busy: boolean; onAns
       <p className="text-small text-ink-2">
         {safe} {q.blocks.length ? `Blocks criteri${q.blocks.length === 1 ? 'on' : 'a'} ${q.blocks.join(', ')}.` : 'Blocks no criterion.'}
       </p>
+      <div>
+        <Button type="button" disabled={busy} onClick={() => onAnswer({ option: choice })} data-testid={`sharpen-answer-${q.id}`}>
+          Answer with {chosen}
+        </Button>
+      </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-0 flex-1 basis-56 flex-col gap-1.5 text-small font-medium">
           Something else
           <input value={other} onChange={(e) => setOther(e.target.value)} maxLength={1000} className={cx(field, 'font-normal text-body')} />
         </label>
-        <Button type="submit" disabled={busy} data-testid={`sharpen-answer-${q.id}`}>
-          Answer
+        <Button type="submit" disabled={busy || !other.trim()} data-testid={`sharpen-answer-text-${q.id}`}>
+          Answer with this
         </Button>
       </div>
     </form>

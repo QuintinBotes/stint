@@ -27,15 +27,16 @@ test('A new task with "Sharpen it first" shows its questions; one answered by ke
   // the question the repository can answer was dropped in code
   await expect(page.getByText('Which file holds the change?')).toHaveCount(0);
 
-  // Tab to the radio group, an arrow to the second option, then Enter on Answer
+  // Tab to the radio group, an arrow to the second option, then Enter on the button that names it
   for (let i = 0; i < 80 && !(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name === 'sharpen-Q1')); i++) await page.keyboard.press('Tab');
   await expect(card.getByRole('radio', { name: /Only an admin/ })).toBeFocused();
+  await expect(card.getByTestId('sharpen-answer-Q1')).toHaveText('Answer with A');
   await page.keyboard.press('ArrowDown');
   await expect(card.getByRole('radio', { name: /Anyone on the team/ })).toBeChecked();
   await page.keyboard.press('Tab');
-  await expect(card.getByLabel('Something else')).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(card.getByRole('button', { name: 'Answer' })).toBeFocused();
+  await expect(card.getByRole('button', { name: 'Answer with B' })).toBeFocused();
+  // the text answer waits for text
+  await expect(card.getByRole('button', { name: 'Answer with this' })).toBeDisabled();
   await page.keyboard.press('Enter');
 
   const line = page.getByTestId('sharpen-answered-Q1');

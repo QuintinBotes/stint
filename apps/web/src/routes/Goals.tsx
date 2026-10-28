@@ -1,5 +1,5 @@
 import { CRITERION_STATE_LABELS, type CriterionState, type GoalOutcome, type ProposedTask } from '@stint-dev/core';
-import { type FormEvent, type ReactNode, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { type GoalView, api, daemonMessage } from '../api';
 import { Meter } from '../components/Limits';
@@ -194,8 +194,9 @@ function GoalPage({ id }: { id: string }) {
         ) : v.proposal ? null : (
           <EmptyState testId="goal-no-tasks">No tasks yet. Split the goal, check the proposed tasks, and they appear here with how each went.</EmptyState>
         )}
-        {closed ? null : <Split key={JSON.stringify(v.proposal)} id={goal.id} proposal={v.proposal} again={o.tasks.length > 0} onDone={reload} />}
+        {closed ? null : <Split key={goal.id} id={goal.id} proposal={v.proposal} again={o.tasks.length > 0} onDone={reload} />}
       </section>
+      {closed ? null : <Abandon id={goal.id} onDone={reload} />}
     </Page>
   );
 }
@@ -265,6 +266,8 @@ function GoalLimits({ v, onChange }: { v: GoalView; onChange: () => void }) {
 /** "Split into tasks": the planner's proposal as rows a person can edit, then "Create tasks". Nothing is created before. */
 function Split({ id, proposal, again, onDone }: { id: string; proposal: ProposedTask[] | null; again: boolean; onDone: () => void }) {
   const [rows, setRows] = useState<ProposedTask[] | null>(proposal);
+  // a proposal recorded elsewhere (another tab, the CLI) shows up here, but never over rows a person is editing
+  useEffect(() => setRows((now) => now ?? proposal), [proposal]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const run = (doing: string, p: Promise<unknown>) => {
@@ -278,7 +281,14 @@ function Split({ id, proposal, again, onDone }: { id: string; proposal: Proposed
     e.preventDefault();
     // blank lines in a check list are not checks
     const tasks = rows?.map((r) => ({ ...r, title: r.title.trim(), acceptance: r.acceptance.map((a) => a.trim()).filter(Boolean) }));
-    if (tasks) void run('Creating the tasks.', api.createGoalTasks(id, tasks).then(onDone));
+    if (tasks)
+      void run(
+        'Creating the tasks.',
+        api.createGoalTasks(id, tasks).then(() => {
+          setRows(null);
+          onDone();
+        }),
+      );
   };
   const status = (
     <>
@@ -347,5 +357,28 @@ function Split({ id, proposal, again, onDone }: { id: string; proposal: Proposed
       </div>
       {status}
     </form>
+  );
+}
+
+/** Abandoning is a person's call and not undone, so it takes two clicks: the first says what will happen, the second does it. */
+function Abandon({ id, onDone }: { id: string; onDone: () => void }) {
+  const [armed, setArmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abandon = () =>
+    void api
+      .abandonGoal(id)
+      .then(onDone)
+      .catch((e: unknown) => setError(daemonMessage(e)));
+  return (
+    <section aria-label="Abandon the goal" className="flex flex-col gap-2 items-start">
+      {armed ? <p role="status" className="text-small text-ink-2">Abandoning stops counting this goal. Its tasks stay as they are. Click again to abandon {id}.</p> : null}
+      <div className="flex flex-wrap gap-2">
+        <Button tone="quiet" onClick={armed ? abandon : () => setArmed(true)} data-testid="abandon-goal">
+          {armed ? `Abandon ${id}` : 'Abandon this goal'}
+        </Button>
+        {armed ? <Button tone="quiet" onClick={() => setArmed(false)}>Keep it</Button> : null}
+      </div>
+      {error ? <p role="alert" className="text-small text-red">{error}</p> : null}
+    </section>
   );
 }

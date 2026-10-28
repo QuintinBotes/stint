@@ -60,16 +60,19 @@ test('With usd: 1, builds at $0.40 and $0.50 stop before a third build; with no 
   expect(nextStep(none, task, AUTOPILOT_DEFAULTS, false, limits({ usd: 1 })).kind).toBe('build');
   // once spend reaches the limit nothing new starts, not even a review
   expect(nextStep(log([...none.map((e) => ({ ...e }) as Line), ...build('r2', true, 0.8)]), task, AUTOPILOT_DEFAULTS, false, limits({ usd: 1 }))).toMatchObject({ kind: 'stop', limit: 'usd', reason: 'Needs you: the $1.00 spend limit is reached ($1.00 spent).' });
+  // under a cent the stop keeps four decimals, as the meter does, so the two never disagree
+  const tiny = log([{ type: 'autopilot.started' }, { type: 'run.started', run: 'r1', payload: { role: 'planner' } }, { type: 'run.finished', run: 'r1', payload: { endedBy: 'completed', cost: cost(0.0008) } }]);
+  expect(nextStep(tiny, task, AUTOPILOT_DEFAULTS, false, limits({ usd: 0.0005 }))).toMatchObject({ kind: 'stop', limit: 'usd', reason: 'Needs you: the $0.0005 spend limit is reached ($0.0008 spent).' });
 });
 
-test('With reviewRounds: 2 a second changes build is allowed and the third request stops; the default stops after one round with the old words', () => {
+test('With reviewRounds: 2 a second changes build is allowed and the third request stops; the default stops after one round, naming the limit', () => {
   const lines: Line[] = [{ type: 'autopilot.started' }, ...planned, step('build'), ...build('r2', true), asks];
   expect(nextStep(log(lines), task, AUTOPILOT_DEFAULTS, false, limits({ reviewRounds: 2 }))).toMatchObject({ kind: 'build', ask: 'Name it LIMIT.' });
   lines.push(step('build', { changes: true }), ...build('r3', true), asks);
   expect(nextStep(log(lines), task, AUTOPILOT_DEFAULTS, false, limits({ reviewRounds: 2 }))).toMatchObject({ kind: 'build', ask: 'Name it LIMIT.' });
-  expect(nextStep(log(lines), task, AUTOPILOT_DEFAULTS, false, limits({}))).toEqual({ kind: 'stop', needsYou: true, limit: 'reviewRounds', used: 1, cap: 1, reason: 'Needs you: the review still asks for changes after one round.' });
+  expect(nextStep(log(lines), task, AUTOPILOT_DEFAULTS, false, limits({}))).toEqual({ kind: 'stop', needsYou: true, limit: 'reviewRounds', used: 1, cap: 1, reason: 'Needs you: the review round limit is reached (1 of 1): the review still asks for changes.' });
   lines.push(step('build', { changes: true }), ...build('r4', true), asks);
-  expect(nextStep(log(lines), task, AUTOPILOT_DEFAULTS, false, limits({ reviewRounds: 2 }))).toMatchObject({ kind: 'stop', limit: 'reviewRounds', used: 2, cap: 2, reason: 'Needs you: the review still asks for changes after 2 rounds.' });
+  expect(nextStep(log(lines), task, AUTOPILOT_DEFAULTS, false, limits({ reviewRounds: 2 }))).toMatchObject({ kind: 'stop', limit: 'reviewRounds', used: 2, cap: 2, reason: 'Needs you: the review round limit is reached (2 of 2): the review still asks for changes.' });
 });
 
 test('With minutes: 10, nothing new starts once the task has used 10 minutes of agent time', () => {

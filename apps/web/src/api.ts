@@ -318,6 +318,7 @@ export const api = {
   createGoal: (g: { title: string; outcome: string; criteria: string[]; nonGoals?: string[]; limits?: TaskLimits }) => post<Goal>('/api/goals', g),
   planGoal: (id: string) => post<{ tasks: ProposedTask[] }>(`/api/goals/${id}/plan`),
   createGoalTasks: (id: string, tasks: ProposedTask[]) => post<{ tasks: Task[] }>(`/api/goals/${id}/tasks`, { tasks }),
+  abandonGoal: (id: string) => post<Goal>(`/api/goals/${id}/abandon`),
   setGoalLimits: (id: string, limits: TaskLimits) => request<Goal>(`/api/goals/${id}/limits`, { method: 'PATCH', body: JSON.stringify(limits) }),
 };
 

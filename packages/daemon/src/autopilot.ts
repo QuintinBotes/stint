@@ -166,7 +166,8 @@ export function noProgress(tail: StintEvent[], impl: Array<{ run: string; endedB
 const why = (endedBy: string | null, verdict: string | undefined) =>
   endedBy && endedBy !== 'completed' ? `ended ${endedBy}` : `finished with a ${verdict ?? 'missing'} verification`;
 
-const usd = (v: number) => `$${v.toFixed(2)}`;
+// as the web's money() says it: four decimals under a cent, so a stop and its meter quote the same figure
+const usd = (v: number) => (v > 0 && v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`);
 
 /**
  * The limit the next step would break, as the stop that says so, or null when it may go ahead (R-062). Counts are
@@ -203,8 +204,8 @@ function limitStop(events: StintEvent[], limits: Limits, next: 'work' | 'build' 
     if (goalBuilds !== null && goal.usage.builds >= goalBuilds) return over('builds', `the goal's build limit is reached (${goal.usage.builds} of ${goalBuilds} across ${goal.id}'s tasks).`);
   }
   // the wording the hop limit always had
-  if (next === 'hand' && handoffs !== null && used.handoffs >= handoffs) return stop('handoffs', `${handReason}, after ${used.handoffs} handoffs.`);
-  if (next === 'changes' && reviewRounds !== null && used.reviewRounds >= reviewRounds) return stop('reviewRounds', `the review still asks for changes after ${used.reviewRounds === 1 ? 'one round' : `${used.reviewRounds} rounds`}.`);
+  if (next === 'hand' && handoffs !== null && used.handoffs >= handoffs) return stop('handoffs', `the hand-off limit is reached (${used.handoffs} of ${handoffs}): ${handReason}.`);
+  if (next === 'changes' && reviewRounds !== null && used.reviewRounds >= reviewRounds) return stop('reviewRounds', `the review round limit is reached (${used.reviewRounds} of ${reviewRounds}): the review still asks for changes.`);
   return null;
 }
 

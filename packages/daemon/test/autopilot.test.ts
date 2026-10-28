@@ -83,7 +83,7 @@ test('Three red hops that each make progress stop autopilot at the hop limit wit
       const events = await until(ws, t.id, stopped);
       expect(steps(events)).toEqual(['plan', 'build', 'hand', 'hand', 'hand']);
       const stop = events.find((e) => e.type === 'autopilot.stopped')?.payload;
-      expect(String(stop?.reason)).toMatch(/^Needs you: (muse-code|stint-agent) r\d+ finished with a red verification, after 3 handoffs\.$/);
+      expect(String(stop?.reason)).toMatch(/^Needs you: the hand-off limit is reached \(3 of 3\): (muse-code|stint-agent) r\d+ finished with a red verification\.$/);
       expect(models.asked).toEqual(['plan']);
     });
   } finally {
