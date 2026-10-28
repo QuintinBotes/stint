@@ -49,6 +49,16 @@ export const TaskRoutesSchema = z.strictObject({
 });
 export type TaskRoutes = z.infer<typeof TaskRoutesSchema>;
 
+/** Caps a person sets on a task (R-062): a field left out takes the config default, and null means no limit. */
+export const TaskLimitsSchema = z.strictObject({
+  builds: z.int().min(1).max(50).nullable().optional(),
+  handoffs: z.int().min(0).max(20).nullable().optional(),
+  reviewRounds: z.int().min(0).max(10).nullable().optional(),
+  usd: z.number().positive().max(1000).nullable().optional(),
+  minutes: z.int().min(1).max(1440).nullable().optional(),
+});
+export type TaskLimits = z.infer<typeof TaskLimitsSchema>;
+
 export const TaskSchema = z.strictObject({
   version: z.literal('stint.task/1'),
   id: z.string().regex(TASK_ID),
@@ -87,6 +97,8 @@ export const TaskSchema = z.strictObject({
   risk: z.enum(['low', 'medium', 'high']).nullable().optional(),
   /** Where the task came from (R-041, R-044). */
   source: z.strictObject({ kind: z.enum(['manual', 'github', 'linear', 'gardening']), ref: z.string().max(200), url: z.url().optional() }).nullable().optional(),
+  /** Builds, hand-offs, review rounds, spend and agent time autopilot may use before it stops and asks (R-062). */
+  limits: TaskLimitsSchema.optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

@@ -73,7 +73,7 @@ function set(root: Json, path: Array<string | number>, next: Json | typeof DELET
 
 const cases = [
   { name: 'handoff', schema: HandoffSchema, examples: ['handoff-completed', 'handoff-killed', 'handoff-capped'] },
-  { name: 'task', schema: TaskSchema, examples: ['task'] },
+  { name: 'task', schema: TaskSchema, examples: ['task', 'task-limits'] },
   { name: 'event', schema: StintEventSchema, examples: ['event'] },
   { name: 'plan', schema: PlanSchema, examples: ['plan'] },
   { name: 'review', schema: ReviewSchema, examples: ['review'] },
