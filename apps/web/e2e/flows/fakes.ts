@@ -1,5 +1,5 @@
 // The fake agents and model server the flow tests run against, shared with the README commands test: a model server
-// standing in for the planner, reviewer, learn step, quiz and digest, writer agents that each write one file, and the
+// standing in for the planner, reviewer, learn step, quiz, digest and sharpen, writer agents that each write one file, and the
 // config that points a workspace at them. Nothing here calls a hosted model or Ollama.
 import { join } from 'node:path';
 import { type Adapter, type Config, DEFAULT_CONFIG, type RunContext, type RunResult } from '@stint-dev/core';
@@ -40,6 +40,31 @@ const proposal = (prompt: string) => ({
   confidence: 0.8,
 });
 
+/** A sharpen round: one material question (who may decide), one with a safe default, one the repository can answer, and a test per criterion. */
+const questions = (prompt: string) => {
+  const criteria = [...(prompt.split('## The task')[1] ?? '').matchAll(/^(\d+)\. (.+)$/gm)].map((m) => m[2] as string);
+  const ask = (text: string, changes: string, options: Array<[string, string]>, safe: boolean) => ({
+    text,
+    changes,
+    evidence: 'The task does not say, and nothing in the repository decides it.',
+    options: options.map(([label, consequence]) => ({ label, consequence })),
+    recommendation: { option: options[0]?.[0] ?? '', why: 'It is the smaller change.' },
+    safeDefault: safe ? { exists: true, option: options[0]?.[0], why: 'Cheap to change later.' } : { exists: false },
+    blocks: [1],
+    material: false,
+  });
+  return {
+    version: 'stint.questions/1',
+    questions: [
+      ask('Should the change write a log line each time it runs?', 'implementation', [['One line per run', 'The log grows a little.'], ['No log line', 'Nothing shows that it ran.']], true),
+      ask('Who may turn the new behaviour off once it ships?', 'authority', [['Only an admin', 'A person with admin rights changes it.'], ['Anyone on the team', 'Any person can change it.']], false),
+      ask('Which file holds the change?', 'implementation', [['src/lib', 'One place.'], ['src/routes', 'Another place.']], true),
+    ],
+    assumed: [{ text: 'The change lives in one new file.', why: 'The task is small.' }],
+    proofs: criteria.map((c, i) => ({ criterion: i + 1, kind: 'test', ref: c.slice(0, 200), why: 'A test can check it.' })),
+  };
+};
+
 /** A model server that answers each structured call by its schema, on a free port. */
 export function startFakeModels(): { port: number; stop: () => void } {
   const server = Bun.serve({
@@ -52,7 +77,8 @@ export function startFakeModels(): { port: number; stop: () => void } {
       const prompt = body.messages.map((m) => m.content).join('\n');
       const schema = JSON.stringify(body.format ?? {});
       let answer: unknown;
-      if (schema.includes('"verdict"')) answer = review(prompt);
+      if (schema.includes('"safeDefault"')) answer = questions(prompt);
+      else if (schema.includes('"verdict"')) answer = review(prompt);
       else if (schema.includes('"confidence"')) answer = proposal(prompt);
       else if (schema.includes('"statements"')) answer = { statements: [1, 2, 3].map((n) => ({ id: `S${n}`, text: `Fact ${n} about the run`, truth: n !== 3, blocking: n === 1 })) };
       else if (schema.includes('"answers"')) answer = { answers: [1, 2, 3].map((n) => ({ id: `S${n}`, answer: n === 1 ? 'true' : 'unknown', quote: '' })) };
