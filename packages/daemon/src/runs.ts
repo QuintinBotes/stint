@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { PermissionOption } from '@stint-dev/core';
 
 /** A permission question waiting for a person, held on its live run (R-033). */
@@ -23,6 +24,8 @@ export type ActiveRun = {
   inFlight?: string | null;
   /** Permission questions this run is waiting on, by request id (R-033). */
   permissions?: Map<string, PendingPermission>;
+  /** The token the agent's process calls the daemon with, good only for this run's own routes; unset once it ends (R-040). */
+  token?: string;
   done: Promise<unknown>;
 };
 
@@ -51,6 +54,16 @@ export class RunRegistry {
 
   remove(task: string, run: string): void {
     if (this.byTask.get(task)?.run === run) this.byTask.delete(task);
+  }
+
+  /** The live run a run token belongs to. */
+  byToken(given: string): ActiveRun | undefined {
+    const a = Buffer.from(given);
+    return [...this.byTask.values()].find((r) => {
+      if (!r.token) return false;
+      const b = Buffer.from(r.token);
+      return a.length === b.length && timingSafeEqual(a, b);
+    });
   }
 
   holds(worktree: string): boolean {

@@ -51,16 +51,25 @@ function writableDefaults(): string[] {
 const q = (s: string): string => JSON.stringify(s);
 
 /**
- * The macOS sandbox profile: reads are allowed, writes only to the worktree, the repository's git data, temp
- * and agent state; outbound network only to unix sockets and the loopback ports named.
+ * The macOS sandbox profile: reads are allowed except the daemon's cache, which holds its token; writes only to the
+ * worktree, the repository's git data but not its hooks or config, temp and agent state; outbound network only to
+ * unix sockets and the loopback ports named.
  */
 export function sandboxProfile(o: SandboxOpts): string {
   const paths = [o.worktree, join(o.root, '.git'), ...writableDefaults(), ...(o.writable ?? [])].map(real);
+  const cache = join(real(o.root), '.stint', 'cache');
+  const gitDir = real(join(o.root, '.git'));
+  const worktree = real(o.worktree);
   return [
     '(version 1)',
     '(allow default)',
     '(deny file-write*)',
     `(allow file-write* ${paths.map((p) => `(subpath ${q(p)})`).join(' ')} (subpath "/dev"))`,
+    // after the allow rules, since the last matching rule wins; a checkout the daemon made under the cache stays readable
+    `(deny file-read* (subpath ${q(cache)}))`,
+    ...(worktree.startsWith(`${cache}/`) ? [`(allow file-read* (subpath ${q(worktree)}))`] : []),
+    // a hook or a config line written here would run in the daemon's git, outside this sandbox
+    `(deny file-write* (subpath ${q(join(gitDir, 'hooks'))}) (literal ${q(join(gitDir, 'config'))}))`,
     '(deny network-outbound)',
     '(allow network-outbound (remote unix-socket))',
     ...o.ports.map((p) => `(allow network-outbound (remote ip ${q(`localhost:${p}`)}))`),
@@ -89,6 +98,11 @@ export function sandboxArgv(argv: string[], o: SandboxOpts): string[] {
     `${o.worktree}:${o.worktree}`,
     '-v',
     `${gitDir}:${gitDir}`,
+    // the cache, which holds the daemon's token, is never mounted; hooks and config are read-only
+    '-v',
+    `${gitDir}/hooks:${gitDir}/hooks:ro`,
+    '-v',
+    `${gitDir}/config:${gitDir}/config:ro`,
     '-w',
     o.worktree,
     ...(o.envNames ?? []).flatMap((n) => ['-e', n]),
@@ -197,10 +211,11 @@ export async function drainDockerBlocked(ctx: DaemonContext): Promise<void> {
 }
 
 /**
- * The environment and sandbox for one agent run. A sandbox that is configured but cannot run refuses the run:
- * Stint never quietly runs an agent outside the boundary it was told to keep.
+ * The environment and sandbox for one agent run, or for the daemon's test run on its code (`extra` adds variables
+ * and `named` is false). A sandbox that is configured but cannot run refuses: Stint never quietly runs an agent's
+ * code outside the boundary it was told to keep.
  */
-export async function prepareRun(ctx: DaemonContext, task: string, run: string, worktree: string, adapter: Adapter): Promise<{ env: Record<string, string>; wrap?: (argv: string[]) => string[] }> {
+export async function prepareRun(ctx: DaemonContext, task: string, run: string, worktree: string, adapter: Pick<Adapter, 'needsEnv'>, extra: Record<string, string> = {}, named = true): Promise<{ env: Record<string, string>; wrap?: (argv: string[]) => string[] }> {
   const sb = ctx.ws.config.sandbox;
   const kind = sb?.kind ?? 'none';
   const egressOn = sb?.egress.mode === 'proxy';
@@ -217,15 +232,16 @@ export async function prepareRun(ctx: DaemonContext, task: string, run: string, 
   } else if (egressOn) {
     proxy = (await egressProxy(ctx)).url(task, run);
   }
-  const env = runEnv(task, run, worktree, { keep: adapter.needsEnv ?? [], proxy });
+  const env = { ...runEnv(task, run, worktree, { keep: adapter.needsEnv ?? [], proxy, hosts: ctx.ws.config.hosts }), ...extra };
   if (kind === 'none') return { env };
   const ports = [egressOn && kind !== 'docker' ? (await egressProxy(ctx)).port : 0, daemonPort(ctx)].filter((p) => p > 0);
-  const envNames = kind === 'docker' ? Object.keys(env).filter((k) => k.startsWith('STINT_') || /proxy$/i.test(k) || k === 'NODE_USE_ENV_PROXY' || k === 'TERM' || (adapter.needsEnv ?? []).includes(k)) : undefined;
-  const opts: SandboxOpts = { kind, worktree, root: ctx.ws.root, ports, writable: sb?.writable ?? [], ...(sb?.image ? { image: sb.image } : {}), ...(envNames ? { envNames } : {}), dockerProxy, name: `stint-${task}-${run}`.toLowerCase() };
+  const envNames = kind === 'docker' ? Object.keys(env).filter((k) => k.startsWith('STINT_') || /proxy$/i.test(k) || k === 'NODE_USE_ENV_PROXY' || k === 'TERM' || (adapter.needsEnv ?? []).includes(k) || k in extra) : undefined;
+  const opts: SandboxOpts = { kind, worktree, root: ctx.ws.root, ports, writable: sb?.writable ?? [], ...(sb?.image ? { image: sb.image } : {}), ...(envNames ? { envNames } : {}), dockerProxy, ...(named ? { name: `stint-${task}-${run}`.toLowerCase() } : {}) };
   return { env, wrap: (argv) => sandboxArgv(argv, opts) };
 }
 
-function daemonPort(ctx: DaemonContext): number {
+/** The port in daemon.json, which a sandboxed agent cannot read, so it is handed the port instead. */
+export function daemonPort(ctx: DaemonContext): number {
   try {
     return Number((JSON.parse(readFileSync(join(ctx.ws.cacheDir, 'daemon.json'), 'utf8')) as { port?: number }).port) || 0;
   } catch {

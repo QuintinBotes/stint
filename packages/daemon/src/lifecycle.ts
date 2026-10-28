@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
@@ -7,7 +8,7 @@ import { lockPlanTests } from './acceptance';
 import type { Adapter, RunResult } from './adapter';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
-import { drainDockerBlocked, prepareRun } from './sandbox';
+import { daemonPort, drainDockerBlocked, prepareRun } from './sandbox';
 import { git } from './git';
 import { earlierHops } from './handoff';
 import { renderPrompt } from './prompt';
@@ -147,8 +148,11 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
   // with no plan there was no plan time: the first assign locks the tests as they are now (R-029)
   await lockPlanTests(ctx, taskId);
   const wt = await ctx.worktrees.create(task, run);
+  // the agent's process calls the daemon with a token good only for this run's own routes, never the daemon's (R-040)
+  const token = randomBytes(24).toString('hex');
+  const port = daemonPort(ctx);
   // a sandbox that is configured but cannot run refuses the run before anything is recorded
-  const sandbox = await prepareRun(ctx, taskId, run, wt.path, adapter).catch(async (err: unknown) => {
+  const sandbox = await prepareRun(ctx, taskId, run, wt.path, adapter, { STINT_RUN_TOKEN: token, ...(port ? { STINT_DAEMON_PORT: String(port) } : {}) }).catch(async (err: unknown) => {
     await ctx.worktrees.remove(task, run).catch(() => undefined);
     throw err;
   });
@@ -186,6 +190,7 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
     startedAt,
     abort,
     inFlight: null as string | null,
+    token: token as string | undefined,
     permissions: new Map<string, { requestId: string; tool: string; title: string; options: PermissionRequest['options']; resolve: (answer: { optionId: string } | 'cancelled') => void }>(),
     done: Promise.resolve() as Promise<unknown>,
   };
@@ -250,6 +255,8 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
       await events.append({ ...base, type: 'agent.message', payload: { text: `The adapter failed: ${message}` } });
       result = { endedBy: abort.signal.aborted ? 'killed' : 'failed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true } };
     }
+    // the run is over: its token opens nothing any more
+    live.token = undefined;
     await snaps.stop();
     if (ws.config.sandbox?.kind === 'docker') await drainDockerBlocked(ctx);
     const commit = existsSync(wt.path) ? await ctx.worktrees.commit(task, run, wt.path, result.endedBy) : null;

@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { type Handoff, renderHandoff } from '@stint-dev/core';
 import { defineCommand } from 'citty';
+import { daemonFromEnv } from './hook';
 import { repoRoot } from './repo';
 
 /**
@@ -19,6 +20,8 @@ const PROTOCOL = '2025-06-18';
 class ToolError extends Error {}
 
 function daemon(root: string): { url: string; token: string } {
+  const run = daemonFromEnv();
+  if (run) return { url: `http://127.0.0.1:${run.port}`, token: run.token };
   const info = join(root, '.stint', 'cache', 'daemon.json');
   if (!existsSync(info)) throw new ToolError(`No Stint daemon is running for ${root}. Start one with: stint up`);
   const d = JSON.parse(readFileSync(info, 'utf8')) as { port: number; token: string };

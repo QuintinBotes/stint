@@ -11,7 +11,7 @@ import {
   sumCosts,
   taskBundle,
 } from '@stint-dev/core/node';
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
@@ -40,10 +40,10 @@ import { commentRoutes } from './routes/comments';
 import { summaryRoutes } from './routes/summary';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
-import { RunRegistry } from './runs';
+import { type ActiveRun, RunRegistry } from './runs';
 import { OtelExporter } from './otel';
 import { workspaceRecords } from './routing';
-import { egressProxy, sandboxHealth } from './sandbox';
+import { prepareRun, sandboxHealth } from './sandbox';
 import type { EgressProxy } from './egress';
 import { DaemonVerifier, type Verifier } from './verifier';
 import { Worktrees } from './worktree';
@@ -110,6 +110,19 @@ function tokenMatches(header: string | undefined, token: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+// what an agent's own process calls while it runs, the hooks and `stint mcp` (R-014, R-028): all a run token reaches
+const AGENT_ROUTE = /^\/api\/tasks\/([^/]+)\/(?:runs\/([^/]+)\/inflight|handoff|decisions|hand|autopilot|verify)$/;
+
+/** A run token is good only on its own task's agent routes and for its own run; anything else is forbidden (R-040). */
+async function agentMayCall(c: Context, live: ActiveRun): Promise<void> {
+  const m = c.req.method === 'POST' ? AGENT_ROUTE.exec(c.req.path) : null;
+  const body = m ? ((await c.req.json().catch(() => ({}))) as { run?: unknown }) : {};
+  const named = [m?.[2], body.run].filter((r) => r !== undefined);
+  if (!m || m[1] !== live.task || named.some((r) => r !== live.run)) {
+    throw new DaemonError('forbidden', `a run's token reaches only the agent routes of ${live.task} ${live.run}`, 'approving, merging and managing skills need the daemon token, which only a person\'s tools hold');
+  }
+}
+
 const contexts = new WeakMap<Hono, DaemonContext>();
 
 /** The name people call the repository: its package.json name, else its folder. */
@@ -156,8 +169,8 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
   } as Omit<DaemonContext, 'autopilot' | 'otel'> as DaemonContext;
   ctx.autopilot = new Autopilot(ctx);
   ctx.otel = new OtelExporter(ctx);
-  // the daemon's own test runs reach the network through the same proxy as the agents
-  if (ctx.verifier instanceof DaemonVerifier) ctx.verifier.proxyUrl = async (t, r) => (ws.config.sandbox?.egress.mode === 'proxy' ? (await egressProxy(ctx)).url(t, r) : null);
+  // the daemon's own test runs get the agents' boundary: the same sandbox, and the network through the same proxy
+  if (ctx.verifier instanceof DaemonVerifier) ctx.verifier.prepare = (t, r, dir, extra) => prepareRun(ctx, t, r, dir, {}, extra, false);
   ctx.afterRun = async (task, run, result) => {
     await checkAcceptanceLock(ctx, task, run);
     await afterRunPacket(ctx, task, run, result);
@@ -188,8 +201,11 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
   });
 
   app.use('/api/*', async (c, next) => {
-    if (MUTATING.has(c.req.method) && !tokenMatches(c.req.header('Authorization'), opts.token)) {
-      throw new DaemonError('unauthorized', 'this call changes state and needs the daemon token', 'send Authorization: Bearer <token from .stint/cache/daemon.json>');
+    const header = c.req.header('Authorization');
+    if (MUTATING.has(c.req.method) && !tokenMatches(header, opts.token)) {
+      const live = header?.startsWith('Bearer ') ? runs.byToken(header.slice(7)) : undefined;
+      if (!live) throw new DaemonError('unauthorized', 'this call changes state and needs the daemon token', 'send Authorization: Bearer <token from .stint/cache/daemon.json>');
+      await agentMayCall(c, live);
     }
     await next();
   });

@@ -56,11 +56,11 @@ test('runEnv keeps credentials only for the person\'s terminal, and sets the pro
   expect(runEnv('T-0001', 'r1', '/wt', { base, credentials: true }).GH_TOKEN).toBe('y');
 });
 
-test('The docker sandbox mounts only the worktree and git data, passes env by name, and uses the internal network with egress on', () => {
+test('The docker sandbox mounts only the worktree and git data (hooks and config read-only), passes env by name, and uses the internal network with egress on', () => {
   const argv = sandboxArgv(['muse', 'exec'], { kind: 'docker', worktree: '/repo/.stint/worktrees/T-0001-r1', root: '/repo', ports: [], envNames: ['STINT_TASK', 'HTTPS_PROXY'], dockerProxy: 'stint-egress-proxy:3128', image: 'stint-agent:1', name: 'stint-t-0001-r1' });
   expect(argv.slice(0, 5)).toEqual(['docker', 'run', '--rm', '-i', '--init']);
   const pairs = (flag: string) => argv.flatMap((a, i) => (a === flag ? [argv[i + 1]] : []));
-  expect(pairs('-v')).toEqual(['/repo/.stint/worktrees/T-0001-r1:/repo/.stint/worktrees/T-0001-r1', '/repo/.git:/repo/.git']);
+  expect(pairs('-v')).toEqual(['/repo/.stint/worktrees/T-0001-r1:/repo/.stint/worktrees/T-0001-r1', '/repo/.git:/repo/.git', '/repo/.git/hooks:/repo/.git/hooks:ro', '/repo/.git/config:/repo/.git/config:ro']);
   expect(pairs('--network')).toEqual(['stint-egress']);
   expect(pairs('-e')).toEqual(['STINT_TASK', 'HTTPS_PROXY']);
   expect(argv.slice(-3)).toEqual(['stint-agent:1', 'muse', 'exec']);

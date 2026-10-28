@@ -1,8 +1,11 @@
 export type GitResult = { code: number; stdout: string; stderr: string };
 
-/** Runs git with an explicit cwd and argument list; never through a shell string. */
+/**
+ * Runs git with an explicit cwd and argument list; never through a shell string. Hooks are off: a hook an agent
+ * wrote in its worktree would otherwise run here, outside its sandbox, with the daemon's environment (R-040).
+ */
 export async function git(cwd: string, args: string[], env?: Record<string, string>): Promise<GitResult> {
-  const p = Bun.spawn(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe', ...(env ? { env } : {}) });
+  const p = Bun.spawn(['git', '-c', 'core.hooksPath=/dev/null', ...args], { cwd, stdout: 'pipe', stderr: 'pipe', ...(env ? { env } : {}) });
   const [stdout, stderr, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   return { code, stdout, stderr };
 }
