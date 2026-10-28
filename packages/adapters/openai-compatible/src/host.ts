@@ -397,13 +397,13 @@ export function makeHost(
       } catch (error) {
         errors = error instanceof Error ? `invalid JSON: ${error.message}` : 'invalid JSON';
       }
-      if (attempt === 1) throw new StructuredOutputError(id, errors, short);
+      if (attempt === 1) throw new StructuredOutputError(id, errors, short, cost);
       retryErrors = errors;
       if (args.emit) await args.emit({ type: 'provider.retry', payload: { host: id, model: short, errors } });
       else if (args.onRetry) await args.onRetry({ host: id, model: short, errors, retries: 1 });
       prompt = `${args.prompt}\n\nThe previous answer did not validate. Fix these errors and return only JSON:\n${errors}\n`;
     }
-    throw new StructuredOutputError(id, retryErrors ?? 'invalid output', short);
+    throw new StructuredOutputError(id, retryErrors ?? 'invalid output', short, internals.costFor(short, totals));
   }
 
   async function complete<T>(

@@ -1,3 +1,5 @@
+import type { Cost } from '@stint-dev/core';
+
 export type HostErrorReason = '429' | '5xx' | 'timeout' | 'no_key' | string;
 
 /** A host level failure the chain walker can fall back from. The message never carries a key. */
@@ -15,18 +17,21 @@ export class HostError extends Error {
   }
 }
 
-/** The model answered twice with output that does not validate. The chain walker falls back. */
+/** The model answered twice with output that does not validate. The chain walker falls back, and counts its cost. */
 export class StructuredOutputError extends Error {
   readonly errors: string;
   readonly host: string;
   readonly model?: string;
+  /** What the invalid answers cost: they were paid for either way. */
+  readonly cost?: Cost;
   readonly reason = 'invalid_output';
 
-  constructor(host: string, errors: string, model?: string) {
+  constructor(host: string, errors: string, model?: string, cost?: Cost) {
     super(`host ${host} returned output that does not validate: ${errors}`);
     this.name = 'StructuredOutputError';
     this.host = host;
     this.errors = errors;
     if (model !== undefined) this.model = model;
+    if (cost !== undefined) this.cost = cost;
   }
 }

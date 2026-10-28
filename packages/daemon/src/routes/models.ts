@@ -80,7 +80,8 @@ async function modelRun<T>(
     return { value, run, host: r.host, model: r.model };
   } catch (err) {
     const message = err instanceof ChainExhaustedError ? err.message : err instanceof Error ? err.message : String(err);
-    await events.append({ ...base, type: 'run.finished', payload: { endedBy: 'failed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true }, reason: message } });
+    const cost = (err instanceof ChainExhaustedError && err.cost) || { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true };
+    await events.append({ ...base, type: 'run.finished', payload: { endedBy: 'failed', cost, reason: message } });
     void ctx.otel.run(taskId, run).catch(() => undefined);
     throw new DaemonError('adapter_unavailable', `no ${role} host could answer`, message);
   }
