@@ -1,3 +1,4 @@
+import { weekOf } from '@stint-dev/core';
 import { Command } from 'cmdk';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
@@ -11,25 +12,18 @@ import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
 import { StatusMenu } from './StatusMenu';
 import { Button, Kbd, cx, trapTab } from './ui';
 
-function startOfWeek(now = new Date()): string {
-  const d = new Date(now);
-  const day = (d.getDay() + 6) % 7; // Monday is the first day
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - day);
-  return d.toISOString().slice(0, 10);
-}
-
-function useWeekCost(): number | null {
+/** This week's spend, Monday 00:00 to Sunday 24:00 local time, from the daemon's week rows (the same weekOf as the daemon); zero when nothing has ended this week. */
+function useWeekCost(): CostRow | null {
   const [rows, setRows] = useState<CostRow[] | null>(null);
   useEffect(() => {
-    const load = () => void api.costs('day').then(setRows).catch(() => undefined);
+    const load = () => void api.costs('week').then(setRows).catch(() => undefined);
     load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, []);
   if (!rows) return null;
-  const from = startOfWeek();
-  return rows.filter((r) => r.key >= from).reduce((s, r) => s + (r.usd ?? 0), 0);
+  const key = weekOf(new Date());
+  return rows.find((r) => r.key === key) ?? { key, inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0, runs: 0, unpriced: 0 };
 }
 
 /** What the hosted credits have left, derived from metered spend; only hosts with a balance entered appear. */
@@ -89,8 +83,17 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
         <Kbd>⌘K</Kbd>
       </button>
       <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0 text-small text-ink-2">
-        <span className="whitespace-nowrap" title="Spend this week, Monday to Sunday, as metered by the daemon">
-          This week <b className="text-ink font-semibold">{week === null ? 'not known yet' : money({ usd: week })}</b>
+        <span
+          className="whitespace-nowrap"
+          data-testid="week-cost"
+          title={
+            health?.mode === 'replay'
+              ? `What the replayed runs cost when they were recorded${health.replay?.recordedAt ? ` on ${localDate(health.replay.recordedAt)}` : ''}; replaying costs nothing.`
+              : 'What finished runs, learn steps and packet quizzes cost from Monday 00:00 to Sunday 24:00 local time; summaries, digests, triage and autopilot picks are not counted yet.'
+          }
+        >
+          {health?.mode === 'replay' ? 'Replayed spend' : 'This week'} <b className="text-ink font-semibold">{week === null ? 'not known yet' : money(week)}</b>
+          {week?.unpriced ? `, ${week.unpriced} not priced` : ''}
         </span>
         <StatusMenu health={health} unreachable={unreachable} credits={credits} />
         <button type="button" onClick={onHelp} aria-keyshortcuts="?" data-testid="help-button" className="inline-flex items-center h-9 px-2.5 rounded-[5px] font-medium text-ink hover:bg-panel">

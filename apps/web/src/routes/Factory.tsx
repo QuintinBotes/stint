@@ -1,4 +1,4 @@
-import type { Metrics } from '@stint-dev/core';
+import { type Metrics, weekOf } from '@stint-dev/core';
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ADAPTER_NAMES, type Agent, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, hostMark, hostName, markColor, modelName } from '../agents';
@@ -799,6 +799,7 @@ export function Factory() {
   const byDayHost = useLoad(() => api.costs('day-host'), []);
   const byHost = useLoad(() => api.costs('host'), []);
   const byTask = useLoad(() => api.costs('task'), []);
+  const byWeek = useLoad(() => api.costs('week'), []);
   const helped = useLoad(() => api.graphQuery<Helped>({ q: 'skills-helped' }), []);
   const scores = useLoad(() => api.scoreboard(), []);
   const [riskVersion, setRiskVersion] = useState(0);
@@ -911,7 +912,8 @@ export function Factory() {
 
   const counts = funnel ?? {};
   const costByTask = useMemo(() => new Map((byTask ?? []).map((r) => [r.key, r])), [byTask]);
-  const week = (byModel ?? []).reduce((s, r) => s + (r.usd ?? 0), 0);
+  // this week's row, Monday 00:00 to Sunday 24:00 local time, the same figure as the top bar
+  const thisWeek = (byWeek ?? []).find((r) => r.key === weekOf(new Date()));
   const input = (byModel ?? []).reduce((s, r) => s + r.inputTokens, 0);
   const cached = (byModel ?? []).reduce((s, r) => s + r.cachedTokens, 0);
   /** A share's figure and its "1 of 2 tasks" line, or what fills it in when there is nothing to count yet. */
@@ -935,7 +937,11 @@ export function Factory() {
         <MetricsPanel data={metrics.data} error={metrics.error} window={span} onWindow={setSpan}>
           <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule-strong bg-rule" data-testid="kpis">
             <Figure label="Tasks merged" value={String(merges?.value ?? 0)} detail={hops?.value != null ? `${metricValue(hops)} build runs each` : 'none in this period yet'} />
-            <Figure label="Spend this week" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task, at list prices` : undefined} />
+            <Figure
+              label="Spend this week"
+              value={money(thisWeek ?? { usd: 0 })}
+              detail={thisWeek?.runs ? `${thisWeek.runs} run${thisWeek.runs === 1 ? '' : 's'}${thisWeek.unpriced ? `, ${thisWeek.unpriced} not priced` : ''}, at list prices` : 'nothing has ended this week'}
+            />
             <Figure label="Passed the tests first time" value={firstValue} detail={firstDetail} />
             <Figure label="Hand-offs that passed" value={handoffValue} detail={handoffDetail} />
           </dl>

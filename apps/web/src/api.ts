@@ -174,7 +174,7 @@ export type PendingItem = PendingContradictionItem | PendingSkillItem | PendingR
 export type DiffBlameFile = { path: string; added: number; removed: number; hunks?: Array<{ start: number; end: number; run: string }> };
 export type PermissionOptionData = { optionId: string; name: string; kind: string };
 export type PendingPermission = { task: string; run: string; requestId: string; tool: string; title: string; options: PermissionOptionData[] };
-export type CostRow = Cost & { key: string; runs: number; roles?: string[]; creditsLeft?: number; derived?: true };
+export type CostRow = Cost & { key: string; runs: number; roles?: string[]; creditsLeft?: number; derived?: true; /** Runs and calls in the row with no price. */ unpriced?: number };
 export type DemoStatus = { playing: boolean; paused: boolean; at: number; total: number; title: string | null; live: boolean | null; recordedAt: string | null; done: boolean };
 /** The board card summary: a local model's line when there is one, else the last agent message. */
 export type TaskSummary = { summary: string; seq: number; source: 'model' | 'agent.message' | 'none'; host?: string; model?: string };
@@ -251,7 +251,7 @@ export const api = {
   workspaceEvents: () => request<{ events: StintEvent[] }>('/api/workspace/events').then((r) => r.events),
   comments: (id: string) => request<LineComment[]>(`/api/tasks/${id}/comments`),
   addComment: (id: string, comment: { file: string; line: number; text: string }) => post<LineComment[]>(`/api/tasks/${id}/comments`, comment),
-  costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
+  costs: (group: 'task' | 'run' | 'day' | 'week' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),
   risk: () => request<RiskState>('/api/risk'),
   gardening: () => request<Gardening>('/api/gardening'),
   intake: () => request<IntakeItem[]>('/api/intake'),

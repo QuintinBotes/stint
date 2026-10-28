@@ -68,7 +68,8 @@ export function hostName(host: string | null | undefined): string {
     case 'local-cli':
       return 'local CLI';
     default:
-      return host ?? 'host unknown';
+      // an agent that bills to its own account (Claude Code, Codex) is its own host
+      return host ? (ADAPTER_NAMES[host] ?? host) : 'host unknown';
   }
 }
 
@@ -83,8 +84,8 @@ export const markColor: Record<Mark, string> = {
 
 export const TEAM_NAMES: Record<Mark, string> = { meta: 'Meta', anthropic: 'Anthropic', openai: 'OpenAI', local: 'Local, on this machine', other: 'Other' };
 
-/** The ink of a host's spend: local for this machine, else Meta's models wherever they are served. */
-export const hostMark = (host: string): Mark => (host === 'ollama' || host === 'local-cli' ? 'local' : 'meta');
+/** The ink of a host's spend: local for this machine, an agent's own vendor when it bills to its own account, else Meta's models wherever they are served. */
+export const hostMark = (host: string): Mark => (host === 'ollama' || host === 'local-cli' ? 'local' : host in ADAPTER_NAMES ? agentOf(host).mark : 'meta');
 
 export const ROLE_NAMES: Record<string, string> = { planner: 'plans', implementer: 'builds', reviewer: 'reviews' };
 
