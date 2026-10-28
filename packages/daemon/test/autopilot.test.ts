@@ -101,6 +101,8 @@ test('Two tasks on autopilot with parallel: 1 run one after the other, the secon
       await post(app, `/api/tasks/${a.id}/autopilot`, { on: true });
       await until(ws, a.id, (ev) => ev.some((e) => e.type === 'autopilot.step'));
       await post(app, `/api/tasks/${b.id}/autopilot`, { on: true });
+      // until its first step the second task is starting, which health counts as running; wait for that step
+      await until(ws, b.id, (ev) => ev.some((e) => e.type === 'autopilot.step'));
       const health = (await (await app.request('/api/health')).json()) as { autopilot: { running: string[]; queued: string[] } };
       expect(health.autopilot).toEqual({ running: [a.id], queued: [b.id] });
       const first = await until(ws, a.id, stopped);
