@@ -38,6 +38,7 @@ import { skillRoutes } from './routes/skills';
 import { ptyRoutes } from './routes/pty';
 import { commentRoutes } from './routes/comments';
 import { summaryRoutes } from './routes/summary';
+import { sharpenRoutes } from './routes/sharpen';
 import { workRoutes } from './routes/work';
 import { Replayer } from './replay';
 import { RunRegistry } from './runs';
@@ -420,4 +421,5 @@ function registerRoutes(app: Hono, ctx: DaemonContext): void {
   gateRoutes(app, ctx);
   metricRoutes(app, ctx);
   commentRoutes(app, ctx);
+  sharpenRoutes(app, ctx);
 }

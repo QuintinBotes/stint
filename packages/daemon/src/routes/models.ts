@@ -20,6 +20,7 @@ import { lockPlanTests } from '../acceptance';
 import { git } from '../git';
 import { ChainExhaustedError, effectiveChain, walkChain } from '../route';
 import { skillsFor } from '../skills';
+import { sharpenBrief } from '../sharpen';
 
 const ROOT_SCHEMAS = join(import.meta.dir, '..', '..', '..', 'core', 'schemas');
 const HostBody = z.strictObject({ host: z.enum(['meta-api', 'fireworks', 'baseten', 'modal', 'ollama']).optional() });
@@ -115,13 +116,16 @@ export async function planTask(ctx: DaemonContext, id: string, host?: string): P
   const task = await ctx.ws.readTask(id);
   const context = await ctx.ws.readDoc<unknown>(id, 'context.json');
   const memory = await planMemory(ctx, id, context);
-  const prompt = buildPlanPrompt({
+  const brief = await sharpenBrief(ctx.ws, task);
+  const asked = buildPlanPrompt({
     task: { id: task.id, title: task.title, goal: task.goal, acceptance: task.acceptance },
     ...(context ? { context } : {}),
     similarTasks: memory.similar,
     constraints: memory.constraints,
     skills: skillsFor(ctx.ws.root, 'planner'),
   });
+  // what sharpening settled goes in just before the ask; a task never sharpened gets the prompt as it was (R-064)
+  const prompt = brief ? asked.replace('\n## Ask\n', `\n## Before work started\n${brief}\n\n## Ask\n`) : asked;
   const r = await modelRun<Plan>(ctx, id, 'planner', host, 'plan.schema.json', PlanSchema, prompt);
   // the plan may name only the similar tasks it was shown; the constraints are the daemon's, never the model's
   const offered = new Set(memory.similar.map((t) => t.id));

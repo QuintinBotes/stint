@@ -11,6 +11,7 @@ import { drainDockerBlocked, prepareRun } from './sandbox';
 import { git } from './git';
 import { earlierHops } from './handoff';
 import { renderPrompt } from './prompt';
+import { sharpenBrief } from './sharpen';
 import { skillsForTask } from './skills';
 import { worktreePath } from './worktree';
 
@@ -125,6 +126,8 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
     skills,
     diff: (await ctx.worktrees.diff(task, 'json')) as never,
     ask: input.instruction ?? task.pendingAsk ?? null,
+    // the first build, with no packet to continue from, starts from what sharpening settled
+    ...(input.role === 'implementer' && !handoff && transcript === undefined ? { settled: await sharpenBrief(ws, task) } : {}),
   });
   // The role's spend on this task plus the prompt about to be sent must stay under the role's budget.
   const promptTokens = countTokens(prompt);

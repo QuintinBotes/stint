@@ -1,5 +1,5 @@
 import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
-import type { Config, Cost, StintEvent, Task } from '@stint-dev/core';
+import { type Config, type Cost, type StintEvent, type Task, sharpenState } from '@stint-dev/core';
 import { runsFromEvents } from '@stint-dev/core/node';
 import { z } from 'zod';
 import { lockAcceptance } from './acceptance';
@@ -10,6 +10,7 @@ import { assign } from './lifecycle';
 import { walkChain } from './route';
 import { chooseLearned, recordsFor, workspaceRecords } from './routing';
 import { planTask, reviewTask } from './routes/models';
+import { sharpen, takeRecommendations } from './sharpen';
 import { verifyBranch } from './routes/work';
 
 export type AutopilotSettings = NonNullable<Config['autopilot']>;
@@ -18,6 +19,8 @@ export const AUTOPILOT_DEFAULTS: AutopilotSettings = { implementers: ['muse-code
 export type Step =
   | { kind: 'idle' }
   | { kind: 'wait'; reason: string }
+  | { kind: 'sharpen' }
+  | { kind: 'recommend'; questions: string[] }
   | { kind: 'plan' }
   | { kind: 'specify'; ask: string }
   | { kind: 'lock'; run: string; failing: string[] }
@@ -164,7 +167,7 @@ const why = (endedBy: string | null, verdict: string | undefined) =>
  * The next thing autopilot does, as a pure function of the task's log: a daemon restart resumes from the
  * same place. It never approves; the furthest it goes on its own is the approval gate.
  */
-export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean): Step {
+export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean, o: { sharpenFirst?: boolean } = {}): Step {
   const tail = autopilotTail(events);
   if (!tail) return { kind: 'idle' };
   if (live) return { kind: 'wait', reason: 'a run is live' };
@@ -172,6 +175,14 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   // a best-of-n candidate builds from its parent's plan, and stops once its tests are green for the pick
   const candidate = !!task.parent && (task.tags ?? []).includes('candidate');
   const planned = candidate || events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
+  // with config.sharpen.beforeAutopilot, a round of questions comes before the plan, and a material one waits for you (R-064)
+  if (!planned && o.sharpenFirst) {
+    if (!events.some((e) => e.type === 'sharpen.asked') && !tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'sharpen')) return { kind: 'sharpen' };
+    const st = sharpenState(events, task);
+    const n = st.openMaterial.length;
+    if (n) return { kind: 'stop', reason: `Needs you: ${n} question${n === 1 ? '' : 's'} to answer before it starts.`, needsYou: true };
+    if (st.open.length) return { kind: 'recommend', questions: st.open };
+  }
   if (!planned) return { kind: 'plan' };
   // a task its plan split waits on its subtasks (R-036)
   const split = events.find((e) => e.type === 'task.decomposed');
@@ -290,6 +301,10 @@ export class Autopilot {
     return this.ctx.ws.config.autopilot ?? AUTOPILOT_DEFAULTS;
   }
 
+  private get sharpenFirst(): { sharpenFirst: boolean } {
+    return { sharpenFirst: !!this.ctx.ws.config.sharpen?.beforeAutopilot };
+  }
+
   async start(id: string, opts: { implementer?: string } = {}): Promise<void> {
     const events = await this.ctx.ws.events(id).read();
     if (!autopilotTail(events)) await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'autopilot.started', payload: { settings: this.settings, ...(opts.implementer ? { implementer: opts.implementer } : {}) } });
@@ -331,8 +346,10 @@ export class Autopilot {
   async stepFor(id: string): Promise<'plan' | 'build' | 'verify' | 'review' | 'approve' | 'idle'> {
     const task = await this.ctx.ws.readTask(id);
     const events = await this.ctx.ws.events(id).read();
-    const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id));
+    const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), this.sharpenFirst);
     switch (s.kind) {
+      case 'sharpen':
+      case 'recommend':
       case 'plan':
         return 'plan';
       case 'lock':
@@ -412,7 +429,7 @@ export class Autopilot {
     for (let guard = 0; guard < 8; guard++) {
       const events = await ws.events(id).read();
       const tail = autopilotTail(events);
-      const s = nextStep(events, await ws.readTask(id), this.settings, !!this.ctx.runs.get(id));
+      const s = nextStep(events, await ws.readTask(id), this.settings, !!this.ctx.runs.get(id), this.sharpenFirst);
       if (s.kind === 'idle' || s.kind === 'wait' || !tail) return;
       if (s.kind === 'stop') return this.stop(id, s.reason, s.needsYou);
 
@@ -436,6 +453,16 @@ export class Autopilot {
       }
 
       try {
+        if (s.kind === 'sharpen') {
+          await this.step(id, 'sharpen', 'Asking the few questions that change what gets built, before it is planned.');
+          await sharpen(this.ctx, id).catch((err: unknown) => this.step(id, 'sharpen', `No model could sharpen it (${err instanceof Error ? err.message : String(err)}); planning without questions.`));
+          continue;
+        }
+        if (s.kind === 'recommend') {
+          await takeRecommendations(this.ctx, id, 'autopilot');
+          await this.step(id, 'sharpen', `Took the recommended answer for ${s.questions.join(', ')}; none of them is material.`);
+          continue;
+        }
         if (s.kind === 'plan') {
           await this.step(id, 'plan', 'No plan yet; asking the planner chain.');
           await planTask(this.ctx, id).catch((err: unknown) => this.step(id, 'plan', `No planner could answer (${err instanceof Error ? err.message : String(err)}); building without a plan.`));
