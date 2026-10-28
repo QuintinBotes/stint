@@ -1,6 +1,9 @@
 /* Stint tokens, drawing office edition: the Blueprint palette from the design's tokens.css, the only look.
    Vendor inks always carry a name. State inks: amber needs you, green verified, red stopped, violet learned. No gradients, no textures.
-   Fonts are bundled (styles.css), never fetched, so the UI works with the network off. */
+   Fonts are bundled (styles.css), never fetched, so the UI works with the network off.
+   Contrast (DESIGN.md, Colors): every text ink 4.5:1 on every surface it sits on, ink-3 7:1 on shell, ground and panel, and every
+   mark (rule-strong, field, focus, a vendor ink) 3:1. The state inks differ in lightness as well as hue, so they stay apart for
+   people who see fewer colours: amber and green light, violet in the middle, red the darkest. */
 
 :root {
   --sans: 'Geist Variable', 'Geist', ui-sans-serif, system-ui, sans-serif;
@@ -13,25 +16,27 @@
   --panel: #0b3a5f;
   --panel-2: #1b486d;
   --rule: #30597d;
-  --rule-strong: #52789c;
+  /* a block's edge and a selected row's outline: 3:1 on every surface, panel-2 included */
+  --rule-strong: #6e95ba;
   /* a field's edge: 3:1 on every surface, so an input is found by its outline (WCAG 1.4.11) */
   --field: #7798ba;
   --ink: #eef3f8;
-  --ink-2: #c0d1e2;
-  --ink-3: #a9bfd6;
+  --ink-2: #cddff0;
+  --ink-3: #b4cbe2;
   --on-ink: #043051;
-  --meta: #8fcaff;
-  --anthropic: #f5ab7e;
-  --openai: #74e3c3;
+  /* vendor inks are marks beside a name (a square, a spine, a bar), held to 3:1, with on-ink labels on them at 4.5:1 */
+  --meta: #4499ff;
+  --anthropic: #e89f72;
+  --openai: #5fd8b2;
   --local: #d3dce5;
-  --amber: #ffcb62;
-  --green: #6ddc9c;
-  --red: #ff958a;
-  --violet: #cdb5ff;
-  --amber-wash: rgba(255, 203, 98, 0.13);
-  --red-wash: rgba(255, 149, 138, 0.14);
-  --green-wash: rgba(109, 220, 156, 0.13);
-  --violet-wash: rgba(205, 181, 255, 0.14);
+  --amber: #ffe040;
+  --green: #93ffe0;
+  --red: #fe9890;
+  --violet: #d5c5ff;
+  --amber-wash: rgba(255, 224, 64, 0.13);
+  --red-wash: rgba(254, 152, 144, 0.14);
+  --green-wash: rgba(147, 255, 224, 0.13);
+  --violet-wash: rgba(213, 197, 255, 0.14);
   --term: #001d36;
   --term-ink: #e3edf6;
   --focus: #ffcb62;
@@ -39,4 +44,15 @@
   /* the pinned approval row casts upward, over the runs that scroll under it */
   --shadow-pinned: 0 -14px 22px rgba(0, 10, 22, 0.28);
   color-scheme: dark;
+}
+
+/* A person who asks their system for more contrast gets brighter secondary text and lines: ink-3 reaches 7:1 on panel-2 too. */
+@media (prefers-contrast: more) {
+  :root {
+    --ink-2: #dceeff;
+    --ink-3: #c8e0f7;
+    --rule: #46709a;
+    --rule-strong: #8fb7dd;
+    --field: #a6c9ec;
+  }
 }

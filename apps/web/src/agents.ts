@@ -73,7 +73,7 @@ export function hostName(host: string | null | undefined): string {
   }
 }
 
-/** The vendor inks: Meta sky, Anthropic clay, OpenAI mint, local grey. Any other vendor draws in the quiet ink. */
+/** The vendor inks: Meta blue, Anthropic clay, OpenAI mint, local grey. Any other vendor draws in the quiet ink. */
 export const markColor: Record<Mark, string> = {
   meta: 'var(--meta)',
   anthropic: 'var(--anthropic)',

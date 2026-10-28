@@ -33,7 +33,7 @@ test("The T-0042 rail runs to r4, and each run's axis takes its vendor's ink, be
   await expect(segments.nth(3)).toHaveAttribute('data-adapter', 'openai-compatible');
   // r1 to r3 ran Meta's models on Meta's hosts and the local CLI, so they take Meta's ink (--meta);
   // r4 is Glimmer served by Ollama on this machine, which takes the local ink (--local)
-  const ink = ['rgb(143, 202, 255)', 'rgb(143, 202, 255)', 'rgb(143, 202, 255)', 'rgb(211, 220, 229)'];
+  const ink = ['rgb(68, 153, 255)', 'rgb(68, 153, 255)', 'rgb(68, 153, 255)', 'rgb(211, 220, 229)'];
   for (let i = 0; i < 4; i++) {
     const colours = await segments.nth(i).evaluate((header) => {
       const mark = header.querySelector('span[aria-hidden="true"]');
