@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { RUN_ID, RoleSchema, TASK_ID } from './handoff';
 
+/** A goal's id, G-0001 (R-064). */
+export const GOAL_ID = /^G-[0-9]{4,}$/;
+
 export const TaskStatusSchema = z.enum([
   'planned',
   'building',
@@ -106,6 +109,9 @@ export const TaskSchema = z.strictObject({
   limits: TaskLimitsSchema.optional(),
   /** The accepted proof of each acceptance criterion (R-064). */
   proofs: z.array(TaskProofSchema).max(12).optional(),
+  /** The goal this task is part of, and the goal criteria it covers, counting from 1 (R-064). */
+  goalId: z.string().regex(GOAL_ID).optional(),
+  goalCriteria: z.array(z.int().min(1).max(12)).max(12).optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

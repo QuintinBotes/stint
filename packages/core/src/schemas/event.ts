@@ -67,6 +67,10 @@ export const EVENT_TYPES = [
   'sharpen.asked',
   'sharpen.answered',
   'proofs.set',
+  'goal.created',
+  'goal.planned',
+  'goal.tasks_created',
+  'goal.status',
   'runtime.unclassified',
 ] as const;
 

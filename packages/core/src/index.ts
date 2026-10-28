@@ -10,6 +10,7 @@ export * from './schemas/capability';
 export * from './schemas/config';
 export * from './schemas/metrics';
 export * from './schemas/questions';
+export * from './schemas/goal';
 export { SHARPEN_CHANGES, isMaterial, questionProblem, sharpenRound, sharpenState } from './sharpen';
 export type { DroppedQuestion, ModelQuestion, ProofSuggestion, SharpenAnswer, SharpenAssumed, SharpenChange, SharpenQuestion, SharpenRound, SharpenState } from './sharpen';
 export * from './schemas/outcome';

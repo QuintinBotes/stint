@@ -7,7 +7,7 @@ export type { Decision, NewDecision } from './store/decisions';
 export { HandoffStore, RunMetaSchema, RunStore, VerificationCheckSchema, VerificationRecordSchema, VerificationStore } from './store/runs';
 export type { RunMeta, VerificationCheck, VerificationRecord } from './store/runs';
 export { StoreError, Workspace, slugify } from './store/workspace';
-export type { NewTask, StoreErrorCode } from './store/workspace';
+export type { NewGoal, NewTask, StoreErrorCode } from './store/workspace';
 export { KeyedQueue, readJsonIfExists, stableJSON, writeFileAtomic, writeJsonAtomic } from './store/files';
 export { billingHost, costs, latestHandoff, outcomesFromEvents, runsFromEvents, sumCosts, taskBundle, taskCost } from './project/index';
 export type { CostGroup, CostRow, OutcomeRecord, RunSummary, TaskBundle } from './project/index';

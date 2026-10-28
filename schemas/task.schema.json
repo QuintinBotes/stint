@@ -404,6 +404,21 @@
           }
         }
       }
+    },
+    "goalId": {
+      "type": "string",
+      "pattern": "^G-[0-9]{4,}$",
+      "description": "The goal this task is part of (stint.goal/1)."
+    },
+    "goalCriteria": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "The goal's criteria this task covers, counting from 1.",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 12
+      }
     }
   }
 }

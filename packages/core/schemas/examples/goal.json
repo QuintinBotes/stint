@@ -1,0 +1,20 @@
+{
+  "version": "stint.goal/1",
+  "id": "G-0001",
+  "title": "Webhooks survive a noisy tenant",
+  "outcome": "One tenant sending too many webhooks slows only itself: it is rate-limited with a clear answer, every other tenant is served as before, and operators can see who is being limited.",
+  "criteria": [
+    { "text": "A tenant over its limit gets 429 with a Retry-After header", "proof": { "kind": "test", "ref": "429 with Retry-After" } },
+    { "text": "Other tenants are served as before" },
+    { "text": "The audit log names each limited tenant", "proof": { "kind": "human", "ref": "An operator reads the audit log after a load test" } }
+  ],
+  "nonGoals": ["Billing for extra webhooks", "A dashboard for the limits"],
+  "limits": { "usd": 5, "builds": 6 },
+  "status": "running",
+  "tasks": ["T-0042", "T-0043"],
+  "decisions": [
+    { "id": "D1", "text": "Do retries of a failed webhook count towards the limit? Answer: Retries do not count", "by": "you", "at": "2026-11-02T14:30:00Z" }
+  ],
+  "createdAt": "2026-11-02T14:20:00Z",
+  "updatedAt": "2026-11-02T14:36:00Z"
+}
