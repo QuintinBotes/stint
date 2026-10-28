@@ -200,8 +200,8 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 
 ## Reviews
 
-| Spec | Attempt | Verdict | Reviewer | Findings | File |
-|---|---|---|---|---|---|
+| Spec | Attempt | Verdict | Reviewer | Findings | File | Outcome |
+|---|---|---|---|---|---|---|
 
 ## Blocked (questions for the human; the loop stops on a new row here)
 

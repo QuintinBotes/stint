@@ -10,6 +10,7 @@ import { DiffView, readViewedFiles, writeViewedFiles } from '../components/DiffV
 import { FilesTab } from '../components/Files';
 import { HandTo } from '../components/HandTo';
 import { Limits } from '../components/Limits';
+import { HowItWent } from '../components/HowItWent';
 import { MemoryPanel, Queue } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
 import { PermissionBanner } from '../components/Permissions';
@@ -564,6 +565,7 @@ export function TaskView() {
     <main className="relative flex-1 min-h-0 overflow-y-auto min-[1180px]:overflow-hidden min-[1180px]:flex min-[1180px]:flex-col" data-testid="task-view">
       {killNotice}
       {titleBlock}
+      {['done', 'rejected', 'abandoned'].includes(t.status) ? <HowItWent bundle={bundle} after /> : null}
       <div
         className={cx(
           'grid grid-cols-1 min-[760px]:grid-cols-[320px_minmax(0,1fr)] min-[1180px]:flex-1 min-[1180px]:min-h-0 min-[1180px]:grid-rows-[minmax(0,1fr)]',

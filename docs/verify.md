@@ -40,4 +40,8 @@ After the verify suite, the daemon copies the scenario files into a temporary ch
 
 With `config.verify.coverage` on, the daemon also runs the test command with `--coverage` when the runner is bun or Vitest: once on the branch, once in a temporary checkout of the base commit. The line percentages land in the record as `coverage: { base, branch }` and on the card. When the runner gives no coverage summary, the record says `coverage: null` with a `coverageReason`, and the verification does not fail for it.
 
+## Proven or passing
+
+Green tests say the change passes. They do not say a criterion is met. A criterion is proven only when something shows it failing before the change and passing after: a test that failed at lock time or in an earlier run and passes now, a held-out scenario that passes, a named check that passes, or you at approval. A criterion whose tests pass but never failed first is "passing, not proven", and the gate says "Passes, but no test showed it failing first." Tests first (`autopilot.testsFirst`) is the short way to proof: the locked tests fail at lock time, so every criterion is proven once they pass. `stint outcome <task>` prints each criterion's state with its evidence, and [`metrics.md`](metrics.md#how-it-went) has the full rules.
+
 The numbers these checks add up to (tamper escapes, scenario catch, first pass) are defined once in [`metrics.md`](metrics.md) and read with `stint metrics`.

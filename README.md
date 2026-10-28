@@ -134,7 +134,7 @@ Merged T-0001 into main as 3f2a9c1.
 | `stint hand <task> <agent>` | Hand the task to another agent from its packet |
 | `stint packet <task>` | Show the packet the next agent reads |
 | `stint sharpen <task>` | Answer the few questions that change what gets built, before work starts |
-| `stint approve <task>`, `stint reject <task> --reason "<why>"` | Merge the verified change, or send it back with the reason as the next run's ask |
+| `stint approve <task>`, `stint reject <task> --reason "<why>"` | Merge the verified change, or send it back with the reason as the next run's ask; `stint outcome <task>` then says how it went |
 | `stint costs --by host` | Spend by task, run, day, week or host |
 | `stint keys list` | Where each key comes from, never its value |
 | `stint demo` | Replay the recorded story; `--live` runs it with your keys |

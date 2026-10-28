@@ -1,0 +1,45 @@
+{
+  "version": "stint.outcome/1",
+  "task": "T-0042",
+  "result": "merged_incident",
+  "resultLabel": "Merged, incident",
+  "criteria": [
+    {
+      "index": 0,
+      "text": "A tenant over the limit gets 429 with a Retry-After header",
+      "state": "proven",
+      "proof": { "kind": "test", "ref": "429 with Retry-After" },
+      "evidence": "limiter.test.ts > 429 with Retry-After failed at lock time and passes in r3."
+    },
+    {
+      "index": 1,
+      "text": "Other tenants are not affected",
+      "state": "checked_by_you",
+      "proof": { "kind": "human", "ref": "try two tenants by hand" },
+      "evidence": "Checked by you at approval."
+    },
+    {
+      "index": 2,
+      "text": "The suite stays green",
+      "state": "passing",
+      "evidence": "The tests pass in r3, but no test showed it failing first."
+    }
+  ],
+  "loops": { "builds": 2, "handoffs": 1, "reviewRounds": 0 },
+  "limits": { "builds": 8, "handoffs": 3, "reviewRounds": 1, "usd": null, "minutes": 60 },
+  "spend": { "usd": 0.6103, "unpriced": 0 },
+  "minutes": 1.2,
+  "timeToFirstGreen": 54200,
+  "timeToApprovalRequest": 108500,
+  "approvalWait": 4500,
+  "leadTime": 113500,
+  "review": { "rounds": 1, "verdicts": ["approve"], "findings": { "total": 2, "bySeverity": { "blocker": 0, "major": 0, "minor": 1, "note": 1 } } },
+  "handoffs": [{ "from": "muse-code", "to": "stint-agent", "packetTokens": 412 }],
+  "afterMerge": {
+    "window": { "days": 7, "endsAt": "2026-11-02T15:02:05.500Z", "mature": false },
+    "reverted": false,
+    "followups": ["T-0050"],
+    "ci": { "status": "failure", "run": "1234" },
+    "incidents": ["Webhooks from one tenant were dropped for ten minutes"]
+  }
+}

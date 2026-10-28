@@ -7,6 +7,7 @@ import { DaemonError, type RunSummary, type TaskBundle, api } from '../api';
 import { localDate, localTime } from '../format';
 import { useTasks } from '../hooks';
 import { singleKey } from '../shortcuts';
+import { HowItWent } from './HowItWent';
 import { Button, Explain, Kbd, StatusChip, Who, cx } from './ui';
 
 const NOT_AT_THE_GATE: Record<string, string> = {
@@ -350,6 +351,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                   </form>
                 ) : (
                   <>
+                    {bundle.task.status === 'rejected' || bundle.task.status === 'abandoned' ? null : <HowItWent bundle={bundle} />}
                     <Button
                       ref={approveButton}
                       tone="primary"

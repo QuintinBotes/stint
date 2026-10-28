@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   HandoffSchema,
   MetricsSchema,
+  OutcomeSchema,
   PlanSchema,
   QuestionsSchema,
   ReviewSchema,
@@ -80,6 +81,7 @@ const cases = [
   { name: 'review', schema: ReviewSchema, examples: ['review'] },
   { name: 'skill-proposal', schema: SkillProposalSchema, examples: ['skill-proposal'] },
   { name: 'metrics', schema: MetricsSchema, examples: ['metrics'] },
+  { name: 'outcome', schema: OutcomeSchema, examples: ['outcome'] },
   { name: 'skill', schema: SkillFrontmatterSchema, examples: ['skill'] },
   { name: 'questions', schema: QuestionsSchema, examples: ['questions'] },
 ] as const;
