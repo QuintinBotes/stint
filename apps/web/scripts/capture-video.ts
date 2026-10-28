@@ -54,7 +54,8 @@ let daemon: ChildProcess | null = null;
 const browser = await chromium.launch();
 try {
   // a 1536x864 layout drawn at 1.25x fills 1080p with text a quarter larger and still sharp
-  const context = await browser.newContext({ viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1.25, recordVideo: { dir: outDir, size: { width: 1920, height: 1080 } } });
+  // the recorder captures the page at its CSS size and never scales up: record 1536x864, and ffmpeg makes it 1920x1080
+  const context = await browser.newContext({ viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1.25, recordVideo: { dir: outDir, size: { width: 1536, height: 864 } } });
   const page = await context.newPage();
   // the daemon starts replaying as soon as it is up, so the board opens the moment its URL is printed
   const proc = spawn('bun', [join(root, 'packages', 'cli', 'bin', 'stint'), 'demo', '--speed', String(speed), '--keep'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
@@ -103,11 +104,11 @@ try {
   await page.getByTestId('kpis').waitFor();
   await page.waitForTimeout(5000);
   // the Factory keeps its detail in named disclosures; the video opens the three it shows
-  for (const id of ['panel-relay', 'panel-models', 'panel-bench']) await page.getByTestId(id).locator('summary').click();
+  for (const id of ['panel-relay', 'panel-models', 'panel-bench']) await page.getByTestId(id).locator(':scope > summary').click();
   await scrollTo(page, 'panel-relay', 4500);
   await scrollTo(page, 'models-at-work', 4500);
   await scrollTo(page, 'panel-bench', 6000);
-  await page.getByTestId('panel-any-harness').locator('summary').click();
+  await page.getByTestId('panel-any-harness').locator(':scope > summary').click();
   await scrollTo(page, 'panel-any-harness', 5000);
   await page.setContent(END_CARD);
   await page.waitForTimeout(5000);
@@ -117,7 +118,7 @@ try {
   const webm = join(outDir, `stint-replay-${speed}x.webm`);
   if (video) renameSync(await video.path(), webm);
   const mp4 = webm.replace(/\.webm$/, '.mp4');
-  const ff = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', webm, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart', mp4], { stdio: 'inherit' });
+  const ff = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', webm, '-vf', 'scale=1920:1080:flags=lanczos', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '30', '-movflags', '+faststart', mp4], { stdio: 'inherit' });
   console.log(ff.status === 0 ? `Footage: ${mp4}` : `Footage: ${webm} (ffmpeg could not make the mp4)`);
 } finally {
   await browser.close();
