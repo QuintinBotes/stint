@@ -25,9 +25,12 @@ export function fakeModels() {
       const url = new URL(req.url);
       if (url.pathname === '/api/tags') return Response.json({ models: [{ name: 'fake', model: 'fake' }] });
       if (url.pathname === '/api/chat') {
-        const review = JSON.stringify((await req.json()) as unknown).includes('"verdict"');
-        asked.push(review ? 'review' : 'plan');
-        return Response.json({ message: { content: JSON.stringify(review ? APPROVE : PLAN) }, prompt_eval_count: 100, eval_count: 20 });
+        const body = JSON.stringify((await req.json()) as unknown);
+        // the pick among green candidates names the first one it was shown
+        const pick = body.includes('Pick the one a careful reviewer would merge') ? { pick: /### (T-\d+)/.exec(body)?.[1], reason: 'The first is as simple as the rest.' } : null;
+        const review = body.includes('"verdict"');
+        asked.push(pick ? 'pick' : review ? 'review' : 'plan');
+        return Response.json({ message: { content: JSON.stringify(pick ?? (review ? APPROVE : PLAN)) }, prompt_eval_count: 100, eval_count: 20 });
       }
       return new Response('no', { status: 404 });
     },

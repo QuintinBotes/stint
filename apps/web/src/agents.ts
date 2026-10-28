@@ -87,7 +87,17 @@ export const TEAM_NAMES: Record<Mark, string> = { meta: 'Meta', anthropic: 'Anth
 /** The ink of a host's spend: local for this machine, an agent's own vendor when it bills to its own account, else Meta's models wherever they are served. */
 export const hostMark = (host: string): Mark => (host === 'ollama' || host === 'local-cli' ? 'local' : host in ADAPTER_NAMES ? agentOf(host).mark : 'meta');
 
-export const ROLE_NAMES: Record<string, string> = { planner: 'plans', implementer: 'builds', reviewer: 'reviews' };
+export const ROLE_NAMES: Record<string, string> = {
+  planner: 'plans',
+  implementer: 'builds',
+  reviewer: 'reviews',
+  learn: 'learns skills',
+  quiz: 'checks packets',
+  digest: 'reads diffs',
+  pick: 'picks a candidate',
+  summary: 'writes card lines',
+  triage: 'sorts issues',
+};
 
 /** Replayed events carry their place in the story; show that instead of the moment they were appended. */
 export function storyClock(payload: Record<string, unknown>): string | null {

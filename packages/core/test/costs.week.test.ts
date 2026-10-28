@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
-import { appendFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { type Cost, Workspace, costs, localDay, weekOf } from '../src/node';
 import { tempDir } from './fixture';
 
@@ -153,6 +153,37 @@ test('Each run is billed to who answered it: Muse Code to the Meta Model API, an
   try {
     expect((await costs(ws, { group: 'host' })).map((r) => [r.key, r.usd])).toEqual([['claude-code', 0.5], ['codex', 0.2], ['fireworks', 0.1], ['meta-api', 0.3142]]);
     expect((await costs(ws, { group: 'model' })).map((r) => r.key)).toEqual(['claude-code/sonnet', 'codex/unknown', 'fireworks/muse-spark-open', 'meta-api/muse-spark-1.3']);
+  } finally {
+    cleanup();
+  }
+});
+
+test('The pick, the digest, board summaries and triage count in the week once each; a task total is still its runs', async () => {
+  const { ws, dir, cleanup } = await workspaceWith([
+    ...run('r1', '2026-10-27T09:00:00Z', '2026-10-27T09:10:00Z', priced(0.3)),
+    { type: 'cost.recorded', ts: '2026-10-27T09:11:00Z', payload: { for: 'digest', host: 'meta-api', model: 'muse-spark-1.3', cost: priced(0.004) } },
+    { type: 'bestofn.picked', ts: '2026-10-27T09:40:00Z', payload: { pick: 'T-0002', reason: 'simplest', host: 'fireworks', model: 'muse-spark-open', cost: priced(0.006) } },
+    // a pick with no reviewer answer cost nothing it can name
+    { type: 'bestofn.picked', ts: '2026-10-27T09:41:00Z', payload: { pick: 'T-0003', reason: 'no reviewer could pick' } },
+  ]);
+  try {
+    const log = join(dir, '.stint', 'workspace', 'events.jsonl');
+    mkdirSync(dirname(log), { recursive: true });
+    const line = (seq: number, ts: string, payload: Record<string, unknown>) => `${JSON.stringify({ id: `01M5WBKEC0WWWWWWWWWWWW${String(seq).padStart(4, '0')}`, seq, ts, task: 'workspace', vendor: 'daemon', type: 'cost.recorded', payload })}\n`;
+    appendFileSync(log, line(1, '2026-10-27T10:00:00Z', { for: 'summary', task: 'T-0001', host: 'ollama', model: 'muse-glimmer:30b-mlx', cost: priced(0) }));
+    appendFileSync(log, line(2, '2026-10-27T10:05:00Z', { for: 'triage', item: 'github-12', host: 'meta-api', model: 'muse-wonder-1.0', cost: priced(0.01) }));
+    appendFileSync(log, line(3, '2026-10-27T10:06:00Z', { for: 'triage', item: 'github-13', host: 'nowhere', model: 'unknown-model', cost: priced(null) }));
+    const rows = async (group: Parameters<typeof costs>[1]['group']) => (await costs(ws, { group })).map((r) => [r.key, r.usd, r.runs, r.unpriced]);
+    expect(await rows('task')).toEqual([['T-0001', 0.3, 1, 0]]);
+    expect(await rows('week')).toEqual([['2026-10-26', 0.32, 1, 1]]);
+    expect(await rows('run')).toEqual([
+      ['T-0001/digest', 0.004, 0, 0],
+      ['T-0001/pick', 0.006, 0, 0],
+      ['T-0001/r1', 0.3, 1, 0],
+      ['workspace/summary', 0, 0, 0],
+      ['workspace/triage', 0.01, 0, 1],
+    ]);
+    expect((await costs(ws, { group: 'model' })).find((r) => r.key === 'ollama/muse-glimmer:30b-mlx')).toMatchObject({ usd: 0, inputTokens: 1000, roles: ['summary'] });
   } finally {
     cleanup();
   }

@@ -47,7 +47,11 @@ ${diff}`;
       hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>,
       emit: (e) => ctx.ws.events(taskId).append({ task: taskId, vendor: 'daemon', type: e.type, payload: e.payload }).then(() => undefined),
       call: (h, model, c) => h.complete(Digest, prompt, { model, timeoutMs: c.timeoutMs, emit: c.emit }),
-    }).then((r) => (((r.value as { value?: z.infer<typeof Digest> }).value ?? r.value) as z.infer<typeof Digest>).summary);
+    }).then(async (r) => {
+      // recorded when the call answers, even after the cap gave up waiting: it was paid for either way
+      await ctx.ws.events(taskId).append({ task: taskId, vendor: 'daemon', type: 'cost.recorded', payload: { for: 'digest', host: r.host, model: r.model, cost: r.cost } });
+      return (((r.value as { value?: z.infer<typeof Digest> }).value ?? r.value) as z.infer<typeof Digest>).summary;
+    });
     const summary = await Promise.race([call, Bun.sleep(DIGEST_CAP_MS).then(() => null)]);
     return summary ? { summary } : null;
   } catch {

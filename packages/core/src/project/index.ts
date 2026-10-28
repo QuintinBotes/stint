@@ -183,7 +183,7 @@ export function latestHandoff(ws: Workspace, id: string): Promise<Handoff | null
 }
 
 /**
- * `runs` counts the row's runs; learn and quiz calls add spend but are not runs. `unpriced` counts the runs and calls
+ * `runs` counts the row's runs; other model calls (learn, quiz, pick, digest, board summary, triage) add spend but are not runs. `unpriced` counts the runs and calls
  * with no price: their spend is unknown, so it is not in `usd` and not $0.
  */
 export type CostRow = Cost & { key: string; runs: number; unpriced: number; creditsLeft?: number; derived?: true; roles?: string[] };
@@ -201,7 +201,11 @@ export type CostGroup = 'task' | 'run' | 'day' | 'week' | 'host' | 'model' | 'da
 
 type Spend = { at: string; key: string; host: string | null; adapter: string | null; model: string | null; role: string | null; cost: Cost | null; run: boolean };
 
-/** Model calls that are not runs and record their cost on one event each: the learn step and both sides of a packet quiz. */
+/**
+ * Model calls that are not runs and record their cost on one event each: the learn step, both sides of a packet quiz,
+ * the autopilot's pick among candidates, and `cost.recorded` for the rest (a packet digest in a task's log; a board
+ * summary or an intake triage in the workspace log, which `task` names as `workspace`).
+ */
 function callsFromEvents(task: string, events: StintEvent[]): Spend[] {
   const out: Spend[] = [];
   const call = (e: StintEvent, role: string, side: Record<string, unknown> | undefined, key: string) => {
@@ -210,31 +214,37 @@ function callsFromEvents(task: string, events: StintEvent[]): Spend[] {
   for (const e of events) {
     if (e.type === 'skill.proposed') call(e, 'learn', e.payload, `${task}/learn`);
     if (e.type === 'handoff.quizzed') for (const side of ['writer', 'answerer']) call(e, 'quiz', e.payload[side] as Record<string, unknown> | undefined, `${task}/quiz`);
+    if (e.type === 'bestofn.picked') call(e, 'pick', e.payload, `${task}/pick`);
+    if (e.type === 'cost.recorded') call(e, String(e.payload.for), e.payload, `${task}/${String(e.payload.for)}`);
   }
   return out;
 }
 
 /**
  * Cost rows across every task. A run counts once, when its `run.finished` lands, and a run still going counts nothing
- * yet; `day` is the local date it ended and `week` the local Monday-to-Sunday week, keyed by its Monday. Week and day
- * totals include learn and quiz spend; a task's total is its runs, so the `task` grouping leaves them out.
+ * yet; `day` is the local date it ended and `week` the local Monday-to-Sunday week, keyed by its Monday. Every other
+ * grouping includes the calls that are not runs; a task's total is its runs, so the `task` grouping leaves them out.
  */
 export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<CostRow[]> {
   const groups = new Map<string, Spend[]>();
   const roles = new Map<string, Set<string>>();
+  const add = (task: string, list: Spend[]) => {
+    for (const s of list) {
+      const day = localDay(s.at);
+      const host = billingHost(s.host, s.adapter);
+      const key = { task, run: s.key, day, week: weekOf(s.at), host, model: `${host}/${s.model ?? 'unknown'}`, 'day-host': `${day}|${host}` }[o.group];
+      const rows = groups.get(key) ?? [];
+      rows.push(s);
+      groups.set(key, rows);
+      if (s.role) roles.set(key, new Set([...(roles.get(key) ?? []), s.role]));
+    }
+  };
   for (const task of await ws.listTasks()) {
     const events = await ws.events(task.id).read();
     const runs: Spend[] = runsFromEvents(events).flatMap((r) => (r.endedAt ? [{ at: r.endedAt, key: `${task.id}/${r.run}`, host: r.host, adapter: r.adapter, model: r.model, role: r.role, cost: r.cost, run: true }] : []));
-    for (const s of o.group === 'task' ? runs : [...runs, ...callsFromEvents(task.id, events)]) {
-      const day = localDay(s.at);
-      const host = billingHost(s.host, s.adapter);
-      const key = { task: task.id, run: s.key, day, week: weekOf(s.at), host, model: `${host}/${s.model ?? 'unknown'}`, 'day-host': `${day}|${host}` }[o.group];
-      const list = groups.get(key) ?? [];
-      list.push(s);
-      groups.set(key, list);
-      if (s.role) roles.set(key, new Set([...(roles.get(key) ?? []), s.role]));
-    }
+    add(task.id, o.group === 'task' ? runs : [...runs, ...callsFromEvents(task.id, events)]);
   }
+  if (o.group !== 'task') add('workspace', callsFromEvents('workspace', await ws.workspaceEvents().read()));
   return [...groups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, list]) => ({

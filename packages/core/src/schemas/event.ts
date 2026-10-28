@@ -61,6 +61,7 @@ export const EVENT_TYPES = [
   'escalation.triggered',
   'provider.fallback',
   'cost.unpriced',
+  'cost.recorded',
   'runtime.unclassified',
 ] as const;
 

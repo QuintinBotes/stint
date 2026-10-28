@@ -73,6 +73,12 @@ test('A fake gh returning two issues creates two intake items, triage marks one 
       // the model named a task it was not shown as well; only the one it was shown survives
       expect(items.find((i) => i.id === 'github-41')?.triage).toMatchObject({ duplicates: [existing.id], size: 'S' });
       expect(items.find((i) => i.id === 'github-42')?.triage?.duplicates).toEqual([]);
+      // an item is not a task yet, so each triage's cost is in the workspace log
+      const spent = (await d.ws.workspaceEvents().read()).filter((e) => e.type === 'cost.recorded');
+      expect(spent.map((e) => [e.payload.for, e.payload.item, e.payload.host, (e.payload.cost as { inputTokens: number }).inputTokens]).sort()).toEqual([
+        ['triage', 'github-41', 'ollama', 50],
+        ['triage', 'github-42', 'ollama', 50],
+      ]);
 
       const accepted = (await (await post('/api/intake/github-42/accept', {})).json()) as { task: string };
       const task = await d.ws.readTask(accepted.task);

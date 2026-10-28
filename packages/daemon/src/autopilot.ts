@@ -1,5 +1,5 @@
 import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
-import type { Config, StintEvent, Task } from '@stint-dev/core';
+import type { Config, Cost, StintEvent, Task } from '@stint-dev/core';
 import { runsFromEvents } from '@stint-dev/core/node';
 import { z } from 'zod';
 import { lockAcceptance } from './acceptance';
@@ -72,7 +72,7 @@ function specifyStep(tail: StintEvent[]): Step {
  * The pick among green candidates: one green candidate wins outright; several are judged by the reviewer chain
  * on their diffs, and if no reviewer can answer, the smaller change wins.
  */
-export async function pickCandidate(ctx: DaemonContext, parent: string, green: Array<{ id: string; branch: string }>): Promise<{ pick: string; reason: string }> {
+export async function pickCandidate(ctx: DaemonContext, parent: string, green: Array<{ id: string; branch: string }>): Promise<{ pick: string; reason: string; spent?: { host: string; model: string; cost: Cost } }> {
   if (green.length === 1) return { pick: (green[0] as { id: string }).id, reason: 'the only candidate whose tests were green' };
   const task = await ctx.ws.readTask(parent);
   const diffs: Array<{ id: string; diff: string; lines: number }> = [];
@@ -81,6 +81,7 @@ export async function pickCandidate(ctx: DaemonContext, parent: string, green: A
     diffs.push({ id: g.id, diff: diff.slice(0, 6000), lines: diff.split('\n').filter((l) => /^[+-][^+-]/.test(l)).length });
   }
   const smallest = [...diffs].sort((a, b) => a.lines - b.lines)[0] as (typeof diffs)[number];
+  let spent: { host: string; model: string; cost: Cost } | undefined;
   try {
     const prompt = `Several agents built the same task and all of their tests pass. Pick the one a careful reviewer would merge: correct, simplest, consistent with the codebase. Answer with its id and one sentence why.\n\nTask: ${task.title}. ${task.goal}\n\n${diffs.map((d) => `### ${d.id}\n${d.diff}`).join('\n\n')}`;
     const r = await walkChain<{ value: { pick: string; reason: string } }>({
@@ -90,11 +91,13 @@ export async function pickCandidate(ctx: DaemonContext, parent: string, green: A
       call: (h, model, c) => h.complete(PickSchema, prompt, { model, timeoutMs: c.timeoutMs, emit: c.emit }),
     });
     const v = ((r.value as { value?: { pick: string; reason: string } }).value ?? r.value) as { pick: string; reason: string };
-    if (diffs.some((d) => d.id === v.pick)) return { pick: v.pick, reason: `${v.reason} (${r.host}/${r.model})` };
+    // the answer was paid for even when it names no candidate
+    spent = { host: r.host, model: r.model, cost: r.cost };
+    if (diffs.some((d) => d.id === v.pick)) return { pick: v.pick, reason: `${v.reason} (${r.host}/${r.model})`, spent };
   } catch {
     // no reviewer could answer: the smaller change is the safer pick
   }
-  return { pick: smallest.id, reason: `no reviewer could pick, so the smaller change (${smallest.lines} changed lines) was taken` };
+  return { pick: smallest.id, reason: `no reviewer could pick, so the smaller change (${smallest.lines} changed lines) was taken`, ...(spent ? { spent } : {}) };
 }
 
 /**
@@ -512,12 +515,12 @@ export class Autopilot {
           if (states.some((x) => !x.done)) return;
           const green = states.filter((x) => x.green);
           if (green.length === 0) return this.stop(id, `Needs you: no candidate of ${s.candidates.join(', ')} went green.`, true);
-          const { pick, reason } = await pickCandidate(this.ctx, id, green);
+          const { pick, reason, spent } = await pickCandidate(this.ctx, id, green);
           for (const x of states) await ws.writeTask(x.id, { status: 'abandoned' });
           const picked = states.find((x) => x.id === pick) as (typeof states)[number];
           const parent = await ws.readTask(id);
           await gitOk(ws.root, ['branch', '-f', parent.branch, picked.branch]);
-          await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'bestofn.picked', payload: { pick, reason, candidates: states.map((x) => ({ id: x.id, green: x.green })) } });
+          await this.ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'bestofn.picked', payload: { pick, reason, ...spent, candidates: states.map((x) => ({ id: x.id, green: x.green })) } });
           continue;
         }
         if (s.kind === 'children') {

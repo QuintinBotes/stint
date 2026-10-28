@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { costs } from '@stint-dev/core/node';
 import type { Adapter, RunResult } from '../src/index';
 import { git } from '../src/git';
 import { fakeModels, setup, steps, stopped, task, until } from './autopilot.fixtures';
@@ -61,6 +62,24 @@ test('bestOf with no green candidate stops the parent with Needs you', async () 
       const events = await until(ws, t.id, stopped, 120_000);
       expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toMatchObject({ needsYou: true });
       expect(String(events.find((e) => e.type === 'autopilot.stopped')?.payload.reason)).toStartWith('Needs you: no candidate of ');
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);
+
+test('With two green candidates the reviewer picks, and its cost is on bestofn.picked and in the week', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [writes('muse-code', 60), writes('stint-agent', 60)], models, { implementers: ['muse-code', 'stint-agent'], maxHops: 0, parallel: 2, bestOf: 2 });
+      const t = await ws.createTask(task("grep -q 'LIMIT = 60' src/lib/limiter.ts"));
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped, 120_000);
+      const [first] = (events.find((e) => e.type === 'bestofn.started')?.payload as { candidates: string[] }).candidates;
+      expect(models.asked).toContain('pick');
+      expect(events.find((e) => e.type === 'bestofn.picked')?.payload).toMatchObject({ pick: first, host: 'ollama', model: 'fake', cost: { inputTokens: 100, outputTokens: 20, usd: 0 } });
+      expect((await costs(ws, { group: 'run' })).find((r) => r.key === `${t.id}/pick`)).toMatchObject({ inputTokens: 100, runs: 0 });
     });
   } finally {
     models.stop();

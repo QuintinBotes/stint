@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
+import { daemonContext, digestFrom } from '../src/index';
 import { makeApp, newTask, post, withFixtureRepo } from './helpers';
 
 type SummaryAnswer = { summary: string; seq: number; source: string; host?: string; model?: string };
@@ -55,9 +56,15 @@ test('A card summary comes from the local model and is cached by event seq', asy
       expect(existsSync(cachedPath)).toBe(true);
       expect(JSON.parse(readFileSync(cachedPath, 'utf8'))).toMatchObject({ summary: 'The limiter work is under way.', seq, source: 'model' });
 
+      // the call's cost is in the workspace log, so the task's log, and with it the card's cache key, is unchanged
+      expect((await ws.events(t.id).read()).at(-1)?.seq).toBe(seq);
+      const spent = (await ws.workspaceEvents().read()).filter((e) => e.type === 'cost.recorded');
+      expect(spent.map((e) => e.payload)).toEqual([{ for: 'summary', task: t.id, host: 'ollama', model: 'fake', cost: { inputTokens: 40, cachedTokens: 0, outputTokens: 8, usd: 0 } }]);
+
       const second = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
       expect(second).toEqual(first);
       expect(models.chats()).toBe(1);
+      expect((await ws.workspaceEvents().read()).filter((e) => e.type === 'cost.recorded')).toHaveLength(1);
 
       await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'agent.message', payload: { text: 'Wired the limiter in.' } });
       const third = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
@@ -140,5 +147,26 @@ test('A pulled model that is not loaded is never loaded for a card: the summary 
     } finally {
       models.stop();
     }
+  }
+}, 60_000);
+
+test("A killed run's diff digest records its cost on the task's log once the model answers", async () => {
+  const models = fakeModels('The limiter constant is in; nothing calls it yet.');
+  try {
+    await withFixtureRepo(async (repo) => {
+      writeConfig(repo, (config) => {
+        pointOllamaAt(models.url)(config);
+        config.routes.summary = ['ollama/fake'];
+      });
+      const { app, ws } = await makeApp(repo);
+      const t = await ws.createTask(newTask);
+      const ctx = daemonContext(app);
+      ctx.worktrees.diff = async () => '+++ b/src/lib/limiter.ts\n+export const LIMIT = 60;\n';
+      expect(await digestFrom(ctx, t.id)).toEqual({ summary: 'The limiter constant is in; nothing calls it yet.' });
+      const spent = (await ws.events(t.id).read()).filter((e) => e.type === 'cost.recorded');
+      expect(spent.map((e) => e.payload)).toEqual([{ for: 'digest', host: 'ollama', model: 'fake', cost: { inputTokens: 40, cachedTokens: 0, outputTokens: 8, usd: 0 } }]);
+    });
+  } finally {
+    models.stop();
   }
 }, 60_000);

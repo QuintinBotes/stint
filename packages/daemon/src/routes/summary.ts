@@ -114,6 +114,8 @@ ${eventLines(events)}`;
         hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>,
         call: (h, model, callCtx) => h.complete(Summary, prompt, { model, timeoutMs: callCtx.timeoutMs, emit: callCtx.emit }),
       });
+      // in the workspace log, not the task's: a card line is not task activity, and a task event would ask for another line
+      await ctx.ws.workspaceEvents().append({ task: 'workspace', vendor: 'daemon', type: 'cost.recorded', payload: { for: 'summary', task: id, host: result.host, model: result.model, cost: result.cost } });
       const value = ((result.value as { value?: SummaryValue }).value ?? result.value) as SummaryValue;
       const summary = value.summary.trim().slice(0, 400);
       if (!summary) return c.json(fallback());

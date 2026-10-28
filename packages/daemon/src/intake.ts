@@ -125,7 +125,9 @@ export async function triage(ctx: DaemonContext, item: IntakeItem): Promise<Inta
       hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>,
       call: (h, model, c) => h.complete(TriageSchema, prompt, { model, timeoutMs: c.timeoutMs, emit: c.emit }),
     });
-    const v = ((r.value as { value?: z.infer<typeof TriageSchema> }).value ?? r.value) as z.infer<typeof TriageSchema>;
+    // an item is not a task yet, so its triage is spend in the workspace log
+    await ctx.ws.workspaceEvents().append({ task: 'workspace', vendor: 'daemon', type: 'cost.recorded', payload: { for: 'triage', item: item.id, host: r.host, model: r.model, cost: r.cost } });
+    const v =((r.value as { value?: z.infer<typeof TriageSchema> }).value ?? r.value) as z.infer<typeof TriageSchema>;
     const offered = new Set(candidates.map((c) => c.id));
     const next: IntakeItem = { ...item, triage: { ...v, duplicates: v.duplicates.filter((d) => offered.has(d)), model: `${r.host}/${r.model}` } };
     delete next.triageError;

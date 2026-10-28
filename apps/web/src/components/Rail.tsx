@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import { useParams } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
 import { type RunSummary, api } from '../api';
-import { duration, localTime } from '../format';
+import { duration, localTime, money } from '../format';
 import { useHealth } from '../hooks';
 import { Button, type ChipTone, CostMeter, EmptyState, StatusChip, Who, cx } from './ui';
 
@@ -180,6 +180,12 @@ export function describe(e: StintEvent): ReactNode {
       return <>Fell back from {str(p.from)} to {str(p.to)} ({str(p.reason)})</>;
     case 'runtime.unclassified':
       return <span className="text-ink-2">Unclassified output ({str(p.originalType)})</span>;
+    case 'cost.recorded':
+      return (
+        <>
+          {modelName(str(p.model))} {p.for === 'digest' ? 'read the diff to write the packet' : `answered (${str(p.for)})`}, {money(p.cost as Parameters<typeof money>[0])}
+        </>
+      );
     case 'escalation.triggered':
       return p.unavailable ? (
         <>

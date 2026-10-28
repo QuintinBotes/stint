@@ -89,7 +89,7 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
           title={
             health?.mode === 'replay'
               ? `What the replayed runs cost when they were recorded${health.replay?.recordedAt ? ` on ${localDate(health.replay.recordedAt)}` : ''}; replaying costs nothing.`
-              : 'What finished runs, learn steps and packet quizzes cost from Monday 00:00 to Sunday 24:00 local time; summaries, digests, triage and autopilot picks are not counted yet.'
+              : 'What every model call cost from Monday 00:00 to Sunday 24:00 local time: runs, and the learn step, packet quiz, digest, autopilot pick, board summaries and triage.'
           }
         >
           {health?.mode === 'replay' ? 'Replayed spend' : 'This week'} <b className="text-ink font-semibold">{week === null ? 'not known yet' : money(week)}</b>
