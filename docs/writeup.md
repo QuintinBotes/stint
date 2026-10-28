@@ -26,9 +26,11 @@ Coding agents are good at a task until the session ends: the context fills up, t
 
 The packet is the core; the rest of Stint is the loop that makes it safe to leave agents running:
 
-- **Verification an agent cannot fake.** The test files a task names are locked at plan time, and held-out scenarios run in a checkout the agent never sees. The verification tab says "33 passed, tests unchanged".
+- **Verification an agent cannot fake.** The test files a task names are locked at plan time, and held-out scenarios run in a checkout the agent never sees. The Tests tab says "33 passed, tests unchanged, run by Stint".
 - **Hand-offs that get smarter.** Repeated failure escalates to a stronger model or another agent. Best of n keeps the best green candidate. No model reviews its own work, and review runs per lens.
 - **Plans that remember.** The planner reads similar tasks and the decisions on the files it will touch, and splits big tasks into subtasks run in dependency order.
+- **A clear start, and limits you set.** Before work starts, Sharpen asks the few questions whose answers change what gets built, recommends an answer to each, and records yours as decisions every later run keeps. Each task has limits on builds, hand-offs, review rounds, spend and agent time, and autopilot stops and asks before it would pass one. A goal above tasks is split into tasks you check first, with limits across all of them.
+- **How each task went.** Each acceptance criterion reads proven, passing, failing or yours to check, and a passing test proves it only if that test failed before the change. The record adds the loops, the spend and what happened after merge, and a goal rolls up from its tasks.
 - **Learning that is measured.** A learned skill starts on probation with an eval with and without it, and is proposed for retirement if it hurts. Golden tasks report pass@1 and pass^3.
 - **After merge and at the boundary.** Reverts, follow-ups and failing CI are linked back to the task. Keys stay in the daemon, egress is default-deny, every change gets a risk tier, and an auto-approve lane must earn its place on a shadow record.
 - **Any harness.** Muse Code and the Stint agent by default. Claude Code, Codex and any Agent Client Protocol agent are off-by-default config entries, all writing the same packet. A scoreboard can route by results, and OpenTelemetry traces go to any eval tool.
