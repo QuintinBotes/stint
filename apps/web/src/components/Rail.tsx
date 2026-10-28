@@ -318,7 +318,7 @@ function EventRow({ e, selected, expanded, tabStop, onActivate }: { e: StintEven
         onClick={(ev) => onActivate(e.seq, ev.detail === 0)}
         className={cx(
           'w-full text-left grid grid-cols-[64px_minmax(0,1fr)] gap-2 px-1.5 py-1 rounded-[3px] text-small',
-          selected ? 'bg-panel-2 shadow-[inset_0_0_0_1px_var(--rule-strong)]' : (tint ?? 'hover:bg-panel-2'),
+          selected ? 'bg-panel-2 shadow-[inset_0_0_0_1px_var(--rule-strong)] forced-colors:outline' : (tint ?? 'hover:bg-panel-2'),
           marked && 'font-medium',
         )}
       >

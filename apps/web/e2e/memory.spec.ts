@@ -25,7 +25,7 @@ test('No two labels in the T-0042 graph overlap and each stays inside the graph;
   const { frame, labels, nodes } = await graph.evaluate((svg) => ({
     frame: svg.getBoundingClientRect().toJSON() as DOMRect,
     labels: [...svg.querySelectorAll('text')].map((t) => ({ text: t.textContent, ...(t.getBoundingClientRect().toJSON() as DOMRect) })),
-    nodes: [...svg.querySelectorAll('[data-node] > circle')].map((c) => c.getBoundingClientRect().toJSON() as DOMRect),
+    nodes: [...svg.querySelectorAll('[data-node] > circle, [data-node] > [data-mark]')].map((c) => c.getBoundingClientRect().toJSON() as DOMRect),
   }));
   expect(labels.length).toBeGreaterThan(5);
   // the learned skill is the story's payoff; a long name still finds room above or below its node

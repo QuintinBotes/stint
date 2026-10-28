@@ -7,19 +7,21 @@ colors:
   panel: "#0b3a5f"
   panel-2: "#1b486d"
   rule: "#30597d"
-  rule-strong: "#52789c"
+  rule-strong: "#6e95ba"
+  field: "#7798ba"
   ink: "#eef3f8"
-  ink-2: "#c0d1e2"
-  ink-3: "#a9bfd6"
-  vendor-meta: "#8fcaff"
-  vendor-anthropic: "#f5ab7e"
-  vendor-openai: "#74e3c3"
+  ink-2: "#cddff0"
+  ink-3: "#b4cbe2"
+  vendor-meta: "#4499ff"
+  vendor-anthropic: "#e89f72"
+  vendor-openai: "#5fd8b2"
   vendor-local: "#d3dce5"
-  state-amber: "#ffcb62"
-  state-green: "#6ddc9c"
-  state-red: "#ff958a"
-  state-violet: "#cdb5ff"
+  state-amber: "#ffe040"
+  state-green: "#93ffe0"
+  state-red: "#fe9890"
+  state-violet: "#d5c5ff"
   terminal: "#001d36"
+  focus: "#ffcb62"
 typography:
   title:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
@@ -74,7 +76,7 @@ components:
     textColor: "{colors.ink-3}"
     rounded: "{rounded.control}"
   chip-needs-you:
-    backgroundColor: "rgba(255,203,98,.13)"
+    backgroundColor: "rgba(255,224,64,.13)"
     textColor: "{colors.state-amber}"
     rounded: "{rounded.tag}"
     height: "24px"
@@ -100,10 +102,35 @@ Copy is the product's own: task, run, packet, decision, finding, skill, verify, 
 
 Blueprint is the only look: Prussian blue ground (oklch 0.30 0.075 247) with surfaces stepped up in lightness on the same hue, and near-white linework ink.
 
-- **Vendor inks** mark who did the work, on rail segments, run blocks, revision cells, and spend bars. They are always paired with a name, never alone.
+- **Vendor inks** mark who did the work, on rail segments, run blocks, revision cells, and spend bars. They are marks, never text, and always paired with a name, never alone. Meta is a mid blue, darker than every state ink, so a Meta run never reads as a learned skill.
 - **State inks** carry meaning only: amber means it needs you, green means verified, red means stopped or killed, and violet means learned.
 - A recommendation is not a state. It uses an ink-outline chip, not green.
-- Every text ink passes 4.5:1 on ground, panel, and panel-2.
+
+### Contrast
+
+- Every text ink (ink, ink-2, ink-3, each state ink, term-ink) passes 4.5:1 on every surface it sits on: shell, ground, panel, panel-2, the terminal, and a state ink on its own wash.
+- ink-3 carries most 13px text, so it passes 7:1 on shell, ground, panel and the terminal. On panel-2 and the tinted rail rows it passes 4.9:1 or better; 7:1 there would make it as light as ink-2.
+- Every mark passes 3:1 on the surface it sits on: rule-strong (block edges, a selected row's outline), field (an input's edge), focus, a meter's fill, a chip's outline, and each vendor ink. On-ink labels set on a vendor bar pass 4.5:1.
+- `prefers-contrast: more` raises ink-2, ink-3, rule, rule-strong and field; ink-3 then passes 7:1 on panel-2 too.
+- In Windows High Contrast (`forced-colors: active`), focus is a system-coloured outline, chips keep a border, meters keep their bar, the selected tab and page keep an underline, and a selected diff line keeps an outline.
+
+### Colour vision
+
+The state inks differ in lightness as well as hue: green (L* 93) and amber (89) are the lightest, violet (83) sits in the middle, and red (73) is the darkest, a coral red that stays apart from green for people without red or green cones (a more orange red measured closer to amber). Measured with CIEDE2000 on Machado 2009 simulations at full severity:
+
+- every pair of state inks is at least 17.5 apart under protanopia, deuteranopia and tritanopia (it was 4.8), and green and red are 13 apart with no colour at all;
+- 20 for every pair is out of reach while every state ink also reads at 4.5:1 on panel-2: that floor keeps all four between L* 73 and 93, too narrow for four steps that differ by lightness alone;
+- the vendor inks are at least 12 apart under protanopia, deuteranopia and tritanopia (the closest pair, openai and local under deuteranopia, is 12.3; the closest was 7.1), and Meta is at least 14.9 from violet (it was 0.6 under deuteranopia). With no colour at all the vendor inks are close, which is why each carries a name.
+
+### Never by colour alone
+
+Colour repeats what words or shapes already say (WCAG 1.4.1), so the screen reads the same in greys:
+
+- a state is a word on its chip ("needs you", "killed", "36 passed"), and a reached limit says ", reached" beside its amber bar;
+- the diff marks each changed line with + or -, not only its wash;
+- in the memory graph a decision is a square, a finding a diamond, a file a ring, a skill a named pill, and the rest are dots, with the same marks in the legend; a contradiction is a dashed line;
+- a spend bar draws its parts in the legend's order with a gap between them, planning and review calls are a hollow box, and the cost legend says each host's spend in words;
+- a vendor ink always sits beside the agent's or model's name.
 
 ## Typography
 
@@ -166,4 +193,5 @@ Opacity changes driven by the scrubber fade over 220ms ease-out. That motion is 
 - Don't add drafting texture, grid paper, or sheet borders with zone letters; that is a costume of the world.
 - Don't use green for anything but verified.
 - Don't rename product concepts with a metaphor.
-- Do keep the code-review convention in a diff: a green wash on added lines and a red wash on removed ones is notation for code, not a state.
+- Do keep the code-review convention in a diff: a green wash and a + on added lines, a red wash and a - on removed ones, is notation for code, not a state.
+- Don't let a colour carry meaning on its own; say it in a word or a shape too.

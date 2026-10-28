@@ -31,8 +31,9 @@ export function Meter({ id, word, value, used, cap, reached = false, note = '', 
         {reached ? ', reached' : ''}
       </span>
       {cap === null ? null : (
-        <span aria-hidden="true" className="inline-block w-12 h-1 bg-rule">
-          <span className={cx('block h-full', reached ? 'bg-amber' : 'bg-ink')} style={{ width: `${Math.min(100, cap > 0 ? (used / cap) * 100 : 100)}%` }} />
+        // in Windows High Contrast the fill keeps the system's text colour and the track an outline, so the bar does not vanish
+        <span aria-hidden="true" className="inline-block w-12 h-1 bg-rule forced-colors:outline">
+          <span className={cx('block h-full forced-color-adjust-none forced-colors:bg-[CanvasText]', reached ? 'bg-amber' : 'bg-ink')} style={{ width: `${Math.min(100, cap > 0 ? (used / cap) * 100 : 100)}%` }} />
         </span>
       )}
     </li>

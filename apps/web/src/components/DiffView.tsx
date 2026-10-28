@@ -418,6 +418,10 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
                   // the high-contrast highlight themes keep every token at 4.5:1 on its line, added and removed lines included
                   theme: { dark: 'github-dark-high-contrast', light: 'github-light-high-contrast' },
                   themeType: 'dark',
+                  // a + or - beside each changed line, so an addition and a removal differ by more than their wash
+                  diffIndicators: 'classic',
+                  // Windows High Contrast drops the selected line's wash, so the line keyboard comments go to keeps an outline
+                  unsafeCSS: '@media (forced-colors: active) { [data-selected-line] { outline: 2px solid Highlight; outline-offset: -2px; } }',
                   // wrapped lines keep the code out of a scrollable region a keyboard cannot reach
                   overflow: 'wrap',
                   disableFileHeader: true,

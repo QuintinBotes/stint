@@ -32,6 +32,8 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
           // the WebGL renderer draws to a canvas; this keeps the rows readable by screen readers
           screenReaderMode: true,
           theme: { background: token('--term'), foreground: token('--term-ink'), cursor: token('--term-ink') },
+          // xterm shifts any colour a program prints until it reads at 4.5:1 on the terminal ground
+          minimumContrastRatio: 4.5,
         });
         const fit = new FitAddon();
         term.loadAddon(fit);
