@@ -14,8 +14,10 @@ test('Approve is offered only while the task waits at the gate', async ({ page }
   // the same task, green and reviewed, but building again after a request for changes: the gate stays shut
   await page.route('**/api/tasks/T-0043', async (route) => {
     const res = await route.fetch();
-    const bundle = (await res.json()) as { task: Record<string, unknown> };
+    const bundle = (await res.json()) as { task: Record<string, unknown>; runs: Array<Record<string, unknown>> };
     bundle.task.status = 'building';
+    // a run is live: the last one has not ended
+    (bundle.runs.at(-1) as Record<string, unknown>).endedAt = null;
     await route.fulfill({ response: res, json: bundle });
   });
   await page.reload();

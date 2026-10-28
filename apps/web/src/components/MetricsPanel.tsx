@@ -92,7 +92,7 @@ function Measure({ m }: { m: MetricValue }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 py-2 border-b border-rule" data-testid="metric" data-metric={m.id}>
       <dt className="min-w-0">
-        <a href={definitionUrl(m.id)} target="_blank" rel="noreferrer" className="no-underline hover:underline" data-testid="metric-link">
+        <a href={definitionUrl(m.id)} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-6 no-underline hover:underline" data-testid="metric-link">
           {plain?.label ?? m.label}
           <span className="sr-only">, opens its definition</span>
         </a>

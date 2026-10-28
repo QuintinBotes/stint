@@ -172,6 +172,8 @@ export function TaskView() {
   const autopilot = useMemo(() => {
     const last = events.filter((e) => e.type.startsWith('autopilot.')).at(-1);
     if (!last) return { on: false, text: null as string | null };
+    // a stop at a limit is spelled out once, in the stop panel under the meters (R-062)
+    if (last.type === 'autopilot.stopped' && last.payload.limit) return { on: false, text: 'stopped at a limit; it needs you.' };
     return { on: last.type !== 'autopilot.stopped', text: typeof last.payload.reason === 'string' ? last.payload.reason : last.type === 'autopilot.started' ? 'Starting.' : null };
   }, [events]);
   const pendingPermissions = useMemo(() => {

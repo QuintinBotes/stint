@@ -12,7 +12,8 @@ const METERS: Array<{ k: LimitName; word: string }> = [
 ];
 const NAME: Record<LimitName, string> = { builds: 'build', handoffs: 'hand-off', reviewRounds: 'review round', usd: 'spend', minutes: 'agent time' };
 const MAX: Record<LimitName, number> = { builds: 50, handoffs: 20, reviewRounds: 10, usd: 1000, minutes: 1440 };
-const show = (k: LimitName, v: number) => (k === 'usd' ? money({ usd: v }) : String(Math.round(v)));
+// agent time under 10 minutes keeps one decimal, so a 20 s run reads 0.3 min, not 0
+const show = (k: LimitName, v: number) => (k === 'usd' ? money({ usd: v }) : k === 'minutes' && v > 0 && v < 10 ? String(Math.round(v * 10) / 10) : String(Math.round(v)));
 
 /**
  * The task's limits in the title block (R-062): one row of meters, used of cap, and when autopilot stopped at a limit,

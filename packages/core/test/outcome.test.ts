@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { DEFAULT_CONFIG, OutcomeSchema, type StintEvent, type Task, outcome, outcomeLine, taskUsage } from '../src/index';
+import { DEFAULT_CONFIG, OutcomeSchema, type StintEvent, type Task, durationWords, outcome, outcomeLine, taskUsage } from '../src/index';
 import type { VerificationRecord } from '../src/node';
 import { example } from './ajv';
 
@@ -125,6 +125,8 @@ describe('R-063 Acceptance: outcome() on fixtures', () => {
   test('loops, spend, limits, review and hand-offs come from the log', () => {
     const r2 = build('r2', 5, 'red', ['x'], 0.21);
     const r3 = build('r3', 10, 'green', [], 0.4);
+    // r3 is the hand-off: the Stint agent starts from r2's packet
+    r3.events[0] = { ...(r3.events[0] as StintEvent), adapter: 'stint-agent', payload: { role: 'implementer', handoffFrom: 'h1' } };
     const events = [
       ...r2.events,
       ev(9, 'autopilot.step', { step: 'hand' }),
@@ -143,4 +145,8 @@ describe('R-063 Acceptance: outcome() on fixtures', () => {
     expect(outcomeLine(o)).toBe('2 builds, 1 hand-off, $0.61 plus 1 unpriced call, 13 min to green');
     expect(taskUsage(events).builds).toBe(2);
   });
+});
+
+test('durationWords keeps a unit and never says 0 for time that passed', () => {
+  expect([durationWords(0), durationWords(400), durationWords(23_000), durationWords(14 * 60_000), durationWords(3 * 3_600_000), durationWords(3 * 86_400_000)]).toEqual(['0 s', 'under 1 s', '23 s', '14 min', '3 h', '3 days']);
 });

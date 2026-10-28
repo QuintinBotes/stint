@@ -50,7 +50,7 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
   return (
     <header className="shrink-0 flex flex-wrap items-center gap-x-5 gap-y-2 min-h-[52px] px-4 md:px-6 py-2 bg-shell border-b border-rule">
       <div className="flex items-baseline gap-2.5 min-w-0">
-        <Link to="/" className="text-section tracking-[-0.01em] no-underline">
+        <Link to="/" className="inline-flex items-center min-h-6 text-section tracking-[-0.01em] no-underline">
           Stint
         </Link>
         {health?.repo ? (

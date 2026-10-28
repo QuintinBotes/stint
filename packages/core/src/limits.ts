@@ -30,7 +30,8 @@ export function effectiveLimits(task: Pick<Task, 'limits' | 'budgets'>, config: 
 
 /**
  * What a task has used over its whole log, not since autopilot was last switched on, so a restart resets nothing.
- * A build is an implementer run that ended, not one adopted from a best-of-n candidate; spend is the task's runs and
+ * A build is an implementer run that ended, not one adopted from a best-of-n candidate; a hand-off is one that started
+ * from a packet; spend is the task's runs and
  * its other model calls as `costs()` counts them; agent time counts a run still going up to `now`.
  */
 export function taskUsage(events: StintEvent[], now = Date.now()): TaskUsage {
@@ -42,18 +43,18 @@ export function taskUsage(events: StintEvent[], now = Date.now()): TaskUsage {
   const open = new Map<string, StintEvent>();
   let ms = 0;
   for (const e of events) {
-    if (e.type === 'run.started' && e.run) open.set(e.run, e);
-    else if (e.type === 'run.finished' && e.run) {
+    if (e.type === 'run.started' && e.run) {
+      open.set(e.run, e);
+      // a hand-off is an implementer run that starts from another run's packet, whoever handed it on: autopilot or a person
+      if (e.payload.role === 'implementer' && e.payload.handoffFrom && !e.payload.adoptedFrom) u.handoffs += 1;
+    } else if (e.type === 'run.finished' && e.run) {
       const s = open.get(e.run);
       if (!s) continue;
       open.delete(e.run);
       ms += Math.max(0, Date.parse(e.ts) - Date.parse(s.ts));
       spend(e.payload.cost as Cost | undefined);
       if (s.payload.role === 'implementer' && !s.payload.adoptedFrom) u.builds += 1;
-    } else if (e.type === 'autopilot.step') {
-      if (e.payload.step === 'hand' || e.payload.step === 'escalate') u.handoffs += 1;
-      if (e.payload.step === 'build' && e.payload.changes) u.reviewRounds += 1;
-    }
+    } else if (e.type === 'autopilot.step' && e.payload.step === 'build' && e.payload.changes) u.reviewRounds += 1;
   }
   for (const s of open.values()) ms += Math.max(0, now - Date.parse(s.ts));
   for (const c of callsFromEvents(events[0]?.task ?? 'task', events)) spend(c.cost);

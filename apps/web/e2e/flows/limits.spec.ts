@@ -37,7 +37,15 @@ test('A task made with Builds 1 stops at the build limit after a failing build; 
   await expect(stop).toContainText('Needs you: the build limit is reached (1 of 1).');
   await expect(stop.getByRole('button', { name: 'Hand to another agent' })).toBeVisible();
   await expect(stop.getByText('What is a limit?')).toBeVisible();
+  // said once: the status line points at the stop instead of repeating it, and nothing claims a run is going
+  await expect(page.getByTestId('autopilot-step')).toHaveText('Autopilot: stopped at a limit; it needs you.');
+  await expect(page.getByText('A run is going on this task')).toHaveCount(0);
   expect(await axe(page)).toEqual([]);
+  // on the board the stopped task needs you, whatever its status says
+  await page.goto('/');
+  await expect(page.getByTestId('lane-needs-you')).toContainText(id);
+  await expect(page.getByTestId('lane-building')).not.toContainText(id);
+  await page.goto(`/t/${id}`);
 
   await stop.getByLabel('New build limit').fill('2');
   await stop.getByRole('button', { name: 'Raise the limit' }).click();

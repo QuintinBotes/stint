@@ -46,10 +46,10 @@ export function autopilotTail(events: StintEvent[]): StintEvent[] | null {
 }
 
 /** What a board card shows: on or off, and the latest step or the reason it stopped. */
-export function autopilotCard(events: StintEvent[]): { on: boolean; step: string | null; reason: string | null; queued: boolean } | null {
+export function autopilotCard(events: StintEvent[]): { on: boolean; step: string | null; reason: string | null; queued: boolean; needsYou?: boolean } | null {
   const last = events.filter((e) => e.type.startsWith('autopilot.')).at(-1);
   if (!last) return null;
-  if (last.type === 'autopilot.stopped') return { on: false, step: 'stopped', reason: String(last.payload.reason ?? ''), queued: false };
+  if (last.type === 'autopilot.stopped') return { on: false, step: 'stopped', reason: String(last.payload.reason ?? ''), queued: false, needsYou: !!last.payload.needsYou };
   return { on: true, step: last.type === 'autopilot.step' ? String(last.payload.step) : 'starting', reason: last.type === 'autopilot.step' ? String(last.payload.reason ?? '') : null, queued: !!last.payload.queued };
 }
 

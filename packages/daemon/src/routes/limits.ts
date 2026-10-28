@@ -24,7 +24,10 @@ export function limitRoutes(app: Hono, ctx: DaemonContext): void {
       const field = issue?.path.join('.') || (issue as { keys?: string[] } | undefined)?.keys?.join(', ') || 'the body';
       throw new DaemonError('invalid', `${field}: ${issue?.message ?? 'not valid'}`, 'builds 1 to 50, handoffs 0 to 20, reviewRounds 0 to 10, usd above 0 up to 1000, minutes 1 to 1440, or null for no limit');
     }
-    const from = (await ctx.ws.readTask(id)).limits ?? {};
+    const task = await ctx.ws.readTask(id);
+    // limits cap work still to come; a finished task has none
+    if (['done', 'approved', 'abandoned'].includes(task.status)) throw new DaemonError('invalid', `${id} is ${task.status}, so there is no work left to limit`, 'set limits on a task that is still open');
+    const from = task.limits ?? {};
     const to = { ...from, ...parsed.data };
     await ctx.ws.writeTask(id, { limits: to });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'limits.changed', payload: { from, to, by: 'you' } });

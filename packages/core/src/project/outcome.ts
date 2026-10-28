@@ -43,6 +43,7 @@ const LABELS: Record<OutcomeResult, string> = {
 /** A duration in words with its unit: "40 s", "14 min", "3 h", "2 days". */
 export function durationWords(ms: number): string {
   const s = Math.round(ms / 1000);
+  if (ms > 0 && s < 1) return 'under 1 s';
   if (s < 60) return `${s} s`;
   if (s < 3600) return `${Math.round(s / 60)} min`;
   if (s < 172_800) return `${Math.round(s / 3600)} h`;
@@ -203,11 +204,12 @@ export function outcome(input: OutcomeInput): Outcome {
     approvalWait: requested ? since(requested.ts, decided) : undefined,
     leadTime: since(task.createdAt, merge),
     review: { rounds: reviews.length, verdicts, findings: { total: findings.length, bySeverity } },
+    // the runs that started from a packet, as taskUsage counts them, each with the packet it was handed
     handoffs: events
-      .filter((e) => e.type === 'handoff.created')
+      .filter((e) => e.type === 'run.started' && e.payload.role === 'implementer' && e.payload.handoffFrom && !e.payload.adoptedFrom)
       .map((e) => {
-        const p = e.payload as { from?: { adapter?: unknown }; to?: { adapter?: unknown }; tokens?: unknown };
-        return { from: str(p.from?.adapter) ?? 'unknown', to: str(p.to?.adapter) ?? 'unknown', packetTokens: Math.max(0, Math.round(Number(p.tokens) || 0)) };
+        const packet = events.find((h) => h.type === 'handoff.created' && h.payload.name === e.payload.handoffFrom)?.payload as { from?: { adapter?: unknown }; tokens?: unknown } | undefined;
+        return { from: str(packet?.from?.adapter) ?? 'unknown', to: str(e.adapter) ?? 'unknown', packetTokens: Math.max(0, Math.round(Number(packet?.tokens) || 0)) };
       }),
     afterMerge,
   };

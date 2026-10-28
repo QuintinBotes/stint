@@ -15,7 +15,7 @@ type Lane = { id: string; title: string; verb: [string, string]; empty: string; 
  * several; `empty` says what will appear in an empty lane; `hideEmpty` drops the lane while it is empty (pull request mode only).
  */
 const LANES: Lane[] = [
-  { id: 'needs-you', title: 'Needs you', verb: ['needs you', 'need you'], empty: 'A task waits here for your approval, or after you send it back.', statuses: ['awaiting_approval', 'rejected'] },
+  { id: 'needs-you', title: 'Needs you', verb: ['needs you', 'need you'], empty: 'A task waits here for your approval, after you send it back, or when autopilot stops to ask you.', statuses: ['awaiting_approval', 'rejected'] },
   { id: 'planned', title: 'Planned', verb: ['is planned', 'are planned'], empty: 'A new task waits here for an agent.', statuses: ['planned'] },
   { id: 'building', title: 'Building', verb: ['is being built', 'are being built'], empty: 'A task is here while an agent works on it.', statuses: ['building'] },
   { id: 'verifying', title: 'Verifying', verb: ['is being tested', 'are being tested'], empty: 'A task is here while Stint runs its tests.', statuses: ['verifying'] },
@@ -23,6 +23,11 @@ const LANES: Lane[] = [
   { id: 'in-review', title: 'In review', verb: ['waits on its pull request', 'wait on their pull requests'], empty: '', statuses: ['in_review'], hideEmpty: true },
   { id: 'done', title: 'Done', verb: ['is done', 'are done'], empty: 'A task lands here once you approve and merge it.', statuses: ['approved', 'done', 'abandoned'] },
 ];
+
+const CLOSED = ['approved', 'done', 'abandoned'];
+/** A task autopilot stopped to ask you, at a limit or anywhere else, needs you whatever its status says, until a run starts again. */
+const stoppedForYou = (c: TaskCardData) => !!c.autopilot?.needsYou && !CLOSED.includes(c.task.status) && !(c.lastRun && !c.lastRun.endedAt);
+const inLane = (l: Lane, c: TaskCardData) => (stoppedForYou(c) ? l.id === 'needs-you' : l.statuses.includes(c.task.status));
 
 /** Task ids as links, joined as a sentence says them; past three, the first and a count, so the next one is still one click away. */
 function Ids({ ids }: { ids: string[] }) {
@@ -44,7 +49,7 @@ function Ids({ ids }: { ids: string[] }) {
 function BoardSentence({ cards, decisions }: { cards: TaskCardData[]; decisions: PendingItem[] }) {
   if (cards.length === 0) return <>No tasks yet.</>;
   const parts = LANES.flatMap((l) => {
-    const ids = cards.filter((c) => l.statuses.includes(c.task.status)).map((c) => c.task.id);
+    const ids = cards.filter((c) => inLane(l, c)).map((c) => c.task.id);
     return ids.length ? [<Fragment key={l.id}><Ids ids={ids} /> {l.verb[ids.length === 1 ? 0 : 1]}.{' '}</Fragment>] : [];
   });
   const on = [...new Set(decisions.map((d) => d.task))];
@@ -85,9 +90,9 @@ export function Board({ onNewTask }: { onNewTask?: () => void }) {
   // a lane with tasks takes the room; a run of empty lanes folds into one narrow column, still in the order a task moves
   const columns: Array<{ lane: Lane; cards: TaskCardData[] } | { empty: Lane[] }> = [];
   for (const lane of LANES) {
-    const inLane = cards.filter((c) => lane.statuses.includes(c.task.status));
+    const here = cards.filter((c) => inLane(lane, c));
     const last = columns.at(-1);
-    if (inLane.length) columns.push({ lane, cards: inLane });
+    if (here.length) columns.push({ lane, cards: here });
     else if (lane.hideEmpty) continue;
     else if (last && 'empty' in last) last.empty.push(lane);
     else columns.push({ empty: [lane] });

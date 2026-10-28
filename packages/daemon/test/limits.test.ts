@@ -130,5 +130,11 @@ test('PATCH /api/tasks/:id/limits needs the token, answers 400 naming a bad fiel
     // raising a limit does not put the task on autopilot
     expect((await ws.events(t.id).read()).some((e) => e.type === 'autopilot.started')).toBe(false);
     expect(((await (await app.request(`/api/tasks/${t.id}/limits`)).json()) as { limits: Limits }).limits.builds).toBe(2);
+    // a finished task has no work left to limit
+    await ws.writeTask(t.id, { status: 'done' });
+    const closed = await patch({ builds: 3 });
+    expect(closed.status).toBe(400);
+    expect(((await closed.json()) as { error: { message: string } }).error.message).toContain('is done');
+    expect((await ws.events(t.id).read()).filter((e) => e.type === 'limits.changed')).toHaveLength(1);
   });
 });

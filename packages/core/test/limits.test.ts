@@ -29,7 +29,7 @@ test('effectiveLimits takes the task, then budgets.usdCap, then config.limits, t
   expect(effectiveLimits({ ...task, budgets: { ...task.budgets, usdCap: 2 }, limits: { usd: 4, builds: null, minutes: 30 } }, { limits: { builds: 2 } })).toEqual({ builds: null, handoffs: 3, reviewRounds: 1, usd: 4, minutes: 30 });
 });
 
-test('taskUsage counts over the whole log: adopted runs are not builds, escalations are hand-offs, a live run counts its time so far, and an unpriced call is counted', () => {
+test('taskUsage counts over the whole log: adopted runs are not builds, a run that starts from a packet is a hand-off (an adopted one is not), a live run counts its time so far, and an unpriced call is counted', () => {
   const events = log([
     { type: 'autopilot.started' },
     { type: 'run.started', run: 'r1', payload: { role: 'planner' }, min: 0 },
@@ -42,11 +42,11 @@ test('taskUsage counts over the whole log: adopted runs are not builds, escalati
     { type: 'autopilot.started' },
     { type: 'autopilot.step', payload: { step: 'hand', escalate: true } },
     { type: 'escalation.triggered', payload: { from: 'muse-code', to: 'codex' } },
-    { type: 'run.started', run: 'r3', payload: { role: 'implementer' }, min: 10 },
+    { type: 'run.started', run: 'r3', payload: { role: 'implementer', handoffFrom: 'h1' }, min: 10 },
     { type: 'run.finished', run: 'r3', payload: { endedBy: 'completed', cost: cost(0.5) }, min: 20 },
     { type: 'autopilot.step', payload: { step: 'escalate' } },
     // a candidate's work moved onto the task: no build of its own, and its cost is on the candidate
-    { type: 'run.started', run: 'r4', payload: { role: 'implementer', adoptedFrom: 'T-0002 r1' }, min: 20 },
+    { type: 'run.started', run: 'r4', payload: { role: 'implementer', adoptedFrom: 'T-0002 r1', handoffFrom: 'h2' }, min: 20 },
     { type: 'run.finished', run: 'r4', payload: { endedBy: 'completed', cost: cost(0), adoptedFrom: 'T-0002 r1' }, min: 20 },
     { type: 'autopilot.step', payload: { step: 'build', changes: true } },
     { type: 'cost.recorded', payload: { for: 'digest', host: 'ollama', model: 'fake', cost: cost(null) } },
@@ -54,8 +54,8 @@ test('taskUsage counts over the whole log: adopted runs are not builds, escalati
     { type: 'run.started', run: 'r5', payload: { role: 'implementer' }, min: 30 },
   ]);
   const now = Date.UTC(2026, 9, 28, 10, 34);
-  expect(taskUsage(events, now)).toEqual({ builds: 2, handoffs: 2, reviewRounds: 1, usd: 1.1, unpriced: 1, minutes: 24 });
+  expect(taskUsage(events, now)).toEqual({ builds: 2, handoffs: 1, reviewRounds: 1, usd: 1.1, unpriced: 1, minutes: 24 });
   // the live run is not a build until it ends, and its spend lands when it does
-  expect(taskUsage(events.slice(0, -1), now)).toEqual({ builds: 2, handoffs: 2, reviewRounds: 1, usd: 1.1, unpriced: 1, minutes: 20 });
+  expect(taskUsage(events.slice(0, -1), now)).toEqual({ builds: 2, handoffs: 1, reviewRounds: 1, usd: 1.1, unpriced: 1, minutes: 20 });
   expect(taskUsage([])).toEqual({ builds: 0, handoffs: 0, reviewRounds: 0, usd: 0, unpriced: 0, minutes: 0 });
 });

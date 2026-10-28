@@ -25,7 +25,7 @@ This spec adds per-task limits with config defaults. They are counted over the t
 ## Definitions
 Each counter covers the task's whole log, not the autopilot tail.
 - **Builds:** implementer runs that ended (`run.finished`), excluding runs adopted from a best-of-n candidate. A candidate's builds count on the candidate.
-- **Hand-offs:** `autopilot.step` events with step `hand` or `escalate`.
+- **Hand-offs:** implementer runs that started from another run's packet (`run.started.handoffFrom`), not adopted from a candidate, whoever handed them on (autopilot, an escalation or a person). The outcome record (R-063) lists the same runs.
 - **Review rounds:** builds started because a review asked for changes (`autopilot.step` with `step: 'build'` and `changes`).
 - **Spend:** the sum of `usd` over the task's runs and the calls in its log, as `costs()` counts them. An unpriced call counts $0 and sets `unpriced` on the meter.
 - **Agent time:** the sum of wall time from `run.started` to `run.finished` over the task's runs, in minutes. A run still going counts its time so far.

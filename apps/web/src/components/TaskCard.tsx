@@ -187,7 +187,7 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
             {others ? <span className="text-ink-3">and {others} more</span> : null}
           </>
         ) : (
-          <span className="text-ink-3">No run yet.</span>
+          <span className="text-ink-3">{['done', 'approved', 'abandoned'].includes(card.task.status) ? 'No runs recorded.' : 'No run yet.'}</span>
         )}
       </p>
       <div className="flex items-baseline justify-between gap-2 text-small text-ink-2">

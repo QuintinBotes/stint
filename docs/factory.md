@@ -55,7 +55,7 @@ Each task has limits on what autopilot may use before it stops and asks you:
 | Limit | Default | What counts |
 |---|---|---|
 | Builds | 8 | Agent runs that build the change. Work taken over from a best-of-n candidate counts on the candidate. |
-| Hand-offs | 3 | Times autopilot gives the task to another agent, escalations included. |
+| Hand-offs | 3 | Times another agent starts from a run's packet, whether autopilot, an escalation or a person handed it on. |
 | Review rounds | 1 | Builds started because a review asked for changes. |
 | Spend | no limit | Dollars spent on the task's runs and its other model calls: the packet digest, the pick, the learn step and the quiz. |
 | Agent time | no limit | Minutes from the start to the end of each run, a run still going included. |

@@ -140,7 +140,7 @@ export type RiskState = {
   records: Array<{ tier: string; decisions: number; agreements: number; disagreements: number; revertsAfterWouldApprove: number; since: string | null; days: number }>;
   lanes: Array<{ tier: string; open: boolean; why: string }>;
 };
-export type AutopilotCard = { on: boolean; step: string | null; reason: string | null; queued: boolean };
+export type AutopilotCard = { on: boolean; step: string | null; reason: string | null; queued: boolean; /** Autopilot stopped and asks for a person (R-062). */ needsYou?: boolean };
 export type TaskCardData = {
   task: Task;
   cost: Cost;

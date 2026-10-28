@@ -27,6 +27,8 @@ const NOT_AT_THE_GATE: Record<string, string> = {
 export function gateState(b: TaskBundle): { open: boolean; reason: string } {
   if (b.task.status === 'done') return { open: false, reason: '' };
   if (b.task.status === 'in_review') return { open: false, reason: '' };
+  // a building task whose runs have all ended is waiting, not working: autopilot stopped, or the next run is not started yet
+  if (b.task.status === 'building' && b.runs.every((r) => r.endedAt)) return { open: false, reason: 'No run is going. The gate opens after the next green verification.' };
   if (b.task.status !== 'awaiting_approval') return { open: false, reason: NOT_AT_THE_GATE[b.task.status] ?? 'The task is not at the gate.' };
   if (!b.verification) return { open: false, reason: 'Waiting for Stint to run the tests.' };
   if (b.verification.status !== 'green') return { open: false, reason: `The tests are red: ${b.verification.failed} failed.` };
