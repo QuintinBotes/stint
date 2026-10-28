@@ -46,8 +46,9 @@ if [ "$CHECK_ONLY" = 0 ]; then
   fi
 fi
 
-if [ ! -f .env ] && [ -f .env.example ]; then
-  if [ "$CHECK_ONLY" = 0 ]; then cp .env.example .env; say ".env created from .env.example; add your keys there"; fi
+# keys live in the user-level file, which works from every repository (docs/setup.md#keys); the replay needs none
+if [ "$CHECK_ONLY" = 0 ] && ! has_key META_API_KEY; then
+  say "keys: none needed for the replay; for live runs, stint keys set META_API_KEY"
 fi
 
 say ""

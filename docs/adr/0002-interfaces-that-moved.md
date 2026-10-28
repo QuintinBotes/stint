@@ -1,6 +1,6 @@
 # ADR-0002: The interfaces that changed from their specs during the build
 
-Status: Accepted, 27 Oct 2026. Specs: R-004, R-005, R-027, R-035, R-041.
+Status: Accepted, 27 October 2026. Specs: R-004, R-005, R-027, R-035, R-041.
 
 ## Context
 A requirements audit on 27 Oct found interfaces that work but no longer match their spec lines. Each change was made for a reason at the time and is covered by tests; none was recorded as a deviation.

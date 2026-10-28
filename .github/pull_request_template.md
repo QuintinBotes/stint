@@ -10,7 +10,6 @@
 
 <!-- The tests you added and the commands you ran. -->
 
-- [ ] `bun run typecheck`
-- [ ] `bash scripts/check.sh`
+- [ ] `bash scripts/check.sh` (typecheck, tests, identity guard, web build)
 - [ ] `bun run test:ui` (when the change touches `apps/web`)
 - [ ] Every commit is signed off (`git commit -s`)

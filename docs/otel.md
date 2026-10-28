@@ -1,6 +1,6 @@
 # Traces in other tools
 
-Stint can send its runs to any OpenTelemetry collector: Langfuse, Braintrust, Honeycomb, Grafana Tempo or your own. Each task is a trace:
+This page is for anyone who wants Stint's runs in a tracing or eval tool. Stint can send them to any OpenTelemetry collector: Langfuse, Braintrust, Honeycomb, Grafana Tempo or your own. Each task is a trace:
 
 - The task is the root span.
 - Each run is a span under it: `invoke_agent muse-code` for an agent, `chat muse-spark-1.3` for a planner or reviewer call.
@@ -28,7 +28,7 @@ The daemon posts OTLP/HTTP JSON to `<endpoint>/v1/traces`. It sends in batches, 
 
 ## Export one task
 
-```sh
+```bash
 stint otel export T-0042 --out trace.json
 ```
 

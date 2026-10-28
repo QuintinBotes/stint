@@ -1,14 +1,14 @@
 # Finals kit
 
-For the live judging on 9 November. Run order: live mode if the network and keys hold, the replay of the live run if not (`stint demo`), and the 60-second version if time is cut.
+This page is for whoever presents at the live judging on 9 November: the run order, the 60-second version, the questions to expect and what to show when something fails. Run order: live mode if the network and keys hold, the replay (`stint demo`) if not, and the 60-second version if time is cut.
 
 ## The 60-second version
 
-1. **The board (0:00):** "Coding agents lose the work when the session ends. In Stint the task outlives the agent."
+1. **Timing, at `/` (0:00):** "Coding agents lose the work when the session ends. In Stint the task outlives the agent."
 2. **T-0042, Muse Code building on Muse Spark (0:10):** kill it. "The daemon builds the packet from the log and the diff: 412 tokens."
 3. **The Stint agent continues (0:25):** it picks up from the packet on Muse Spark. "The daemon, not the agent, runs the tests: green."
 4. **Glimmer reviews on the laptop, offline (0:40):** a finding that would reverse a decision goes to the queue. Approve. A real merge with trailers.
-5. **The Factory (0:50):** which Muse model did what, what it cost, and the skill it learned. "Every model is Meta's; the benchmark is in the repository."
+5. **Standings, at `/factory` (0:50):** which Muse model did what, what it cost, and the skill it learned. "Every model is Meta's; the benchmark is in the repository."
 
 ## Questions to expect
 
@@ -16,7 +16,7 @@ For the live judging on 9 November. Run order: live mode if the network and keys
 A board shows tasks. Stint keeps a task alive across agents. Every run ends with a packet built by the daemon from the log and the diff, not from the agent's say-so, and any agent continues from it. The daemon runs the tests itself, so "done" is not an agent's claim. Decisions are protected from reviewers, the factory learns rules from recurring findings, and we measured the packet against the transcript instead of assuming it wins.
 
 **Why not just use Muse Code's own subagents?**
-Subagents live inside one session of one agent. When that session dies, they die with it, and so does the context. Stint works across sessions and across agents: Muse Code, Stint's own agent, or any other agent a person brings. A kill, a rate limit or a full context window is a hand-off, not a restart. Stint also adds what a single session cannot give itself: an independent test run, an offline reviewer, a memory across tasks, and a merge that only a person can approve.
+Subagents live inside one session of one agent. When that session dies, they die with it, and so does the context. Stint works across sessions and across agents: Muse Code, the Stint agent, or any other agent a person brings. A kill, a rate limit or a full context window is a hand-off, not a restart. Stint also adds what a single session cannot give itself: an independent test run, an offline reviewer, a memory across tasks, and a merge that only a person can approve.
 
 **What happens when the packet is wrong?**
 Four things limit the damage:
@@ -28,7 +28,7 @@ Four things limit the damage:
 **Can an agent fake the tests?**
 Three things stop it:
 - **The daemon runs the tests.** It never takes the agent's word for whether they passed.
-- **The test files the plan names are locked** at the task's start commit. A run that weakens them turns the verification red, unless a person recorded a `tests:` decision saying why they had to change.
+- **The test files the plan and the task name are locked** as they were at the task's start commit. A run that weakens them turns the verification red, unless a `tests:` decision recorded after the lock names each changed file and says why, and that decision is on the card for the person who approves.
 - **Held-out scenarios run in a checkout the agent never sees.** Only their counts come back.
 
 The card says "33 passed, tests unchanged: test/webhooks.test.ts" only when a lock held.
@@ -43,10 +43,10 @@ You don't have to:
 Not by default. The auto-approve lane is off, and only config turns it on, for the risk tiers named there (low by default). Even then it stays closed until it has a shadow record: at least three decisions over 14 days (configurable) where the person agreed with what the policy would have done. One disagreement, or one revert of a change it would have approved, inside that window closes it again.
 
 **What did you build during the event?**
-All of it, from 26 October; see `docs/timeline.md` and `PROGRESS.md`. The specs were the plan, written before the event. Parts of the code were written by Muse Code on Muse Wonder Full from a brief, and those commits carry a `Model:` trailer.
+All of it, from 26 October; see [`timeline.md`](timeline.md) and `PROGRESS.md`. The specs were the plan, written before the event. Parts of the code were written by Muse Code on Muse Wonder Full from a brief. Until 27 October those commits carried a `Model:` trailer; since then commits carry only a `Spec:` trailer, and the spec's row in `PROGRESS.md` names the model.
 
 **Where are Meta's models used?**
-Muse Wonder 1.0 plans and writes the quiz. Muse Spark 1.3 builds through Muse Code and continues through the Stint agent. Muse Glimmer 30B reviews offline and reads diffs. Muse Spark Open on Fireworks, Baseten and Modal is the fallback. The Factory view shows each model's tokens and cost from the meter.
+Muse Wonder 1.0 plans and writes the quiz. Muse Spark 1.3 builds through Muse Code and continues through the Stint agent. Muse Glimmer 30B reviews offline and reads diffs. Muse Spark Open on Fireworks, Baseten and Modal runs the learn step and is the fallback for the rest. Standings shows each model's tokens and cost from the meter.
 
 ## If an agent misbehaves on stage
 

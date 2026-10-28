@@ -1,6 +1,6 @@
 # ADR-0008: Live runs hold off idle sleep; caps count awake time
 
-Status: Accepted, 27 Oct 2026. Specs: R-005, R-021, R-022, R-046.
+Status: Accepted, 27 October 2026. Specs: R-005, R-021, R-022, R-046.
 
 ## Context
 The first live golden eval lost two of nine tries to a laptop that slept: the network dropped under the agent, and the verifier's ten-minute timer fired on waking after 0.6 s of test time.

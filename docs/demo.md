@@ -1,6 +1,6 @@
 # The demo
 
-One task, four agents, one model family, three survivals. The beat sheet is in `AGENTS.md` section 2; this page is the runbook. The video shows a live run: `stint demo --live` drives the beats through the real daemon with real models. The replay judges click comes from that run, captured with `stint demo record`.
+This page is the runbook for whoever presents the demo: the commands, the checks before the show, the beats, and what to do when one goes wrong. The story is one task, four agents, one model family, three survivals; the beat sheet is in `AGENTS.md` section 2. `stint demo --live` drives the beats through the real daemon with real models, and `stint demo record` turns a finished live run into a recording. The replay judges click, `demo/recording.jsonl`, is hand-written and says so on screen until a live take with the network off replaces it ([ADR-0011](adr/0011-default-replay-until-live-take.md)).
 
 ## The commands
 
@@ -16,7 +16,8 @@ One task, four agents, one model family, three survivals. The beat sheet is in `
 1. `scripts/bootstrap.sh --check-only` lists every adapter and host as available or not, with the reason.
 2. `ollama list` shows `muse-glimmer:30b-mlx`; run one review the day before so the model is warm.
 3. `stint demo --live` checks what it needs before it starts: `META_API_KEY`, Ollama with `muse-glimmer:30b-mlx` pulled (unless `--allow-online`), and `muse` on the PATH. It refuses to start and names the first missing one.
-4. The browser is on the board at the URL the runner prints, dark theme, 1080p.
+4. The browser is on Timing (`/`) at the URL the runner prints, dark theme, 1080p.
+5. The laptop stays open and on power. `stint demo --live` holds off idle sleep, but a closed lid still sleeps the machine and drops the network mid-run ([ADR-0008](adr/0008-live-runs-and-sleep.md)).
 
 ## The beats
 
@@ -32,7 +33,7 @@ The live runner runs these beats in order. Press Enter to move to the next one, 
 | 1:45 | Review offline | checks that the network is off (it asks, and refuses while online unless `--allow-online`), then reviews on Ollama | $0.00; a finding that contradicts a decision goes to the queue |
 | 2:05 | Approve and merge | approves T-0042 through the gate | one merge commit with `Stint-Task: T-0042` |
 | 2:15 | It learned | waits for the learn step, measures the proposed skill on T-0042 with it and without (two short runs on fresh copies; `--no-eval` skips this), approves it, then assigns T-0043, verifies and reviews it, and stops at awaiting approval | the skill card's eval line, "with skill: N findings, without: M"; `skill.applied` on T-0043; the review finds nothing on what was flagged before |
-| 2:35 | Close | prints the per-task cost, the T-0042 packet tokens and hash, the URL, and the repository path to record from | the Factory's last panel: "Any harness, any model, one packet", every configured harness and host |
+| 2:35 | Close | prints the per-task cost, the T-0042 packet tokens and hash, the URL, and the repository path to record from | the last panel on Standings (`/factory`): "Any harness, any model, one packet", every configured harness and host |
 
 The times above are the script for the 2:35 video. A live run takes longer. The live take on 26 October (`demo/recordings/2026-10-26-1`) measured these, from the plan's start:
 
@@ -49,9 +50,9 @@ A rehearsal on 27 October on the current build (`--auto --allow-online`, Glimmer
 
 So the video cuts the waits, and the screen says it is a replay when it is one.
 
-To rehearse one beat, `--from review` runs the beats before it without stopping and pauses from the review on; `--offline-plan` plans on the local model; `--take 2` records the finished run under `demo/recordings/<date>-2/`. After the run, or without `--take`, record it and keep the recording:
+To rehearse one beat, `--from review` runs the beats before it without stopping and pauses from the review on (the beat names are `plan`, `build`, `hand`, `review`, `approve` and `next`); `--offline-plan` plans on the local model; `--take 2` records the finished run under `demo/recordings/<date>-2/`. After the run, or without `--take`, record it and keep the recording:
 
-```
+```bash
 stint demo record --repo <printed path> --out demo/recordings/<date>.jsonl
 stint demo --path demo/recordings/<date>.jsonl --speed 0
 ```
@@ -68,5 +69,5 @@ Anyone can replay that file with no keys. Replaying the recording made from the 
 | Muse Code is slow to start | the segment stays "running" with no events | keep talking through the plan; the kill waits for the first `src/` change |
 | The continued run ends red | "r3 ended with 2 tests failing; handing on from its packet." | nothing: the runner hands on from the packet that names the failing tests, up to three runs, and the review waits for a green one. Say so: it is the relay doing its job |
 | Glimmer is cold | the review takes longer than 20 s | preload it before the show (a short `/api/generate` with `keep_alive` of 60m) and check `ollama ps`; a program that keeps another model loaded can push it out on a 32 GB machine |
-| The live run misbehaves | anything unexpected | switch to `stint demo --from <beat>`: the replay of the rehearsal, labelled as a replay on screen |
+| The live run misbehaves | anything unexpected | switch to the replay at that beat's time, such as `stint demo --from 1:45`; it is labelled as a replay on screen |
 | Wi-Fi does not come back | hosted legs show unavailable | the rest of the demo needs no network |

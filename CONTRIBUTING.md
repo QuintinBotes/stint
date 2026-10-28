@@ -23,7 +23,7 @@ stint doctor
 1. Branch from `main`.
 2. Write the test first. A test names the behaviour it checks in plain words.
 3. Keep the change to one purpose. Unrelated clean-up goes in its own pull request.
-4. Match the code around you: TypeScript strict, Biome formatting, comments only where the code cannot say why.
+4. Match the code around you: TypeScript strict, the formatting of the file you edit, and comments only where the code cannot say why.
 5. Copy in the UI and the CLI is sentence case, in plain words, with no emoji. Errors say what went wrong and how to fix it.
 
 ## Check it
@@ -31,12 +31,11 @@ stint doctor
 Every pull request runs these in CI on Linux and macOS. Run them before you push:
 
 ```bash
-bun run typecheck
 bash scripts/check.sh
 bun run test:ui
 ```
 
-`scripts/check.sh` includes the identity guard, which fails on a real email address, an em or en dash, or a name on the maintainers' private list. If it reports a denylisted name, remove that name from your change; the report gives an entry number and never the name.
+`scripts/check.sh` runs the typecheck, the test suite, the identity guard and the web build, and passes only when every one exits 0. The identity guard fails on a real email address, an em or en dash, or a name on the maintainers' private list. If it reports a denylisted name, remove that name from your change; the report gives an entry number and never the name.
 
 ## Sign off every commit
 
@@ -46,13 +45,13 @@ Stint uses the [Developer Certificate of Origin](https://developercertificate.or
 git commit -s -m "Explain what changed and why"
 ```
 
-This adds a `Signed-off-by:` line with your name and email; a GitHub noreply address is fine. CI refuses a pull request with an unsigned commit. To sign commits you already made, run `git rebase --signoff main` and push again.
+This adds a `Signed-off-by:` line with your name and email; a GitHub noreply address is fine. CI refuses a pull request with an unsigned commit. To sign commits you already made, run `git rebase --signoff main` and push again with `--force-with-lease`.
 
 ## Open the pull request
 
 - Fill in the template: what changed, why, how you tested it, and the spec it belongs to.
 - Keep it in draft until the checks are green.
-- A maintainer reviews every pull request; changes to the CI workflows, the identity guard and the release scripts need a maintainer's review in particular. Pull requests from forks run CI after a maintainer approves the run.
+- A maintainer reviews every pull request; changes to `.github/` (the CI workflows), `scripts/` (the identity guard among them) and the run sandbox need a maintainer's review in particular. Pull requests from forks run CI after a maintainer approves the run.
 - Pull requests are squash-merged, so the title becomes the commit subject on `main`.
 
 ## Reporting a security problem

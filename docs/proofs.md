@@ -1,6 +1,6 @@
 # Proofs
 
-Every number Stint claims, where it came from, and the record that backs it. The story the replay shows (T-0040, T-0042 and T-0043) is hand-written, and the UI says so; every number on this page comes from a live run on Meta's models. `packages/core/test/docs.claims.test.ts` fails when a number here differs from its results file.
+This page is for judges and anyone who wants to check Stint's claims: every number Stint claims, where it came from, and the record that backs it. The story the replay shows (T-0040, T-0042 and T-0043) is hand-written, and the UI says so; every number on this page comes from a live run on Meta's models. `packages/core/test/docs.claims.test.ts` fails when a number here differs from its results file.
 
 ## What is real
 
@@ -98,11 +98,11 @@ One run per task and mode is a small sample, and single tasks swung both ways (o
 | Muse Spark 1.3 | Meta Model API, through Muse Code | builds in the task's worktree; Muse Code's JSON event stream becomes the timeline |
 | Muse Spark 1.3 | Meta Model API, through the Stint agent | continues from a packet: Stint's own tool-calling agent, with refusals Stint enforces |
 | Muse Glimmer 30B | Ollama on your machine | reviews at $0.00 with the network off |
-| Muse Spark Open | Fireworks, Baseten, Modal | fallback for planning, building and the learn step when the Meta API is busy |
+| Muse Spark Open | Fireworks, Baseten, Modal | the learn step's first choice, and the fallback for planning, review and the Stint agent when the Meta API or Ollama cannot answer |
 | Muse Code plugin hooks | your machine | draft a packet at the moment context would be lost, and name the step in flight |
 
 Every model Stint calls at runtime by default is a Meta model, and the demo uses nothing else. Stint stays vendor-neutral, because that is what the packet is for. You can add another coding agent or model in config, such as Claude Code, Codex or any Ollama model; those ship turned off ([`agents.md`](agents.md)).
 
 ## Built during the hackathon
 
-Everything in this repository was built from 26 October 2026 onward, for the Meta Global AI Developer Hackathon. [`timeline.md`](timeline.md) lists the part committed on 26 October before the kickoff session. The specs in `specs/` and the build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) are the plan, written before the event; [`build-kit.md`](build-kit.md) says what they are. Parts of the code were written by Muse Code on Muse Wonder Full from a brief. Those commits carry a `Model:` trailer, and `PROGRESS.md` names them.
+Everything in this repository was built from 26 October 2026 onward, for the Meta Global AI Developer Hackathon. [`timeline.md`](timeline.md) lists the part committed on 26 October before the kickoff session. The specs in `specs/` and the build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) are the plan, written before the event; [`build-kit.md`](build-kit.md) says what they are. Parts of the code were written by Muse Code on Muse Wonder Full from a brief. Until 27 October those commits carried a `Model:` trailer; since then commits carry only a `Spec:` trailer, and the spec's row in `PROGRESS.md` names the model.

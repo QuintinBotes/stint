@@ -1,18 +1,18 @@
 # Evals: skills on probation, and the golden tasks
 
-Learning that is not measured can make agents worse, so a learned skill has to earn its place twice: once in an eval before it is trusted, and again on real tasks after it mounts. The golden tasks do the same job for the factory as a whole: a small set of real failures that must keep passing, every time.
+This page is for anyone who wants to measure a skill before trusting it, or to keep the factory honest with a fixed set of tasks. Learning that is not measured can make agents worse, so a learned skill has to earn its place twice: once in an eval before it is trusted, and again on real tasks after it mounts. The golden tasks do the same job for the factory as a whole: a small set of real failures that must keep passing, every time.
 
 ## Skill eval
 
-```
+```bash
 stint eval --skill limiter-config-via-env
 stint eval --skill limiter-config-via-env --tasks T-0042,T-0043
 stint eval --skill limiter-config-via-env --replay
 ```
 
-The eval runs the implementer on the skill's evidence tasks plus one held-out task (the most recent other task with the same tags), twice per task on fresh copies of the repository: once with the skill mounted, once with the skill folder removed. Each run records the review findings, the daemon's verification result, the tokens and the cost. The summary lands in `.stint/evals/<skill>.json`, a `skill.evaluated` event carries the two sides on the first evidence task's timeline, and the run artefacts stay in `.stint/evals/<skill>/runs/` so `--replay` can rebuild the same numbers with no model call. The proposal card and the Skills page print one line from it:
+The eval runs the implementer on the skill's evidence tasks plus one held-out task (the most recent other task with the same tags), twice per task on fresh copies of the repository: once with the skill mounted, once with the skill folder removed. Each run records the review findings, the daemon's verification result, the tokens and the cost. The summary lands in `.stint/evals/<skill>.json`, a `skill.evaluated` event carries the two sides on the first evidence task's timeline, and the run artefacts stay in `.stint/evals/<skill>/runs/` so `--replay` can rebuild the same numbers with no model call. The proposal card and the Setup sheet (`/skills`) print one line from it:
 
-```
+```text
 with skill: 1 findings, 99 passed, cost $0.0385; without: 5 findings, 97 passed, cost $0.0355
 ```
 
@@ -25,13 +25,13 @@ Approving a proposal writes the skill with `status: probation`. Probation and ac
 - helped: a task with the skill mounted was approved with no repeat finding on the skill's theme. A repeat is the evidence finding's text again, the same risk link, or two or more shared theme words.
 - hurt: a task with the skill mounted raised a repeat finding, was rejected, or was reverted after merge (`outcome.reverted`).
 
-Probation becomes active at three helped tasks. The change is written to the SKILL.md frontmatter and committed, with a `skill.status` event naming the counts. When hurt passes helped, the daemon records `skill.retire_proposed` and the Skills page shows the proposal with Retire and Keep buttons. Retire sets `status: retired` in the same committed way. Keep clears the proposal until the counts change. The Skills page shows applied, helped and hurt on every skill. Statuses are computed on writes, never on a read.
+Probation becomes active at three helped tasks. The change is written to the SKILL.md frontmatter and committed, with a `skill.status` event naming the counts. When hurt passes helped, the daemon records `skill.retire_proposed` and the Setup sheet shows the proposal with Retire and Keep buttons. Retire sets `status: retired` in the same committed way. Keep clears the proposal until the counts change. The Setup sheet shows applied, helped and hurt on every skill. Statuses are computed on writes, never on a read.
 
 ## Golden tasks
 
 `bench/golden/<name>.json` holds one task that must keep passing: a title, a goal, acceptance criteria, the test command, an optional fixture commit, and optional scenarios (held-out grader commands run in the run's worktree after the daemon's verification). Three ship with the repository, taken from the bench tasks on the demo fixture.
 
-```
+```bash
 stint eval --golden --k 3
 stint eval --golden --k 3 --replay
 stint eval add-golden T-0042
@@ -45,7 +45,7 @@ The first live run, 27 October: Muse Code on Muse Spark 1.3, three golden tasks,
 
 ## Phase gates
 
-The Factory shows two gates, computed by the daemon at `GET /api/phase-gates`:
+Standings (`/factory`) shows two gates, computed by the daemon at `GET /api/phase-gates`:
 
 - Phase 2 opens when the golden set passes pass^3 at 80% or better with no tamper escapes. A tamper escape is a task with an `acceptance.tampered` or `verification.tampered` event that still merged.
 - Phase 3 opens when one risk tier has been shadow-approved (`autoapprove.shadow` records) for two weeks with no reverts on that tier.

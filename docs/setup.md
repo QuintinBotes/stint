@@ -1,6 +1,6 @@
 # Setup
 
-The full guide to installing Stint, running it on your own repository, and removing it again. The [README](../README.md) has the short version. Every shell block on this page runs in a test (`packages/cli/test/readme.commands.test.ts`), except those marked with what they need.
+This guide is for anyone installing Stint on their own machine: install it, run it on your repository, and remove it again. The [README](../README.md) has the short version. Every shell block on this page runs in a test (`packages/cli/test/readme.commands.test.ts`), except those marked with what they need.
 
 Two folders appear below: the Stint checkout (`/path/to/stint`) and your repository (`/path/to/your/repo`).
 
@@ -17,11 +17,11 @@ Two folders appear below: the Stint checkout (`/path/to/stint`) and your reposit
 | Part | Needs | Without it |
 |---|---|---|
 | The replay (`stint demo`) | Bun 1.3.14 or later, git 2.40 or later | nothing else: no keys, no network, no Ollama |
-| Muse Code runs | the `muse` CLI, logged in | health says unavailable, and assign refuses with `adapter_unavailable` |
-| The Stint agent | `META_API_KEY`, or a partner key for Muse Spark Open | the same refusal |
+| Muse Code runs | the `muse` CLI, logged in | without the CLI, health says unavailable and assign refuses with `adapter_unavailable`; without the login, the run fails with Muse's own message |
+| The Stint agent | `META_API_KEY`, a partner key for Muse Spark Open, or Glimmer running in Ollama | the same refusal |
 | Planning with Muse Wonder | `META_API_KEY` | the planner falls back to Fireworks, Baseten, Modal, then local Glimmer |
-| The offline review | Ollama 0.32.8 or later with `muse-glimmer:30b-mlx` (about 19 GB; 32 GB of memory is comfortable) | the reviewer falls back to the hosted Muse Spark Open hosts |
-| The terminal pane | Bun 1.3.5 or later (`Bun.Terminal`) | health reports the terminal as unavailable, and the pane says so |
+| The offline review | Ollama 0.32.8 or later with `muse-glimmer:30b-mlx` (about 19 GB; 32 GB of memory is comfortable) | the reviewer falls back to Muse Spark Open on Fireworks, Baseten and Modal, then Muse Spark 1.3 on the Meta Model API |
+| The terminal pane | `Bun.Terminal`, which every Bun that Stint supports has | health reports the terminal as unavailable, and the pane says so |
 
 ## Install
 
@@ -33,7 +33,7 @@ git clone https://github.com/QuintinBotes/stint && cd stint
 bun install
 ```
 
-Put `stint` on your PATH. The installer writes a small shim into `~/.local/bin` (or `--dir <folder>`, or `$STINT_BIN_DIR`) that runs this checkout's CLI. Running it again changes nothing, and it prints the line to add when the folder is not on your PATH:
+Put `stint` on your PATH. The installer writes a small shim that runs this checkout's CLI into `$STINT_BIN_DIR` when it is set, else into `--dir <folder>`, else into `~/.local/bin`. Running it again changes nothing, and it prints the line to add when the folder is not on your PATH:
 
 ```bash
 cd /path/to/stint
@@ -49,10 +49,10 @@ Stint reads each key from the first of these places that has it:
 
 1. The environment of the shell that runs `stint`.
 2. `.env` in your repository, only when git ignores it. A tracked or unignored `.env` is refused and never read, and `stint doctor` fails on it.
-3. The user-level file, `$XDG_CONFIG_HOME/stint/env` (by default `~/.config/stint/env`). Stint warns when its mode is wider than `0600`.
+3. The user-level file, `$XDG_CONFIG_HOME/stint/env` (by default `~/.config/stint/env`). Stint warns when others can read it (a mode wider than `0600`).
 4. `.env` in the Stint checkout, for setups that followed an older README. Stint prints a note naming the user-level file.
 
-The user-level file works from every repository, so it is the one to use. `stint keys set` reads the value without echoing it and writes the file with mode `0600`. It accepts only the keys Stint knows and the `keyEnv` names in your config:
+The user-level file works from every repository, so it is the one to use. `stint keys set` reads the value without echoing it and writes the file with mode `0600`. It accepts only the names Stint reads: each host's key and address variables and each agent's `env` entries, in the defaults and in your config:
 
 <!-- needs: META_API_KEY -->
 ```bash

@@ -1,6 +1,6 @@
 # Adapters
 
-An adapter is how Stint drives one coding agent. It never touches `.stint/`. It reports what happens, and the daemon writes everything to the log, so every agent's work looks the same on the timeline and in the packet.
+This page is for anyone adding a coding agent to Stint, or wanting to know what Stint can prove about the agents it drives. An adapter is how Stint drives one coding agent. It never touches `.stint/`: it reports what happens, and the daemon writes everything to the log, so every agent's work looks the same on the timeline and in the packet.
 
 ## The contract
 
@@ -8,7 +8,7 @@ An adapter is how Stint drives one coding agent. It never touches `.stint/`. It 
 
 | Member | What it does |
 |---|---|
-| `id`, `vendor`, `roles` | names the agent, whose model it is, and which roles it can take (planner, implementer, reviewer) |
+| `id`, `vendor`, `roles` | names the agent, whose model it is, and which roles it can take (`planner`, `implementer`, `reviewer`, `tester`, `learn`) |
 | `capabilities` | what it can do: edit files, run commands, resume a session, return structured output, work offline |
 | `available()` | can it run now; when it can't, the reason in plain words (for example, "muse is not on PATH") |
 | `gate()` | how strongly Stint controls its tool calls: `enforced`, `observed` or `none`; see below |
@@ -40,13 +40,15 @@ The UI shows the gate beside each agent, and the packet attributes every refusal
 | `muse-code` | Muse Code (`muse exec --json`) | Muse Spark 1.3 or Muse Wonder | observed |
 | `stint-agent` | Stint's own tool-calling loop | Muse Spark 1.3 on the Meta Model API by default; any `host/model` in config | enforced once a refusal fires |
 | `replay` | none: plays a recording | none | none |
-| any entry under `agents` in config | a command-line agent such as Claude Code or Codex, off by default | its own | observed |
+| `claude-code`, `codex` | Claude Code and Codex through their own JSON streams, off by default | the model each is configured with | observed |
+| `acp` | any Agent Client Protocol agent, such as goose, opencode or Gemini CLI, off by default | its own | observed |
+| `cli` | any other command-line agent under `agents` in config, off by default | its own | observed |
 
 Planning, review, the learn step, the packet digest and the quiz are not adapters. They are model calls the daemon makes through a chain of OpenAI-compatible hosts: the Meta Model API, Fireworks, Baseten, Modal, and Ollama on your machine. A busy host falls through to the next one, and the fallback appears on the timeline.
 
 ## Adding one
 
-For an agent with a command line, add an entry under `agents` in `.stint/config.json` (see [`agents.md`](agents.md)); no code is needed. For an agent with an event stream worth mapping (tool calls, usage, a session to resume), write an adapter like `packages/adapters/muse-code/`:
+For an agent with a command line, add an entry under `agents` in `.stint/config.json` ([`agents.md`](agents.md)); no code is needed. For an agent with an event stream worth mapping (tool calls, usage, a session to resume), write an adapter like `packages/adapters/muse-code/`:
 
 1. **Map its stream:** its events become `agent.message`, `agent.tool_call` and `agent.tool_result`, and its usage becomes the cost.
 2. **Kill it properly:** kill its process group on `ctx.signal`, and return `endedBy: 'killed'` with the open tool call as `inFlight`.

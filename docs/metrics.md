@@ -1,6 +1,6 @@
 # Metrics: verification and outcome numbers, defined once
 
-Every number Stint shows about whether the factory works has one written definition, one implementation and one place to read it. The definitions are in this file. The implementation is `metrics()` in `packages/core/src/metrics/`, a pure projection over the per-task event logs. Read the numbers with `stint metrics`, at `GET /api/metrics`, or in the `stint report` metrics block. The output is `stint.metrics/1`; each value carries its sample size `n`, a `small` flag and a link back to its section here.
+This page is for anyone who reads Stint's verification and outcome numbers or sets targets on them. Every number Stint shows about whether the factory works has one written definition, one implementation and one place to read it. The definitions are in this file. The implementation is `metrics()` in `packages/core/src/metrics/`, a pure projection over the per-task event logs. Read the numbers with `stint metrics`, at `GET /api/metrics`, or in the `stint report` metrics block. The output is `stint.metrics/1`; each value carries its sample size `n`, a `small` flag and a link back to its section here.
 
 No metric reads a transcript or calls a model. Everything comes from the log, so a replay produces the same numbers as the live run did.
 
@@ -14,7 +14,7 @@ Shared terms:
 
 ## Reading these numbers
 
-Small samples: every metric reports `n`. The value is `null` when `n` is 0, and `small` is true when `n < 5`. A ratio over three tasks moves in thirds; treat it as a hint, not a rate. The CLI prints "small sample" beside such figures, and so does the Factory.
+Small samples: every metric reports `n`. The value is `null` when `n` is 0, and `small` is true when `n < 5`. A ratio over three tasks moves in thirds; treat it as a hint, not a rate. The CLI prints "small sample" beside such figures.
 
 Mature merges: a merge from yesterday has had no time to be reverted, so counting it would flatter every outcome rate. Outcome rates therefore wait out the outcome window (7 days by default) and only then judge a merge. `outcome.merged` counts every merge at once; the rates catch up a week later.
 
@@ -45,7 +45,7 @@ Definition: green runs divided by verified implementer runs. It equals the score
 <a id="verify.handoff_success"></a>
 ### verify.handoff_success
 
-Definition: share of continued runs that are green. A continued run starts after a `handoff.created` on the same task. Population: continued runs, placed by verification time. Unit: ratio. What moves it: packet quality; this is the number that says a handoff carried enough. Reads: `run.started`, `run.finished`, `verification.ran`, `handoff.created`.
+Definition: share of continued runs that are green. A continued run starts after a `handoff.created` on the same task. Population: continued runs, placed by verification time. Unit: ratio. What moves it: packet quality; this is the number that says a hand-off carried enough. Reads: `run.started`, `run.finished`, `verification.ran`, `handoff.created`.
 
 <a id="verify.tamper_rate"></a>
 ### verify.tamper_rate
@@ -188,12 +188,12 @@ Definition: over skill evals, the mean of the combined delta: findings without m
 <a id="efficiency.hops"></a>
 ### efficiency.hops
 
-Definition: mean implementer runs per merged task. Population: merges in the window. Unit: count. What moves it: retries, handoffs and escalations per landed change. Reads: `run.started`, `merge.completed`.
+Definition: mean implementer runs per merged task. Population: merges in the window. Unit: count. What moves it: retries, hand-offs and escalations per landed change. Reads: `run.started`, `merge.completed`.
 
 <a id="efficiency.packet_tokens"></a>
 ### efficiency.packet_tokens
 
-Definition: median packet tokens over handoffs. Population: handoffs in the window. Unit: tokens. What moves it: packet size; the packet budget keeps this in the hundreds. Reads: `handoff.created`.
+Definition: median packet tokens over hand-offs. Population: hand-offs in the window. Unit: tokens. What moves it: packet size; the packet budget keeps this in the hundreds. Reads: `handoff.created`.
 
 <a id="efficiency.cache_share"></a>
 ### efficiency.cache_share
@@ -203,4 +203,4 @@ Definition: cached input tokens divided by input tokens, over all priced runs. P
 <a id="efficiency.transcript_share"></a>
 ### efficiency.transcript_share
 
-Definition: the share of work fed forward as transcripts. It is 0 whenever a handoff exists, because the next agent receives a packet, never a transcript. The sample size `n` is handoffs in the window. Population: handoffs in the window. Unit: ratio. What moves it: nothing, by design; it exists so the claim stays measured where the packets are counted. Reads: `handoff.created`.
+Definition: the share of work fed forward as transcripts. It is 0 whenever a hand-off exists, because the next agent receives a packet, never a transcript. The sample size `n` is hand-offs in the window. Population: hand-offs in the window. Unit: ratio. What moves it: nothing, by design; it exists so the claim stays measured where the packets are counted. Reads: `handoff.created`.

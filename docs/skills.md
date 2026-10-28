@@ -1,6 +1,6 @@
 # Skills: write, import, review, share
 
-A skill is a folder of instructions every agent on a task will follow. It lives at `.agents/skills/<id>/` and holds one `SKILL.md`, plus optional `scripts/`, `references/`, `assets/` and `examples.md`. The `SKILL.md` frontmatter carries `name` and `description`, which is the line agents read to decide whether the skill applies, plus Stint's own fields: `roles`, `tags`, `origin`, `status`, `evidence` and `source`. Agents that do not know those fields ignore them.
+This page is for anyone who writes, imports or shares a skill, or decides whether one may mount. A skill is a folder of instructions every agent on a task will follow. It lives at `.agents/skills/<id>/` and holds one `SKILL.md`, plus optional `scripts/`, `references/`, `assets/` and `examples.md`. The `SKILL.md` frontmatter carries `name` and `description`, which is the line agents read to decide whether the skill applies, plus Stint's own fields: `roles`, `tags`, `origin`, `status`, `evidence` and `source`. Agents that do not know those fields ignore them.
 
 Because a skill is instructions, it is also an injection path and a way to make agents worse with confidence. Everything that mounts a skill in Stint goes through one road: a proposal in the review queue, a pattern scan, a person approving it, probation, and an eval. It does not matter whether the learn step proposed it, a person wrote it, or it arrived from a zip or a git repository.
 
@@ -38,7 +38,7 @@ Clients can also post a bundle to `POST /api/skills/import` with the daemon toke
 
 ## What the scan checks, and what it does not
 
-The card says it plainly: scanned by pattern; this is not a security review. The scan flags shapes, not intent:
+`stint skills add` and `stint skills new` say it plainly when they print the findings: scanned by pattern; this is not a security review. The scan flags shapes, not intent:
 
 - Block: a credential pattern anywhere in the bundle, or a file that fails validation. A blocked proposal cannot be approved.
 - Warn: executable scripts, instructions to download and run remote code, reads of credential files, sending data to a URL, phrases that override the instructions in force, and base64 runs over 1 KB. Each warning needs a person's acknowledgement at approval (`stint skills approve <id> --ack <ids>`).
@@ -52,7 +52,7 @@ The validator runs before the scan and shapes the bundle: exactly one `SKILL.md`
 
 Approving writes the whole folder to `.agents/skills/<id>/`, sets `status: probation`, commits only those files with `Stint-Skill:` and `Stint-Skill-Source:` trailers, mirrors `SKILL.md` when Claude Code is enabled, and records consent as the folder digest. Rejecting remembers the reason and the digest, so the same bundle is not proposed again.
 
-Probation earns `active` at three tasks it helped on, and a skill that hurts more than it helps gets a retirement proposal; the counts are in [evals.md](evals.md). `stint eval --skill <id>` measures a skill with and without it mounted. An imported skill with no evidence tasks is judged on the three tasks most similar to its name and description (narrowed to tasks sharing a tag when it has tags), or on the golden set when there are none. The summary names the tasks it used. Approval never waits for an eval; the card says "not evaluated" until one runs.
+Probation earns `active` at three tasks it helped on, and a skill that hurts more than it helps gets a retirement proposal; the counts are in [evals.md](evals.md). `stint eval --skill <id>` measures a skill with and without it mounted. An imported skill with no evidence tasks is judged on the three tasks most similar to its name and description (narrowed to tasks sharing a tag when it has tags), or on the golden set when there are none. The summary names the tasks it used. Approval never waits for an eval; the eval line appears on the Setup sheet (`/skills`) once one has run.
 
 ## Unknown skills wait: requireReview
 

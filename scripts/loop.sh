@@ -140,8 +140,8 @@ while :; do
     code=$?
     set -e
     ./packages/cli/bin/stint report --write >/dev/null && { git add PROGRESS.md; git commit -qm "loop: report for $spec ($task)" || true; }
-    if [ "$code" = 0 ]; then log "$task waits for your approval: stint show $task, then stint approve $task"
-    else log "$task needs you: stint show $task"; fi
+    if [ "$code" = 0 ]; then log "$task waits for your approval: stint packet $task, or its task view, then stint approve $task"
+    else log "$task needs you: stint packet $task, or its task view"; fi
     break
   fi
 

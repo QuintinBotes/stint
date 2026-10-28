@@ -1,6 +1,6 @@
 # ADR-0009: One status button holds the daemon, agents and models
 
-Status: Accepted, 27 Oct 2026. Specs: R-007 Req 2, R-011 Req 6, R-050.
+Status: Accepted, 27 October 2026. Specs: R-007 Req 2, R-011 Req 6, R-050.
 
 ## Context
 The top bar showed a chip per ready agent, one for the agents that are off, a chip per model and a credits line. At 1600 px the last chip was cut in half; any setup with more agents or models would cut more.

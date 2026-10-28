@@ -15,11 +15,11 @@ Coding agents are good at a task until the session ends: the context fills up, t
 
 | Claim | What happens | Evidence |
 |---|---|---|
-| A killed agent's work survives | Muse Code builds T-0042 on Muse Spark 1.3 and is killed mid-run. The daemon builds the packet from the log and the diff alone, and names the step that was in flight as unknown. Stint's own agent, also on Muse Spark 1.3, continues from the packet. | Live, 26 October: the continued run finished, and the daemon's own `bun run test` passed 29 of 29 for $0.10 (120,218 input tokens, 76,093 of them cached). The recorded replay's packet is 412 tokens. Test: `packages/daemon/test/continue.live.test.ts`; its replay twin runs in CI. |
+| A killed agent's work survives | Muse Code builds T-0042 on Muse Spark 1.3 and is killed mid-run. The daemon builds the packet from the log and the diff alone, and names the step that was in flight as unknown. The Stint agent, also on Muse Spark 1.3, continues from the packet. | Live, 26 October: the continued run finished, and the daemon's own `bun run test` passed 29 of 29 for $0.10 (120,218 input tokens, 76,093 of them cached). The recorded replay's packet is 412 tokens. Test: `packages/daemon/test/continue.live.test.ts`; its replay twin runs in CI. |
 | Review costs nothing and needs no network | Muse Glimmer 30B reviews on the laptop through Ollama. A finding that would reverse a recorded decision is not applied. It waits in a queue until a person keeps or supersedes the decision. | `review.recorded { offline: true }` at $0.00. Test: `packages/daemon/test/review.contradiction.test.ts` |
 | It learns | When the same finding shows up on two tasks, the learn step proposes a skill with that evidence. Nothing is written until a person approves it, and the next task runs with it. | T-0040 and T-0042 share the hard-coded limit finding. That raised `limiter-config-via-env`, and T-0043 applied it and got no review finding on that point. Test: `packages/daemon/test/learn.test.ts` |
 
-Every number in the README comes from a live run on Meta's models; the replay's story is hand-written and says so. [`docs/proofs.md`](docs/proofs.md) holds the records: what is real and what is replayed, the live packet, the benchmark (packets 7 times smaller than transcripts, 9 of 10 continued runs green against 3 of 5), where each Meta model works, and what was built during the hackathon.
+The replay's story (T-0040, T-0042 and T-0043, with its 412-token packet) is hand-written and says so on screen; the measured numbers come from live runs on Meta's models. [`docs/proofs.md`](docs/proofs.md) holds the records: what is real and what is replayed, the live packet, the benchmark (packets 7 times smaller than transcripts, 9 of 10 continued runs green against 3 of 5), where each Meta model works, and what was built during the hackathon.
 
 ## Quick start
 
@@ -29,7 +29,7 @@ git clone https://github.com/QuintinBotes/stint && cd stint
 bash scripts/bootstrap.sh
 ```
 
-Bootstrap checks Bun and git, installs the dependencies, unpacks the demo repository, and replays the recorded story through the real daemon. It needs no keys. On CI, from a clean clone, these steps take about 10 seconds once the clone is done. Open the address it prints: the board, then task T-0042 with its runs, the kill, the hand-off, the offline review and the merge. The strip under the top bar says it is a replay. Press Ctrl-C to stop it.
+Bootstrap checks Bun and git, installs the dependencies, unpacks the demo repository, and replays the recorded story through the real daemon. It needs no keys. When Ollama is installed and Muse Glimmer 30B is not, it also starts that 19 GB download in the background. On CI, from a clean clone, these steps take about 10 seconds once the clone is done. It opens the UI in your browser and prints the address. Timing (`/`) shows every task by stage; open T-0042 for its runs, the kill, the hand-off, the offline review and the merge. The strip under the top bar says it is a replay. Press Ctrl-C to stop it.
 
 ## Install
 
@@ -107,7 +107,7 @@ T-0001 is on autopilot. It stops at your approval.
 T-0001: Waiting for your approval.
 ```
 
-6. **The gate.** Open the address `stint up` printed: T-0001 waits with the diff, the daemon's verification and the review. The packet the next agent would read is in the terminal too:
+6. **The gate.** Open the address `stint up` printed, then T-0001: it waits with the diff, the daemon's verification and the review. The packet the next agent would read is in the terminal too:
 
 ```bash
 stint packet T-0001
@@ -142,32 +142,32 @@ Merged T-0001 into main as 3f2a9c1.
 
 ## Agents and models
 
-Muse Code and Stint's own agent build, Muse Wonder plans, and Muse Glimmer reviews offline. Other agents ship turned off. To turn one on, edit its entry under `agents` in `.stint/config.json`. These three fields run Claude Code on Muse Glimmer through Ollama:
+Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Muse Glimmer 30B reviews offline. Other agents ship turned off. To turn one on, edit its entry under `agents` in `.stint/config.json` and restart `stint up`. Setting these three fields in the `claude-code` entry runs Claude Code on Muse Glimmer 30B through Ollama:
 
 ```json
 "claude-code": { "enabled": true, "host": "ollama", "model": "muse-glimmer:30b-mlx" }
 ```
 
-[`docs/agents.md`](docs/agents.md) covers Claude Code, Codex, goose, opencode, Gemini CLI and any Agent Client Protocol agent, local models through Ollama, LM Studio or llama.cpp, and hosted Muse Spark Open.
+[`docs/agents.md`](docs/agents.md) covers Claude Code, Codex, goose, opencode, Gemini CLI, aider and any Agent Client Protocol agent, local models through Ollama, LM Studio or llama.cpp, and hosted Muse Spark Open.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | `dirty_tree` when a run starts | uncommitted changes to tracked files | `git stash` |
-| `adapter_unavailable` for an agent | its CLI is missing, or not logged in | `stint doctor` |
+| `adapter_unavailable` for an agent | its command is not on PATH, or no host in the Stint agent's chain has a key or is running | `stint doctor` |
 | The review says Glimmer is not pulled | the offline reviewer model is missing | `ollama pull muse-glimmer:30b-mlx` |
 | `stint up --port 4319` says the port is in use | another program has it | `stint up --port 0` picks a free one |
-| A key works in one folder and not another | it was in the Stint checkout's `.env`, or in a tracked `.env` | `stint keys set META_API_KEY` |
+| A key works in one folder and not another | it is in one repository's `.env`, which only that repository reads | `stint keys set META_API_KEY` |
 | Bootstrap or doctor says Bun is too old | Bun before 1.3.14 | `bun upgrade` |
-| Muse Code shows as unavailable | `muse` is not logged in | `muse login` |
+| A Muse Code run fails with Muse's own sign-in message | `muse` is not logged in | `muse login` |
 | A partner host answers 403 | the key is wrong or has text after it | `stint keys set BASETEN_API_KEY` |
 
 ## How it works
 
 - A daemon (Bun and Hono) on 127.0.0.1 is the only writer of `.stint/`; the CLI and the UI ask it.
 - Every view is projected from each task's hash-chained `events.jsonl`, so the folder is readable without Stint.
-- Each run gets its own worktree; the daemon runs the tests and locks the ones the task names ([`docs/verify.md`](docs/verify.md)).
+- Each run gets its own worktree; the daemon runs the tests and locks the test files the plan and the task name ([`docs/verify.md`](docs/verify.md)).
 - Every ending writes a packet (`stint.handoff/1`), never a transcript ([`docs/packet.md`](docs/packet.md)).
 - Adapters drive the agents and never touch the store ([`docs/adapters.md`](docs/adapters.md)).
 - The factory around the hand-off: escalation, best of n, memory, skills and evals, outcomes after merge ([`docs/factory.md`](docs/factory.md)).

@@ -1,14 +1,14 @@
 # Stint over MCP
 
-`stint mcp` serves Stint's tools over the Model Context Protocol on stdio. Any agent that speaks MCP can use Stint's board, packets, memory and decisions as tools while it works. Every call goes through the running daemon (`stint up`), so the daemon stays the only writer of `.stint/`.
+This page is for anyone connecting a coding agent or another MCP client to Stint. `stint mcp` serves Stint's tools over the Model Context Protocol on stdio, so any agent that speaks MCP can use Stint's tasks, packets, memory and decisions as tools while it works. Every call goes through the running daemon (`stint up`), so the daemon stays the only writer of `.stint/`.
 
 ## Tools
 
 | Tool | What it does |
 |---|---|
-| `stint_status` | the board: every task, its status, who holds it, its cost, its autopilot step |
+| `stint_status` | every task: its status, who holds it, its cost, its autopilot step |
 | `stint_task` | one task in full: goal, acceptance, runs, the daemon's verification, the review, the decisions in force |
-| `stint_new_task` | create a task; it appears on the board as planned |
+| `stint_new_task` | create a task; it appears on Timing (`/`) as planned |
 | `stint_packet` | a task's packet as the next agent reads it |
 | `stint_similar` | earlier tasks like this one, with the evidence (shared files, the same findings, tags) |
 | `stint_constraints` | the decisions and open review findings on the files the task touches, across every task |
@@ -24,16 +24,16 @@ Inside a Stint run, `task` defaults to the run's task, so an agent can call `sti
 
 ## Connect an agent
 
-**Muse Code:** install the Stint plugin. It registers the MCP server and the hooks:
+**Muse Code:** install the Stint plugin once. It registers the MCP server and the hooks:
 
-```
-muse plugins install packages/adapters/muse-code/plugin --scope user
+```bash
+muse plugins install /path/to/stint/packages/adapters/muse-code/plugin --scope user
 muse plugins approve stint
 ```
 
 **Any other MCP client:** run `stint mcp` from the repository, or pass `--repo <path>`. With Claude Code, for example:
 
-```
+```bash
 claude mcp add stint -- stint mcp --repo /path/to/your/repo
 ```
 

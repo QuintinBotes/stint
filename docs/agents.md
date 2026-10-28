@@ -1,12 +1,12 @@
 # Agents and models
 
-Stint's defaults run Meta's models: Muse Code builds, the Stint agent continues on Muse Spark, plans come from Muse Wonder and reviews from Muse Glimmer on your machine. The demo uses nothing else. The packet is plain JSON and markdown, so any other agent or model can take a task too. Add it to `.stint/config.json`.
+This page is for anyone who wants Stint to run another coding agent or model, or to change how autopilot picks, escalates, reviews and plans. Stint's defaults run only Meta's models: Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Muse Glimmer 30B reviews on your machine. The demo uses nothing else. The packet is plain JSON and markdown, so any other agent or model can take a task too. Every setting below lives in `.stint/config.json`.
 
 ## Another coding agent
 
 Any agent with a command line can take a task. It gets the same worktree, `prompt.md` with the packet, the daemon's own test run, and a packet when it ends. Agents live under `agents` in the config. Each entry is a manifest: the command to run, how the prompt reaches it, the roles it can take (`planner`, `implementer`, `reviewer`, `tester`, `learn`), the vendor, an optional model and host, and whether it is on. `host` must name a host in `hosts`, and every host in `routes` must be in `hosts` too. The daemon says so in plain words when it loads the config if one is missing.
 
-`harness` picks the adapter. `cli` is the generic command line adapter. `claude-code` and `codex` are the native adapters described below. `acp` is the Agent Client Protocol adapter described below; `acp: true` in a manifest means the same thing. It defaults to `cli`.
+`harness` picks the adapter. `cli` is the generic command line adapter. `claude-code` and `codex` are the native adapters described below. `acp` is the Agent Client Protocol adapter described below; `acp: true` in a manifest means the same thing. `harness` defaults to `cli`.
 
 Seven presets ship turned off: `claude-code`, `codex`, `goose`, `opencode`, `gemini-acp`, `gemini-cli` and `aider`. Set `enabled` to `true` and restart `stint up`. Then hand a task over with `stint hand T-0042 claude-code`. `/api/health` lists every configured agent, turned off ones as disabled, and the Hand to picker marks them the same way.
 
@@ -74,7 +74,7 @@ Name one in a route (`"reviewer": ["lmstudio/<model id>", ...]`), in a hand-off 
 
 The `codex` preset uses the native harness: `codex exec --json --sandbox workspace-write -`, with the prompt on stdin. Stint maps the thread start, agent messages, command runs, file changes, MCP tool calls and the turn usage onto the timeline, and resumes with `codex exec resume <thread id>`. The gate is observed.
 
-To run Codex on a Meta model, give Codex a provider in your Codex config (`~/.codex/config.toml`). Codex now speaks only the Responses API (`wire_api = "chat"` is refused), and the Meta Model API serves it. This one ran on 27 October 2026 with Codex 0.163 and Muse Spark 1.3; its stream is the Codex mapper's test fixture:
+To run Codex on a Meta model, give Codex a provider in your Codex config (`~/.codex/config.toml`). Codex speaks only the Responses API (`wire_api = "chat"` is refused), and the Meta Model API serves it. This one ran on 27 October 2026 with Codex 0.163 and Muse Spark 1.3; its stream is the Codex mapper's test fixture:
 
 ```toml
 model_provider = "meta"
@@ -92,7 +92,7 @@ Then turn the preset on, set its `model` to `muse-spark-1.3`, and add `META_API_
 
 The Agent Client Protocol is JSON-RPC 2.0 over stdio, one JSON object per line, spoken by goose, opencode, Gemini CLI and others: https://agentclientprotocol.com. With `harness: "acp"`, Stint is the client. It starts the command in the manifest, opens a session in the run's worktree, and sends `prompt.md` as the prompt; the manifest's `prompt` setting is ignored for ACP. Messages, tool calls and tool results from the agent land on the same timeline as every other run. ACP does not report token usage, so these runs show as unpriced, not as $0.
 
-Because Stint is the client, the agent's file reads and writes, terminal commands and permission questions come to Stint first. File paths must resolve inside the worktree, symlinks included; a path outside is refused and recorded. Terminal commands run in the worktree in the run's sandbox. A permission question waits for you: it appears on the task and in the Factory queue with the choices the agent offered (such as allow once, always for this run, or reject), and your answer goes back to the agent. `GET /api/permissions` lists the questions still waiting. Stopping a run cancels any question it is waiting on.
+Because Stint is the client, the agent's file reads and writes, terminal commands and permission questions come to Stint first. File paths must resolve inside the worktree, symlinks included; a path outside is refused and recorded. Terminal commands run in the worktree in the run's sandbox. A permission question waits for you: it appears on the task and in the queue on Standings (`/factory`) with the choices the agent offered (such as allow once, always for this run, or reject), and your answer goes back to the agent. `GET /api/permissions` lists the questions still waiting. Stopping a run cancels any question it is waiting on.
 
 Three presets use ACP, all turned off: `goose` (`goose acp`, https://block.github.io/goose/docs/guides/acp-clients), `opencode` (`opencode acp`, https://opencode.ai/docs/acp/) and `gemini-acp` (`gemini --experimental-acp`, https://geminicli.com/docs/cli/acp-mode/). No preset carries a flag that bypasses approvals.
 
@@ -104,7 +104,7 @@ To run either one offline, point that same OpenAI-compatible provider at Ollama 
 
 ## Another model
 
-The Stint agent and the plan and review client talk to any OpenAI-compatible host in `hosts`: the Meta Model API, Fireworks, Baseten, Modal, or Ollama on your machine. To run the Stint agent on another model, name the host and model, for example `stint hand T-0042 stint-agent --model fireworks/<model id>` or `--model ollama/qwen3-coder:30b`. To make it a fallback, put the same `host/model` entry in `routes.agent`, `routes.planner` or `routes.reviewer`. Add a price under `prices` to see what a run cost; without one the run shows as unpriced.
+The Stint agent and the plan and review client talk to any OpenAI-compatible host in `hosts`: the Meta Model API, Fireworks, Baseten, Modal, or Ollama on your machine. To run the Stint agent on another model, name the host and model, for example `stint hand T-0042 stint-agent --model fireworks/<model id>` or `--model ollama/muse-glimmer:30b-mlx`. To make it a fallback, put the same `host/model` entry in `routes.agent`, `routes.planner` or `routes.reviewer`. Add a price under `prices` to see what a run cost; without one the run shows as unpriced.
 
 A model name Stint can't find is refused. Stint never swaps in another model without telling you.
 
@@ -125,7 +125,7 @@ Stint's reviewer skips any entry in `routes.reviewer` that runs the model the St
 
 ## Which agent gets the task
 
-The Factory's scoreboard shows how each agent and model has done, overall and per task tag:
+The scoreboard on Standings shows how each agent and model has done, overall and per task tag:
 - **Attempts:** runs the daemon verified.
 - **Passed:** how many of those were green.
 - **Last 3 all passed:** whether all of the last three attempts passed.
@@ -157,7 +157,7 @@ When a task is too big for one run, the plan can split it into up to six subtask
 - holds back the others until what they need is merged;
 - finishes the parent once every subtask is merged.
 
-Each subtask still stops at your approval. The board shows the parent with its subtasks in order, and what each one waits for.
+Each subtask still stops at your approval. Timing (`/`) shows the parent with its subtasks in order, and what each one waits for.
 
 ## Reviews with different jobs
 
@@ -187,16 +187,16 @@ On the schedule (daily or weekly), Stint makes one task per job and puts it on a
 - **Doc gardening:** README, AGENTS.md and docs/ against the code, for stale commands, dead links and flags that no longer exist.
 - **Dead code and dependency drift:** removes what is clearly dead, and proposes upgrades rather than making them.
 
-A job with a task still open is skipped until that task is merged or abandoned. The Factory shows each job and when it is next due.
+A job with a task still open is skipped until that task is merged or abandoned. Standings shows each job and when it is next due.
 
 ## Work from GitHub and Linear
 
-```sh
+```bash
 stint intake github --label stint    # through gh, for the repository here or --gh-repo owner/name
 stint intake linear --team ENG       # the Linear key comes from the variable intake.linear.keyEnv names
 ```
 
-Each open issue becomes an intake item on the board, never a task straight away. Stint triages it on the planner chain:
+Each open issue becomes an intake item on Timing, never a task straight away. Stint triages it on the planner chain:
 - a size: S for one run, M for a few, L for work that must be split;
 - a proposed title, goal and acceptance criteria;
 - the existing tasks it may duplicate, chosen only from tasks with matching words;

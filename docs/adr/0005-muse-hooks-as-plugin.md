@@ -1,6 +1,6 @@
 # ADR-0005: Muse Code's hooks ship as a user-scope plugin, not per-worktree files
 
-Status: Accepted, 27 Oct 2026. Spec: R-014 Req 1.
+Status: Accepted, 27 October 2026. Spec: R-014 Req 1.
 
 ## Context
 R-014 writes a `hooks.json` template into each run's worktree under `.muse/` at assign, posting `{event, sessionId, cwd}`. Muse Code 1.4 loads hooks from approved plugins at user scope, and a file written into the worktree would appear in the task's diff and the merge.

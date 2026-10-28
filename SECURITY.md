@@ -1,5 +1,7 @@
 # Security policy
 
+This page is for anyone who finds a security problem in Stint: how to report it privately, what happens next, and what counts.
+
 ## Reporting a vulnerability
 
 Report it privately through GitHub: open the repository's **Security** tab and choose **Report a vulnerability**. Please do not open a public issue, discussion or pull request for a security problem.

@@ -1,6 +1,6 @@
 # Verify: the suite, the tamper guard, held-out scenarios and coverage
 
-Verification runs in the daemon, in the run's worktree, after every run. An agent saying "tests pass" is a claim; `verification/<run>.json` is the record. Review is offered only after a green verify, and approve merges only the commit the daemon verified. The verification tab shows every part below on one card.
+This page is for anyone who wants to know what the daemon checks before a change can merge, and how to add checks of their own. Verification runs in the daemon, in the run's worktree, after every run. An agent saying "tests pass" is a claim; `verification/<run>.json` is the record. Review is offered only after a green verify, and approve merges only the commit the daemon verified. The verification tab shows every part below on one card.
 
 ## The verify suite
 
@@ -13,13 +13,13 @@ Each check runs in the worktree with the run environment and is recorded as `{na
 
 ## The tamper guard
 
-An agent must not weaken the tests it is judged by. When `plan.json` is written (or at the first assign when there is no plan), the daemon hashes every test file in the repository at the commit the task starts from: the ones the plan's steps name, and every file in a test folder or named `.test.` or `.spec.`. The hashes go to `.stint/tasks/<id>/tests.lock.json`, and `acceptance.locked` is recorded with `scope: 'plan'`. Tests written tests-first (R-027) are added to the same file with `scope: 'tests-first'`.
+An agent must not weaken the tests it is judged by. When `plan.json` is written (or at the first assign when there is no plan), the daemon hashes the test files that the plan's steps and the task's goal and acceptance name, as they are at the commit the task starts from ([ADR-0003](adr/0003-test-lock-scope.md)). A test file is one in a `test`, `tests` or `__tests__` folder, or one named `.test.` or `.spec.`. Tests nobody named stay free to extend. The hashes go to `.stint/tasks/<id>/tests.lock.json`, and `acceptance.locked` is recorded with `scope: 'plan'`. Tests written tests-first (R-027) are added to the same file with `scope: 'tests-first'`.
 
 After each run the daemon compares the locked files on the task branch with the lock. A changed or deleted file records `verification.tampered { run, files }`, shows on the card ("tests unchanged: test/webhooks.test.ts" when nothing changed; no line at all when the task locked nothing), and, with `config.verify.tamper` at `fail` (the default), turns the verification red with reason `tampered` even when the tests pass. Approve is refused while a tamper stands unexplained, and autopilot stops. Set `tamper` to `warn` to record it without turning the verification red, or `off` to skip the check.
 
 The escape hatch: a decision recorded after the lock whose text starts with `tests:` and names every changed file. An agent writes it as a decision line:
 
-```
+```text
 decision: tests: test/backoff.test.ts changed because the cap is read from the environment now
 ```
 
@@ -29,7 +29,7 @@ With it, the verification stays as the tests decide, the record's `tamper` gains
 
 Tests written in the same run as the code prove little, so a task can hold scenarios the builder never sees. They live in `config.scenarios.dir` (default `.stint/scenarios`), one folder per task, outside every worktree. Store one with:
 
-```
+```bash
 stint scenario add T-0042 holdout.test.ts
 stint scenario list T-0042
 ```
