@@ -1,11 +1,12 @@
 // Goals above tasks (R-064 Part 2): a goal's status, its split into tasks, and the tasks made from it.
 import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
-import { type Goal, GoalSplitSchema, type GoalStatus, type NewEvent, type ProposedTask, type Task, type TaskLimits } from '@stint-dev/core';
+import { type Goal, type GoalOutcome, GoalSplitSchema, type GoalStatus, type NewEvent, type ProposedTask, type SharpenState, type Task, type TaskLimits, goalOutcome } from '@stint-dev/core';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
 import { git } from './git';
 import { effectiveChain, walkChain } from './route';
-import { sharpenStateOf, standingGoalDecisions } from './sharpen';
+import { taskOutcome } from './routes/outcome';
+import { goalEvents, sharpenStateOf, standingGoalDecisions } from './sharpen';
 
 const list = (items: string[]) => (items.length ? items.join('\n') : '- none');
 const usd = (v: number) => `$${v.toFixed(2)}`;
@@ -145,4 +146,30 @@ export async function createGoalTasks(ctx: DaemonContext, id: string, proposed: 
   await setGoalStatus(ctx, id, 'running');
   if (ctx.ws.config.autopilot?.onCreate) for (const t of ids) await ctx.autopilot.start(t);
   return made;
+}
+
+export type GoalView = {
+  goal: Goal;
+  outcome: GoalOutcome;
+  /** Each task's title, for the goal page and `stint goal show`. */
+  titles: Record<string, string>;
+  sharpen: SharpenState;
+  /** The latest split no tasks were made from yet, or null. */
+  proposal: ProposedTask[] | null;
+};
+
+/**
+ * A goal as the page and the CLI read it: its rollup from each task's outcome record, its sharpen state and any split
+ * waiting to be made into tasks. A draft that has become ready, or a running goal its rollup calls done, says so first.
+ */
+export async function goalView(ctx: DaemonContext, id: string): Promise<GoalView> {
+  let goal = await settleGoal(ctx, id);
+  const tasks = (await Promise.all(goal.tasks.map((t) => ctx.ws.readTask(t).catch(() => null)))).filter((t): t is Task => !!t);
+  const outcomes = await Promise.all(tasks.map((t) => taskOutcome(ctx.ws, t.id)));
+  const outcome = goalOutcome(goal, outcomes, Object.fromEntries(tasks.map((t) => [t.id, t.goalCriteria ?? []])));
+  if (goal.status === 'running' && outcome.result === 'done') goal = await setGoalStatus(ctx, id, 'done');
+  const events = await goalEvents(ctx.ws, id);
+  const planned = events.findLastIndex((e) => e.type === 'goal.planned');
+  const proposal = planned > events.findLastIndex((e) => e.type === 'goal.tasks_created') ? ((events[planned]?.payload.tasks as ProposedTask[] | undefined) ?? null) : null;
+  return { goal, outcome, titles: Object.fromEntries(tasks.map((t) => [t.id, t.title])), sharpen: await sharpenStateOf(ctx, id), proposal };
 }

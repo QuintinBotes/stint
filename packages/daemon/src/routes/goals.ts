@@ -2,7 +2,7 @@ import { GoalSplitSchema, TaskLimitsSchema } from '@stint-dev/core';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
-import { createGoalTasks, planGoal, setGoalStatus } from '../goals';
+import { createGoalTasks, goalView, planGoal, setGoalStatus } from '../goals';
 
 const NewGoalBody = z.strictObject({
   title: z.string().min(1).max(120),
@@ -22,6 +22,17 @@ export function goalRoutes(app: Hono, ctx: DaemonContext): void {
     await log().append({ task: 'workspace', vendor: 'human', type: 'goal.created', payload: { goal: goal.id, title: goal.title, criteria: goal.criteria.length } });
     return c.json(goal, 201);
   });
+
+  app.get('/api/goals', async (c) => {
+    const goals = [];
+    for (const g of await ctx.ws.listGoals()) {
+      const { goal, outcome } = await goalView(ctx, g.id);
+      goals.push({ goal, outcome });
+    }
+    return c.json({ goals });
+  });
+
+  app.get('/api/goals/:id', async (c) => c.json(await goalView(ctx, c.req.param('id'))));
 
   // the proposal only: nothing is created until the person sends it back to /tasks
   app.post('/api/goals/:id/plan', async (c) => c.json({ tasks: await planGoal(ctx, c.req.param('id')) }));

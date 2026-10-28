@@ -168,6 +168,8 @@ test("Two tasks whose spend reaches the goal's spend limit stop the next build w
       expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toMatchObject({ reason: `Needs you: the goal's $3.00 spend limit is reached ($3.00 spent across ${g.id}'s tasks).`, needsYou: true, limit: 'usd' });
       // nothing was built
       expect(events.filter((e) => e.type === 'run.started').length).toBe(1);
+      // the stop kicks the goal's other task to see if a slot opened; let that tick end before the repo goes
+      await Bun.sleep(200);
     });
   } finally {
     models.stop();
@@ -191,3 +193,52 @@ test("nextStep stops a build at the goal's builds and at the expected cost of on
   expect(nextStep(built, t, s, false, LIMIT_DEFAULTS, goal(2.7, 1, { usd: 3, builds: null }))).toMatchObject({ kind: 'stop', limit: 'usd', scope: 'goal', reason: "Needs you: the next build would pass the goal's $3.00 spend limit ($2.70 spent across G-0001's tasks; builds here cost about $0.50)." });
   expect(nextStep(built, t, s, false, LIMIT_DEFAULTS, goal(2.4, 1, { usd: 3, builds: null })).kind).toBe('hand');
 });
+
+test('GET /api/goals/:id rolls the goal up from its tasks; once every task is merged and every criterion checked, the goal is done', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [], models);
+      const g = (await (await post(app, '/api/goals', { ...GOAL, limits: { usd: 5 } })).json()) as { id: string };
+      expect(((await (await app.request(`/api/goals/${g.id}`)).json()) as { proposal: unknown }).proposal).toBeNull();
+      await post(app, `/api/goals/${g.id}/plan`, {});
+      const pending = (await (await app.request(`/api/goals/${g.id}`)).json()) as { proposal: Array<{ title: string }> };
+      expect(pending.proposal.map((t) => t.title)).toEqual(['Count webhooks per tenant', 'Serve the other tenants']);
+      const { tasks } = (await (await post(app, `/api/goals/${g.id}/tasks`, { tasks: pending.proposal })).json()) as { tasks: Array<{ id: string }> };
+      const ids = tasks.map((t) => t.id);
+      const [first, second] = ids as [string, string];
+
+      type View = { goal: { status: string }; outcome: { result: string; met: number; criteria: Array<{ state: string; tasks: string[] }>; tasks: Array<{ id: string; resultLabel: string }>; spend: { limit: number | null } }; titles: Record<string, string>; proposal: unknown };
+      const view = async () => (await (await app.request(`/api/goals/${g.id}`)).json()) as View;
+      const running = await view();
+      expect(running.proposal).toBeNull();
+      expect(running.goal.status).toBe('running');
+      expect(running.outcome).toMatchObject({ result: 'in_progress', met: 0, spend: { limit: 5 } });
+      expect(running.outcome.criteria.map((c) => [c.state, c.tasks])).toEqual([
+        ['not_checked', [first]],
+        ['not_checked', [second]],
+      ]);
+      expect(running.outcome.tasks.map((t) => [t.id, t.resultLabel])).toEqual([
+        [first, 'In progress'],
+        [second, 'In progress'],
+      ]);
+      expect(running.titles[first]).toBe('Count webhooks per tenant');
+
+      // a person checks each by hand and approves, and each is merged
+      for (const id of ids) {
+        await ws.writeTask(id, { proofs: [{ criterion: 1, kind: 'human', ref: 'Someone tries it' }] });
+        await ws.events(id).append({ task: id, vendor: 'human', type: 'approval.granted', payload: { by: 'human' } });
+        await ws.writeTask(id, { status: 'done' });
+      }
+      const done = await view();
+      expect(done.outcome).toMatchObject({ result: 'done', met: 2, merged: 2 });
+      expect(done.goal.status).toBe('done');
+      expect((await ws.workspaceEvents().read()).filter((e) => e.type === 'goal.status').at(-1)?.payload).toMatchObject({ from: 'running', to: 'done' });
+      const list = (await (await app.request('/api/goals')).json()) as { goals: Array<{ goal: { id: string; status: string }; outcome: { met: number } }> };
+      expect(list.goals.map((x) => [x.goal.id, x.goal.status, x.outcome.met])).toEqual([[g.id, 'done', 2]]);
+      expect((await app.request('/api/goals/G-0042')).status).toBe(404);
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
