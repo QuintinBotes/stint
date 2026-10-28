@@ -7,7 +7,7 @@ import { type Review, ReviewSchema } from '../schemas/review';
 import { type Budgets, type Check, type Task, TaskSchema } from '../schemas/task';
 import { DecisionLedger } from './decisions';
 import { EventLog } from './eventlog';
-import { readJsonIfExists, writeJsonAtomic, type AtomicHooks } from './files';
+import { KeyedQueue, readJsonIfExists, writeJsonAtomic, type AtomicHooks } from './files';
 import { HandoffStore, RunStore, VerificationStore } from './runs';
 
 export type StoreErrorCode = 'not_found' | 'exists' | 'no_commits' | 'invalid';
@@ -45,6 +45,8 @@ export function slugify(title: string): string {
 }
 
 const TASK_DIR = /^(T-[0-9]{4,})(-|$)/;
+// one create at a time per workspace, so two creates never read the same next id
+const creates = new KeyedQueue();
 
 /** The `.stint/` workspace of one repository. The daemon is its only writer. */
 export class Workspace {
@@ -96,7 +98,11 @@ export class Workspace {
   }
 
   /** `emit: false` skips the task.created event, for the replayer, which appends the recorded one. */
-  async createTask(i: NewTask, o: { emit?: boolean } = {}): Promise<Task> {
+  createTask(i: NewTask, o: { emit?: boolean } = {}): Promise<Task> {
+    return creates.run(this.tasksDir, () => this.create(i, o));
+  }
+
+  private async create(i: NewTask, o: { emit?: boolean }): Promise<Task> {
     const id = i.id ?? (await this.nextTaskId());
     if (await this.findTaskDir(id)) throw new StoreError('exists', `${id} exists`);
     const baseCommit = i.baseCommit ?? headCommit(this.root);
