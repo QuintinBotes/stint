@@ -506,7 +506,8 @@ export class Autopilot {
           for (const c of s.candidates) {
             const evs = await ws.events(c).read();
             const v = await ws.verification(c).latest();
-            states.push({ id: c, done: !autopilotTail(evs), green: v?.status === 'green', branch: (await ws.readTask(c)).branch });
+            // done once its autopilot has stopped: a candidate not started yet also has no tail, and is not done
+            states.push({ id: c, done: evs.some((e) => e.type === 'autopilot.stopped') && !autopilotTail(evs), green: v?.status === 'green', branch: (await ws.readTask(c)).branch });
           }
           if (states.some((x) => !x.done)) return;
           const green = states.filter((x) => x.green);
