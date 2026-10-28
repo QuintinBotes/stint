@@ -14,10 +14,10 @@ export function daemonFor(root: string): DaemonInfo & { url: string } {
   return { ...d, url: `http://127.0.0.1:${d.port}` };
 }
 
-/** POSTs to the daemon with its token; prints the daemon's own error and exits 1 when it refuses. */
-export async function postDaemon<T>(root: string, path: string, body: unknown): Promise<T> {
+/** POSTs (or PATCHes) to the daemon with its token; prints the daemon's own error and exits 1 when it refuses. */
+export async function postDaemon<T>(root: string, path: string, body: unknown, method: 'POST' | 'PATCH' = 'POST'): Promise<T> {
   const d = daemonFor(root);
-  const res = await fetch(`${d.url}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const res = await fetch(`${d.url}${path}`, { method, headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const json = (await res.json()) as T & { error?: { code: string; message: string; hint: unknown } };
   if (!res.ok) {
     const e = json.error;

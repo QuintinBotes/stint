@@ -73,7 +73,7 @@ test('With reviewRounds: 2 a second changes build is allowed and the third reque
 });
 
 test('With minutes: 10, nothing new starts once the task has used 10 minutes of agent time', () => {
-  const long = log([{ type: 'autopilot.started' }, { type: 'run.started', run: 'r1', payload: { role: 'planner' } }, ...Array.from({ length: 10 }, () => ({ type: 'agent.message' })), { type: 'run.finished', run: 'r1', payload: { endedBy: 'completed', cost: cost(0) } }]);
+  const long = log([{ type: 'autopilot.started' }, { type: 'run.started', run: 'r1', payload: { role: 'planner' } }, ...Array.from({ length: 10 }, (): Line => ({ type: 'agent.message' })), { type: 'run.finished', run: 'r1', payload: { endedBy: 'completed', cost: cost(0) } }]);
   expect(nextStep(long, task, AUTOPILOT_DEFAULTS, false, limits({ minutes: 20 })).kind).toBe('build');
   expect(nextStep(long, task, AUTOPILOT_DEFAULTS, false, limits({ minutes: 10 }))).toMatchObject({ kind: 'stop', limit: 'minutes', reason: 'Needs you: the agent time limit is reached (11 of 10 min).' });
 });
