@@ -21,7 +21,7 @@ test('Each T-0042 rail segment shows a permission tier chip', async ({ page }) =
   await expect(tiers).toHaveCount(4);
   for (let i = 0; i < 4; i++) {
     await expect(segments.nth(i).getByTestId('permission-tier')).toHaveCount(1);
-    expect(['manual', 'auto, verified', 'never bypass']).toContain((await tiers.nth(i).textContent())?.trim());
+    expect(['you', 'automatic once tests pass', 'you, and the agent asks first']).toContain((await tiers.nth(i).textContent())?.trim());
   }
 });
 

@@ -126,7 +126,7 @@ export function ReplayStrip({ health }: { health: Health | null }) {
         </span>
       ) : null}
       {status?.done ? (
-        <Link to="/factory#any-harness" className="ml-auto text-ink underline decoration-rule-strong hover:decoration-ink" data-testid="replay-close">
+        <Link to="/factory#any-harness" className="hidden sm:inline ml-auto text-ink underline decoration-rule-strong hover:decoration-ink" data-testid="replay-close">
           Any harness, any model, one packet.
         </Link>
       ) : null}
@@ -150,7 +150,7 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
   const onAutopilot = !!card?.autopilot?.on;
   const run = card?.lastRun && !card.lastRun.endedAt ? card.lastRun.run : null;
   // a replay daemon has no agents to start: the actions that need one say so
-  const live = health?.mode === 'replay' ? ' (needs a live daemon)' : '';
+  const live = health?.mode === 'replay' ? ' (not in the replay)' : '';
   const views = new Set(['terminal', 'packet', 'diff', 'memory']);
   // one action per agent that can build now; none while a run is live, since a task holds one run at a time
   const assign: Action[] = run
@@ -167,10 +167,10 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
     { id: 'terminal', label: 'Open the terminal in the worktree', key: 't', cli: `cd .stint/worktrees/${id}-${card?.lastRun?.run ?? 'r1'}`, run: tab('terminal') },
     ...(run ? [{ id: 'stop', label: `Stop the live run, ${run}`, key: '⌘.', cli: '', run: () => report(api.stopRun(id, run), `${run} stopped`) }] : []),
     // approving is offered only at the gate; asking for changes or rejecting works on any open task
-    ...(atGate ? [{ id: 'approve', label: 'Approve and merge', key: 'a', cli: `stint approve ${id}`, run: () => report(api.approve(id), `${id} merged`) }] : []),
+    ...(atGate ? [{ id: 'approve', label: 'Approve and merge', key: 'a', cli: `stint approve ${id}`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'approve' })) }] : []),
     { id: 'changes', label: 'Request changes', key: 'r', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },
     { id: 'reject', label: 'Reject', key: 'x', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'reject' })) },
-    { id: 'verify', label: 'Verify: the daemon runs the tests', cli: `stint verify ${id}`, run: () => report(api.verify(id), `${id}: tests run by the daemon`) },
+    { id: 'verify', label: 'Run the tests', cli: `stint verify ${id}`, run: () => report(api.verify(id), `${id}: tests run by Stint`) },
     { id: 'hand', label: 'Hand to another agent', cli: `stint hand ${id} <agent>`, run: tab('packet') },
     { id: 'autopilot-on', label: `Put on autopilot${live}`, cli: `stint run ${id}`, run: () => report(api.autopilot(id, true), `${id} is on autopilot`) },
     { id: 'autopilot-off', label: 'Take off autopilot', cli: `stint run ${id} --stop`, run: () => report(api.autopilot(id, false), `${id} is off autopilot`) },
@@ -203,7 +203,7 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
     { id: 'skills', label: 'Skills', cli: 'stint skills list', run: () => navigate('/skills') },
     ...(tasks ?? []).map((c) => ({ id: `task-${c.task.id}`, label: `${c.task.id}, ${c.task.title}`, cli: `/t/${c.task.id}`, run: () => navigate(`/t/${c.task.id}`) })),
   ];
-  const replay = health?.mode === 'replay' ? ' (needs a live daemon)' : '';
+  const replay = health?.mode === 'replay' ? ' (not in the replay)' : '';
   const here = taskId ? taskActions(taskId, tasks?.find((c) => c.task.id === taskId), navigate, health) : [];
   const groups: Array<[string, Action[]]> = [
     [taskId ?? 'This task', here],
@@ -329,7 +329,7 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
             .catch((err: unknown) => setError(`The task was not created: ${err instanceof Error ? err.message : String(err)}`));
         }}
       >
-        <p className="text-small text-ink-2 -mt-2">The task waits in Planned until you assign an agent or put it on autopilot.</p>
+        <p className="text-small text-ink-2 -mt-2">Describe the work. It waits in Planned until you give it to an agent or turn on autopilot.</p>
         <label className={label}>
           Title
           <input name="title" required maxLength={120} className={field} />
@@ -339,12 +339,15 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
           <textarea name="goal" required rows={3} className={field} />
         </label>
         <label className={label}>
-          Acceptance criteria, one per line
+          How you will know it is done, one check per line
           <textarea name="acceptance" required rows={3} className={field} />
         </label>
         <label className={label}>
-          Test command the daemon runs
-          <input name="test" placeholder="bun test" className={cx(field, 'font-mono')} />
+          Command that runs the tests
+          <input name="test" placeholder="bun test" aria-describedby="test-hint" className={cx(field, 'font-mono')} />
+          <span id="test-hint" className="text-small font-normal text-ink-2">
+            Stint runs it itself to check the work. Leave it empty to use the one in this project's settings.
+          </span>
         </label>
         {error ? (
           <p role="alert" className="text-red">

@@ -166,3 +166,4 @@ Opacity changes driven by the scrubber fade over 220ms ease-out. That motion is 
 - Don't add drafting texture, grid paper, or sheet borders with zone letters; that is a costume of the world.
 - Don't use green for anything but verified.
 - Don't rename product concepts with a metaphor.
+- Do keep the code-review convention in a diff: a green wash on added lines and a red wash on removed ones is notation for code, not a state.

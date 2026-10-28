@@ -16,6 +16,8 @@ test('Autopilot from the task header carries a task to Needs you; pressing a mer
   await page.goto(`/t/${t.id}`);
   await expect(page.getByTestId('approval-gate')).toBeVisible();
   await page.keyboard.press('a');
+  await expect(page.getByTestId('approve-armed')).toBeVisible();
+  await page.keyboard.press('a');
   await expect(page.getByTestId('signoff')).toBeVisible();
   await expect(page.getByTestId('signoff')).toContainText(/[0-9a-f]{7}/);
 

@@ -1,15 +1,18 @@
 import type { StintEvent } from '@stint-dev/core';
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router';
+import { toast } from 'sonner';
 import { agentOf } from '../agents';
 import { DaemonError, type RunSummary, type TaskBundle, api } from '../api';
 import { localDate, localTime } from '../format';
+import { useTasks } from '../hooks';
 import { singleKey } from '../shortcuts';
-import { Button, Kbd, StatusChip, Who, cx } from './ui';
+import { Button, Explain, Kbd, StatusChip, Who, cx } from './ui';
 
 const NOT_AT_THE_GATE: Record<string, string> = {
   planned: 'Nothing has been built yet.',
   building: 'A run is going on this task. The gate opens after the next green verification.',
-  verifying: 'The daemon is running the tests.',
+  verifying: 'Stint is running the tests.',
   reviewing: 'The review is running.',
   rejected: 'Rejected. Hand the task to an agent to try again.',
   approved: 'Approved; the merge is under way.',
@@ -24,11 +27,11 @@ export function gateState(b: TaskBundle): { open: boolean; reason: string } {
   if (b.task.status === 'done') return { open: false, reason: '' };
   if (b.task.status === 'in_review') return { open: false, reason: '' };
   if (b.task.status !== 'awaiting_approval') return { open: false, reason: NOT_AT_THE_GATE[b.task.status] ?? 'The task is not at the gate.' };
-  if (!b.verification) return { open: false, reason: 'Waiting for the daemon to run the tests.' };
+  if (!b.verification) return { open: false, reason: 'Waiting for Stint to run the tests.' };
   if (b.verification.status !== 'green') return { open: false, reason: `The tests are red: ${b.verification.failed} failed.` };
   if (b.review?.verdict === 'block') return { open: false, reason: 'The review blocks this change.' };
   if (b.runs.some((r) => !r.endedAt)) return { open: false, reason: 'A run is still going.' };
-  return { open: true, reason: `${b.verification.passed} passed, run by the daemon${b.review ? `; review: ${b.review.verdict.replace('_', ' ')}` : ''}.` };
+  return { open: true, reason: `${b.verification.passed} tests passed, run by Stint${b.review ? `; review: ${b.review.verdict.replace('_', ' ')}` : ''}.` };
 }
 
 const base = (path: string) => path.split('/').at(-1) ?? path;
@@ -63,12 +66,20 @@ const SHOWN = 6;
 
 /**
  * The revision block: the run history set as a drawing's revision table (run, change, by, the daemon's check), closed by
- * the approval row with Approve and merge as its last cell. Rewound (`seen` is the events by then), the runs not started
- * yet go quiet; the gate itself always acts on the task as it is now.
+ * the approval row with Approve and merge as its last cell. Rewound (`seen` is the events by then), the rows show the task
+ * as it was and Approve waits until the view is back at the latest; the gate acts only on the task as it is now.
+ * Above the buttons, the evidence for the decision: the change's size, how much of it you have viewed, and the review.
  */
-export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBundle; events: StintEvent[]; seen: StintEvent[] | null; onDone: () => void }) {
-  const { open, reason } = gateState(bundle);
+export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { bundle: TaskBundle; events: StintEvent[]; seen: StintEvent[] | null; files: Array<{ path: string; added: number; removed: number }>; viewed: Set<string>; onDone: () => void }) {
+  const gate = gateState(bundle);
+  // a rewound view shows the past; approving from it would act on a task the page is not showing
+  const open = gate.open && !seen;
+  const reason = gate.open && seen ? 'Go back to the latest to approve.' : gate.reason;
   const [error, setError] = useState<string | null>(null);
+  // the first a gets Approve ready and says what it will do; a second a, or Enter, merges. A click is one step.
+  const [armed, setArmed] = useState(false);
+  const approveButton = useRef<HTMLButtonElement>(null);
+  const { data: tasks } = useTasks();
   const [asking, setAsking] = useState<'changes' | 'reject' | null>(null);
   const [text, setText] = useState('');
   const id = bundle.task.id;
@@ -89,11 +100,19 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
         return;
       }
       if (!singleKey(e) || bundle.task.status === 'done') return;
-      if (e.key === 'a' && open) void call(() => api.approve(id));
+      if (e.key === 'a' && open) {
+        if (armed) void approve();
+        else arm();
+      } else if (e.key === 'Escape' && armed) setArmed(false);
       else if (e.key === 'r') setAsking('changes');
       else if (e.key === 'x') setAsking('reject');
     };
-    const onAsk = (e: Event) => setAsking((e as CustomEvent<'changes' | 'reject'>).detail);
+    const onAsk = (e: Event) => {
+      const want = (e as CustomEvent<'changes' | 'reject' | 'approve'>).detail;
+      if (want === 'approve') {
+        if (open) arm();
+      } else setAsking(want);
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('stint:gate', onAsk);
     return () => {
@@ -101,19 +120,33 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
       window.removeEventListener('stint:gate', onAsk);
     };
   });
-  const call = async (fn: () => Promise<unknown>) => {
+  const call = async (fn: () => Promise<unknown>): Promise<boolean> => {
     setError(null);
     try {
       await fn();
       if (asking) close();
       setText('');
       onDone();
+      return true;
     } catch (e) {
       setError(e instanceof DaemonError ? `${e.error.message}${e.error.hint ? `: ${typeof e.error.hint === 'string' ? e.error.hint : JSON.stringify(e.error.hint)}` : ''}` : String(e));
+      return false;
     }
+  };
+  const arm = () => {
+    setArmed(true);
+    requestAnimationFrame(() => approveButton.current?.focus());
+  };
+  const approve = async () => {
+    setArmed(false);
+    if (await call(() => api.approve(id))) toast.success(`${id} merged.`);
   };
   const done = bundle.task.status === 'done';
   const started = seen ? new Set(seen.filter((e) => e.type === 'run.started').map((e) => e.run)) : null;
+  const added = files.reduce((n, f) => n + f.added, 0);
+  const removed = files.reduce((n, f) => n + f.removed, 0);
+  const seenFiles = files.filter((f) => viewed.has(f.path)).length;
+  const nextTask = done ? (tasks ?? []).map((x) => x.task).find((x) => x.status === 'awaiting_approval' && x.id !== id) : undefined;
   const runs = bundle.runs.slice(-SHOWN);
   const earlier = bundle.runs.length - runs.length;
   const cell = 'px-[7px] py-[5px] border border-rule-strong text-left align-top';
@@ -126,12 +159,12 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
         <colgroup>
           <col className="w-10" />
           <col />
-          <col className="w-[82px]" />
+          <col className="w-[92px]" />
           <col className="w-[78px]" />
         </colgroup>
         <thead>
           <tr className="bg-panel text-ink-2">
-            {['Run', 'Change', 'By', 'Check'].map((h) => (
+            {['Run', 'Change', 'By', 'Result'].map((h) => (
               <th key={h} scope="col" className={cx(cell, 'font-medium')}>
                 {h}
               </th>
@@ -149,12 +182,12 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
           {runs.length === 0 ? (
             <tr className="bg-ground">
               <td colSpan={4} className={cx(cell, 'text-ink-2')}>
-                Each run appears here with what it changed and what the daemon's check said.
+                Each run appears here with what it changed and what Stint's check said.
               </td>
             </tr>
           ) : null}
           {runs.map((r) => {
-            const rev = revision(r, events, bundle);
+            const rev = revision(r, seen ?? events, bundle);
             const agent = agentOf(r.adapter, r.host, r.model);
             const later = started !== null && !started.has(r.run);
             return (
@@ -176,11 +209,24 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
               <div className="flex flex-col gap-2.5">
                 {done ? null : (
                   <div className="flex items-baseline justify-between gap-2">
-                    <b className="font-semibold">Approved by</b>
-                    <span className={cx(!open && 'text-ink-3')}>{open ? 'You, pending' : 'Not yet'}</span>
+                    <b className="font-semibold">Your approval</b>
+                    <span className={cx(open ? 'text-amber' : 'text-ink-2')}>{open ? 'Waiting for you' : 'Not yet'}</span>
                   </div>
                 )}
-                {seen ? <p className="text-ink-2">The gate acts on the task as it is now.</p> : null}
+                {seen ? (
+                  <p className="text-ink-2" data-testid="gate-rewound">
+                    You are looking at an earlier moment; this approval is the task as it is now.
+                  </p>
+                ) : null}
+                {!done && files.length > 0 ? (
+                  <p className="text-ink-2" data-testid="gate-evidence">
+                    {files.length} file{files.length === 1 ? '' : 's'} changed, +{added} -{removed}, on <span className="font-mono">{bundle.task.branch}</span>.{' '}
+                    <span className={cx(seenFiles < files.length && open && 'text-amber')} data-testid="gate-viewed">
+                      You have viewed {seenFiles} of {files.length}.
+                    </span>
+                  </p>
+                ) : null}
+                {reason && !done ? <p className={open ? 'text-ink' : 'text-ink-2'}>{reason}</p> : null}
                 {bundle.risk ? (
                   <p className="flex flex-wrap items-baseline gap-2" data-testid="risk-line">
                     <StatusChip label={`${bundle.risk.tier} risk`} tone={bundle.risk.tier === 'high' ? 'bad' : bundle.risk.tier === 'medium' ? 'warn' : 'neutral'} />
@@ -258,6 +304,14 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
                           ) : null}
                           .
                         </p>
+                        {nextTask ? (
+                          <p className="mt-2">
+                            Next:{' '}
+                            <Link to={`/t/${nextTask.id}`} className="font-medium underline decoration-rule-strong hover:decoration-ink" data-testid="next-task">
+                              {nextTask.id} needs you
+                            </Link>
+                          </p>
+                        ) : null}
                         <details className="mt-2">
                           <summary className="cursor-pointer text-ink-2 hover:text-ink">Merge details</summary>
                           <p className="mt-1 font-mono text-ink-2 break-words">
@@ -298,20 +352,36 @@ export function ApprovalGate({ bundle, events, seen, onDone }: { bundle: TaskBun
                   </form>
                 ) : (
                   <>
-                    <Button tone="primary" disabled={!open} data-testid="approve" className="w-full" onClick={() => void call(() => api.approve(id))}>
+                    <Button
+                      ref={approveButton}
+                      tone="primary"
+                      disabled={!open}
+                      data-testid="approve"
+                      data-armed={armed}
+                      aria-keyshortcuts="a"
+                      aria-describedby={armed ? 'approve-armed' : undefined}
+                      className="w-full"
+                      onBlur={() => setArmed(false)}
+                      onClick={() => void approve()}
+                    >
                       Approve and merge <Kbd>a</Kbd>
                     </Button>
+                    {armed ? (
+                      <p id="approve-armed" role="status" className="text-ink" data-testid="approve-armed">
+                        Press a again, or Enter, to merge {bundle.task.branch}. Escape cancels.
+                      </p>
+                    ) : null}
                     <div className="grid grid-cols-2 gap-2">
-                      <Button ref={askChanges} className={small} title="Shortcut: r" onClick={() => setAsking('changes')}>
+                      <Button ref={askChanges} className={small} aria-keyshortcuts="r" onClick={() => setAsking('changes')}>
                         Request changes
                       </Button>
-                      <Button ref={askReject} className={small} title="Shortcut: x" onClick={() => setAsking('reject')}>
+                      <Button ref={askReject} className={small} aria-keyshortcuts="x" onClick={() => setAsking('reject')}>
                         Reject
                       </Button>
                     </div>
+                    <Explain word="gate" />
                   </>
                 )}
-                {reason && !done ? <p className="text-ink-2">{reason}</p> : null}
                 {error ? (
                   <p role="alert" className="text-red">
                     {error}

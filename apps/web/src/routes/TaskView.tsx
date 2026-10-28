@@ -18,7 +18,7 @@ import { Scrubber, clockLabel, taskClock } from '../components/Scrubber';
 import { Terminal } from '../components/Terminal';
 import { VerificationTab } from '../components/Verification';
 import { WhoContinues } from '../components/WhoContinues';
-import { Button, type ChipTone, CostMeter, EmptyState, Kbd, StatusChip, cx, tabClass } from '../components/ui';
+import { Button, type ChipTone, CostMeter, EmptyState, Explain, Kbd, StatusChip, cx, tabClass, tabKeys } from '../components/ui';
 import { money } from '../format';
 import { useEvents, useTask } from '../hooks';
 import { singleKey } from '../shortcuts';
@@ -27,20 +27,20 @@ const GRAPH_EVENTS = new Set(['run.finished', 'decision.recorded', 'review.recor
 
 export const TABS = ['diff', 'files', 'terminal', 'plan', 'packet', 'review', 'verification'] as const;
 export type Tab = (typeof TABS)[number];
-const TAB_NAMES: Record<Tab, string> = { diff: 'Diff', files: 'Files', terminal: 'Terminal', plan: 'Plan', packet: 'Packet', review: 'Review', verification: 'Verification' };
+const TAB_NAMES: Record<Tab, string> = { diff: 'Changes', files: 'Files', terminal: 'Terminal', plan: 'Plan', packet: 'Packet', review: 'Review', verification: 'Tests' };
 
 /** Stops a live run and says so; a refusal shows the daemon's own words. */
 function stopRun(taskId: string, run: string): void {
   api
     .stopRun(taskId, run)
-    .then(() => toast.success(`${run} stopped. The daemon builds a packet from the log.`))
+    .then(() => toast.success(`${run} stopped. Stint writes its notes from the log.`))
     .catch((e: unknown) => toast.error(`${run} was not stopped: ${daemonMessage(e)}`));
 }
 
 /**
- * The task view: the title block across the top, then the run rail (320 px) with the revision block docked under it,
- * the work area, and memory (360 px) with the one clock. Below 1180 px memory drops under the work; below 760 px it all
- * stacks in reading order.
+ * The task view: the title block across the top, then the runs (320 px) with the one clock above them and the revision
+ * block docked under them, and the work area. Memory (360 px) opens beside the work on request (`?memory=open`, or m);
+ * below 1180 px it drops under the work, and below 760 px it all stacks in reading order.
  */
 export function TaskView() {
   const { id = '' } = useParams();
@@ -48,7 +48,6 @@ export function TaskView() {
   const { data: bundle, error, reload } = useTask(id);
   const { events } = useEvents(id);
   const [showAll, setShowAll] = useState(false);
-  const [memOpen, setMemOpen] = useState(true);
   const tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'diff';
   const selected = params.get('ev') ? Number(params.get('ev')) : null;
   const setParam = useCallback(
@@ -65,6 +64,9 @@ export function TaskView() {
     [setParams],
   );
   const setTab = useCallback((t: Tab) => setParam('tab', t), [setParam]);
+  // memory is closed until asked for, so the work has the room; the URL keeps the choice
+  const memOpen = params.get('memory') === 'open';
+  const setMemOpen = useCallback((open: boolean) => setParam('memory', open ? 'open' : null), [setParam]);
   const fileParam = params.get('file');
   const [diffFiles, setDiffFiles] = useState<Array<{ path: string; added: number; removed: number }>>([]);
   const [viewed, setViewed] = useState<Set<string>>(() => readViewedFiles(id));
@@ -89,7 +91,7 @@ export function TaskView() {
     };
     window.addEventListener('stint:memory', show);
     return () => window.removeEventListener('stint:memory', show);
-  }, []);
+  }, [setMemOpen]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!singleKey(e)) return;
@@ -129,7 +131,7 @@ export function TaskView() {
         if (currentFile) toggleViewed(currentFile);
       } else if (e.key === 't') setTab('terminal');
       else if (e.key === 'h') setTab('packet');
-      else if (e.key === 'm') setMemOpen((o) => !o);
+      else if (e.key === 'm') setMemOpen(current.get('memory') !== 'open');
       else if (e.key === 'j' || e.key === 'k') {
         // the rows on the rail: those up to the moment the clock is on
         const until = current.get('asOf');
@@ -143,7 +145,7 @@ export function TaskView() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [events, setParam, setTab, setParams, diffFiles, toggleViewed]);
+  }, [events, setParam, setTab, setParams, diffFiles, toggleViewed, setMemOpen]);
   const packetName = params.get('packet');
   const [packet, setPacket] = useState<Handoff | null>(null);
   const [packetNames, setPacketNames] = useState<string[]>([]);
@@ -304,11 +306,10 @@ export function TaskView() {
   // the run going now, which the stop control acts on wherever focus is (Cmd+. or Ctrl+.)
   const liveNow = bundle.runs.find((r) => !r.endedAt)?.run ?? null;
   const spentThen = then.runs.reduce((sum, r) => sum + (r.endedAt ? (r.cost?.usd ?? 0) : 0), 0);
-  const vendors = new Set(then.runs.map((r) => agentOf(r.adapter, r.host, r.model).mark)).size;
+  // a count beside a tab: files changed, plan steps, review findings, tests passed
   const counts: Partial<Record<Tab, string>> = {
     diff: diffFiles.length ? String(diffFiles.length) : undefined,
     plan: bundle.plan ? String(bundle.plan.steps.length) : undefined,
-    packet: latestName ?? undefined,
     review: bundle.review ? String(bundle.review.findings.length) : undefined,
     verification: bundle.verification ? String(bundle.verification.passed) : undefined,
   };
@@ -325,7 +326,7 @@ export function TaskView() {
       </div>
       <div className="flex flex-wrap items-end gap-3 min-[760px]:justify-end">
         {liveNow && !asOf ? (
-          <Button tone="danger" className="h-8 px-2.5 text-small" title={`Stop ${liveNow}; the daemon builds a packet from the log`} onClick={() => stopRun(t.id, liveNow)} data-testid="stop-run">
+          <Button tone="danger" className="h-8 px-2.5 text-small" title={`Stop ${liveNow}; Stint writes its notes from the log`} onClick={() => stopRun(t.id, liveNow)} data-testid="stop-run">
             Stop the run <Kbd>⌘.</Kbd>
           </Button>
         ) : null}
@@ -343,10 +344,8 @@ export function TaskView() {
             </dd>
           </div>
           <div className={field}>
-            <dt className="text-ink-2">Runs, vendors</dt>
-            <dd className="font-semibold tabular">
-              {then.runs.length}, {vendors}
-            </dd>
+            <dt className="text-ink-2">Runs</dt>
+            <dd className="font-semibold tabular">{then.runs.length}</dd>
           </div>
         </dl>
       </div>
@@ -360,8 +359,8 @@ export function TaskView() {
             </span>
           ) : null}
         </p>
-        <span>
-          Branch <span className="font-mono">{t.branch}</span>, base <span className="font-mono">{t.baseCommit.slice(0, 7)}</span>
+        <span title={`Started from commit ${t.baseCommit.slice(0, 7)}`}>
+          On branch <span className="font-mono">{t.branch}</span>
         </span>
         {t.links.issueUrl ? (
           <a href={t.links.issueUrl} data-testid="issue-link" className="text-ink underline decoration-rule-strong hover:decoration-ink" target="_blank" rel="noreferrer">
@@ -394,10 +393,10 @@ export function TaskView() {
             {stopped.endedBy === 'killed' ? 'Killed' : 'Failed'}
             {stoppedAt ? ` at ${clockFor(Date.parse(stoppedAt.ts))}` : ''}.
           </b>{' '}
-          {stopAgent.name} {stopped.run} {stopped.endedBy === 'killed' ? 'was stopped mid-run.' : 'ended with a failure.'}{' '}
+          {stopAgent.name} {stopped.run} {stopped.endedBy === 'killed' ? 'was stopped before it finished.' : 'ended with a failure.'}{' '}
           {stopName && lastStop
-            ? `Packet ${stopName} was built from the log: ${Number(lastStop.payload.tokens) || 0} tokens, ${((Number(lastStop.payload.bytes) || 0) / 1024).toFixed(1)} KB${inFlight ? ', in-flight step marked unknown' : ''}. Nothing is lost.`
-            : 'The daemon builds a packet from the log.'}
+            ? `Stint wrote its notes from the log as packet ${stopName} (${Number(lastStop.payload.tokens) || 0} tokens${inFlight ? ', with the step it was in the middle of marked unknown' : ''}), so the next agent starts from there. Nothing is lost.`
+            : 'Stint is writing its notes from the log.'}
         </p>
         {stopName ? (
           <Button className="h-8 px-2.5 text-small" onClick={() => openPacket(stopName)}>
@@ -417,6 +416,9 @@ export function TaskView() {
           {showAll ? 'Key events only' : `Show all ${visible.length}`}
         </Button>
       </div>
+      <div className="px-4 pb-3">
+        <Scrubber events={events} live={!!liveNow} asOf={asOf} atSeq={atSeq} reading={momentLabel} onAsOf={setMoment} />
+      </div>
       {asOf ? (
         <p data-testid="rewound" className="mx-4 mb-2 rounded-[3px] bg-panel-2 px-2.5 py-2 text-small text-ink-2">
           As it stood at <span className="font-mono text-ink">{momentLabel}</span>.{' '}
@@ -430,24 +432,55 @@ export function TaskView() {
       </div>
       {/* the revision block, pinned under the rail; its soft shadow is the one on the page */}
       <div className="shrink-0 z-10 min-[760px]:sticky bottom-0 px-3 pt-3 pb-4 border-t border-rule-strong bg-panel shadow-[var(--shadow-pinned)] min-[1180px]:max-h-[60%] min-[1180px]:overflow-y-auto">
-        <ApprovalGate bundle={bundle} events={events} seen={asOf ? visible : null} onDone={reload} />
+        <ApprovalGate bundle={bundle} events={events} seen={asOf ? visible : null} files={diffFiles} viewed={viewed} onDone={reload} />
       </div>
     </aside>
   );
 
   const work = (
     <section aria-label="Work" className="relative min-w-0 flex flex-col gap-4 px-4 min-[760px]:px-6 pt-3 pb-8 min-[1180px]:overflow-y-auto">
-      <div role="tablist" aria-label="Work area" className="flex flex-wrap border-b border-rule">
-        {TABS.map((k) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} data-testid={`tab-${k}`} onClick={() => setTab(k)} className={tabClass(tab === k)}>
-            {TAB_NAMES[k]}
-            {counts[k] ? <span className="text-small font-normal text-ink-3">{counts[k]}</span> : null}
-          </button>
-        ))}
-      </div>
+      {/* what needs doing next comes before the tabs, and only when it applies: who continues a stopped run, a decision on this task */}
+      <WhoContinues bundle={bundle} onChoose={() => setTab('packet')} />
+      <Queue decisionsOf={t.id} level={2} />
       <PermissionBanner permissions={pendingPermissions.filter((p) => p.run === (bundle.runs.find((r) => !r.endedAt)?.run ?? p.run))} />
+      <div className="flex items-end gap-3 border-b border-rule">
+        {/* one row on a phone: it scrolls sideways rather than wrapping onto two */}
+        <div role="tablist" aria-label="Work area" className="flex min-w-0 flex-1 overflow-x-auto" onKeyDown={tabKeys}>
+          {TABS.map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              id={`tab-${k}`}
+              aria-selected={tab === k}
+              aria-controls="work-panel"
+              tabIndex={tab === k ? 0 : -1}
+              data-testid={`tab-${k}`}
+              onClick={() => setTab(k)}
+              className={tabClass(tab === k)}
+            >
+              {TAB_NAMES[k]}
+              {counts[k] ? (
+                <span aria-hidden="true" className="text-small font-normal text-ink-3">
+                  {counts[k]}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+        <Button
+          className="mb-1 h-8 px-2.5 text-small shrink-0"
+          aria-expanded={memOpen}
+          aria-controls="memory-column"
+          aria-keyshortcuts="m"
+          onClick={() => setMemOpen(!memOpen)}
+          data-testid="memory-toggle"
+        >
+          {memOpen ? 'Hide memory' : 'Memory'} <Kbd>m</Kbd>
+        </Button>
+      </div>
       {/* focusable, so a keyboard can reach and scroll it */}
-      <div className="min-w-0" role="tabpanel" aria-label={TAB_NAMES[tab]} tabIndex={0}>
+      <div className="min-w-0" role="tabpanel" id="work-panel" aria-labelledby={`tab-${tab}`} tabIndex={0}>
         {tab === 'diff' ? (
           <DiffView
             taskId={t.id}
@@ -491,26 +524,20 @@ export function TaskView() {
     </section>
   );
 
-  const memory = (
+  const memory = memOpen ? (
     <aside
+      id="memory-column"
       aria-labelledby="memory-title"
       data-testid="memory-column"
-      className="relative min-w-0 flex flex-col gap-5 px-4 min-[760px]:px-5 py-5 border-t border-rule min-[760px]:col-span-2 min-[1180px]:col-span-1 min-[1180px]:border-t-0 min-[1180px]:border-l min-[1180px]:overflow-y-auto"
+      className="relative min-w-0 flex flex-col gap-4 px-4 min-[760px]:px-5 py-5 border-t border-rule min-[760px]:col-span-2 min-[1180px]:col-span-1 min-[1180px]:border-t-0 min-[1180px]:border-l min-[1180px]:overflow-y-auto"
     >
-      {memOpen ? <WhoContinues bundle={bundle} onChoose={() => setTab('packet')} /> : null}
-      <div className="flex items-center justify-between gap-3">
+      <div>
         <h2 id="memory-title" className="text-section">
           Memory
         </h2>
-        <Button className="h-8 px-2.5 text-small" aria-expanded={memOpen} onClick={() => setMemOpen((o) => !o)} data-testid="memory-toggle">
-          {memOpen ? 'Collapse' : 'Show'} <Kbd>m</Kbd>
-        </Button>
+        <Explain word="memory" className="mt-1" />
       </div>
-      {memOpen ? (
-        <>
-          <Scrubber events={events} live={!!liveNow} asOf={asOf} atSeq={atSeq} reading={momentLabel} onAsOf={setMoment} />
-          <Queue decisionsOf={t.id} empty="Nothing waits for your decision. A finding that contradicts one of this task's decisions appears here." />
-          <MemoryPanel
+      <MemoryPanel
             id={t.id}
             asOf={asOf}
             version={graphVersion}
@@ -526,10 +553,8 @@ export function TaskView() {
               );
             }}
           />
-        </>
-      ) : null}
     </aside>
-  );
+  ) : null;
 
   return (
     <main className="relative flex-1 min-h-0 overflow-y-auto min-[1180px]:overflow-hidden min-[1180px]:flex min-[1180px]:flex-col" data-testid="task-view">
@@ -538,7 +563,7 @@ export function TaskView() {
       <div
         className={cx(
           'grid grid-cols-1 min-[760px]:grid-cols-[320px_minmax(0,1fr)] min-[1180px]:flex-1 min-[1180px]:min-h-0 min-[1180px]:grid-rows-[minmax(0,1fr)]',
-          memOpen ? 'min-[1180px]:grid-cols-[320px_minmax(0,1fr)_360px]' : 'min-[1180px]:grid-cols-[320px_minmax(0,1fr)_auto]',
+          memOpen && 'min-[1180px]:grid-cols-[320px_minmax(0,1fr)_360px]',
         )}
       >
         {rail}
@@ -584,7 +609,7 @@ function taskState(b: TaskBundle, packetName: string | null): { tone: ChipTone; 
   const v = b.verification;
   const lastBuild = b.runs.filter((r) => r.role === 'implementer').at(-1);
   if (t.status === 'done') return { tone: 'merged', label: 'Merged', detail: `Approved by ${!b.merge?.by || b.merge.by === 'human' ? 'you' : b.merge.by} and merged.` };
-  if (t.status === 'awaiting_approval') return { tone: 'warn', label: 'Awaiting approval', detail: v ? `Verified by the daemon, ${v.passed} passed${b.review ? ', reviewed' : ''}; waiting for you at the gate.` : 'Waiting at the gate; not verified yet.' };
+  if (t.status === 'awaiting_approval') return { tone: 'warn', label: 'Awaiting approval', detail: v ? `Stint ran the tests: ${v.passed} passed${b.review ? ', and the review is done' : ''}. Waiting for your approval.` : 'Waiting for your approval; the tests have not run yet.' };
   if (t.status === 'rejected') return { tone: 'bad', label: 'Rejected', detail: 'Rejected at the gate. Hand it on with the reason, or leave it.' };
   if (live) {
     const a = agentOf(live.adapter, live.host, live.model);
@@ -594,7 +619,7 @@ function taskState(b: TaskBundle, packetName: string | null): { tone: ChipTone; 
     const a = agentOf(lastBuild.adapter, lastBuild.host, lastBuild.model);
     return { tone: 'bad', label: 'Stopped', detail: `${a.name} ${lastBuild.run} ${lastBuild.endedBy === 'killed' ? 'was killed' : 'failed'}${packetName ? `; packet ${packetName} was built anyway` : ''}.` };
   }
-  if (t.status === 'verifying') return { tone: 'active', label: 'Verifying', detail: 'The daemon runs the tests in the worktree.' };
+  if (t.status === 'verifying') return { tone: 'active', label: 'Verifying', detail: 'Stint is running the tests on the task branch.' };
   if (t.status === 'reviewing') return { tone: 'active', label: 'Reviewing', detail: 'A review is offered only after a green verification.' };
   if (t.status === 'in_review') return { tone: 'warn', label: 'In review', detail: 'A pull request waits; the task finishes when it merges.' };
   if (t.status === 'approved') return { tone: 'neutral', label: 'Approved', detail: 'Approved; the merge is under way.' };

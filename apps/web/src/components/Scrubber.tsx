@@ -103,25 +103,28 @@ export function Scrubber({ events, live, asOf, atSeq, reading, onAsOf }: Scrubbe
   return (
     <div data-testid="scrubber-block" data-rewound={rewound} className="flex flex-col gap-1.5">
       <label htmlFor="asof" className="flex items-baseline justify-between gap-2">
-        <span className="text-small text-ink-2">As of</span>
+        <span className="text-small font-medium">Rewind</span>
         <span className="font-mono text-code" data-testid="memory-asof">
           {shown}
         </span>
       </label>
-      <input
-        id="asof"
-        data-testid="scrubber"
-        type="range"
-        min={first}
-        max={end}
-        step={Math.max(1, Math.round((end - first) / 600))}
-        value={Math.min(end, Math.max(first, cursor))}
-        aria-valuetext={shown}
-        onChange={(e) => scrub(Number(e.target.value))}
-        className="w-full"
-      />
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-small text-ink-3">{label(first)} task created</span>
+      <span id="asof-hint" className="sr-only">
+        Drag to see the runs, the revisions, the packet and memory as they were at that moment.
+      </span>
+      <div className="flex items-center gap-3">
+        <input
+          id="asof"
+          data-testid="scrubber"
+          type="range"
+          min={first}
+          max={end}
+          step={Math.max(1, Math.round((end - first) / 600))}
+          value={Math.min(end, Math.max(first, cursor))}
+          aria-valuetext={shown}
+          aria-describedby="asof-hint"
+          onChange={(e) => scrub(Number(e.target.value))}
+          className="flex-1 min-w-0"
+        />
         <Button
           className="h-8 px-2.5 text-small"
           disabled={!rewound}
@@ -134,7 +137,6 @@ export function Scrubber({ events, live, asOf, atSeq, reading, onAsOf }: Scrubbe
           Now
         </Button>
       </div>
-      <p className="text-small text-ink-2">Drag it and the runs, the revisions, the packet and memory show the task at that moment.</p>
     </div>
   );
 }

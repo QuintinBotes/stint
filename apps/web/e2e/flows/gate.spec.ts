@@ -33,6 +33,16 @@ test('After a green verification the gate stays shut until the review puts the t
   await expect(page.getByTestId('approve')).toBeEnabled();
 
   await page.getByTestId('approval-gate').locator('caption').click();
+  let approves = 0;
+  page.on('request', (r) => {
+    if (r.url().includes(`/api/tasks/${t.id}/approve`) && r.method() === 'POST') approves++;
+  });
+  // one a never merges: it gets Approve ready, focused, and says what a second press does
+  await page.keyboard.press('a');
+  await expect(page.getByTestId('approve-armed')).toContainText('Press a again');
+  await expect(page.getByTestId('approve')).toBeFocused();
+  await page.waitForTimeout(300);
+  expect(approves).toBe(0);
   const approveCall = page.waitForRequest((r) => r.url().includes(`/api/tasks/${t.id}/approve`) && r.method() === 'POST');
   await page.keyboard.press('a');
   await approveCall;

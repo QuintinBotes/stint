@@ -104,7 +104,7 @@ export function describe(e: StintEvent): ReactNode {
     case 'verification.ran':
       return (
         <>
-          Verification by the daemon:{' '}
+          Tests run by Stint:{' '}
           <span className="tabular">
             {Number(p.passed)} passed{p.tamper === null ? ', tests unchanged' : ''}, {Number(p.failed)} failed
           </span>
@@ -255,7 +255,7 @@ const segAgent = (seg: Seg) => agentOf(seg.started.adapter, str(seg.started.payl
 function Spine({ seg, live, children }: { seg: Seg; live: boolean; children: ReactNode }) {
   return (
     <div className="relative pl-8 pr-4">
-      <span aria-hidden="true" className={cx('absolute left-4 top-0 bottom-0 w-1 rounded-[2px]', live && 'live-spine')} style={{ background: markColor[segAgent(seg).mark] }} />
+      <span aria-hidden="true" className={cx('absolute left-4 top-0 bottom-0 w-1', live && 'live-spine')} style={{ background: markColor[segAgent(seg).mark] }} />
       {children}
     </div>
   );
@@ -268,7 +268,7 @@ function detail(e: StintEvent): string {
   return text.length > 4000 ? `${text.slice(0, 4000)}\n...` : text;
 }
 
-function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; selected: boolean; expanded: boolean; onActivate: (seq: number, keyboard: boolean) => void }) {
+function EventRow({ e, selected, expanded, tabStop, onActivate }: { e: StintEvent; selected: boolean; expanded: boolean; tabStop: boolean; onActivate: (seq: number, keyboard: boolean) => void }) {
   const human = e.type === 'human.command' || e.vendor === 'human';
   const marked = e.type === 'verification.ran' || e.type === 'review.recorded' || e.type === 'rule.blocked';
   // green is a passing verification only; a red one or a refusal is red
@@ -281,15 +281,17 @@ function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; select
         data-seq={e.seq}
         data-type={e.type}
         aria-expanded={selected ? expanded : undefined}
+        // the rail is one stop for Tab; the arrow keys move along it
+        tabIndex={tabStop ? 0 : -1}
         // a click made by Enter or Space has detail 0
         onClick={(ev) => onActivate(e.seq, ev.detail === 0)}
         className={cx(
-          'w-full text-left grid grid-cols-[56px_minmax(0,1fr)] gap-2 px-1.5 py-1 rounded-[3px] text-small',
+          'w-full text-left grid grid-cols-[64px_minmax(0,1fr)] gap-2 px-1.5 py-1 rounded-[3px] text-small',
           selected ? 'bg-panel-2 shadow-[inset_0_0_0_1px_var(--rule-strong)]' : (tint ?? 'hover:bg-panel-2'),
           marked && 'font-medium',
         )}
       >
-        <time className="font-mono text-[12px] leading-[18px] text-ink-3 tabular" dateTime={e.ts}>
+        <time className="font-mono text-small text-ink-3 tabular" dateTime={e.ts}>
           {storyClock(e.payload) ?? localTime(e.ts)}
         </time>
         <span className="min-w-0 break-words">
@@ -313,9 +315,9 @@ function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; select
  * anything else waits for a person.
  */
 export function permissionTier(gate: string | null | undefined, risk: string | null | undefined): { label: string; tone: ChipTone } {
-  if (gate === 'observed') return { label: 'never bypass', tone: 'warn' };
-  if (risk === 'low') return { label: 'auto, verified', tone: 'neutral' };
-  return { label: 'manual', tone: 'neutral' };
+  if (gate === 'observed') return { label: 'you, and the agent asks first', tone: 'neutral' };
+  if (risk === 'low') return { label: 'automatic once tests pass', tone: 'neutral' };
+  return { label: 'you', tone: 'neutral' };
 }
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -355,8 +357,8 @@ function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk
         , {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
       </p>
       <p className="mt-1 flex items-center gap-2 text-small text-ink-2">
-        Permissions{' '}
-        <span data-testid="permission-tier" title="Permission tier">
+        Who approves{' '}
+        <span data-testid="permission-tier">
           <StatusChip label={tier.label} tone={tier.tone} />
         </span>
       </p>
@@ -557,6 +559,21 @@ export function Rail({
       </div>
     );
 
+  // the one row Tab lands on: the chosen event when it is drawn, else the first event drawn
+  const drawn = virtual ? v.getVirtualItems().map((r) => list[r.index]) : list;
+  const drawnEvents = drawn.flatMap((it) => (it?.kind === 'event' ? [it.e.seq] : []));
+  const stop = selected !== null && drawnEvents.includes(selected) ? selected : (drawnEvents[0] ?? null);
+  const arrows = (ev: React.KeyboardEvent<HTMLOListElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(ev.key)) return;
+    const rows = [...ev.currentTarget.querySelectorAll<HTMLElement>('[data-testid="event-row"]')];
+    const i = rows.indexOf(document.activeElement as HTMLElement);
+    if (i < 0) return;
+    ev.preventDefault();
+    const to = ev.key === 'Home' ? 0 : ev.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
+    rows[to]?.focus();
+    rows[to]?.scrollIntoView({ block: 'nearest' });
+  };
+
   const render = (it: Item) => {
     switch (it.kind) {
       case 'head':
@@ -566,7 +583,7 @@ export function Rail({
           </Spine>
         );
       case 'event': {
-        const row = <EventRow e={it.e} selected={selected === it.e.seq} expanded={expanded.has(it.e.seq)} onActivate={activate} />;
+        const row = <EventRow e={it.e} selected={selected === it.e.seq} expanded={expanded.has(it.e.seq)} tabStop={stop === it.e.seq} onActivate={activate} />;
         return it.seg ? (
           <Spine seg={it.seg} live={it.live}>
             {row}
@@ -608,7 +625,7 @@ export function Rail({
   if (!virtual) {
     return (
       <>
-        <ol ref={root} className="flex flex-col pt-1 pb-3" data-testid="rail" aria-label="Runs and their events">
+        <ol ref={root} className="flex flex-col pt-1 pb-3" data-testid="rail" aria-label="Runs and their events. The arrow keys move between events." onKeyDown={arrows}>
           {list.map((it) => (
             <li key={it.key}>{render(it)}</li>
           ))}
@@ -620,7 +637,7 @@ export function Rail({
   const margin = v.options.scrollMargin;
   return (
     <>
-      <ol ref={root} className="relative" style={{ height: v.getTotalSize() }} data-testid="rail" data-virtual="true" aria-label="Runs and their events">
+      <ol ref={root} className="relative" style={{ height: v.getTotalSize() }} data-testid="rail" data-virtual="true" aria-label="Runs and their events. The arrow keys move between events." onKeyDown={arrows}>
         {v.getVirtualItems().map((row) => (
           <li key={row.key} data-index={row.index} ref={v.measureElement} className="absolute left-0 right-0 top-0" style={{ transform: `translateY(${row.start - margin}px)` }}>
             {render(list[row.index] as Item)}

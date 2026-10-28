@@ -77,7 +77,7 @@ test('Single-key shortcuts can be turned off in the palette, stay off after a re
     await page.getByPlaceholder('Search or run a command').fill(query);
     await page.keyboard.press('Enter');
   };
-  await page.goto('/t/T-0042');
+  await page.goto('/t/T-0042?memory=open');
   // m shows or hides memory
   const memory = page.getByTestId('memory-toggle');
   await expect(memory).toHaveAttribute('aria-expanded', 'true');

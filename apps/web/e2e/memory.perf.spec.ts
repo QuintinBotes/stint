@@ -42,7 +42,7 @@ async function timeLayout(page: Page) {
 test('A 60-node graph lays out within 1 s of arriving, every node inside the panel, and the panel says it was capped', async ({ page }) => {
   await timeLayout(page);
   await page.route('**/api/tasks/T-0042/graph', (r) => r.fulfill({ json: bigGraph() }));
-  await page.goto('/t/T-0042');
+  await page.goto('/t/T-0042?memory=open');
   const graph = page.getByTestId('memory-graph');
   await expect(graph).toHaveAttribute('data-layout', 'done');
   const t = await page.evaluate(() => (window as unknown as { __layout: { graphAt: number; doneAt: number } }).__layout);
@@ -73,7 +73,7 @@ test('While the worker is still laying out, the moment moves and the graph answe
     const hold = 'const __post = self.postMessage.bind(self); self.postMessage = (m) => { __post(m); if (!m.done) { const until = Date.now() + 400; while (Date.now() < until); } };\n';
     await r.fulfill({ response: res, body: hold + (await res.text()) });
   });
-  await page.goto('/t/T-0042');
+  await page.goto('/t/T-0042?memory=open');
   const graph = page.getByTestId('memory-graph');
   await expect(graph.locator('[data-node]')).toHaveCount(60);
   await expect(graph).toHaveAttribute('data-layout', 'running');
@@ -81,7 +81,7 @@ test('While the worker is still laying out, the moment moves and the graph answe
   const now = await page.getByTestId('memory-asof').textContent();
   // move the view's moment to the graph's first edge without a reload, as the clock does: the URL's asOf
   await page.evaluate((asOf) => {
-    history.replaceState(null, '', `/t/T-0042?asOf=${encodeURIComponent(asOf)}`);
+    history.replaceState(null, '', `/t/T-0042?memory=open&asOf=${encodeURIComponent(asOf)}`);
     dispatchEvent(new PopStateEvent('popstate'));
   }, new Date(T0 + 60_000).toISOString());
   await expect(page.getByTestId('memory-asof')).not.toHaveText(now ?? '');

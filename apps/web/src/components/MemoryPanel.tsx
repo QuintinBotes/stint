@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { agentOf, markColor, modelName } from '../agents';
 import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, type SkillRecord, api, daemonMessage } from '../api';
@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { PermissionRows } from './Permissions';
 import type { LayoutIn, LayoutOut } from '../graph.worker';
 import { useTasks, useWidth } from '../hooks';
-import { Button, EmptyState, StatusChip, cx, tabClass } from './ui';
+import { Button, EmptyState, StatusChip, cx, tabClass, tabKeys } from './ui';
 
 // the graph lays out in the pixels it is drawn at, so its text is the same size on the task view and the Factory
 const W = 328;
@@ -108,7 +108,7 @@ export function skillPills(nodes: GraphNode[], pos: Map<string, { x: number; y: 
   for (const n of nodes) {
     const p = pos.get(n.id);
     if (n.type !== 'skill' || !p || (state.get(n.id) ?? 'hidden') === 'hidden') continue;
-    const w = Math.min(width - 2, shortLabel(n).length * 12 * 0.62 + 16);
+    const w = Math.min(width - 2, shortLabel(n).length * 13 * 0.62 + 16);
     const x0 = Math.min(width - 1 - w, Math.max(1, p.x - w / 2));
     const y0 = Math.min(height - 25, Math.max(1, p.y - 12));
     const box = { x0, y0, x1: x0 + w, y1: y0 + 24 };
@@ -176,7 +176,7 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
           const rank = n.id === centre ? -1 : LABEL_RANK.indexOf(n.type);
           // a skill drawn as a pill carries its name inside it
           const named = LABEL_RANK.includes(n.type) && !pills.has(n.id);
-          return [{ id: n.id, x: p.x, y: p.y, r: radius(n, centre), size: 12, rank: rank < 0 && n.id !== centre ? LABEL_RANK.length : rank, ...(named ? { text: shortLabel(n) } : {}) }];
+          return [{ id: n.id, x: p.x, y: p.y, r: radius(n, centre), size: 13, rank: rank < 0 && n.id !== centre ? LABEL_RANK.length : rank, ...(named ? { text: shortLabel(n) } : {}) }];
         }),
         width,
         height,
@@ -242,15 +242,19 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
                 {/* the wash is translucent: a panel fill under it keeps the edges behind from showing through the name */}
                 <rect x={pill.x0 - p.x} y={pill.y0 - p.y} width={pill.x1 - pill.x0} height={pill.y1 - pill.y0} rx={12} fill="var(--panel)" />
                 <rect x={pill.x0 - p.x} y={pill.y0 - p.y} width={pill.x1 - pill.x0} height={pill.y1 - pill.y0} rx={12} fill="var(--violet-wash)" stroke="var(--violet)" />
-                <text x={(pill.x0 + pill.x1) / 2 - p.x} y={(pill.y0 + pill.y1) / 2 - p.y + 4} textAnchor="middle" fontSize={12} fill="var(--ink)" className="font-mono select-none">
+                <text x={(pill.x0 + pill.x1) / 2 - p.x} y={(pill.y0 + pill.y1) / 2 - p.y + 4} textAnchor="middle" fontSize={13} fill="var(--ink)" className="font-mono select-none">
                   {shortLabel(n)}
                 </text>
               </>
             ) : (
-              <circle r={radius(n, centre)} fill={fill(n)} stroke="var(--panel)" strokeWidth={1.5} />
+              <>
+                {/* a 24 px target round a small node, so a finger or pointer can hit it */}
+                {activate ? <circle r={12} fill="transparent" /> : null}
+                <circle r={radius(n, centre)} fill={fill(n)} stroke="var(--panel)" strokeWidth={1.5} />
+              </>
             )}
             {spot ? (
-              <text x={spot.dx} y={spot.dy} textAnchor={spot.anchor} fontSize={12} fill="var(--ink)" className="tabular select-none">
+              <text x={spot.dx} y={spot.dy} textAnchor={spot.anchor} fontSize={13} fill="var(--ink)" className="tabular select-none">
                 {shortLabel(n)}
               </text>
             ) : null}
@@ -304,9 +308,20 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
   return (
     <div>
       <h3 className="sr-only">Ask the memory</h3>
-      <div role="tablist" aria-label="Ask the memory" className="flex flex-wrap border-b border-rule">
+      <div role="tablist" aria-label="Ask the memory" className="flex flex-wrap border-b border-rule" onKeyDown={tabKeys}>
         {QUERY_TABS.map(([k, name]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} data-testid={`memory-tab-${k}`} onClick={() => setTab(k)} className={tabClass(tab === k)}>
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            id={`memory-tab-${k}`}
+            aria-selected={tab === k}
+            aria-controls="memory-rows"
+            tabIndex={tab === k ? 0 : -1}
+            data-testid={`memory-tab-${k}`}
+            onClick={() => setTab(k)}
+            className={tabClass(tab === k)}
+          >
             {name}
           </button>
         ))}
@@ -317,7 +332,7 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
           {tab === 'similar' ? 'No earlier task shares files, findings or tags with this one. Similar tasks appear here as the workspace grows.' : tab === 'constrains' ? 'No decision or open finding applies to these files. Decisions that bind them appear here.' : 'These files have not changed alongside others yet. Files that change together appear here.'}
         </p>
       ) : null}
-      <ul className="flex flex-col" data-testid={`memory-rows-${tab}`}>
+      <ul className="flex flex-col" id="memory-rows" role="tabpanel" aria-labelledby={`memory-tab-${tab}`} data-testid={`memory-rows-${tab}`}>
         {tab === 'similar'
           ? (rows as SimilarRow[] | null)?.map((r) => (
               <li key={r.task} className={row}>
@@ -489,11 +504,15 @@ export function Queue({ only, decisionsOf, exceptDecisionsOf, onSettled, empty, 
             </p>
             <div className="grid grid-cols-2 rounded-[5px] border border-rule-strong overflow-hidden">
               <div className="min-w-0 px-3 py-2.5">
-                <p className="font-mono font-semibold">{p.decision?.id ?? 'Decision'}</p>
+                <p className="font-semibold">
+                  Decision <span className="font-mono font-normal text-ink-2">{p.decision?.id ?? ''}</span>
+                </p>
                 <p className="mt-1 text-ink">{p.decision?.text ?? 'Not found in decisions.md'}</p>
               </div>
               <div className="min-w-0 px-3 py-2.5 border-l border-rule-strong">
-                <p className="font-mono font-semibold text-amber">{p.finding.id}</p>
+                <p className="font-semibold">
+                  Finding <span className="font-mono font-normal text-ink-2">{p.finding.id}</span>
+                </p>
                 <p className="mt-1 text-ink">{p.finding.text}</p>
               </div>
             </div>
@@ -644,8 +663,10 @@ export function MemoryPanel({ id, asOf, onOpenFile, version }: { id: string; asO
   const ready = graph && graph.nodes.length > 1 && range;
   return (
     <section className="flex flex-col gap-5" aria-label="Memory graph and queries" data-testid="memory-panel" id="memory">
-      <Queue exceptDecisionsOf={id} />
-      {error ? <EmptyState testId="empty-memory">The memory graph could not be read: {error}. Reload the page; if it stays, check the daemon log.</EmptyState> : null}
+      {/* this task's own items in full; what waits on other tasks is one line that links there */}
+      <Queue only={id} exceptDecisionsOf={id} />
+      <Elsewhere task={id} />
+      {error ? <EmptyState testId="empty-memory">The memory graph could not be read: {error}. Reload the page; if it stays, check Stint's log.</EmptyState> : null}
       {!error && graph && graph.nodes.length <= 1 ? (
         <EmptyState testId="empty-memory">Similar past tasks, the decisions that constrain this task and the files that change together appear here once a run has touched something.</EmptyState>
       ) : null}
@@ -662,6 +683,51 @@ export function MemoryPanel({ id, asOf, onOpenFile, version }: { id: string; asO
       ) : null}
       {ready ? <Queries id={id} graph={graph} asOf={asOf} /> : null}
     </section>
+  );
+}
+
+/** On a task view, what waits for you on other tasks, as one quiet line with links; those items are settled where they belong. */
+function Elsewhere({ task }: { task: string }) {
+  const [tasks, setTasks] = useState<string[]>([]);
+  const [skills, setSkills] = useState(0);
+  useEffect(() => {
+    const load = () => {
+      api
+        .pending()
+        .then((p) => setTasks([...new Set(p.filter((x) => x.task !== task).map((x) => x.task))]))
+        .catch(() => setTasks([]));
+      api
+        .skills()
+        .then((all) => setSkills(all.filter((x) => x.status === 'proposed' && !x.evidence.some((e) => e.startsWith(`${task}/`))).length))
+        .catch(() => setSkills(0));
+    };
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [task]);
+  if (tasks.length === 0 && skills === 0) return null;
+  const link = 'text-ink underline decoration-rule-strong hover:decoration-ink';
+  return (
+    <p className="text-small text-ink-2" data-testid="queue-elsewhere">
+      Also waiting for you:{' '}
+      {tasks.map((t, i) => (
+        <Fragment key={t}>
+          {i ? ', ' : ''}
+          <Link to={`/t/${t}`} className={link}>
+            {t}
+          </Link>
+        </Fragment>
+      ))}
+      {skills ? (
+        <>
+          {tasks.length ? ' and ' : ''}
+          <Link to="/skills" className={link}>
+            {skills} skill{skills === 1 ? '' : 's'} to review
+          </Link>
+        </>
+      ) : null}
+      .
+    </p>
   );
 }
 
@@ -686,7 +752,7 @@ export function WorkspaceMemory() {
   }, [graph]);
   const ts = draft ?? range?.to ?? Date.now();
   const centre = graph?.nodes.find((n) => n.type === 'task')?.id ?? '';
-  if (error) return <EmptyState testId="factory-memory">The memory graph could not be read: {error}. Reload the page; if it stays, check the daemon log.</EmptyState>;
+  if (error) return <EmptyState testId="factory-memory">The memory graph could not be read: {error}. Reload the page; if it stays, check Stint's log.</EmptyState>;
   if (!graph || graph.nodes.length <= 1 || !range) {
     return <EmptyState testId="factory-memory">The memory graph of the whole workspace appears here once a run has touched something.</EmptyState>;
   }

@@ -122,7 +122,6 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
   const [patches, setPatches] = useState<FilePatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [layout, setLayout] = useState<DiffLayout>(readLayout);
-  const [narrow, setNarrow] = useState(false);
   const [leftOut, setLeftOut] = useState<string[]>([]);
   const [comments, setComments] = useState<LineComment[]>([]);
   const [PatchDiff, setPatchDiff] = useState<PatchDiffComponent | null>(null);
@@ -307,45 +306,20 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
   const selectedEntry = treeFiles.find((f) => f.path === selected);
   const isViewed = !!selected && viewed.has(selected);
   return (
-    <div className="flex flex-col gap-3" data-testid="diff">
-      <div className="flex flex-wrap items-center gap-2 text-body">
-        <span className="text-ink-2">
-          {treeFiles.length} changed file{treeFiles.length === 1 ? '' : 's'}. Click a line to comment on it.
-        </span>
-        <div role="group" aria-label="Diff layout" className="ml-auto flex gap-1">
-          {(['split', 'stacked'] as const).map((l) => (
-            <Button
-              key={l}
-              className="h-8 px-2.5 text-small"
-              aria-pressed={layout === l}
-              data-testid={`diff-layout-${l}`}
-              onClick={() => pickLayout(l)}
-            >
-              {l === 'split' ? 'Split' : 'Stacked'}
-            </Button>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-3 items-start">
-        <div className="flex flex-col gap-3">
+    <div className="flex flex-wrap gap-x-6 gap-y-4 items-start" data-testid="diff">
+        <div className="flex flex-col gap-5 w-full sm:w-auto">
           <DiffFileTree
             files={treeFiles}
             selected={selected}
             viewed={viewed}
-            narrow={narrow}
             onSelect={onFile}
-            onToggleWidth={() => setNarrow((n) => !n)}
             later={writtenBy ? new Set(treeFiles.map((f) => f.path).filter((p) => !writtenBy.has(p))) : undefined}
           />
           {leftOut.length > 0 ? (
-            <section
-              data-testid="left-out"
-              aria-label="Left out"
-              className="rounded-[5px] border border-rule bg-panel p-2"
-              style={{ width: narrow ? 172 : 236 }}
-            >
-              <h3 className="px-1 font-semibold">Left out</h3>
-              <ul className="mt-1 px-1 flex flex-col gap-1 text-small text-ink-2">
+            <section data-testid="left-out" aria-label="Left out" className="w-full sm:w-[220px] px-1 pt-4 border-t border-rule">
+              <h3 className="font-semibold">Left out</h3>
+              <p className="text-small text-ink-2 mb-1">What the agent chose not to do.</p>
+              <ul className="flex flex-col gap-1 text-small list-disc pl-4">
                 {leftOut.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
@@ -353,8 +327,8 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             </section>
           ) : null}
         </div>
-        <section data-testid="diff-file" className="flex-1 min-w-[260px] rounded-[5px] border border-rule overflow-hidden scroll-mt-4">
-          <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-panel border-b border-rule">
+        <section data-testid="diff-file" className="flex-1 min-w-[260px] rounded-[5px] border border-rule-strong overflow-hidden scroll-mt-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 bg-panel border-b border-rule">
             <h3 className="font-mono text-small truncate">{selected}</h3>
             {selectedEntry ? (
               <span className="tabular text-small text-ink-2">
@@ -366,8 +340,21 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
                 Written by <Who agent={firstWriter.get(selected) as Agent} className="font-medium text-ink" />
               </span>
             ) : null}
+            <div role="group" aria-label="Layout" className="ml-auto flex">
+              {(['split', 'stacked'] as const).map((l) => (
+                <Button
+                  key={l}
+                  className="h-8 px-2.5 text-small first:rounded-r-none last:rounded-l-none last:-ml-px"
+                  aria-pressed={layout === l}
+                  data-testid={`diff-layout-${l}`}
+                  onClick={() => pickLayout(l)}
+                >
+                  {l === 'split' ? 'Side by side' : 'Stacked'}
+                </Button>
+              ))}
+            </div>
             <Button
-              className="h-7 px-2 text-small ml-auto"
+              className="h-8 px-2.5 text-small"
               aria-pressed={isViewed}
               data-testid="mark-viewed"
               disabled={!selected}
@@ -390,8 +377,8 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
                 : writtenBy && selected && !writtenBy.has(selected)
                   ? `At ${asOfLabel ?? 'that moment'} this file was not written yet. It shows as the task branch has it now.`
                   : blameRanges
-                  ? 'Hover a line to see which run wrote it.'
-                  : 'Hover a line to see which run wrote this file.'}
+                  ? 'Click a line to comment on it. Hover a line to see which run wrote it.'
+                  : 'Click a line to comment on it. Hover to see which run wrote this file.'}
           </p>
           <div
             data-testid="diff-pane"
@@ -445,7 +432,6 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             )}
           </div>
         </section>
-      </div>
     </div>
   );
 }

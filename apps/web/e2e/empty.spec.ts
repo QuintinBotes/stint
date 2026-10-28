@@ -9,7 +9,7 @@ test('Every panel in an empty task shows its empty-state sentence, and every car
   });
   expect(res.status()).toBe(201);
   const { id } = (await res.json()) as { id: string };
-  await page.goto(`/t/${id}`);
+  await page.goto(`/t/${id}?memory=open`);
   // memory is a column of the task view, beside the work
   await expect(page.getByTestId('memory-panel').getByTestId('empty-memory')).toBeVisible();
   const expected: Record<string, string> = {

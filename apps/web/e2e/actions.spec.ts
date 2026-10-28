@@ -12,7 +12,7 @@ test('On a task, the palette runs Verify for real and opens Request changes; r a
   await page.keyboard.press('Meta+k');
   await page.getByPlaceholder('Search or run a command').fill('Verify');
   await page.keyboard.press('Enter');
-  await expect(page.locator('[data-sonner-toast]').filter({ hasText: `${id}: tests run by the daemon` })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-sonner-toast]').filter({ hasText: `${id}: tests run by Stint` })).toBeVisible({ timeout: 30_000 });
 
   await page.keyboard.press('Meta+k');
   await page.getByPlaceholder('Search or run a command').fill('Request changes');
@@ -31,5 +31,5 @@ test('On a merged task, the palette offers its views and no gate or autopilot ac
   await expect(list.getByText('Show the packet')).toBeVisible();
   await expect(list.getByText('Approve and merge')).toHaveCount(0);
   await expect(list.getByText('Put on autopilot')).toHaveCount(0);
-  await expect(list.getByText('Verify: the daemon runs the tests')).toHaveCount(0);
+  await expect(list.getByText('Run the tests', { exact: true })).toHaveCount(0);
 });

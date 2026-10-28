@@ -104,7 +104,8 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
   const broken = agents.filter((a) => a.capability.level !== 'supported' && a.enabled !== false);
   const models = modelRows(health.models ?? []);
   const readyModels = models.filter((m) => m.ready).length;
-  const daemon = health.mode === 'replay' ? 'Replay daemon' : 'Daemon';
+  // the button says what is ready in plain words; the panel names the service behind it
+  const daemon = health.mode === 'replay' ? 'Replay' : 'Ready';
   // a live daemon with no agent that can run is the one state that needs attention here; healthy is plain ink, since green means verified
   const tone = ready.length === 0 && health.mode === 'live' ? 'var(--amber)' : 'var(--ink)';
 
@@ -134,12 +135,12 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
         <div
           id={panelId}
           role="region"
-          aria-label="Daemon, agents and models"
+          aria-label="Stint, agents and models"
           data-testid="status-panel"
           className="absolute right-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-32px)] max-h-[70vh] overflow-y-auto rounded-[5px] border border-rule-strong bg-panel p-4"
         >
-          <Group title="Daemon">
-            <Row dot="var(--ink)" name={daemon} detail={`version ${health.version}, started ${localTime(health.startedAt)}${health.repo ? `, in ${health.repo}` : ''}`} />
+          <Group title="Stint">
+            <Row dot="var(--ink)" name={health.mode === 'replay' ? 'Replaying a recorded demo' : 'Running on this machine'} detail={`version ${health.version}, started ${localTime(health.startedAt)}${health.repo ? `, in ${health.repo}` : ''}`} />
           </Group>
           <Group title={`Agents, ${ready.length} ready`}>
             {ready.map((a) => (

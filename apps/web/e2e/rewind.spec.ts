@@ -45,7 +45,7 @@ test('Dragging the clock back to the kill rewinds the rail, the task, the revisi
   // the task as it stood: stopped, with the notice of the kill and the packet it left
   await expect(page.getByTestId('kill-notice')).toContainText('Killed');
   await expect(page.getByTestId('kill-notice')).toContainText('Muse Code r2 was stopped');
-  await expect(page.getByTestId('kill-notice')).toContainText('in-flight step marked unknown');
+  await expect(page.getByTestId('kill-notice')).toContainText('the step it was in the middle of marked unknown');
   await expect(page.getByTestId('kill-notice')).toContainText('412 tokens');
   await expect(page.getByTestId('task-state')).toContainText('Stopped');
   // the revisions not started by then go quiet with no check yet; the gate still acts on the task as it is now
@@ -53,7 +53,7 @@ test('Dragging the clock back to the kill rewinds the rail, the task, the revisi
   await expect(page.locator('[data-testid="revision"][data-run="r3"]')).toContainText('Not yet');
   await expect(page.locator('[data-testid="revision"][data-run="r2"]')).toHaveAttribute('data-later', 'false');
   await expect(page.locator('[data-testid="revision"][data-run="r2"]')).toContainText('Killed');
-  await expect(page.getByTestId('approval-gate')).toContainText('The gate acts on the task as it is now.');
+  await expect(page.getByTestId('approval-gate')).toContainText('this approval is the task as it is now');
   // memory reads the same moment, and names it as the rail does
   await expect.poll(async () => page.getByTestId('memory-asof').textContent()).toBe(await page.getByTestId('rewound').locator('span').textContent());
   // the packet tab shows the packet that was latest then: h1, the one the kill left
@@ -70,7 +70,7 @@ test('Dragging the clock back to the kill rewinds the rail, the task, the revisi
 });
 
 test('One clock for the whole task view: memory follows it, and the skill learned later is not there yet', async ({ page }) => {
-  await page.goto('/t/T-0042');
+  await page.goto('/t/T-0042?memory=open');
   const graph = page.getByTestId('memory-graph');
   await expect(graph).toHaveAttribute('data-layout', 'done');
   await expect(page.locator('input[type="range"]')).toHaveCount(1);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { Dialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions } from './components/Shell';
 import { Notifier } from './components/Notifier';
@@ -7,8 +7,10 @@ import { GLOSSARY } from './glossary';
 import { singleKey } from './shortcuts';
 import { useHealth } from './hooks';
 import { Board } from './routes/Board';
-import { Factory } from './routes/Factory';
-import { Skills } from './routes/Skills';
+
+// the Factory and Skills load when first opened, so the board and the task view start sooner
+const Factory = lazy(() => import('./routes/Factory').then((m) => ({ default: m.Factory })));
+const Skills = lazy(() => import('./routes/Skills').then((m) => ({ default: m.Skills })));
 import { Placeholder, TaskView } from './routes/TaskView';
 
 const KEYS: Array<[string, string]> = [
@@ -54,14 +56,41 @@ export function App() {
   return (
     <BrowserRouter>
       <div className="h-full flex flex-col">
+        <a
+          href="#main"
+          onClick={(e) => {
+            e.preventDefault();
+            const main = document.querySelector<HTMLElement>('main');
+            if (!main) return;
+            main.tabIndex = -1;
+            main.focus();
+          }}
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-[5px] focus:bg-ink focus:text-on-ink focus:font-semibold"
+        >
+          Skip to content
+        </a>
         <TopBar health={health.data} unreachable={!health.data && !!health.error} onPalette={() => setPalette(true)} onHelp={() => setHelp(true)} />
         <ReplayStrip health={health.data} />
         <Notifier />
         <Routes>
           <Route path="/" element={<Board onNewTask={openNewTask} />} />
           <Route path="/t/:id" element={<TaskView />} />
-          <Route path="/factory" element={<Factory />} />
-          <Route path="/skills" element={<Skills />} />
+          <Route
+            path="/factory"
+            element={
+              <Suspense fallback={<p className="p-6 text-ink-2">Opening the Factory.</p>}>
+                <Factory />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/skills"
+            element={
+              <Suspense fallback={<p className="p-6 text-ink-2">Opening Skills.</p>}>
+                <Skills />
+              </Suspense>
+            }
+          />
           <Route path="*" element={<Placeholder title="Not found">There is nothing at this address. The board is at the top left.</Placeholder>} />
         </Routes>
         <Palette open={palette} onClose={() => setPalette(false)} actions={actions} health={health.data} />

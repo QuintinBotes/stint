@@ -11,7 +11,7 @@ export function notice(e: StintEvent): { text: string; tone: 'warn' | 'bad' | 'i
   if (e.type === 'approval.requested') return { text: `${e.task} needs your approval: the tests are green.`, tone: 'warn' };
   if (e.type === 'autopilot.stopped' && p.needsYou) return { text: `${e.task}: ${String(p.reason)}`, tone: 'warn' };
   if (e.type === 'run.finished' && (p.endedBy === 'killed' || p.endedBy === 'failed')) return { text: `${e.task}: ${agentOf(e.adapter ?? null, null, null).name} ${e.run} ${p.endedBy}. Its packet is ready for the next agent.`, tone: 'bad' };
-  if (e.type === 'verification.ran' && p.status === 'red') return { text: `${e.task}: the daemon's tests are red (${Number(p.failed)} failed).`, tone: 'bad' };
+  if (e.type === 'verification.ran' && p.status === 'red') return { text: `${e.task}: the tests are red (${Number(p.failed)} failed).`, tone: 'bad' };
   if (e.type === 'permission.requested') return { text: `${e.task}: ${agentOf(e.adapter ?? null, null, null).name} ${e.run} asks permission: ${String(p.title ?? p.tool)}.`, tone: 'warn' };
   if (e.type === 'skill.proposed') return { text: `A skill was proposed from recurring review findings: ${String(p.id)}.`, tone: 'info' };
   if ((e.type === 'verification.tampered' || e.type === 'acceptance.tampered') && !p.allowedBy) return { text: `${e.task}: an agent changed the locked tests.`, tone: 'bad' };

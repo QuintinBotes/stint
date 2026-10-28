@@ -8,7 +8,7 @@ test('Pressing n opens the new task dialog; creating a task opens it, puts it in
   const dialog = page.getByRole('dialog', { name: 'New task' });
   await dialog.getByLabel('Title').fill('Flow: add a health endpoint');
   await dialog.getByLabel('Goal').fill('GET /health answers 200.');
-  await dialog.getByLabel('Acceptance criteria, one per line').fill('GET /health answers 200\nThe body says ok');
+  await dialog.getByLabel('How you will know it is done, one check per line').fill('GET /health answers 200\nThe body says ok');
   await dialog.getByRole('button', { name: 'Create task' }).click();
   await expect(page).toHaveURL(/\/t\/T-\d+/);
   const id = /\/t\/(T-\d+)/.exec(page.url())?.[1] as string;

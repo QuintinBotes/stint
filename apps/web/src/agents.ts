@@ -50,7 +50,7 @@ export function agentOf(adapter: string | null | undefined, host?: string | null
   return { name: adapter, mark: 'other' };
 }
 
-export const DAEMON: Agent = { name: 'The daemon', mark: 'local' };
+export const DAEMON: Agent = { name: 'Stint', mark: 'local' };
 export const YOU: Agent = { name: 'You', mark: 'local' };
 
 export function hostName(host: string | null | undefined): string {

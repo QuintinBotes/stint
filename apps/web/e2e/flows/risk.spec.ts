@@ -9,6 +9,9 @@ test('The gate shows the risk tier and why; approving it puts a shadow decision 
   await page.goto(`/t/${t.id}`);
   await expect(page.getByTestId('risk-line')).toContainText('low risk');
   await expect(page.getByTestId('risk-line')).toContainText('nothing sensitive');
+  // the first a gets Approve ready and says what it will merge; the second merges
+  await page.keyboard.press('a');
+  await expect(page.getByTestId('approve-armed')).toBeVisible();
   await page.keyboard.press('a');
   await expect(page.getByTestId('signoff')).toBeVisible();
   const shadow = (await d.events(t.id)).find((e) => e.type === 'autoapprove.shadow');
