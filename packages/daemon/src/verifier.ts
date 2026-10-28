@@ -220,7 +220,7 @@ export class DaemonVerifier implements Verifier {
       outputRef,
       at: new Date().toISOString(),
       ...(testsTimedOut ? { timedOut: true } : {}),
-      ...(/^[0-9a-f]{40}$/.test(head) ? { commit: head } : {}),
+      ...(/^([0-9a-f]{40}|[0-9a-f]{64})$/.test(head) ? { commit: head } : {}),
       ...(reason ? { reason } : {}),
       checks,
       ...(tamper !== undefined ? { tamper } : {}),

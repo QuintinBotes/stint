@@ -137,7 +137,7 @@ export const VerificationRecordSchema = z.strictObject({
   at: z.iso.datetime({ offset: true }),
   timedOut: z.boolean().optional(),
   /** The commit the tests ran on; approve merges only this commit. */
-  commit: z.string().regex(/^[0-9a-f]{40}$/).optional(),
+  commit: z.string().regex(/^([0-9a-f]{40}|[0-9a-f]{64})$/).optional(),
   /** Why a record is red when it is not the tests themselves: 'tampered' or 'scenarios' (R-029, R-037). */
   reason: z.string().optional(),
   /** The verify suite this record ran, the tests first (R-029). */

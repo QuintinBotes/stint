@@ -55,6 +55,9 @@ test('a merge that would overwrite an ignored file in the main tree is refused a
     writeFileSync(join(wt, '.env'), 'FROM_THE_AGENT=1\n');
     await commitIn(wt, ['add', '-f', '.env']);
     await commitIn(wt, ['commit', '-qm', 'agent adds an env file']);
+    // verified again on the new commit, as approve only merges the commit its tests ran on
+    const v = await ws.verification(t.id).latest();
+    await ws.verification(t.id).write({ ...(v as NonNullable<typeof v>), commit: (await gitOk(wt, ['rev-parse', 'HEAD'])).trim() });
     writeFileSync(join(repo, '.env'), 'MINE=1\n');
     const res = await post(app, `/api/tasks/${t.id}/approve`, {});
     expect(res.status).toBe(409);
@@ -68,6 +71,9 @@ test('approve is refused after an agent changed the locked acceptance tests', as
     const { app, ws, t } = await builtTask(repo);
     await ws.events(t.id).append({ task: t.id, run: 'r1', vendor: 'daemon', type: 'acceptance.locked', payload: { run: 'r1', files: [{ path: 'test/a.test.ts', sha256: 'sha256:x' }], failing: ['a'] } });
     await ws.events(t.id).append({ task: t.id, run: 'r2', vendor: 'daemon', type: 'acceptance.tampered', payload: { run: 'r2', files: ['test/a.test.ts'] } });
+    // the gate reads the tamper the latest verification found
+    const v = await ws.verification(t.id).latest();
+    await ws.verification(t.id).write({ ...(v as NonNullable<typeof v>), tamper: { files: ['test/a.test.ts'] } });
     const res = await post(app, `/api/tasks/${t.id}/approve`, {});
     expect(res.status).toBe(409);
     expect(await code(res)).toMatchObject({ code: 'review_blocked', message: 'an agent changed the locked acceptance tests' });

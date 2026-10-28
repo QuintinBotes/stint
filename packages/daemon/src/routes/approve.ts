@@ -189,19 +189,16 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash }
     if (ctx.runs.get(id) || task.status === 'verifying') throw new DaemonError('run_active', `${id} has a run that is still running or being verified`, 'wait for the daemon to finish');
     const v = await ctx.ws.verification(id).latest();
     if (!v || v.status !== 'green') throw new DaemonError('verification_red', 'approve needs a green verification by the daemon', v ? `${v.failed} failed` : 'nothing verified yet');
+    if (!v.commit) throw new DaemonError('verification_red', 'the latest green verification recorded no commit, so what it tested is unknown', 'run the tests again');
     const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
     if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
     const log = await ctx.ws.events(id).read();
     // a reject or a request for changes outranks the green verification before it: the person said this code is not ready
     const asked = log.findLastIndex((e) => e.type === 'approval.rejected');
     if (asked > log.findLastIndex((e) => e.type === 'verification.ran' && e.payload.status === 'green')) throw new DaemonError('verification_red', 'changes were asked for after the last green verification', 'run the task again, then approve');
-    const lockAt = log.findIndex((e) => e.type === 'acceptance.locked');
-    // a tamper the escape hatch allowed (a `tests:` decision naming every file) does not stand in the way
-    const tampered =
-      lockAt >= 0
-        ? log.slice(lockAt).find((e) => (e.type === 'verification.tampered' || e.type === 'acceptance.tampered') && !e.payload.allowedBy)
-        : undefined;
-    if (tampered) throw new DaemonError('review_blocked', 'an agent changed the locked acceptance tests', { files: tampered.payload.files });
+    // the tamper the latest verification found stands; one a later clean verification replaced does not.
+    // A tamper the escape hatch allowed (a `tests:` decision naming every file) does not stand in the way.
+    if (v.tamper && !v.tamper.allowedBy) throw new DaemonError('review_blocked', 'an agent changed the locked acceptance tests', { files: v.tamper.files });
 
     if (ctx.ws.config.release?.mode === 'pr') {
       if (task.status === 'in_review') throw new DaemonError('invalid', `${id} already has a pull request in review`);

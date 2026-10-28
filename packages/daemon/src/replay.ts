@@ -242,7 +242,10 @@ export class Replayer {
         break;
       case 'verification.ran':
         if (line.run) {
+          // the replay reproduces the run's commits, so the branch head is the commit these tests ran on
+          const head = (await git(ws.root, ['rev-parse', '--verify', '-q', `refs/heads/${(await ws.readTask(id)).branch}`])).stdout.trim();
           await ws.verification(id).write({
+            ...(/^([0-9a-f]{40}|[0-9a-f]{64})$/.test(head) ? { commit: head } : {}),
             run: line.run,
             command: String(p.command),
             exitCode: Number(p.exitCode),

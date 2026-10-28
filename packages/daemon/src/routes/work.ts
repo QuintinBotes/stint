@@ -45,10 +45,15 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/verify', async (c) => {
     const id = c.req.param('id');
     const task = await ctx.ws.readTask(id);
-    const body = (await c.req.json().catch(() => ({}))) as { run?: string };
+    const body = (await c.req.json().catch(() => ({}))) as { run?: unknown };
+    if (body.run !== undefined && (typeof body.run !== 'string' || !/^r[0-9]+$/.test(body.run))) throw new DaemonError('invalid', `${String(body.run)} is not a run id`, 'runs are r1, r2, ...');
     if (ctx.runs.get(id)) throw new DaemonError('run_active', `${id} has a live run`, 'verification runs when the run ends');
     const wt = await currentWorktree(ctx, id, body.run).catch(() => null);
-    if (wt) return c.json(await ctx.verifier.verify(task, wt.run, wt.path));
+    if (wt) {
+      // what was changed by hand is committed first, so the verified commit is the tree the tests ran on
+      if ((await gitOk(wt.path, ['status', '--porcelain'])).trim()) await ctx.worktrees.commit(task, wt.run, wt.path, 'changes made outside a run');
+      return c.json(await ctx.verifier.verify(task, wt.run, wt.path));
+    }
     const last = runsFromEvents(await ctx.ws.events(id).read()).filter((r) => r.role === 'implementer').at(-1);
     if (!last) throw new DaemonError('not_found', `${id} has nothing to verify`, 'a run creates the task branch');
     return c.json(await verifyBranch(ctx, task, last.run));
