@@ -284,6 +284,7 @@ export const api = {
   phaseGates: () => request<PhaseGates>('/api/phase-gates'),
   bench: () => request<BenchData>('/api/bench'),
   relay: () => request<import('./components/Relay').RelayData>('/api/relay'),
+  metrics: (window: '7d' | '30d' | '90d' | 'all') => request<import('@stint-dev/core').Metrics>(`/api/metrics?window=${window}`),
   hand: (id: string, adapter: string, ask?: string) => post<{ run: string; packet: string }>(`/api/tasks/${id}/hand`, { adapter, ...(ask ? { ask } : {}) }),
   quiz: (id: string, name: string) => post<QuizResult>(`/api/tasks/${id}/handoffs/${name}/quiz`),
   stopRun: (id: string, run: string) => post<unknown>(`/api/tasks/${id}/runs/${run}/stop`),

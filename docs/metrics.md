@@ -1,6 +1,6 @@
 # Metrics: verification and outcome numbers, defined once
 
-This page is for anyone who reads Stint's verification and outcome numbers or sets targets on them. Every number Stint shows about whether the factory works has one written definition, one implementation and one place to read it. The definitions are in this file. The implementation is `metrics()` in `packages/core/src/metrics/`, a pure projection over the per-task event logs. Read the numbers with `stint metrics`, at `GET /api/metrics`, or in the `stint report` metrics block. The output is `stint.metrics/1`; each value carries its sample size `n`, a `small` flag and a link back to its section here.
+This page is for anyone who reads Stint's verification and outcome numbers or sets targets on them. Every number Stint shows about whether the factory works has one written definition, one implementation and one place to read it. The definitions are in this file. The implementation is `metrics()` in `packages/core/src/metrics/`, a pure projection over the per-task event logs. Read the numbers with `stint metrics`, at `GET /api/metrics`, in the `stint report` metrics block, or on Standings in the web UI. The output is `stint.metrics/1`; each value carries its sample size `n`, a `small` flag and a link back to its section here.
 
 No metric reads a transcript or calls a model. Everything comes from the log, so a replay produces the same numbers as the live run did.
 
@@ -11,6 +11,10 @@ Shared terms:
 - A green run ended `completed` and its last verification is `green`. Tamper and scenario failures already make a verification red.
 - A mature merge merged at least `config.metrics.outcomeWindowDays` ago (default 7). Outcome rates use mature merges only. An outcome counts when its event falls within that many days after the merge.
 - By agent or model, a verification metric belongs to its implementer run; an outcome or human metric belongs to the resolving agent, the last implementer run before the merge. By tag, a task counts under each of its tags and under `*`.
+
+## On Standings
+
+Standings shows the panel "Verification and outcomes" right after its four figures. It has four groups: verification, outcomes, human load and learning. Each figure shows its value in its unit (a ratio as a percent, money in dollars, a time as a duration), its `n`, and "on target" or "below target" when you set a target. Each label links to its section on this page. A group says "small sample" once when any of its figures rests on fewer than five cases. Metrics with no value yet wait behind "Not enough data yet". A switch picks the window: 7, 30 or 90 days, or all; 30 days is the default. The figures row above reads the same response: merges from `outcome.merged`, runs per merged task from `efficiency.hops`, and the transcript share and packet size from `efficiency.transcript_share` and `efficiency.packet_tokens`. Spend this week keeps its own weekly source, since no metric is that number.
 
 ## Reading these numbers
 

@@ -117,3 +117,29 @@ test('The Factory shows the benchmark the fixture was measured with: transcript,
   }
   await expect(bench).toContainText(`commit ${plain.commit.slice(0, 7)}`);
 });
+
+test('Standings shows Verification and outcomes: four groups, a window switch that changes the window, and each label linked to its definition (R-061)', async ({ page }) => {
+  await page.goto('/factory');
+  const panel = page.getByTestId('panel-metrics');
+  await expect(panel).toBeVisible();
+  for (const group of ['verification', 'outcome', 'human', 'learning']) await expect(panel.getByTestId(`metrics-${group}`)).toBeVisible();
+  // 30 days is the default; switching to 7 days asks the daemon for that window and says the new range
+  await expect(panel.getByTestId('metrics-window-30d')).toHaveAttribute('aria-pressed', 'true');
+  const thirty = await panel.getByTestId('metrics-window').textContent();
+  const asked = page.waitForRequest((r) => r.url().includes('/api/metrics?window=7d'));
+  await panel.getByTestId('metrics-window-7d').click();
+  await asked;
+  await expect(panel.getByTestId('metrics-window-7d')).toHaveAttribute('aria-pressed', 'true');
+  await expect(panel.getByTestId('metrics-window')).not.toHaveText(thirty ?? '');
+  // every metric, shown or waiting for data, links to its own anchor in docs/metrics.md, and says it opens the definition
+  const metrics = panel.getByTestId('metric');
+  expect(await metrics.count()).toBeGreaterThan(10);
+  for (const m of await metrics.all()) {
+    const id = (await m.getAttribute('data-metric')) as string;
+    const link = m.getByTestId('metric-link');
+    await expect(link).toHaveAttribute('href', new RegExp(`docs/metrics\\.md#${id.replace('.', '\\.')}$`));
+    await expect(link).toContainText('opens its definition');
+  }
+  // the figures row reads the same response: the transcript share is efficiency.transcript_share
+  await expect(page.getByTestId('kpi-transcript-share')).toContainText('0%');
+});

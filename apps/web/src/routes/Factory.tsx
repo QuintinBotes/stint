@@ -1,8 +1,10 @@
+import type { Metrics } from '@stint-dev/core';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ADAPTER_NAMES, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, carNumber, hostMark, hostName, markColor, modelName } from '../agents';
-import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, api } from '../api';
+import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, api, daemonMessage } from '../api';
 import { Queue, WorkspaceMemory } from '../components/MemoryPanel';
+import { MetricsPanel, type WindowName, metricValue } from '../components/MetricsPanel';
 import { Relay } from '../components/Relay';
 import { Button, EmptyState, Plate, StatusChip, Swatch, VendorMark, cx } from '../components/ui';
 import { money, tokens } from '../format';
@@ -673,10 +675,26 @@ export function Factory() {
   const upkeep = useLoad(() => api.gardening(), []);
   const gates = useLoad(() => api.phaseGates(), []);
   const bench = useLoad(() => api.bench(), []);
-  const [handoffs, setHandoffs] = useState<number | null>(null);
   const [learned, setLearned] = useState(0);
   const [outcomeRows, setOutcomeRows] = useState<OutcomeRow[] | null>(null);
-  const [fedForward, setFedForward] = useState<{ packetTokens: number; hops: number } | null>(null);
+  // one response for the figures row and the panel, for the window the panel shows (R-061)
+  const [span, setSpan] = useState<WindowName>('30d');
+  const [metrics, setMetrics] = useState<{ data: Metrics | null; error: string | null }>({ data: null, error: null });
+  useEffect(() => {
+    let live = true;
+    api
+      .metrics(span)
+      .then((data) => live && setMetrics({ data, error: null }))
+      .catch((e: unknown) => live && setMetrics((m) => ({ data: m.data, error: daemonMessage(e) })));
+    return () => {
+      live = false;
+    };
+  }, [span]);
+  const metric = (group: keyof Metrics['groups'], id: string) => metrics.data?.groups[group].find((m) => m.id === id) ?? null;
+  const merges = metric('outcome', 'outcome.merged');
+  const hops = metric('efficiency', 'efficiency.hops');
+  const transcripts = metric('efficiency', 'efficiency.transcript_share');
+  const packetTokens = metric('efficiency', 'efficiency.packet_tokens');
   const [funnel, setFunnel] = useState<Record<string, number> | null>(null);
   const [spendByCar, setSpendByCar] = useState<Array<{ task: string; total: number; teams: Array<[Mark, number]> }> | null>(null);
   useEffect(() => {
@@ -685,11 +703,6 @@ export function Factory() {
     Promise.all(cards.map((c) => api.events(c.task.id)))
       .then((all) => {
         if (!live) return;
-        setHandoffs(all.flat().filter((e) => e.type === 'run.started' && e.payload.handoffFrom).length);
-        // What was fed forward into continued runs, counted from the packets those runs started from (R-052).
-        // Transcripts are kept for audit and never fed forward, so every fed-forward token here is packet tokens.
-        let packetTokens = 0;
-        let hops = 0;
         // The loops funnel: distinct tasks that entered each stage in the 7 days up to the last event (R-052).
         const latest = Math.max(0, ...all.flat().map((e) => Date.parse(e.ts)));
         const since = latest - 7 * 86_400_000;
@@ -697,20 +710,13 @@ export function Factory() {
         const enter = (state: string, task: string) => (entered.get(state) ?? entered.set(state, new Set()).get(state))?.add(task);
         for (const [i, events] of all.entries()) {
           const task = cards[i]?.task.id ?? events[0]?.task ?? '';
-          const packets = new Map<string, number>();
-          for (const e of events) if (e.type === 'handoff.created' && typeof e.payload.name === 'string') packets.set(e.payload.name, Number(e.payload.tokens) || 0);
           for (const e of events) {
-            if (e.type === 'run.started' && typeof e.payload.handoffFrom === 'string') {
-              hops += 1;
-              packetTokens += packets.get(e.payload.handoffFrom) ?? 0;
-            }
             const t = Date.parse(e.ts);
             if (t < since || t > latest) continue;
             if (e.type === 'task.created') enter('planned', task);
             else if (e.type === 'task.status' && typeof e.payload.to === 'string') enter(e.payload.to, task);
           }
         }
-        setFedForward({ packetTokens, hops });
         // what each car cost, by the team of the driver whose stint spent it
         const cars = all.flatMap((events, i) => {
           const card = cards[i];
@@ -786,17 +792,21 @@ export function Factory() {
 
         <dl className="m-0 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 border-t border-rule-strong pt-4" data-testid="kpis">
           <Figure label="Spend this week" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task, list prices` : undefined} />
-          <Figure label="Runs and hand-offs" value={`${runs} run${runs === 1 ? '' : 's'}${handoffs ? `, ${handoffs} hop${handoffs === 1 ? '' : 's'}` : ''}`} detail={handoffs === null ? undefined : handoffs ? `${handoffs} continued from a packet, no work lost` : 'every run was the first on its task'} />
+          <Figure
+            label="Runs and merges"
+            value={`${runs} run${runs === 1 ? '' : 's'}${merges?.value ? `, ${merges.value} merged` : ''}`}
+            detail={hops?.value !== null && hops?.value !== undefined ? `${metricValue(hops)} implementer runs per merged task` : 'no merges in this window yet'}
+          />
           <Figure
             label="Fed forward as transcripts"
-            value="0%"
-            detail={fedForward ? `${tokens(fedForward.packetTokens)} tokens fed forward, all in ${fedForward.hops} packet${fedForward.hops === 1 ? '' : 's'}` : 'packets, never transcripts'}
+            value={transcripts?.value !== null && transcripts?.value !== undefined ? metricValue(transcripts) : '0%'}
+            detail={packetTokens?.value !== null && packetTokens?.value !== undefined ? `all in packets, a median ${metricValue(packetTokens)} each` : 'packets, never transcripts'}
             testId="kpi-transcript-share"
           />
           <Figure label="Skills learned" value={String(learned)} detail={learned ? 'approved by you, now mounted' : 'none proposed yet'} />
         </dl>
 
-        {/* R-061's Verification and outcomes panel goes here, right after the figures */}
+        <MetricsPanel data={metrics.data} error={metrics.error} window={span} onWindow={setSpan} />
 
         <Queue />
 
