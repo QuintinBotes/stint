@@ -12,6 +12,8 @@ This one is always on. Nothing an agent or a test run starts gets a variable who
 
 Muse Code keeps its login in `~/.config/muse`, so it needs no variable. The terminal in the UI is your own shell and keeps your variables.
 
+What you type in that terminal and what an agent's tools print can still hold a secret, so both are scrubbed before they reach the event log, by the same scrubber the packet uses. The value after a name like `API_KEY=` or `API_KEY:` (any name containing `KEY`, `TOKEN`, `SECRET` or `PASSWORD`) becomes `[redacted]`, and so does the value of every key Stint loaded, wherever it appears.
+
 ## Egress: allowed hosts only
 
 ```json
@@ -52,7 +54,7 @@ On its own the proxy only covers tools that honour the proxy variables, which mo
 
 If the configured sandbox can't run (docker not running, or `sandbox-exec` on Linux), Stint refuses the run and says why. It never quietly runs an agent outside the boundary you asked for.
 
-The Stint agent's file tools run inside the daemon and are held to the worktree by its path checks. Its shell commands run in the sandbox.
+The Stint agent's file tools run inside the daemon and are held to the worktree by its path checks. Its search runs in a separate worker that is stopped after 5 seconds, and a pattern over 500 characters, or one that is not a valid regular expression, comes back to the agent as a tool error, so no search can stall the daemon. Its shell commands run in the sandbox.
 
 Whatever the sandbox:
 - Each run gets its own token, `STINT_RUN_TOKEN`, with the daemon's port in `STINT_DAEMON_PORT`. The token reaches only the routes the agent's hooks and `stint mcp` call for that task and run, answers 403 anywhere else, and stops working when the run ends. Approving, merging and managing skills need the daemon token.

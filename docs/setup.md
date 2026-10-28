@@ -67,11 +67,12 @@ stint keys list
 
 ## Your first task
 
-The README's [Use it on your repository](../README.md#use-it-on-your-repository) walks through it with the expected output: `stint init`, keys, `stint up`, `stint new`, `stint run`, the gate and `stint approve`. After a merge, `stint outcome <task>` says how the task went: each criterion and its proof, the loops, the spend and what happened since. Three things to know before you start:
+The README's [Use it on your repository](../README.md#use-it-on-your-repository) walks through it with the expected output: `stint init`, keys, `stint up`, `stint new`, `stint run`, the gate and `stint approve`. Before a run, `stint sharpen <task>` asks the few questions whose answers change what gets built, and for work bigger than one task, `stint goal new` makes a goal that splits into tasks ([`sharpen.md`](sharpen.md)). After a merge, `stint outcome <task>` says how the task went: each criterion and its proof, the loops, the spend and what happened since. Four things to know before you start:
 
 - **A clean tree.** A run starts from your last commit in its own worktree under `.stint/worktrees/`, on the branch `stint/<task>`. Uncommitted changes to tracked files stop it with `dirty_tree`, so commit or stash them first.
 - **The test command.** The daemon runs the task's test command itself after every run. It is `testCommand` in `.stint/config.json` (`bun test` until you change it), or `stint new --test "<command>"` for one task.
-- **The gate.** Nothing merges until you approve. Approval is a real merge with `Stint-Task` trailers naming the runs and the packet it came from.
+- **Limits.** Autopilot stops and asks you once a task reaches one of its limits: 8 builds, 3 hand-offs and 1 review round by default, and no limit on spend or agent time until you set one. `stint new "<title>" --max-usd 3` sets them for one task, `stint limits <task>` shows and changes them, and `limits` in `.stint/config.json` sets the defaults ([`factory.md`](factory.md#limits-you-set)).
+- **The gate.** Nothing merges until you approve. Approval is a real merge of the commit the daemon verified, with `Stint-Task` trailers naming the runs and the packet it came from.
 
 ## Other agents
 

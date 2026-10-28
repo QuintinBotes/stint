@@ -20,7 +20,7 @@ This page is for anyone connecting a coding agent or another MCP client to Stint
 
 Approving, rejecting and merging are not tools. A person does those.
 
-Inside a Stint run, `task` defaults to the run's task, so an agent can call `stint_constraints` or `stint_decide` with no arguments.
+Inside a Stint run, `task` defaults to the run's task, so an agent can call `stint_constraints` or `stint_decide` with no arguments. There the server calls the daemon with the run's own token, which changes only that task: recording a decision, handing off, autopilot and verify work, and creating a task or changing another one is refused ([`sandbox.md`](sandbox.md#a-sandbox-per-run)).
 
 ## Connect an agent
 

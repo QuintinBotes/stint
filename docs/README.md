@@ -4,8 +4,8 @@ Every guide in this folder, one line each, grouped by what you came to do. New t
 
 ## Use Stint
 
-- [`setup.md`](setup.md): the full setup guide: platforms, install, where keys load from, other agents, the offline review, updating and uninstalling.
-- [`agents.md`](agents.md): turning agents and models on, hosts and keys, and running Claude Code, Codex or an ACP agent on a Meta model.
+- [`setup.md`](setup.md): the full setup guide: platforms, install, where keys load from, your first task and its limits, other agents, the offline review, updating and uninstalling.
+- [`agents.md`](agents.md): turning agents and models on, hosts and keys, running Claude Code, Codex or an ACP agent on a Meta model, and how autopilot hands on, escalates, reviews and stops at a task's limits.
 - [`sharpen.md`](sharpen.md): sharpening a task before it starts: the questions Stint asks and drops, what is always asked, answers as decisions, proofs, the CLI and the config; and goals above tasks, split into tasks and rolled up from how each went.
 - [`skills.md`](skills.md): custom skills: write, import, upload, export, the pattern scan, review and probation, and the requireReview gate.
 - [`mcp.md`](mcp.md): serving Stint's tools over the Model Context Protocol with `stint mcp`.
@@ -14,20 +14,20 @@ Every guide in this folder, one line each, grouped by what you came to do. New t
 
 ## How it works
 
-- [`factory.md`](factory.md): each screen of the web UI, and the factory around the hand-off: escalation, best of n, memory, skills, evals and outcomes after merge.
-- [`packet.md`](packet.md): the `stint.handoff/1` packet: its fields, its rules, and the killed example as the next agent reads it.
+- [`factory.md`](factory.md): each screen of the web UI, the factory around the hand-off (escalation, best of n, memory, skills, evals and outcomes after merge), and the limits you set on a task or a goal.
+- [`packet.md`](packet.md): the `stint.handoff/1` packet: its fields, its rules, runs a restart cut off, and the killed example as the next agent reads it.
 - [`adapters.md`](adapters.md): how an adapter drives one coding agent, the contract, and what each adapter can prove.
-- [`verify.md`](verify.md): the verify suite, the tamper guard, held-out scenarios and coverage.
-- [`sandbox.md`](sandbox.md): keys, the run sandbox and network rules around each worktree, risk tiers and the auto-approve lane.
+- [`verify.md`](verify.md): the verify suite, the tamper guard, held-out scenarios, coverage, and a criterion proven against one that only passes.
+- [`sandbox.md`](sandbox.md): keys and secrets kept out of the logs, the run sandbox and network rules around each worktree, each run's own token, risk tiers and the auto-approve lane.
 - [`evals.md`](evals.md): skill evals, probation and retirement, the golden tasks and the phase gates.
-- [`metrics.md`](metrics.md): verification and outcome metrics, defined once: first pass, escaped defects, cost per good merge, human load and learning.
+- [`metrics.md`](metrics.md): verification and outcome metrics, defined once: first pass, escaped defects, cost per good merge, human load and learning; what each model call costs; and how one task went.
 - [`release.md`](release.md): what the daemon records after merge (reverts, follow-ups, CI, incidents) and the pull request release mode.
 
 ## Evidence and the hackathon
 
 - [`proofs.md`](proofs.md): every number Stint claims, the live packet, the benchmark, where each Meta model works, and what was built during the hackathon.
 - [`writeup.md`](writeup.md): the submission write-up.
-- [`timeline.md`](timeline.md): when Stint was built, and which commits came before the hackathon kickoff.
+- [`timeline.md`](timeline.md): when Stint was built, which commits came before the hackathon kickoff, when each spec was written, and what was built on 28 October.
 - [`build-kit.md`](build-kit.md): the spec-driven build loop Stint was built with (`AGENTS.md`, `GOAL.md`, `LOOP.md`, `specs/`).
 - [`demo.md`](demo.md): the demo runbook: the commands, the beats, rehearsal timings and what to do when a beat goes wrong.
 - [`finals.md`](finals.md): the kit for the live judging: the 60-second version, likely questions and fallbacks.

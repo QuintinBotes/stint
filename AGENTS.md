@@ -90,7 +90,7 @@ Everything lives under `.stint/` in the repo. Full JSON Schemas are in `schemas/
 .stint/
   config.json                  adapters, models, per-role budgets, default testCommand, port/token file
   tasks/T-0042-rate-limit-webhooks/
-    task.json                  stint.task/1: goal, acceptance[], status, baseCommit, branch, assignee, testCommand, budgets
+    task.json                  stint.task/1: goal, acceptance[], status, baseCommit, branch, assignee, testCommand, budgets, limits, proofs, goalId
     plan.json                  stint.plan/1: steps[], filesToTouch[], risks[], similarTasks[], model
     decisions.md               append-only: "## D3 · <ts> · <adapter> <run>" + text + supersedes: + evidence:
     context.json               relevant files with line ranges, links, similar past tasks
@@ -99,17 +99,19 @@ Everything lives under `.stint/` in the repo. Full JSON Schemas are in `schemas/
     events.jsonl               the timeline, append-only, one JSON object per line, seq monotonic
     runs/r2-muse-code-implementer/{meta.json, prompt.md, transcript.jsonl}
     verification/r2.json       command, exitCode, passed, failed, durationMs, runBy: "daemon"
+  goals/G-0001.json            stint.goal/1: an outcome above tasks, its criteria, decisions, limits and tasks (R-064)
+  workspace/events.jsonl       the workspace log: events that belong to no task, such as skill imports and goals (R-060)
   worktrees/                   gitignored; T-0042-r2/ is a git worktree on branch stint/T-0042
   cache/                       gitignored; daemon.json (port, token), graph.sqlite, proposals/; always rebuildable
 .agents/skills/<id>/SKILL.md   skills live where Muse Code and other coding agents already look
 AGENTS.md                      this file; `stint init` adds a "## Stint" section pointing at the active task
 ```
 
-**Task status** is one of `planned`, `building`, `verifying`, `reviewing`, `awaiting_approval`, `approved`, `rejected`, `done`, `abandoned`.
+**Task status** is one of `planned`, `building`, `verifying`, `reviewing`, `in_review` (a pull request waits, in the pull request release mode), `awaiting_approval`, `approved`, `rejected`, `done`, `abandoned`.
 
 **The packet** (`stint.handoff/1`): `version, task, from{adapter,vendor,model,host?,role,run,endedBy}, to{adapter,role}, summary (≤400 chars), done[], open[], leftOut[] (required), decisions[{id,text}], risks[], changedFiles[{path,added,removed}], diffRef{base,head}, verification{command,exitCode,passed,failed,durationMs,runBy}, askOfNext (required, non-empty), cost{inputTokens,cachedTokens,outputTokens,usd}, createdAt, hash`. Array strings ≤200 chars. `endedBy` ∈ completed, capped, killed, failed, handed. The whole file renders under 600 tokens. `toPrompt()` renders it with fixed headings the next hop can parse back by exact string: `## The task`, `## Where it got to`, `## Done`, `## Open`, `## Refused actions`, `## Decisions`, `## Risks`, `## Ask of next`, `## Not included`.
 
-**Events** (`events.jsonl`), each line `{ id: ulid, seq, ts, task, run?, adapter?, type, payload, raw?: {kind, pointer, byteLen, redacted}, links?: [] }`. Types: `task.created`, `task.status`, `run.started`, `run.finished`, `run.refused`, `agent.message`, `agent.tool_call`, `agent.tool_result`, `human.command`, `file.changed`, `decision.recorded`, `verification.ran`, `review.recorded`, `handoff.created`, `approval.requested`, `approval.granted`, `approval.rejected`, `skill.applied`, `skill.proposed`, `skill.approved`, `skill.rejected`, `merge.completed`, `runtime.unclassified`. Unknown adapter output is kept as `runtime.unclassified`, never dropped. Each row carries `prev` and `hash` (SHA-256 over the canonical fields plus the previous hash) once R-003's chain lands; `stint verify` names the first broken row.
+**Events** (`events.jsonl`), each line `{ id: ulid, seq, ts, task, run?, adapter?, type, payload, raw?: {kind, pointer, byteLen, redacted}, links?: [] }`. Types include `task.created`, `task.status`, `run.started`, `run.finished`, `run.refused`, `agent.message`, `agent.tool_call`, `agent.tool_result`, `human.command`, `file.changed`, `decision.recorded`, `verification.ran`, `review.recorded`, `handoff.created`, `approval.requested`, `approval.granted`, `approval.rejected`, `skill.applied`, `skill.proposed`, `skill.approved`, `skill.rejected`, `merge.completed`, `runtime.unclassified`; the full list is `EVENT_TYPES` in `packages/core/src/schemas/event.ts`, mirrored in `schemas/event.schema.json`. Unknown adapter output is kept as `runtime.unclassified`, never dropped. Each row carries `prev` and `hash` (SHA-256 over the canonical fields plus the previous hash); `EventLog.verify()` names the first broken row. A line that is not JSON is skipped on read with one warning, and a torn last line from a crash is copied aside to `events.jsonl.torn-<time>` and cut, so appends go on. `human.command` and `agent.tool_result` payloads are scrubbed of secrets before they are stored. The daemon keeps each log's parsed events until the file's size or time changes, so a write by hand is read again.
 
 **Plan, review, skill proposal**: see `schemas/plan.schema.json`, `schemas/review.schema.json`, `schemas/skill-proposal.schema.json`. `review.verdict` ∈ approve, request_changes, block; finding `severity` ∈ blocker, major, minor, note; a finding may carry `contradictsDecision: "D3"`.
 

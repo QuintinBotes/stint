@@ -36,6 +36,8 @@ The reversible details Stint settled itself are listed as **Assumed**, each with
 
 ## Answers become decisions
 
+In the task view each open question is a card, with its options as a radio group, the recommended one chosen: "Answer with B" answers with the option chosen, and "Answer with this" with your own words.
+
 Every answer is a `sharpen.answered` event and a decision in the task's `decisions.md` that pairs the question with the answer, for example "Do retries of a failed webhook count towards the limit? Answer: Retries do not count", with `sharpen:Q2` as its evidence. A recommendation taken without asking says "(the recommendation)" and is recorded by whoever took it: you, or `autopilot`. Answering a question again, or changing an assumption again, supersedes the earlier decision; nothing is edited.
 
 The planner prompt carries these decisions, the assumptions nobody changed, and the accepted proofs, under "Before work started". The first build's ask carries the same lines. A task that was never sharpened gets the same prompts as before.
@@ -80,7 +82,7 @@ The routes behind them, each POST needing the daemon token: `POST /api/tasks/:id
 "routes": { "sharpen": ["meta-api/muse-wonder-1.0"] }
 ```
 
-`maxQuestions` is 1 to 10. A round's cost is recorded on `sharpen.asked` and counts in the week under the role "sharpens tasks", like the other model calls that are not runs.
+`maxQuestions` is 1 to 10. A round's cost is recorded on `sharpen.asked` and counts in the week under the role "sharpens tasks", like the other model calls that are not runs. A task's round also counts in the task's spend, and so against its spend limit.
 
 ## Goals
 
@@ -88,9 +90,9 @@ A goal is an outcome bigger than one task, with the criteria that prove it and l
 
 **Sharpening a goal** uses the same engine and the same rules as a task. The goal's criteria take the place of acceptance, and the prompt carries its title, outcome, criteria, what is not in scope, the tracked files, its decisions and the earlier rounds. Answers go to `goal.decisions` as `D1`, `D2` and on; answering a question again adds a decision, and the latest answer is the one that stands. Accepted proofs go on the goal's criteria.
 
-**Its status** is `draft` until it is sharpened, no material question is open and each criterion has a proof; then it is `ready`. Choosing "Split into tasks" also makes a draft ready. It is `running` once tasks are made from it and `done` once its rollup says so. Only a person abandons it.
+**Its status** is `draft` until it is sharpened, no material question is open and each criterion has a proof; then it is `ready`. Choosing "Split into tasks" also makes a draft ready. It is `running` once tasks are made from it and `done` once its rollup says so. Only a person abandons it: "Abandon this goal" on its page says what will happen, and a second click does it. Its tasks stay as they are, and an abandoned goal can no longer be split into tasks.
 
-**Splitting it into tasks** asks the planner chain for 1 to 6 tasks, each with a title, a goal, acceptance, the goal criteria it covers (from 1) and the earlier tasks it waits for. The split is only a proposal: `goal.planned` records it and what the call cost, which counts under the role "plans", and no task exists yet. You check the proposed tasks, change a title or a check, then create them. Each is made through the normal task path with:
+**Splitting it into tasks** asks the planner chain for 1 to 6 tasks, each with a title, a goal, acceptance, the goal criteria it covers (from 1) and the earlier tasks it waits for. The split is only a proposal: `goal.planned` records it and what the call cost, which counts under the role "plans", and no task exists yet. You check the proposed tasks, change a title or a check, then create them; a proposal made meanwhile in another tab or the CLI never replaces rows you are editing. Each is made through the normal task path with:
 
 - `goalId` and `goalCriteria`, the goal criteria it covers;
 - `dependsOn`, so it starts only once the tasks it waits for are merged;
