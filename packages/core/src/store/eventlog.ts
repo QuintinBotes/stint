@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, copyFile, mkdir, readFile, truncate } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { monotonicFactory } from 'ulid';
 import { canonicalJSON, sha256Hex } from '../canonical';
@@ -23,6 +23,7 @@ type Tail = { seq: number; hash: string };
 /** `events.jsonl` of one task: append-only, one JSON object per line, `seq` monotonic, hash-chained. */
 export class EventLog {
   private tail: Tail | null = null;
+  private warned = false;
   private listeners = new Set<(e: StintEvent) => void>();
 
   private constructor(readonly path: string) {}
@@ -54,7 +55,17 @@ export class EventLog {
 
   async read(o: { since?: number } = {}): Promise<StintEvent[]> {
     const since = o.since ?? 0;
-    return (await this.lines()).map((l) => JSON.parse(l) as StintEvent).filter((e) => e.seq > since);
+    const events: StintEvent[] = [];
+    for (const line of await this.lines()) {
+      const e = parse(line);
+      if (e) events.push(e);
+      else if (!this.warned) {
+        // one bad line must not hide the rest of the log; verify() still names it
+        this.warned = true;
+        process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'warn', message: `${this.path} has a line that is not JSON; it is skipped`, path: this.path })}\n`);
+      }
+    }
+    return events.filter((e) => e.seq > since);
   }
 
   /** Re-derives every hash; names the first row whose content, order or link is broken. */
@@ -98,10 +109,34 @@ export class EventLog {
 
   private async loadTail(): Promise<Tail> {
     if (this.tail) return this.tail;
-    const lines = await this.lines();
-    const last = lines.at(-1);
-    if (!last) return (this.tail = { seq: 0, hash: GENESIS });
-    const e = JSON.parse(last) as StintEvent;
-    return (this.tail = { seq: e.seq, hash: e.hash ?? GENESIS });
+    let text: string;
+    try {
+      text = await readFile(this.path, 'utf8');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return (this.tail = { seq: 0, hash: GENESIS });
+      throw err;
+    }
+    const cut = text.lastIndexOf('\n', text.length - 2) + 1;
+    const last = text.slice(cut);
+    if (last && !text.endsWith('\n')) {
+      if (parse(last)) await appendFile(this.path, '\n');
+      else {
+        // a torn append from a crash: kept aside, then cut so the next append starts on a line of its own
+        await copyFile(this.path, `${this.path}.torn-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+        await truncate(this.path, Buffer.byteLength(text.slice(0, cut)));
+        text = text.slice(0, cut);
+      }
+    }
+    const e = text.split('\n').reverse().map(parse).find((x) => x !== null);
+    return (this.tail = e ? { seq: e.seq, hash: e.hash ?? GENESIS } : { seq: 0, hash: GENESIS });
+  }
+}
+
+function parse(line: string): StintEvent | null {
+  if (!line) return null;
+  try {
+    return JSON.parse(line) as StintEvent;
+  } catch {
+    return null;
   }
 }
