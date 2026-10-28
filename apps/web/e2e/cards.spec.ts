@@ -4,7 +4,7 @@ test('The T-0042 verification card shows the passed count and who ran it, and th
   await page.goto('/t/T-0042?tab=verification');
   const card = page.getByTestId('verification-card');
   await expect(card.getByTestId('verification-summary')).toContainText('33 passed');
-  await expect(card.getByTestId('verification-summary')).toContainText('run by the daemon');
+  await expect(card.getByTestId('verification-summary')).toContainText('run by Stint');
 
   await page.goto('/t/T-0042?tab=packet');
   // the killed run's packet is h1; the recording counted it at 412 tokens and the header agrees
@@ -12,6 +12,8 @@ test('The T-0042 verification card shows the passed count and who ran it, and th
   await expect(page.getByTestId('packet-size')).toContainText('412 tokens');
   await expect(page.getByTestId('ask-of-next')).toBeVisible();
   await expect(page.getByTestId('ask-of-next')).toContainText('Check the unknown step first');
+  // the ask is for the next agent, not for you, so it takes no amber
+  await expect(page.getByTestId('handoff-card').locator('.border-amber, .bg-amber-wash')).toHaveCount(0);
 });
 
 test("After the replay, T-0042's gate shows who, when, the verification hash and the commit", async ({ page, request }) => {

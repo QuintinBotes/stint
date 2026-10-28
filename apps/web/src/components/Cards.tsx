@@ -1,10 +1,10 @@
 import { type Handoff, type Plan, type Review, countTokens, renderHandoff } from '@stint-dev/core';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { JsonView, darkStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
 import { Link } from 'react-router';
-import { type Agent, agentOf, hostName, modelName } from '../agents';
-import { CostMeter, EmptyState, Section, StatusChip, Who, cx, rev, tabClass } from './ui';
+import { agentOf, hostName, modelName } from '../agents';
+import { type ChipTone, CostMeter, EmptyState, Explain, Section, StatusChip, Who, cx, rev, tabClass, tabKeys } from './ui';
 
 function List({ items, empty }: { items: string[]; empty: string }) {
   if (items.length === 0) return <p className="text-ink-3">{empty}</p>;
@@ -30,14 +30,11 @@ function PlannedEmpty({ testId, status = 'planned', children, settled }: { testI
   );
 }
 
-/** One field of the packet: its heading with a count, then what the packet says. */
-function Field({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+/** One field of the packet: its heading, then what the packet says. */
+function Field({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="py-3 border-t border-rule text-small">
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        <h3 className="text-body font-semibold">{title}</h3>
-        {count !== undefined ? <span className="text-ink-3 tabular">{count}</span> : null}
-      </div>
+    <section className="py-3 border-t border-rule first:border-t-0 first:pt-0 text-small">
+      <h3 className="text-body font-semibold mb-1.5">{title}</h3>
       {children}
     </section>
   );
@@ -58,14 +55,21 @@ function LeftOut({ items }: { items: string[] }) {
 }
 
 const VIEWS = [
-  ['packet', 'Packet'],
-  ['prompt', 'As the prompt'],
+  ['packet', 'Summary'],
+  ['prompt', 'As the agent reads it'],
   ['json', 'Raw JSON'],
 ] as const;
 
-/** The packet a run left: its title-block table, then the fields, the prompt the next agent reads, or the raw JSON. */
+/** A packet addressed to a role, not a harness: said as the role, with no vendor ink, since no name goes with it. */
+const ROLE_TO: Record<string, string> = { planner: 'The planner', reviewer: 'The reviewer', implementer: 'The next agent' };
+
+/** A secondary part of a card, behind a native disclosure. */
+const summaryClass = 'w-fit min-h-6 cursor-pointer font-semibold text-ink hover:underline underline-offset-4';
+
+/** The packet a run left: its title-block table, then what was done, what is left and what is unsure; the prompt the next agent reads, or the raw JSON. */
 export function HandoffCard({ handoff, status, name }: { handoff: Handoff | null; status?: string; name?: string | null }) {
   const [view, setView] = useState<'packet' | 'prompt' | 'json'>('packet');
+  const id = useId();
   if (!handoff)
     return (
       <PlannedEmpty testId="empty-packet" status={status} settled="No run on this task left a packet.">
@@ -76,148 +80,178 @@ export function HandoffCard({ handoff, status, name }: { handoff: Handoff | null
   const bytes = new TextEncoder().encode(prompt).length;
   const tokenCount = countTokens(prompt);
   const from = agentOf(handoff.from.adapter, handoff.from.host, handoff.from.model);
-  // a packet for a planner or reviewer call names the role; there is no harness to name
-  const to: Agent | null = handoff.to ? (handoff.to.adapter === 'openai-compatible' ? { name: `The ${handoff.to.role}`, mark: 'meta' } : agentOf(handoff.to.adapter)) : null;
+  const to = handoff.to;
   const stopped = handoff.from.endedBy === 'killed' || handoff.from.endedBy === 'failed';
   const v = handoff.verification;
+  const refusals = handoff.refusals ?? [];
   const th = cx('w-[34%]', rev.th);
   const td = rev.td;
   return (
     <article data-testid="handoff-card" className="flex flex-col gap-4 max-w-[760px]">
-      <h2 className="text-section">
-        <span className="font-mono font-normal text-ink-3 mr-2.5">{handoff.task}</span>
-        Packet {name ?? handoff.from.run}
-      </h2>
-      {/* the heavy ink-3 line goes round the caption too */}
-      <div className="outline outline-ink-3">
-        <table className={rev.block}>
-          <caption className={cx(rev.caption, 'font-mono')}>{handoff.version}</caption>
-          <tbody>
-            <tr>
-              <th scope="row" className={th}>
-                From
-              </th>
-              <td className={td}>
-                <Who agent={from} className="font-semibold" />, {handoff.from.run}
-                {handoff.from.model ? <span className="text-ink-2">, {modelName(handoff.from.model)}</span> : null}
-              </td>
-            </tr>
-            <tr>
-              <th scope="row" className={th}>
-                To
-              </th>
-              <td className={td}>{to ? <Who agent={to} className="font-semibold" /> : <span className="text-ink-2">Whoever you hand it to, below</span>}</td>
-            </tr>
-            <tr>
-              <th scope="row" className={th}>
-                Ended by
-              </th>
-              <td className={cx(td, stopped && 'text-red')}>
-                <StatusChip status={handoff.from.endedBy} />
-                {stopped ? ' Built from the event log and the worktree; a stopped session cannot add to it.' : null}
-              </td>
-            </tr>
-            <tr>
-              <th scope="row" className={th}>
-                Size
-              </th>
-              <td className={cx(td, 'tabular')} data-testid="packet-size">
-                {tokenCount} tokens, {(bytes / 1024).toFixed(1)} KB
-              </td>
-            </tr>
-            <tr>
-              <th scope="row" className={th}>
-                Hash
-              </th>
-              <td className={cx(td, 'font-mono break-all')} title={handoff.hash}>
-                {handoff.hash.slice(0, 15)}…{handoff.hash.slice(-4)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-section">
+          <span className="font-mono font-normal text-ink-3 mr-2.5">{handoff.task}</span>
+          Packet {name ?? handoff.from.run}
+        </h2>
+        <Explain word="packet" />
       </div>
-      <div className="flex flex-wrap border-b border-rule" role="tablist" aria-label="Packet view">
+      <table className={rev.block}>
+        <tbody>
+          <tr>
+            <th scope="row" className={th}>
+              From
+            </th>
+            <td className={td}>
+              <Who agent={from} className="font-semibold" />, {handoff.from.run}
+              {handoff.from.model ? <span className="text-ink-2">, {modelName(handoff.from.model)}</span> : null}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" className={th}>
+              To
+            </th>
+            <td className={td}>
+              {!to ? (
+                <span className="text-ink-2">The next agent you choose</span>
+              ) : to.adapter === 'openai-compatible' ? (
+                <span className="font-semibold">{ROLE_TO[to.role] ?? to.role}</span>
+              ) : (
+                <Who agent={agentOf(to.adapter)} className="font-semibold" />
+              )}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" className={th}>
+              Ended by
+            </th>
+            <td className={cx(td, stopped && 'text-red')}>
+              <StatusChip status={handoff.from.endedBy} />
+              {stopped ? " Built by Stint from what the run recorded and the files it changed, since a stopped agent cannot write it." : null}
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" className={th}>
+              Size
+            </th>
+            <td className={cx(td, 'tabular')} data-testid="packet-size">
+              {tokenCount} tokens, {(bytes / 1024).toFixed(1)} KB
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div className="flex flex-wrap border-b border-rule" role="tablist" aria-label="Packet view" onKeyDown={tabKeys}>
         {VIEWS.map(([k, label]) => (
-          <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)} className={tabClass(view === k)}>
+          <button
+            key={k}
+            id={`${id}-${k}`}
+            type="button"
+            role="tab"
+            aria-selected={view === k}
+            aria-controls={`${id}-panel`}
+            tabIndex={view === k ? 0 : -1}
+            onClick={() => setView(k)}
+            className={tabClass(view === k)}
+          >
             {label}
           </button>
         ))}
       </div>
-      {view === 'prompt' ? (
-        <pre className="font-mono text-code whitespace-pre-wrap break-words rounded-[5px] bg-term text-term-ink px-4 py-3.5">{prompt}</pre>
-      ) : view === 'json' ? (
-        <div data-testid="packet-json">
-          <JsonView data={handoff} shouldExpandNode={(level) => level < 2} style={JSON_STYLE} />
-        </div>
-      ) : (
-        <div className="flex flex-col">
-          <div className="mb-1.5 rounded-[5px] border border-amber bg-amber-wash px-3.5 py-3">
-            <h3 className="font-semibold mb-1">Ask of next</h3>
-            <p data-testid="ask-of-next">{handoff.askOfNext}</p>
+      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${view}`} className="min-w-0">
+        {view === 'prompt' ? (
+          <pre tabIndex={0} className="font-mono text-code whitespace-pre-wrap break-words rounded-[5px] bg-term text-term-ink px-4 py-3.5">
+            {prompt}
+          </pre>
+        ) : view === 'json' ? (
+          <div data-testid="packet-json">
+            <JsonView data={handoff} shouldExpandNode={(level) => level < 2} style={JSON_STYLE} />
           </div>
-          <Field title="Where it got to">
-            <p>{handoff.summary}</p>
-          </Field>
-          <Field title="Done" count={handoff.done.length}>
-            <List items={handoff.done} empty="Nothing recorded as done." />
-          </Field>
-          <Field title="Open" count={handoff.open.length}>
-            <List items={handoff.open} empty="Nothing open." />
-          </Field>
-          <Field title="Left out" count={handoff.leftOut.length}>
-            <LeftOut items={handoff.leftOut} />
-          </Field>
-          <Field title="Decisions" count={handoff.decisions.length}>
-            {handoff.decisions.length ? (
-              <ul className="flex flex-col gap-1">
-                {handoff.decisions.map((d) => (
-                  <li key={d.id}>
-                    <span className="font-mono font-semibold mr-2">{d.id}</span>
-                    {d.text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-ink-3">No decisions yet.</p>
-            )}
-          </Field>
-          <Field title="Risks" count={handoff.risks.length}>
-            <List items={handoff.risks} empty="No risks named." />
-            <p className="mt-1 text-ink-2">Refused actions: {(handoff.refusals ?? []).length ? (handoff.refusals ?? []).map((r) => `${r.action} (${r.reason ?? r.by})`).join('; ') : 'none'}</p>
-          </Field>
-          <Field title="Files" count={handoff.changedFiles.length}>
-            {handoff.changedFiles.length ? (
-              <ul className="flex flex-col gap-1 font-mono">
-                {handoff.changedFiles.map((f) => (
-                  <li key={f.path} className="flex gap-3">
-                    <span className="truncate">{f.path}</span>
-                    <span className="tabular text-ink-2">
-                      +{f.added} -{f.removed}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-ink-3">No files changed in this run.</p>
-            )}
-          </Field>
-          <Field title="Verification">
-            <p className={cx(!v && 'text-ink-2')}>
-              {v ? `${v.status ?? (v.exitCode === 0 ? 'green' : 'red')}, ${v.passed} passed, ${v.failed} failed, run by the daemon` : stopped ? 'Not run: the run stopped before the daemon could test it.' : 'Not run yet.'}
-            </p>
-          </Field>
-          <Field title="Cost so far">
-            <CostMeter cost={handoff.cost} detail />
-          </Field>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col">
+            <Field title="Where it got to">
+              <p>{handoff.summary}</p>
+            </Field>
+            <Field title="Done">
+              <List items={handoff.done} empty="Nothing recorded as done." />
+            </Field>
+            <Field title="Left to do">
+              <List items={handoff.open} empty="Nothing left to do." />
+            </Field>
+            <Field title="Left out">
+              <LeftOut items={handoff.leftOut} />
+            </Field>
+            <Field title="Risks">
+              <List items={handoff.risks} empty="No risks named." />
+            </Field>
+            <section className="my-3 rounded-[5px] border border-rule-strong bg-panel px-3.5 py-3">
+              <h3 className="font-semibold mb-1">Ask of the next agent</h3>
+              <p data-testid="ask-of-next">{handoff.askOfNext}</p>
+            </section>
+            <details className="pt-3 border-t border-rule text-small">
+              <summary className={summaryClass}>Decisions, files, tests and cost</summary>
+              <dl className="mt-2 grid grid-cols-1 gap-y-1 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] sm:gap-x-4 sm:gap-y-3 [&>dd]:mb-2 sm:[&>dd]:mb-0">
+                <dt className="text-ink-2">Decisions</dt>
+                <dd>
+                  {handoff.decisions.length ? (
+                    <ul className="flex flex-col gap-1">
+                      {handoff.decisions.map((d) => (
+                        <li key={d.id}>
+                          {d.text} <span className="font-mono text-ink-3">{d.id}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-ink-3">None yet.</span>
+                  )}
+                </dd>
+                <dt className="text-ink-2">Files changed</dt>
+                <dd>
+                  {handoff.changedFiles.length ? (
+                    <ul className="flex flex-col gap-1 font-mono">
+                      {handoff.changedFiles.map((f) => (
+                        <li key={f.path} className="flex gap-3 min-w-0">
+                          <span className="truncate">{f.path}</span>
+                          <span className="tabular text-ink-2 shrink-0">
+                            <span className="sr-only">{`${f.added} lines added, ${f.removed} removed`}</span>
+                            <span aria-hidden="true">
+                              +{f.added} -{f.removed}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-ink-3">No files changed in this run.</span>
+                  )}
+                </dd>
+                <dt className="text-ink-2">Tests</dt>
+                <dd className={cx(!v && 'text-ink-2')}>
+                  {v
+                    ? `${v.passed} passed, ${v.failed} failed, run by Stint.`
+                    : stopped
+                      ? 'Not run: the run stopped before Stint could test it.'
+                      : 'Not run yet.'}
+                </dd>
+                <dt className="text-ink-2">Cost so far</dt>
+                <dd>
+                  <CostMeter cost={handoff.cost} detail />
+                </dd>
+                <dt className="text-ink-2">Refused actions</dt>
+                <dd className="text-ink-2">{refusals.length ? refusals.map((r) => `${r.action} (${r.reason ?? r.by})`).join('; ') : 'None.'}</dd>
+                <dt className="text-ink-2">Hash</dt>
+                <dd className="font-mono break-all" title={handoff.hash}>
+                  {handoff.hash.slice(0, 15)}…{handoff.hash.slice(-4)}
+                </dd>
+              </dl>
+            </details>
+          </div>
+        )}
+      </div>
     </article>
   );
 }
 
 const LENS_NAMES: Record<string, string> = { general: 'General', security: 'Security', 'spec-fit': 'Spec fit' };
 
-/** `decisions` are the task's recorded decisions, so a finding that would reverse one shows what it would reverse. */
 /** The raw packet as a tree that folds, in the app's own colours; only the indentation and icons come from the library. */
 const JSON_STYLE = {
   ...darkStyles,
@@ -233,6 +267,18 @@ const JSON_STYLE = {
   punctuation: 'text-ink-3',
 };
 
+/** A verdict is the reviewer's recommendation, not a state: approve is an ink outline, block is red, request changes is ink. */
+const VERDICT: Record<string, { label: string; tone: ChipTone }> = {
+  approve: { label: 'approve', tone: 'recommend' },
+  request_changes: { label: 'request changes', tone: 'active' },
+  block: { label: 'block', tone: 'bad' },
+};
+const Verdict = ({ verdict }: { verdict: string }) => <StatusChip label={VERDICT[verdict]?.label ?? verdict.replace('_', ' ')} tone={VERDICT[verdict]?.tone ?? 'active'} />;
+
+/** How serious a finding is, in words; only a blocker takes red. */
+const SEVERITY_TONE: Record<string, ChipTone> = { blocker: 'bad', major: 'active' };
+
+/** `decisions` are the task's recorded decisions, so a finding that would reverse one shows what it would reverse. */
 export function ReviewCard({ review, decisions = [], status }: { review: Review | null; decisions?: Array<{ id: string; text: string }>; status?: string }) {
   if (!review)
     return (
@@ -242,24 +288,28 @@ export function ReviewCard({ review, decisions = [], status }: { review: Review 
     );
   return (
     <article data-testid="review-card" className="flex flex-col gap-3 max-w-[72ch]">
-      <header className="flex flex-wrap items-center gap-2">
-        <StatusChip label={review.verdict.replace('_', ' ')} tone={review.verdict === 'approve' ? 'good' : review.verdict === 'block' ? 'bad' : 'warn'} />
-        {review.offline ? <StatusChip label="offline" tone="neutral" /> : null}
-        <span className="text-ink-2">
-          {review.lens === 'combined' ? 'combined from the reviews below' : modelName(review.model)}
-          {review.cost ? (
-            <>
-              , <CostMeter cost={review.cost} />
-            </>
-          ) : null}
-        </span>
+      <header className="flex flex-col gap-1">
+        <p className="flex flex-wrap items-center gap-2">
+          <span className="text-ink-2">Recommends</span>
+          <Verdict verdict={review.verdict} />
+          {review.offline ? <StatusChip label="on this machine" tone="neutral" /> : null}
+          <span className="text-ink-2">
+            {review.lens === 'combined' ? 'combined from the reviews below' : modelName(review.model)}
+            {review.cost ? (
+              <>
+                , <CostMeter cost={review.cost} />
+              </>
+            ) : null}
+          </span>
+        </p>
+        <Explain word="review" />
       </header>
       {review.lenses?.length ? (
         <ul className="flex flex-col gap-1 text-small" data-testid="review-lenses">
           {review.lenses.map((l, i) => (
             <li key={`${l.lens}-${l.run ?? i}`} className="flex flex-wrap items-center gap-2" data-lens={l.lens}>
               <span className="font-semibold w-[72px]">{LENS_NAMES[l.lens] ?? l.lens}</span>
-              <StatusChip label={l.verdict.replace('_', ' ')} tone={l.verdict === 'approve' ? 'good' : l.verdict === 'block' ? 'bad' : 'warn'} />
+              <Verdict verdict={l.verdict} />
               <span className="text-ink-2">
                 {modelName(l.model)}, {l.findings} finding{l.findings === 1 ? '' : 's'}
               </span>
@@ -268,9 +318,7 @@ export function ReviewCard({ review, decisions = [], status }: { review: Review 
         </ul>
       ) : null}
       {review.disagreement ? (
-        <p data-testid="review-disagreement" className="text-amber">
-          The reviewers did not agree on the verdict. The strictest one counts; read their findings before you approve.
-        </p>
+        <p data-testid="review-disagreement">The reviewers did not agree. The strictest verdict counts; read the findings before you approve.</p>
       ) : null}
       {review.blockers.length ? (
         <section data-testid="review-blockers" aria-label="Blockers">
@@ -287,36 +335,39 @@ export function ReviewCard({ review, decisions = [], status }: { review: Review 
         </section>
       ) : null}
       {review.findings.length === 0 ? (
-        <p data-testid="no-findings">No actionable findings.</p>
+        <p data-testid="no-findings">The review found no problems to fix.</p>
       ) : (
         <ol className="flex flex-col gap-2">
-          {review.findings.map((f) => (
-            <li key={f.id} data-testid="finding" className="border-t border-rule pt-3 pb-1">
-              <div className="flex flex-wrap items-center gap-2 text-small">
-                <span className="font-mono font-semibold">{f.id}</span>
-                <StatusChip label={f.severity} tone={f.severity === 'blocker' ? 'bad' : f.severity === 'major' ? 'warn' : 'neutral'} />
-                {f.file ? (
-                  <Link to={`?tab=diff&file=${encodeURIComponent(f.file)}`} className="font-mono text-ink-2 underline-offset-2 hover:text-ink hover:underline" data-testid="finding-file">
-                    {f.file}
-                    {f.line ? `:${f.line}` : ''}
-                  </Link>
-                ) : null}
+          {review.findings.map((f) => {
+            const decision = f.contradictsDecision ? decisions.find((d) => d.id === f.contradictsDecision) : undefined;
+            return (
+              <li key={f.id} data-testid="finding" className="border-t border-rule pt-3 pb-1">
+                <div className="flex flex-wrap items-center gap-2 text-small">
+                  <StatusChip label={f.severity} tone={SEVERITY_TONE[f.severity] ?? 'neutral'} />
+                  {f.file ? (
+                    <Link to={`?tab=diff&file=${encodeURIComponent(f.file)}`} className="font-mono text-ink-2 underline underline-offset-2 decoration-ink-3 hover:text-ink" data-testid="finding-file">
+                      {f.file}
+                      {f.line ? `:${f.line}` : ''}
+                    </Link>
+                  ) : null}
+                  {review.lens === 'combined' && f.lens ? <StatusChip label={LENS_NAMES[f.lens] ?? f.lens} tone="neutral" /> : null}
+                  {f.agreement && f.agreement > 1 ? <span className="text-ink-2">found by {f.agreement} reviewers</span> : null}
+                  <span className="ml-auto font-mono text-ink-3">{f.id}</span>
+                </div>
+                <p className="mt-1">{f.text}</p>
                 {f.contradictsDecision ? (
-                  <Link to="/factory" className="rounded-sm" data-testid="finding-queue">
-                    <StatusChip label={`contradicts ${f.contradictsDecision}, routed to the queue`} tone="warn" />
-                  </Link>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[5px] border border-rule-strong bg-panel px-3 py-2 text-small" data-testid="contradicted-decision">
+                    <p className="min-w-0 flex-1 basis-[32ch]">
+                      Would reverse decision {f.contradictsDecision}: {decision?.text ?? "not found in this task's decisions"}. The decision stands until you settle it.
+                    </p>
+                    <Link to="/factory" className="rounded-sm" data-testid="finding-queue">
+                      <StatusChip label="Settle it in the queue" tone="warn" />
+                    </Link>
+                  </div>
                 ) : null}
-                {review.lens === 'combined' && f.lens ? <StatusChip label={LENS_NAMES[f.lens] ?? f.lens} tone="neutral" /> : null}
-                {f.agreement && f.agreement > 1 ? <span className="text-ink-2">found by {f.agreement} reviewers</span> : null}
-              </div>
-              <p className="mt-1">{f.text}</p>
-              {f.contradictsDecision ? (
-                <p className="mt-2 rounded-[3px] border border-amber bg-amber-wash px-2.5 py-2 text-small" data-testid="contradicted-decision">
-                  {f.contradictsDecision}: {decisions.find((d) => d.id === f.contradictsDecision)?.text ?? 'not found in this task\'s decisions'}. The decision stands until you settle it in the queue.
-                </p>
-              ) : null}
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
       )}
       {review.summary && review.findings.length > 0 ? <p className="text-ink-2">{review.summary}</p> : null}
@@ -368,6 +419,7 @@ export function PlanCard({ plan, handoff, status }: { plan: Plan | null; handoff
       </PlannedEmpty>
     );
   const [host, model] = plan.model.includes('/') ? plan.model.split('/') : [null, plan.model];
+  const where = host ? hostName(host) : null;
   const states = planStepStates(plan, handoff);
   const doneCount = states.filter((s) => s === 'done').length;
   const state = doneCount === plan.steps.length ? 'done' : doneCount > 0 ? 'building' : 'planned';
@@ -377,8 +429,8 @@ export function PlanCard({ plan, handoff, status }: { plan: Plan | null; handoff
         <StatusChip status={state} />
         <p className="text-ink-2">
           Planned by {modelName(model)}
-          {host ? ` on ${hostName(host)}` : ''}
-          {plan.offline ? ', offline' : ''}
+          {where ? ` on ${where}` : ''}
+          {plan.offline && !where?.includes('this machine') ? ', on this machine' : ''}
         </p>
       </header>
       <ol className="flex flex-col gap-2">
@@ -389,33 +441,36 @@ export function PlanCard({ plan, handoff, status }: { plan: Plan | null; handoff
               <span className="tabular text-ink-3 font-semibold">{s.id}</span>
               <div>
                 <p>{s.text}</p>
-                <p className="font-mono text-small text-ink-2 break-words">{[...s.files, ...(s.test ? [s.test] : [])].join(', ')}</p>
+                <p className="font-mono text-small text-ink-2 break-words">{[...new Set([...s.files, ...(s.test ? [s.test] : [])])].join(', ')}</p>
               </div>
-              <StatusChip label={stepState} tone={stepState === 'done' ? 'active' : 'neutral'} />
+              <StatusChip label={stepState === 'done' ? 'done' : 'to do'} tone={stepState === 'done' ? 'active' : 'neutral'} />
             </li>
           );
         })}
       </ol>
-      {plan.filesToTouch.length ? (
-        <Section title="Files">
-          <ul className="font-mono text-small flex flex-col gap-1" data-testid="plan-files">
-            {plan.filesToTouch.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
       {plan.risks.length ? (
         <Section title="Risks">
           <div data-testid="plan-risks">
-            <List items={plan.risks.map((r) => `${r.id}: ${r.text}`)} empty="" />
+            <List items={plan.risks.map((r) => `${r.text} (${r.id})`)} empty="" />
           </div>
         </Section>
       ) : null}
       {plan.similarTasks.length ? (
-        <Section title="Similar tasks">
+        <Section title="Similar past tasks">
           <p data-testid="plan-similar">{plan.similarTasks.join(', ')}</p>
         </Section>
+      ) : null}
+      {plan.filesToTouch.length ? (
+        <details className="py-3">
+          <summary className={summaryClass}>
+            All {plan.filesToTouch.length} file{plan.filesToTouch.length === 1 ? '' : 's'} the plan touches
+          </summary>
+          <ul className="mt-2 font-mono text-small flex flex-col gap-1" data-testid="plan-files">
+            {plan.filesToTouch.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </details>
       ) : null}
     </article>
   );

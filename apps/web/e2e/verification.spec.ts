@@ -10,7 +10,7 @@ test('The verification tab lists every run, shows the selected one, maps accepta
 
   await page.goto(`/t/${id}?tab=verification`);
   // nothing names a test file, so nothing is locked and the card makes no claim about locked tests
-  await expect(page.getByTestId('verification-summary')).toContainText('1 passed, run by the daemon');
+  await expect(page.getByTestId('verification-summary')).toContainText('1 passed, run by Stint');
   await expect(page.getByTestId('tamper-line')).toHaveCount(0);
   await expect(page.getByTestId('check-tests')).toContainText('tests');
   await expect(page.getByTestId('check-tests')).toContainText('1 passed, 0 failed');

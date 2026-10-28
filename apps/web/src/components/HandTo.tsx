@@ -1,23 +1,32 @@
 import type { Handoff } from '@stint-dev/core';
 import { useState } from 'react';
-import { agentOf, modelName } from '../agents';
+import { ROLE_NAMES, agentOf, modelName } from '../agents';
 import { type AdapterHealth, api, daemonMessage } from '../api';
 import { useHealth } from '../hooks';
-import { Button, StatusChip, Who, cx } from './ui';
+import { Button, Explain, StatusChip, Who, cx } from './ui';
 
-const GATE: Record<string, string> = {
-  enforced: "Stint checks every tool call it makes",
-  observed: 'Stint watches what it does and verifies after',
-  none: 'no gate',
+/** How closely Stint watches the agent's actions, by its gate strength. */
+const GATE: Record<AdapterHealth['gate'], string> = {
+  enforced: 'Stint checks each action before it happens.',
+  observed: 'Stint watches each action and checks the result after.',
+  none: 'Stint does not check its actions.',
 };
+
+/** How the leaving run ended, as a clause after "which". */
+const ENDED: Record<string, string> = { completed: 'finished', killed: 'was killed', failed: 'failed', capped: 'hit its spending cap', handed: 'handed it on' };
 
 const VENDOR_NAMES: Record<string, string> = { meta: 'Meta', anthropic: 'Anthropic', openai: 'OpenAI', local: 'Local', other: 'Other' };
 export const vendorLabel = (vendor: string) => (vendor ? (VENDOR_NAMES[vendor] ?? `${vendor.charAt(0).toUpperCase()}${vendor.slice(1)}`) : 'Vendor unknown');
 
 /** What this agent can do, in the words health reports: resume, structured output, sandbox, cost reporting. */
 function capabilityNote(caps: AdapterHealth['capabilities']): string {
-  if (!caps) return 'Capabilities not reported: resume, structured output, sandbox and cost reporting unknown.';
-  const parts = [caps.resume ? 'can resume' : 'no resume', caps.schemaOutput ? 'structured output' : 'no structured output', caps.sandbox ? 'sandboxed' : 'no sandbox', caps.costReporting ? 'reports cost' : 'no cost reporting'];
+  if (!caps) return 'Not reported: whether it can resume, gives structured output, runs in a sandbox or reports its cost.';
+  const parts = [
+    caps.resume ? 'can resume a stopped session' : 'cannot resume a stopped session',
+    caps.schemaOutput ? 'gives structured output' : 'no structured output',
+    caps.sandbox ? 'runs in a sandbox' : 'no sandbox',
+    caps.costReporting ? 'reports its cost' : 'does not report its cost',
+  ];
   return `${parts.join(', ').replace(/^./, (c) => c.toUpperCase())}.`;
 }
 
@@ -78,14 +87,15 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
             </span>
             <span className="flex flex-wrap gap-x-2 text-small text-ink-2">
               <span data-testid="hand-vendor">{vendorLabel(a.vendor)}</span>
-              <span data-testid="hand-roles">{a.roles.join(', ')}</span>
+              <span data-testid="hand-roles">{a.roles.map((r) => ROLE_NAMES[r] ?? r).join(', ')}</span>
             </span>
             {/* the detail of the chosen row only; the others keep it for a screen reader's row name */}
             <span className={cx('text-small text-ink-2', !chosen && 'sr-only')} data-testid="capability-note">
               {capabilityNote(a.capabilities)}
             </span>
-            <span className={cx('text-small text-ink-2', !chosen && !disabled && 'sr-only')} data-testid="hand-gate">
-              {disabled ? 'Turned off in config' : `Gate: ${a.gate}. ${GATE[a.gate] ?? a.gate}.`}
+            {/* a turned-off row says so in its chip; the line stays for a screen reader's row name */}
+            <span className={cx('text-small text-ink-2', !chosen && 'sr-only')} data-testid="hand-gate">
+              {disabled ? 'Turned off in config' : GATE[a.gate]}
             </span>
           </span>
         </label>
@@ -95,13 +105,13 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
   const picker = (
     <>
       <fieldset className="relative m-0 p-0 border-0 flex flex-col gap-2 min-w-0">
-        <legend className="pb-1 text-section">Hand to</legend>
-        <p className="text-small text-ink-2">The next agent reads this packet, the plan, the skills list and the diff. Never the transcript.</p>
+        <legend className="pb-1 text-section">Hand to the next agent</legend>
+        <Explain word="handoff" className="mb-1" />
         {recommended && recommended.id !== leaving && leaving ? (
           <p className="text-small text-ink-2" data-testid="hand-reason">
-            Recommended: {agentOf(recommended.id).name}, a different agent from {agentOf(leaving).name}, which ended {packet.from.endedBy}. It runs on a different harness
+            Recommended: {agentOf(recommended.id).name}, a different agent from {agentOf(leaving).name}, which {ENDED[packet.from.endedBy] ?? `ended ${packet.from.endedBy}`}. It runs on a different program
             {harnessOf(recommended) !== recommended.id ? ` (${harnessOf(recommended)})` : ''}
-            {recommended.model && recommended.model !== packet.from.model ? ` and a different model (${modelName(recommended.model)})` : ''}.
+            {recommended.model && recommended.model !== packet.from.model ? ` and model (${modelName(recommended.model)})` : ''}.
           </p>
         ) : null}
         <ul className="flex flex-col gap-2" role="radiogroup" aria-label="Next agent">
@@ -109,7 +119,7 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
         </ul>
         {off.length ? (
           <details className="text-small text-ink-2">
-            <summary className="cursor-pointer hover:text-ink">
+            <summary className="w-fit min-h-6 cursor-pointer hover:text-ink">
               {off.length} more {off.length === 1 ? 'is' : 'are'} turned off in config
             </summary>
             <ul className="mt-2 flex flex-col gap-2">{off.map(row)}</ul>
@@ -117,18 +127,27 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
         ) : null}
       </fieldset>
       <label className="flex flex-col gap-1.5" htmlFor="hand-ask">
-        <span className="text-small text-ink-2">Add to the ask (optional)</span>
-        <textarea id="hand-ask" rows={3} value={ask} placeholder="Anything the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[5px] border border-field bg-ground px-2.5 py-2 text-body text-ink placeholder:text-ink-3 resize-y" />
+        <span className="text-small text-ink-2">Anything to add for the next agent (optional)</span>
+        <textarea id="hand-ask" rows={3} value={ask} placeholder="What the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[5px] border border-field bg-ground px-2.5 py-2 text-body text-ink placeholder:text-ink-3 resize-y" />
       </label>
       <div className="flex flex-col gap-2">
         <Button tone="primary" className="self-start" onClick={hand} disabled={busy || live || !choice} data-testid="hand-button">
           {busy ? 'Handing over' : `Hand to ${choice ? agentOf(choice).name : 'an agent'}`}
         </Button>
-        {choice ? <p className="font-mono text-small text-ink-3">stint hand {taskId} {choice}</p> : null}
         {live ? <span className="text-ink-2">A run is going; stop it first.</span> : null}
-        {sent ? <span className="text-ink">{sent}</span> : null}
+        {sent ? (
+          <span className="text-ink" role="status">
+            {sent}
+          </span>
+        ) : null}
+        <p className="text-small text-ink-2">It reads this packet, the plan, the skills and the change so far; never the last agent's whole conversation.</p>
+        {choice ? <p className="font-mono text-small text-ink-3">stint hand {taskId} {choice}</p> : null}
       </div>
-      {error ? <p className="text-red">The hand-off did not start: {error}</p> : null}
+      {error ? (
+        <p className="text-red" role="alert">
+          The hand-off did not start: {error}
+        </p>
+      ) : null}
     </>
   );
   return (
@@ -136,7 +155,7 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
       {atGate ? (
         // at the gate the call is approve or not; a different agent is the exception, one click away
         <details className="flex flex-col gap-3">
-          <summary className="cursor-pointer font-semibold hover:underline">Change who continues instead</summary>
+          <summary className="w-fit min-h-6 cursor-pointer font-semibold hover:underline underline-offset-4">Change who continues instead</summary>
           <div className="mt-3 flex flex-col gap-4">{picker}</div>
         </details>
       ) : (
