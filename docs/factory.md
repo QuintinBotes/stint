@@ -48,6 +48,35 @@ Each part has its own page:
   - A scoreboard that can route by results, and OpenTelemetry traces for any eval tool ([`otel.md`](otel.md)).
 - **Stint builds Stint.** `scripts/loop.sh --self` turns the next spec into a Stint task that stops at your approval, and `stint report` writes the build record from `.stint/`.
 
+## Limits you set
+
+Each task has limits on what autopilot may use before it stops and asks you:
+
+| Limit | Default | What counts |
+|---|---|---|
+| Builds | 8 | Agent runs that build the change. Work taken over from a best-of-n candidate counts on the candidate. |
+| Hand-offs | 3 | Times autopilot gives the task to another agent, escalations included. |
+| Review rounds | 1 | Builds started because a review asked for changes. |
+| Spend | no limit | Dollars spent on the task's runs and its other model calls: the packet digest, the pick, the learn step and the quiz. |
+| Agent time | no limit | Minutes from the start to the end of each run, a run still going included. |
+
+The counts cover the task's whole life, so switching autopilot off and on does not reset them. Autopilot checks before each step. It starts no build or hand-off past the build limit, no hand-off past the hand-off limit, and no build a review asked for past the review round limit. Once the spend or agent time limit is reached, it starts nothing new. It also skips a build whose expected cost would pass the spend limit; the expected cost is the median of this task's earlier builds.
+
+Set them in the New task dialog under Limits, with `stint new "<title>" --max-builds 4 --max-usd 3`, or as the defaults for new tasks in `.stint/config.json`:
+
+```json
+"limits": { "builds": 8, "handoffs": 3, "reviewRounds": 1, "usd": null, "minutes": null }
+```
+
+A task's own value wins over the default, and `null` means no limit. A config with no `limits` keeps `autopilot.maxHops` as the hand-off limit, so an older config means what it did.
+
+When a limit is reached, the daemon records `limit.reached` with the limit, what was used and the cap. It then stops autopilot with "Needs you" and a plain reason, such as "Needs you: the build limit is reached (8 of 8)." The task's status stays as it was. The task view shows a meter per limit in its title block; the one reached turns amber, with two ways on:
+
+- **Raise the limit:** type the new limit in place. Stint records `limits.changed` and puts the task back on autopilot.
+- **Hand to another agent:** the hand-to control on the packet tab.
+
+From a terminal, `stint limits <task>` prints the meters, and `stint limits <task> --max-builds 10` or `--none usd` changes them. Changing a limit this way does not restart autopilot; `stint run <task>` does.
+
 ## Stint as a tool for any agent
 
 `stint mcp` serves Stint over MCP: the task list, packets, similar tasks, the decisions that constrain a file, recording a decision, handing off, autopilot and verify. The Stint plugin registers it for Muse Code, so Muse Code can read the memory mid-session. Any other MCP client can connect too. Approving and merging stay with a person. See [`mcp.md`](mcp.md).
