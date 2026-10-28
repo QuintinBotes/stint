@@ -223,6 +223,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       const events = await ws.events(task.id).read();
       const runs = runsFromEvents(events);
       const lastMessage = [...events].reverse().find((e) => e.type === 'agent.message');
+      const verified = await ws.verification(task.id).latest().catch(() => null);
       cards.push({
         task,
         cost: sumCosts(runs.map((r) => r.cost)),
@@ -232,6 +233,8 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
         lastEventAt: events.at(-1)?.ts ?? task.updatedAt,
         summary: typeof lastMessage?.payload.text === 'string' ? lastMessage.payload.text.slice(0, 200) : null,
         autopilot: autopilotCard(events),
+        // the latest verification in brief, so the board can say how many tests passed without asking per task
+        verification: verified ? { passed: verified.passed, failed: verified.failed, status: verified.status } : null,
       });
     }
     return c.json({ tasks: cards });

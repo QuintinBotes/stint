@@ -1,41 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { agentOf } from '../agents';
-import { type TaskCardData, type Verification, api } from '../api';
+import { type TaskCardData, api } from '../api';
 import { age } from '../format';
 import { CostMeter, StatusChip, Who, cx } from './ui';
 
 type CardTask = TaskCardData['task'];
 
-/** The latest verification of each task, by task and its last event, so a card asks again only when the task moved. */
-const verifications = new Map<string, Verification | null>();
-
-/** The task's latest verification, when it has one: the card's tests line. A planned task has never run, so it is not asked. */
-function useLastVerification(card: TaskCardData): Verification | null {
-  const key = `${card.task.id}@${card.lastEventAt}`;
-  const ask = card.task.status !== 'planned';
-  const [last, setLast] = useState<Verification | null>(() => verifications.get(key) ?? null);
-  useEffect(() => {
-    if (!ask) return;
-    if (verifications.has(key)) return setLast(verifications.get(key) ?? null);
-    let live = true;
-    api
-      .verifications(card.task.id)
-      .then((all) => {
-        const latest = all.reduce<Verification | null>((a, v) => (!a || v.at > a.at ? v : a), null);
-        verifications.set(key, latest);
-        if (live) setLast(latest);
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [key, ask, card.task.id]);
-  return ask ? last : null;
-}
-
 /** The tests line in words, so its colour is never the only signal: how many passed, or how many of how many failed. */
-function testsLine(v: Verification): string {
+function testsLine(v: NonNullable<TaskCardData['verification']>): string {
   const total = v.passed + v.failed;
   if (v.status === 'green') return total ? `${v.passed} test${v.passed === 1 ? '' : 's'} passed` : 'Tests passed';
   return v.failed ? `${v.failed} of ${total} test${total === 1 ? '' : 's'} failed` : 'Tests failed';
@@ -133,13 +106,14 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
   // a split task lists its subtasks in order, each with what it waits for: the dependency line (R-036)
   const children = [...tasks.values()].filter((t) => t.parent === task.id).sort((a, b) => a.id.localeCompare(b.id));
   const agents = (card.agents ?? []).map((a) => agentOf(a.adapter, a.host, a.model));
-  // the agent who last worked on it, and how many others did before
-  const latest = lastRun?.adapter ? agentOf(lastRun.adapter, lastRun.host, lastRun.model) : agents.at(-1);
-  const others = latest ? agents.filter((a) => a.name !== latest.name).length : 0;
   const live = !!lastRun && !lastRun.endedAt;
+  // the agent at work now; else the last one that built the change (the reviewer only reads it), and how many others took part
+  const builder = [...(card.agents ?? [])].reverse().find((a) => a.role === 'implementer');
+  const latest = live && lastRun?.adapter ? agentOf(lastRun.adapter, lastRun.host, lastRun.model) : builder ? agentOf(builder.adapter, builder.host, builder.model) : agents.at(-1);
+  const others = latest ? agents.filter((a) => a.name !== latest.name).length : 0;
   const gate = task.status === 'awaiting_approval';
   const summary = modelSummary ?? card.summary;
-  const tests = useLastVerification(card);
+  const tests = card.verification ?? null;
   return (
     <article
       data-testid="task-card"

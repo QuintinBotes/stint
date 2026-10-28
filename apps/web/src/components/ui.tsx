@@ -34,7 +34,7 @@ export function Explain({ word, className }: { word: Word; className?: string })
   const g = GLOSSARY[word];
   return (
     <details className={cx('text-small text-ink-2', className)}>
-      <summary className="w-fit cursor-pointer underline decoration-dotted decoration-ink-3 underline-offset-4 hover:text-ink">{g.ask}</summary>
+      <summary className="w-fit leading-6 cursor-pointer underline decoration-dotted decoration-ink-3 underline-offset-4 hover:text-ink">{g.ask}</summary>
       <p className="mt-1 max-w-[60ch]">{g.plain}</p>
     </details>
   );

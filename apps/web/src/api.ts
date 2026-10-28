@@ -150,6 +150,8 @@ export type TaskCardData = {
   lastEventAt: string;
   summary: string | null;
   autopilot?: AutopilotCard | null;
+  /** The latest verification in brief; null before the tests have run. */
+  verification?: { passed: number; failed: number; status: Verification['status'] } | null;
 };
 export type GraphNode = { id: string; type: string; label: string; data: Record<string, unknown> };
 export type GraphEdge = { id: string; from: string; to: string; type: string; recordedAt: string; validTo: string | null; eventId: string; data: Record<string, unknown> };

@@ -60,13 +60,12 @@ function Track({ s }: { s: SkillRecord }) {
 const side = (x: SkillEvalSide) => `${plural(x.findings, 'finding')}, ${plural(x.passed, 'test')} passed, ${money({ usd: x.usd })}`;
 
 const HISTORY = new Set(['skill.proposed', 'skill.imported', 'skill.edit_proposed', 'skill.unreviewed', 'skill.approved', 'skill.rejected', 'skill.status', 'skill.retire_proposed']);
-const STINT: Agent = { ...DAEMON, name: 'Stint' };
 
 /** Who a skill event names: the person, Stint itself, or the model that drafted it. */
 const byOf = (e: StintEvent): Agent => {
   const by = typeof e.payload.by === 'string' ? e.payload.by : null;
   if (e.type === 'skill.proposed') return agentOf('openai-compatible', String(e.payload.host ?? ''), String(e.payload.model ?? ''));
-  if (e.type === 'skill.status' || e.type === 'skill.retire_proposed' || e.type === 'skill.unreviewed') return STINT;
+  if (e.type === 'skill.status' || e.type === 'skill.retire_proposed' || e.type === 'skill.unreviewed') return DAEMON;
   return !by || by === 'human' || by === 'you' ? YOU : { name: by, mark: 'other' };
 };
 
