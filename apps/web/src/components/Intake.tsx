@@ -31,12 +31,14 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
       .catch((e: unknown) => toast.error(said(e)));
   const open = tasks.filter((c) => c.task.status !== 'done' && c.task.status !== 'abandoned');
   return (
-    <section className="flex flex-col gap-2" aria-label="Intake" data-testid="intake">
+    <section className="flex flex-col gap-2" aria-labelledby="intake-title" data-testid="intake">
       <div className="flex flex-wrap items-baseline gap-x-2">
-        <h2 className="text-section">
-          Intake <span className="text-ink-3 font-normal">{items.length}</span>
+        <h2 id="intake-title" className="text-section">
+          Incoming issues
         </h2>
-        <p className="text-small text-ink-2">Issues from GitHub and Linear, triaged. None becomes a task until you accept it.</p>
+        <p className="text-small text-ink-2">
+          {items.length} issue{items.length === 1 ? '' : 's'} from GitHub and Linear, sized and checked for duplicates. None becomes a task until you accept it.
+        </p>
       </div>
       <ul className="flex flex-col rounded-[5px] border border-rule-strong bg-panel">
         {items.map((i) => (
@@ -46,15 +48,16 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
               {i.url ? (
                 <a href={i.url} target="_blank" rel="noreferrer" className="font-semibold no-underline hover:underline min-w-0 truncate">
                   {i.triage?.title ?? i.title}
+                  <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               ) : (
                 <span className="font-semibold min-w-0 truncate">{i.triage?.title ?? i.title}</span>
               )}
               {i.triage ? <StatusChip label={`size ${i.triage.size}`} tone="neutral" /> : null}
-              {i.triage ? <StatusChip label={`${i.triage.risk} risk`} tone={i.triage.risk === 'high' ? 'bad' : i.triage.risk === 'medium' ? 'warn' : 'neutral'} /> : null}
+              {i.triage ? <StatusChip label={`${i.triage.risk} risk`} tone="neutral" /> : null}
             </div>
             <p className="text-small text-ink-2 mt-1">
-              {i.triage ? i.triage.reason : `Not triaged: ${i.triageError ?? 'no planner answered'}. You can still accept it as written.`}
+              {i.triage ? i.triage.reason : `Not sized yet: ${i.triageError ?? 'no planner answered'}. You can still accept it as written.`}
               {i.triage?.duplicates.length ? (
                 <>
                   {' '}
@@ -76,12 +79,12 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
                 Accept as a task
               </Button>
               <select
-                aria-label="Merge into"
+                aria-label="Add to an existing task"
                 className="h-8 rounded-[5px] border border-field bg-ground px-2 text-small text-ink"
                 value={merging[i.id] ?? i.triage?.duplicates[0] ?? ''}
                 onChange={(e) => setMerging((m) => ({ ...m, [i.id]: e.target.value }))}
               >
-                <option value="">Merge into a task</option>
+                <option value="">Add to an existing task</option>
                 {open.map((c) => (
                   <option key={c.task.id} value={c.task.id}>
                     {c.task.id} {c.task.title.slice(0, 40)}
@@ -94,10 +97,10 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
                 disabled={!(merging[i.id] ?? i.triage?.duplicates[0])}
                 onClick={() => {
                   const into = merging[i.id] ?? i.triage?.duplicates[0];
-                  if (into) void act(api.mergeIntake(i.id, into), `${i.source} ${i.ref} merged into ${into}`);
+                  if (into) void act(api.mergeIntake(i.id, into), `${i.source} ${i.ref} added to ${into}`);
                 }}
               >
-                Merge
+                Add to task
               </Button>
               <Button className="h-8 px-2.5 text-small ml-auto" data-testid="intake-dismiss" onClick={() => void act(api.dismissIntake(i.id), `${i.source} ${i.ref} dismissed; it will not be pulled again`)}>
                 Dismiss

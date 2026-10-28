@@ -26,3 +26,16 @@ test('The board shows a split task with its subtasks in order and what each wait
   await expect(child.getByTestId('task-family')).toContainText('Part of T-0090');
   await expect(child.getByTestId('task-family')).toContainText('after T-0091 (merged)');
 });
+
+test('The board sentence links each task, names the decision that waits on T-0042, and a card says how many tests passed', async ({ page }) => {
+  await page.goto('/');
+  const sentence = page.getByTestId('board-sentence');
+  await expect(sentence).toContainText('T-0043 needs you. 1 decision waits on T-0042.');
+  await expect(page.locator('[data-task="T-0043"]').getByTestId('card-tests')).toHaveText('36 tests passed');
+  // an empty lane keeps its place in the order and says what will appear in it
+  await expect(page.getByTestId('lane-reviewing')).toContainText('A task is here while a second model reviews it.');
+  // the task that needs you is one link in the sentence: focus it and press Enter
+  await sentence.getByRole('link', { name: 'T-0043' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/t\/T-0043/);
+});

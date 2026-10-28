@@ -2,10 +2,10 @@
 // will check. The browser checks only to show the person; the daemon validates again and is the gate.
 import { type Role, RoleSchema, SKILL_LIMITS, type SkillBundleFile, type SkillFinding, type SkillSource, countTokens, scanSkillBundle, skillPromptLine, validateSkillBundle } from '@stint-dev/core';
 import { unzipSync } from 'fflate';
-import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { DaemonError, api, daemonMessage } from '../api';
 import { Dialog } from './Shell';
-import { Button, Section, cx, tabClass } from './ui';
+import { Button, Section, cx, tabClass, tabKeys } from './ui';
 
 /** The daemon reads an upload whole and refuses one over 4 MB, so the browser says so before sending. */
 const MAX_UPLOAD = 4 * 1024 * 1024;
@@ -29,14 +29,14 @@ export function unzipBundle(bytes: Uint8Array): { files: SkillBundleFile[]; find
 /** An approved skill's folder, read from its export: Edit starts from it, and an unreviewed skill is scanned from it. */
 export async function exportedFiles(id: string): Promise<SkillBundleFile[]> {
   const res = await fetch(api.exportSkillUrl(id));
-  if (!res.ok) throw new Error(`the daemon answered ${res.status} to the export of ${id}`);
+  if (!res.ok) throw new Error(`Stint answered ${res.status} to the export of ${id}`);
   return unzipBundle(new Uint8Array(await res.arrayBuffer())).files;
 }
 
 const RANK = { block: 0, warn: 1, note: 2 } as const;
-const SEVERITY = { block: ['Block', 'text-red'], warn: ['Warn', 'text-amber'], note: ['Note', 'text-ink-2'] } as const;
+const SEVERITY = { block: ['Blocks it', 'text-red'], warn: ['Warning', 'text-amber'], note: ['Note', 'text-ink-2'] } as const;
 
-/** The scan's findings, worst first, notes folded away. With `onAck`, each warn carries the checkbox Approve waits for. */
+/** The scan's findings, worst first, notes folded away. With `onAck`, each warning carries the checkbox Approve waits for; the caller says so beside Approve. */
 export function Findings({ findings, acked, onAck }: { findings: SkillFinding[]; acked?: ReadonlySet<number>; onAck?: (i: number, on: boolean) => void }) {
   const rows = findings.map((f, i) => ({ f, i })).sort((a, b) => RANK[a.f.severity] - RANK[b.f.severity]);
   const item = ({ f, i }: { f: SkillFinding; i: number }) => {
@@ -62,18 +62,17 @@ export function Findings({ findings, acked, onAck }: { findings: SkillFinding[];
   const notes = rows.filter((r) => r.f.severity === 'note');
   return (
     <div className="flex flex-col gap-2 text-body" data-testid="skill-findings">
-      {findings.length ? null : <p>The scan found nothing to flag.</p>}
-      {onAck && rows.some((r) => r.f.severity === 'warn') ? <p className="text-ink-2">Tick each warning once you have read it and accept it. Approve waits until every one is ticked.</p> : null}
+      {findings.length ? null : <p>Nothing to flag.</p>}
       <ul className="flex flex-col gap-2">{rows.filter((r) => r.f.severity !== 'note').map(item)}</ul>
       {notes.length ? (
         <details>
-          <summary className="cursor-pointer text-ink-2 hover:text-ink">
+          <summary className="w-fit leading-6 cursor-pointer text-ink-2 hover:text-ink">
             {notes.length} note{notes.length === 1 ? '' : 's'}
           </summary>
           <ul className="mt-2 flex flex-col gap-2">{notes.map(item)}</ul>
         </details>
       ) : null}
-      <p className="text-small text-ink-2">Scanned by pattern; this is not a security review.</p>
+      <p className="text-small text-ink-2">Found by simple text patterns; this is not a security review.</p>
     </div>
   );
 }
@@ -85,12 +84,15 @@ function checked(files: SkillBundleFile[], extra: SkillFinding[] = []) {
   return { check, findings, blocked: findings.some((f) => f.severity === 'block') };
 }
 
-/** Before submit: the files, the parsed frontmatter, the findings, and the exact line agents will see in prompt.md. */
+/** Before submit: the findings first, then the files; the parsed header and the exact line agents will see wait behind a disclosure. */
 function Preview({ result }: { result: ReturnType<typeof checked> }) {
   const { check, findings } = result;
   const fm = check.frontmatter;
   return (
     <div className="flex flex-col pt-2 border-t border-rule" data-testid="skill-preview">
+      <Section title="Findings">
+        <Findings findings={findings} />
+      </Section>
       <Section title="Files">
         <ul className="font-mono text-code" data-testid="skill-preview-files">
           {check.files.map((f) => (
@@ -101,7 +103,9 @@ function Preview({ result }: { result: ReturnType<typeof checked> }) {
           ))}
         </ul>
       </Section>
-      <Section title="Frontmatter">
+      <details className="py-3">
+        <summary className="w-fit leading-6 cursor-pointer font-semibold hover:text-ink-2">Details: the SKILL.md header and what agents see</summary>
+        <h3 className="mt-3 mb-2 font-semibold">SKILL.md header</h3>
         {fm ? (
           <dl className="m-0 grid grid-cols-[100px_minmax(0,1fr)] gap-x-4 gap-y-1 text-body">
             {Object.entries(fm).map(([k, v]) => (
@@ -112,22 +116,18 @@ function Preview({ result }: { result: ReturnType<typeof checked> }) {
             ))}
           </dl>
         ) : (
-          <p className="text-body text-ink-2">The frontmatter does not read yet; the findings say why.</p>
+          <p className="text-body text-ink-2">The header does not read yet; the findings say why.</p>
         )}
-      </Section>
-      <Section title="Findings">
-        <Findings findings={findings} />
-      </Section>
-      <Section title="The line agents see in prompt.md">
+        <h3 className="mt-4 mb-2 font-semibold">What agents see</h3>
         {fm ? (
           <pre className="font-mono text-code whitespace-pre-wrap break-all rounded-[5px] bg-ground p-3" data-testid="skill-prompt-line">
             {skillPromptLine(fm)}
           </pre>
         ) : (
-          <p className="text-body text-ink-2">Agents would see nothing: the frontmatter needs a name and a description first.</p>
+          <p className="text-body text-ink-2">Agents would see nothing: the header needs a name and a description first.</p>
         )}
-        <p className="mt-2 text-small text-ink-2">Under "Skills mounted for this run", once it is approved and mounts for the task.</p>
-      </Section>
+        <p className="mt-2 text-small text-ink-2">This line goes into each run's prompt.md once you approve the skill.</p>
+      </details>
     </div>
   );
 }
@@ -153,20 +153,27 @@ function useSend(onAdded: (id: string) => void) {
   return { busy, failure, send };
 }
 
-function Footer({ ready, blocked, busy, failure, onSubmit, onCancel }: { ready: boolean; blocked: boolean; busy: boolean; failure: Failure | null; onSubmit: () => void; onCancel: () => void }) {
+const BLOCKED = 'A blocking finding stops this skill. Fix what it names, then try again.';
+
+/** The dialog's buttons. `why` says what the submit button waits for, beside it and as its description, so a disabled button is never mute. */
+function Footer({ id, why, label, busy, failure, onSubmit, onCancel }: { id: string; why: string | null; label: string; busy: boolean; failure: Failure | null; onSubmit: () => void; onCancel: () => void }) {
   return (
     <div className="flex flex-col gap-3 pt-4">
       {failure ? (
         <div role="alert" className="flex flex-col gap-2">
-          <p className="text-body text-red">The daemon did not take it: {failure.message}.</p>
+          <p className="text-body text-red">Stint did not add it: {failure.message}.</p>
           {failure.findings.length ? <Findings findings={failure.findings} /> : null}
         </div>
       ) : null}
-      {ready && blocked ? <p className="text-body">A block finding stops this skill. Fix what it names, then add it again.</p> : null}
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {why ? (
+          <p id={id} className="mr-auto text-small text-ink-2" data-testid="add-skill-why">
+            {why}
+          </p>
+        ) : null}
         <Button onClick={onCancel}>Cancel</Button>
-        <Button tone="primary" disabled={!ready || blocked || busy} onClick={onSubmit} data-testid="add-skill-submit">
-          {busy ? 'Adding it to the queue' : 'Add to the queue'}
+        <Button tone="primary" disabled={!!why || busy} aria-describedby={why ? id : undefined} onClick={onSubmit} data-testid="add-skill-submit">
+          {busy ? 'Sending' : label}
         </Button>
       </div>
     </div>
@@ -197,7 +204,7 @@ function UploadTab({ onAdded, onCancel }: { onAdded: (id: string) => void; onCan
       return;
     }
     if (list.length > 1) return setProblem('Drop one .zip or one SKILL.md at a time. For a whole folder, use Choose a folder.');
-    if (first.size > MAX_UPLOAD) return setProblem(`${first.name} is ${first.size} bytes; the daemon takes at most ${MAX_UPLOAD} bytes in one upload. Remove large assets and try again.`);
+    if (first.size > MAX_UPLOAD) return setProblem(`${first.name} is ${(first.size / 1024 / 1024).toFixed(1)} MB; Stint takes at most 4 MB in one upload. Remove large files from it and try again.`);
     const bytes = new Uint8Array(await first.arrayBuffer());
     if (first.name.toLowerCase().endsWith('.zip')) {
       try {
@@ -247,7 +254,7 @@ function UploadTab({ onAdded, onCancel }: { onAdded: (id: string) => void; onCan
         </p>
       ) : null}
       {result ? <Preview result={result} /> : null}
-      <Footer ready={!!result} blocked={!!result?.blocked} busy={busy} failure={failure} onSubmit={submit} onCancel={onCancel} />
+      <Footer id="add-skill-why-upload" why={!result ? 'Choose a file or folder first.' : result.blocked ? BLOCKED : null} label="Add skill" busy={busy} failure={failure} onSubmit={submit} onCancel={onCancel} />
     </div>
   );
 }
@@ -286,8 +293,8 @@ function GitTab({ onCancel }: { onCancel: () => void }) {
           <input value={path} onChange={(e) => setPath(e.target.value)} placeholder="skills/widget-care" className={cx(field, 'font-mono')} />
         </label>
       </div>
-      <Section title="Run this in the repository">
-        <p className="mb-3 text-body text-ink-2">The browser cannot clone a repository, so the CLI does: it clones with --depth 1, records the commit, checks the files and posts them to the daemon. The proposal then shows on the Skills page with its findings and preview.</p>
+      <Section title="Run this in a terminal in your project">
+        <p className="mb-3 text-body text-ink-2">The browser cannot fetch from git, so this command does. The skill then waits on this page with its findings.</p>
         <div className="flex items-start gap-2">
           <pre className="flex-1 min-w-0 font-mono text-code whitespace-pre-wrap break-all rounded-[5px] bg-ground p-3" data-testid="git-command">
             {ok ? command : 'stint skills add <url>#<ref>:<path>'}
@@ -368,7 +375,7 @@ function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (
         <input value={name} onChange={(e) => setName(e.target.value)} readOnly={!!edit} required maxLength={64} className={cx(field, 'font-mono')} aria-describedby="skill-name-hint" data-testid="skill-name" />
       </label>
       <p id="skill-name-hint" className="text-small text-ink-2 -mt-2">
-        {edit ? 'The id stays the same; approving the edit replaces the folder and bumps the version.' : 'Lowercase words joined by dashes, at most 64 characters. It is the skill id.'}
+        {edit ? 'The name stays the same; approving the edit replaces the skill and adds a version.' : 'Lowercase words joined by dashes, such as run-checks, at most 64 characters.'}
       </p>
       <label className={label}>
         Description
@@ -394,14 +401,14 @@ function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (
         <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="limits, config" className={field} />
       </label>
       <label className={label}>
-        Body
+        Instructions for the agent
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className={cx(field, 'font-mono text-code')} aria-describedby="skill-body-tokens" data-testid="skill-body" />
       </label>
       <p id="skill-body-tokens" className={cx('text-small -mt-2 tabular', tokens > SKILL_LIMITS.maxTokens ? 'text-red' : tokens > SKILL_LIMITS.warnTokens ? 'text-amber' : 'text-ink-2')} data-testid="skill-body-tokens">
         About {tokens.toLocaleString('en')} tokens. Keep it under {SKILL_LIMITS.warnTokens.toLocaleString('en')}; write it from a real failure, and put detail in references/.
       </p>
-      {result ? <Preview result={result} /> : <p className="text-body text-ink-2">The preview shows once the name and the description are filled in.</p>}
-      <Footer ready={ready} blocked={!!result?.blocked} busy={busy} failure={failure} onSubmit={submit} onCancel={onCancel} />
+      {result ? <Preview result={result} /> : null}
+      <Footer id="add-skill-why-write" why={!ready ? 'Fill in the name and the description first.' : result?.blocked ? BLOCKED : null} label={edit ? 'Save the edit' : 'Add skill'} busy={busy} failure={failure} onSubmit={submit} onCancel={onCancel} />
     </div>
   );
 }
@@ -419,19 +426,11 @@ export function AddSkillDialog({ edit, onClose, onAdded }: { edit: string | null
   const tabs = useRef<Record<string, HTMLButtonElement | null>>({});
   // after the dialog has noted the opener, so closing it gives focus back there
   useEffect(() => tabs.current[edit ? 'write' : 'upload']?.focus(), [edit]);
-  const arrows = (e: KeyboardEvent) => {
-    const at = TABS.findIndex(([k]) => k === tab);
-    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-    if (!step) return;
-    const next = (TABS[(at + step + TABS.length) % TABS.length] as [Tab, string])[0];
-    setTab(next);
-    tabs.current[next]?.focus();
-  };
   return (
     <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width="max-w-[720px]">
       <div data-testid="add-skill-dialog">
-        <p className="mb-4 text-small text-ink-2">It waits in the review queue with its findings. Nothing mounts until you approve it.</p>
-        <div role="tablist" aria-label="How to add the skill" className="flex flex-wrap border-b border-rule mb-4" onKeyDown={arrows}>
+        <p className="mb-4 text-small text-ink-2">It waits on the Skills page with its findings. No agent gets it until you approve it.</p>
+        <div role="tablist" aria-label="How to add the skill" className="flex flex-wrap border-b border-rule mb-4" onKeyDown={tabKeys}>
           {TABS.map(([k, name]) => (
             <button
               key={k}
