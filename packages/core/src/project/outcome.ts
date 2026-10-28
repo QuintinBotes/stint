@@ -149,8 +149,8 @@ export function outcome(input: OutcomeInput): Outcome {
       const failed = failing.some((n) => n.includes(ref)) || (Number(scenario.payload.failed) > 0 && failing.length === 0);
       return failed ? { state: 'failing', evidence: `The scenario ${ran} fails in ${run}.` } : { state: 'proven', evidence: `The scenario ${ran} passes in ${run}.` };
     }
-    const now = failingNow.find((n) => n.includes(ref));
-    if (now) return { state: 'failing', evidence: `${now} fails in ${run}.` };
+    const failingName = failingNow.find((n) => n.includes(ref));
+    if (failingName) return { state: 'failing', evidence: `${failingName} fails in ${run}.` };
     if (!green) return { state: 'not_checked', evidence: `The tests are red in ${run}, and ${ref} is not among the failing names Stint read.` };
     const atLock = lockFailing.find((n) => n.includes(ref));
     if (atLock) return { state: 'proven', evidence: `${atLock} failed at lock time and passes in ${run}.` };
