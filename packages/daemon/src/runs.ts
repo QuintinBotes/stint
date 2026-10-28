@@ -28,9 +28,21 @@ export type ActiveRun = {
 
 export class RunRegistry {
   private byTask = new Map<string, ActiveRun>();
+  private starting = new Set<string>();
 
   get(task: string): ActiveRun | undefined {
     return this.byTask.get(task);
+  }
+
+  /** Holds a task while a run is being started, so a second start cannot pass the live-run check meanwhile. */
+  reserve(task: string): boolean {
+    if (this.byTask.has(task) || this.starting.has(task)) return false;
+    this.starting.add(task);
+    return true;
+  }
+
+  release(task: string): void {
+    this.starting.delete(task);
   }
 
   add(r: ActiveRun): void {

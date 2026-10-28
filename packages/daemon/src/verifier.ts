@@ -67,6 +67,9 @@ export function parseCoverage(output: string): number | null {
 
 type Exec = { exitCode: number; output: string; durationMs: number; timedOut: boolean };
 
+const HEAD_BYTES = 64 * 1024;
+const TAIL_BYTES = 512 * 1024;
+
 /**
  * Runs a shell command in its own process group so a cap kills the whole tree. The cap counts time the machine
  * was awake: a laptop that sleeps mid-test fires the timer on waking, while `now` (performance.now) stood still,
@@ -76,9 +79,25 @@ export function execInGroup(command: string, cwd: string, env: Record<string, st
   return new Promise((resolve) => {
     const t0 = now();
     const child = spawn('/bin/sh', ['-c', command], { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    const chunks: Buffer[] = [];
-    child.stdout.on('data', (b: Buffer) => chunks.push(b));
-    child.stderr.on('data', (b: Buffer) => chunks.push(b));
+    // a head and a tail: the summary and the failing names a runner prints are at the end, and the memory stays bounded
+    let head = Buffer.alloc(0);
+    let tail = Buffer.alloc(0);
+    let dropped = 0;
+    const keep = (b: Buffer) => {
+      if (head.length < HEAD_BYTES) {
+        const n = Math.min(HEAD_BYTES - head.length, b.length);
+        head = Buffer.concat([head, b.subarray(0, n)]);
+        b = b.subarray(n);
+      }
+      if (b.length === 0) return;
+      tail = Buffer.concat([tail, b]);
+      if (tail.length > TAIL_BYTES * 2) {
+        dropped += tail.length - TAIL_BYTES;
+        tail = tail.subarray(tail.length - TAIL_BYTES);
+      }
+    };
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
     let timedOut = false;
     const arm = (ms: number): ReturnType<typeof setTimeout> =>
       setTimeout(() => {
@@ -97,7 +116,12 @@ export function execInGroup(command: string, cwd: string, env: Record<string, st
     let timer = arm(capMs);
     child.on('close', (code) => {
       clearTimeout(timer);
-      resolve({ exitCode: code ?? 1, output: Buffer.concat(chunks).toString('utf8'), durationMs: Math.round(now() - t0), timedOut });
+      if (tail.length > TAIL_BYTES) {
+        dropped += tail.length - TAIL_BYTES;
+        tail = tail.subarray(tail.length - TAIL_BYTES);
+      }
+      const marker = dropped ? Buffer.from(`\n[stint: ${dropped} bytes of output were left out here]\n`) : Buffer.alloc(0);
+      resolve({ exitCode: code ?? 1, output: Buffer.concat([head, marker, tail]).toString('utf8'), durationMs: Math.round(now() - t0), timedOut });
     });
   });
 }

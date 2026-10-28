@@ -86,7 +86,7 @@ async function writeActive(ctx: DaemonContext, value: Record<string, string> | n
 /** Starts a run: worktree, skills, prompt, run.started, then the adapter in the background. */
 export async function assign(ctx: DaemonContext, taskId: string, input: AssignInput): Promise<Assigned> {
   const ws = ctx.ws;
-  let task = await ws.readTask(taskId);
+  const task = await ws.readTask(taskId);
   const adapter: Adapter | undefined = ctx.adapters.find((a) => a.id === input.adapter);
   if (!adapter) {
     const ids = ctx.adapters.map((a) => a.id);
@@ -98,7 +98,16 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
   if (input.steps !== undefined && (!Number.isInteger(input.steps) || input.steps < 1)) {
     throw new DaemonError('invalid', `steps must be a positive whole number, not ${input.steps}`);
   }
-  if (ctx.runs.get(taskId)) throw new DaemonError('run_active', `${taskId} already has a live run`, 'stop it or wait for it to end');
+  if (!ctx.runs.reserve(taskId)) throw new DaemonError('run_active', `${taskId} already has a live run`, 'stop it or wait for it to end');
+  try {
+    return await begin(ctx, taskId, input, task, adapter);
+  } finally {
+    ctx.runs.release(taskId);
+  }
+}
+
+async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, task: Task, adapter: Adapter): Promise<Assigned> {
+  const ws = ctx.ws;
   // tester and learn runs draw on the implementer's budget unless the task gives them their own
   const budget = task.budgets[input.role] ?? task.budgets.implementer;
   const spent = await spentByRole(ctx, taskId, input.role);
