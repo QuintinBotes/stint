@@ -14,7 +14,7 @@ type Link =
 type Mark = { kind: string; task: string; at: number; text: string };
 export type RelayData = { lanes: Lane[]; runs: Run[]; links: Link[]; marks: Mark[]; from: number; to: number; replay: boolean };
 
-const LABEL_W = 176;
+const LABEL_W = 188;
 const LANE_H = 52;
 const BAR_H = 22;
 /** A run's label, its task and run, needs this much room on its bar. */
@@ -56,8 +56,8 @@ export function Relay() {
     };
   }, []);
 
-  if (!data) return <p className="text-small text-ink-2">Reading the relay.</p>;
-  if (data.runs.length === 0) return <EmptyState>The relay appears here once a run starts: one lane per agent, and a link each time a task passes from one to the next.</EmptyState>;
+  if (!data) return <p className="text-small text-ink-2">Reading the runs.</p>;
+  if (data.runs.length === 0) return <EmptyState>Each run appears here once one starts, on a line for its agent.</EmptyState>;
 
   // a run takes its agent's vendor ink; you are drawn in ink
   const lanes = new Map(data.lanes.map((l) => [l.id, l]));
@@ -91,20 +91,20 @@ export function Relay() {
   };
 
   return (
-    <div ref={measure} className="relative overflow-x-auto" data-testid="relay" tabIndex={0} aria-label="The relay, scrolls sideways on a narrow screen">
-      <svg width={width} height={height} role="img" aria-label="Relay: runs by agent over time, with the packets and skills that connect them" className="block">
+    <div ref={measure} className="relative overflow-x-auto" data-testid="relay" tabIndex={0} aria-label="Runs by agent, scrolls sideways on a narrow screen">
+      <svg width={width} height={height} role="img" aria-label="Runs by agent over time, with the packets and skills passed between them" className="block">
         {data.lanes.map((l, i) => {
           const t = laneTitle(l);
           const y = TOP + i * LANE_H;
           return (
             <g key={l.id} data-lane={l.id}>
               <line x1={LABEL_W} y1={y + LANE_H} x2={width - 16} y2={y + LANE_H} stroke="var(--rule)" strokeWidth={1} />
-              <rect x={0} y={y + LANE_H / 2 - 13} width={10} height={10} rx={2} fill={colour(l.id)} />
+              <rect x={0} y={y + LANE_H / 2 - 13} width={10} height={10} fill={colour(l.id)} />
               <text x={16} y={y + LANE_H / 2 - 4} fontSize={13} fontWeight={600} fill="var(--ink)">
                 {t.name}
               </text>
-              <text x={16} y={y + LANE_H / 2 + 13} fontSize={12} fill="var(--ink-2)">
-                {t.detail.length > 26 ? `${t.detail.slice(0, 25)}…` : t.detail}
+              <text x={16} y={y + LANE_H / 2 + 13} fontSize={13} fill="var(--ink-2)">
+                {t.detail.length > 24 ? `${t.detail.slice(0, 23)}…` : t.detail}
               </text>
             </g>
           );
@@ -112,7 +112,7 @@ export function Relay() {
         {Array.from({ length: ticks + 1 }, (_, i) => {
           const t = from + (span * i) / ticks;
           return (
-            <text key={i} x={x(t)} y={height - 8} fontSize={12} textAnchor="middle" fill="var(--ink-3)" className="tabular">
+            <text key={i} x={x(t)} y={height - 8} fontSize={13} textAnchor="middle" fill="var(--ink-3)" className="tabular">
               {data.replay ? clock(t) : new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </text>
           );
@@ -132,9 +132,9 @@ export function Relay() {
               <g key={`p${i}`} data-link="packet">
                 <path d={curve(x1, y1, x2, y2)} fill="none" stroke="var(--ink-2)" strokeWidth={2} opacity={0.9} />
                 <g transform={`translate(${(x1 + x2) / 2},${(y1 + y2) / 2})`}>
-                  <rect x={-36} y={-10} width={72} height={20} rx={3} fill="var(--term)" stroke="var(--rule-strong)" />
-                  <text textAnchor="middle" y={4} fontSize={12} fontWeight={600} fill="var(--term-ink)" className="tabular">
-                    {l.tokens ? `${l.tokens} tok` : l.name}
+                  <rect x={-46} y={-11} width={92} height={22} rx={3} fill="var(--term)" stroke="var(--rule-strong)" />
+                  <text textAnchor="middle" y={4.5} fontSize={13} fontWeight={600} fill="var(--term-ink)" className="tabular">
+                    {l.tokens ? `${l.tokens} tokens` : l.name}
                   </text>
                 </g>
               </g>
@@ -150,7 +150,7 @@ export function Relay() {
           return (
             <g key={`s${i}`} data-link="skill">
               <path d={curve(x1, y1, x2, y2)} fill="none" stroke="var(--violet)" strokeWidth={2} strokeDasharray="4 4" />
-              <text x={x2 - 8} y={y2 - BAR_H / 2 - 6} textAnchor="end" fontSize={12} fill="var(--violet)">
+              <text x={x2 - 8} y={y2 - BAR_H / 2 - 6} textAnchor="end" fontSize={13} fill="var(--violet)">
                 learned: {l.skill}
               </text>
             </g>
@@ -166,7 +166,7 @@ export function Relay() {
           const lines = [
             `${r.task} ${r.run}, ${r.role ?? 'run'}`,
             `${r.endedBy ? `ended ${r.endedBy}` : 'running'}${r.end ? `, ${clock(r.end - r.start)}` : ''}`,
-            `${r.usd === null ? 'unpriced' : money({ usd: r.usd })}${r.verified ? `, tests ${r.verified}` : ''}`,
+            `${r.usd === null ? 'not priced' : money({ usd: r.usd })}${r.verified ? `, tests ${r.verified === 'green' ? 'passed' : 'failed'}` : ''}`,
           ];
           return (
             <g
@@ -180,14 +180,14 @@ export function Relay() {
               }}
               onMouseLeave={() => setHover(null)}
             >
-              <rect x={x1} y={y} width={x2 - x1} height={BAR_H} rx={3} fill={c} className={r.endedBy ? undefined : 'live-spine'} />
-              <text x={x1 + 6} y={y + 15} fontSize={12} fontWeight={600} fill="var(--on-ink)" className="tabular select-none">
+              <rect x={x1} y={y} width={x2 - x1} height={BAR_H} fill={c} className={r.endedBy ? undefined : 'live-spine'} />
+              <text x={x1 + 6} y={y + 15.5} fontSize={13} fontWeight={600} fill="var(--on-ink)" className="tabular select-none">
                 {r.task} {r.run}
               </text>
               {r.endedBy === 'killed' ? (
                 <g>
                   <rect x={x2 - 4} y={y} width={4} height={BAR_H} fill="var(--red)" />
-                  <text x={x2 + 4} y={y - 2} fontSize={12} fill="var(--red)" fontWeight={600}>
+                  <text x={x2 + 4} y={y - 2} fontSize={13} fill="var(--red)" fontWeight={600}>
                     killed
                   </text>
                 </g>
@@ -202,7 +202,7 @@ export function Relay() {
           return (
             <g key={`m${i}`} data-mark={m.kind}>
               <rect x={mx - 6} y={y - 6} width={12} height={12} transform={`rotate(45 ${mx} ${y})`} fill="var(--ink)" />
-              <text x={mx + 10} y={y + 4} fontSize={12} fill="var(--ink)">
+              <text x={mx + 10} y={y + 4.5} fontSize={13} fill="var(--ink)">
                 {m.kind === 'approved' ? `merged ${m.task}` : m.text.slice(0, 24)}
               </text>
             </g>
@@ -211,9 +211,9 @@ export function Relay() {
       </svg>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-small text-ink-2" data-testid="relay-legend">
-        <span>Each bar is a run in its agent's vendor ink, labelled with its task and run.</span>
+        <span>Each bar is one run, in its agent's colour, labelled with its task and run.</span>
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="inline-block w-4 border-t-2 border-ink-2" /> a packet passed on, with its tokens
+          <span aria-hidden="true" className="inline-block w-4 border-t-2 border-ink-2" /> a packet passed on, with its size
         </span>
         <span className="inline-flex items-center gap-2">
           <span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed border-violet" /> a skill learned on one task, used on another

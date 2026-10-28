@@ -6,7 +6,7 @@ test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost b
   await page.goto('/factory');
   await expect(page.getByTestId('kpis')).toContainText('Spend this week');
   // the cache share moved from the figures to the models it describes
-  await expect(page.getByTestId('panel-models')).toContainText('Input from cache');
+  await expect(page.getByTestId('panel-models')).toContainText('Read from cache overall');
   const models = page.getByTestId('model-row');
   await expect(models.first()).toContainText('Muse Spark 1.3');
   await expect(page.getByTestId('models-at-work')).toContainText('Muse Glimmer 30B');
@@ -29,15 +29,15 @@ test('The Factory shows the workspace graph with its scrubber, the transcript-sh
   await expect(memory.locator('[data-node="decision:T-0042/D3"]')).toHaveCount(0);
 
   const share = page.getByTestId('kpi-transcript-share');
-  await expect(share).toContainText('Fed forward as transcripts');
-  await expect(share).toContainText('0%');
-  await expect(share).toContainText('all in');
+  await expect(share).toContainText('not the full session log');
+  await expect(share).toContainText('Full logs passed on: 0%');
+  await expect(share).toContainText(/a packet of about [\d,]+ tokens/);
 
   const loops = page.getByTestId('loops');
   await page.getByRole('heading', { name: /last 7 days/ }).click();
   await expect(loops).toBeVisible();
-  await expect(loops.locator('li').filter({ hasText: 'Done' }).locator('span').last()).not.toHaveText('0');
-  await expect(loops.locator('li').filter({ hasText: 'Planned' }).locator('span').last()).not.toHaveText('0');
+  await expect(loops.locator('li').filter({ hasText: 'Done' }).locator('span').last()).not.toHaveText(/^0 /);
+  await expect(loops.locator('li').filter({ hasText: 'Planned' }).locator('span').last()).not.toHaveText(/^0 /);
 });
 
 test('The Factory shows credits left per host with the derived mark (R-054)', async ({ page }) => {
@@ -54,7 +54,7 @@ test('The Factory shows the phase gates with their reasons', async ({ page }) =>
   await expect(gates).toContainText('Phase 2');
   await expect(gates).toContainText('Phase 3');
   // the replay fixture has no golden results of its own, so it shows Stint's, measured on it; phase 3 has no shadow record
-  await expect(gates).toContainText('pass^3 100%');
+  await expect(gates).toContainText('100% of tasks passed every try');
   await expect(gates).toContainText('No shadow approvals recorded yet');
   await expect(gates).toContainText('not yet');
 });
@@ -65,7 +65,7 @@ test('The relay shows each agent as a lane, the killed run, the 412-token packet
   await expect(relay.locator('[data-lane="muse-code:muse-spark-1.3"]')).toContainText('Muse Code');
   await expect(relay.locator('[data-lane="stint-agent:muse-spark-1.3"]')).toContainText('Stint agent');
   await expect(relay.locator('[data-run="T-0042/r2"]')).toContainText('killed');
-  await expect(relay.locator('[data-link="packet"]').first()).toContainText('412 tok');
+  await expect(relay.locator('[data-link="packet"]').first()).toContainText('412 tokens');
   await expect(relay.locator('[data-link="skill"]')).toContainText('learned: limiter-config-via-env');
   await expect(relay.locator('[data-mark="approved"]')).toContainText('merged T-0042');
 });
@@ -75,7 +75,7 @@ test('The scoreboard lists each agent and model with its attempts and pass rate,
   const board = page.getByTestId('scoreboard');
   await expect(board.locator('[data-testid="score-row"][data-agent="stint-agent"]')).toContainText('Muse Spark 1.3');
   await expect(board.locator('[data-testid="score-row"][data-agent="stint-agent"]')).toContainText('100%');
-  await expect(page.getByTestId('routing-mode')).toContainText('in the order of autopilot.implementers');
+  await expect(page.getByTestId('routing-mode')).toContainText('in the order set in the config, autopilot.implementers');
 });
 
 test('The Factory says upkeep is off and how to turn it on', async ({ page }) => {
@@ -107,7 +107,7 @@ test('The Factory shows the benchmark the fixture was measured with: transcript,
   await page.goto('/factory');
   const bench = page.getByTestId('panel-bench');
   await expect(bench.getByTestId('bench-row')).toHaveCount(3);
-  await expect(bench.getByTestId('bench-row').nth(2)).toContainText('the packet, again with the digest on');
+  await expect(bench.getByTestId('bench-row').nth(2)).toContainText('the packet, with a summary of the change');
   for (const [i, m] of lines.entries()) {
     const row = bench.getByTestId('bench-row').nth(i);
     if (!m) throw new Error(`bench line ${i} is missing from the results`);
@@ -118,11 +118,12 @@ test('The Factory shows the benchmark the fixture was measured with: transcript,
   await expect(bench).toContainText(`commit ${plain.commit.slice(0, 7)}`);
 });
 
-test('The Factory shows Verification and outcomes: four groups, a window switch that changes the window, and each label linked to its definition (R-061)', async ({ page }) => {
+test('The Factory shows what the agents did: every measure by group behind one disclosure, a window switch that changes the window, and each label linked to its definition (R-061)', async ({ page }) => {
   await page.goto('/factory');
   const panel = page.getByTestId('panel-metrics');
   await expect(panel).toBeVisible();
-  for (const group of ['verification', 'outcome', 'human', 'learning']) await expect(panel.getByTestId(`metrics-${group}`)).toBeVisible();
+  await panel.getByTestId('panel-measures').locator('summary').click();
+  for (const group of ['verification', 'outcome', 'human', 'learning', 'efficiency']) await expect(panel.getByTestId(`metrics-${group}`)).toBeVisible();
   // 30 days is the default; switching to 7 days asks the daemon for that window and says the new range
   await expect(panel.getByTestId('metrics-window-30d')).toHaveAttribute('aria-pressed', 'true');
   const thirty = await panel.getByTestId('metrics-window').textContent();
@@ -141,5 +142,5 @@ test('The Factory shows Verification and outcomes: four groups, a window switch 
     await expect(link).toContainText('opens its definition');
   }
   // the figures row reads the same response: the transcript share is efficiency.transcript_share
-  await expect(page.getByTestId('kpi-transcript-share')).toContainText('0%');
+  await expect(page.getByTestId('kpi-transcript-share')).toContainText('Full logs passed on: 0%');
 });

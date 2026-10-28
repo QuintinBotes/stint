@@ -4,9 +4,9 @@ import { Link, useLocation } from 'react-router';
 import { ADAPTER_NAMES, type Agent, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, hostMark, hostName, markColor, modelName } from '../agents';
 import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, type TaskBundle, api, daemonMessage } from '../api';
 import { Queue, WorkspaceMemory } from '../components/MemoryPanel';
-import { MetricsPanel, type WindowName, metricValue } from '../components/MetricsPanel';
+import { Measures, MetricsPanel, type WindowName, metricValue, sample } from '../components/MetricsPanel';
 import { Relay } from '../components/Relay';
-import { Button, EmptyState, StatusChip, Who, cx, rev } from '../components/ui';
+import { Button, EmptyState, Explain, StatusChip, Who, cx, rev } from '../components/ui';
 import { money, tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
 
@@ -35,14 +35,14 @@ function Scroller({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 /** One bar row, as the design sets the loops and the spend: label, track, figure. */
-const BAR_ROW = 'grid grid-cols-[96px_minmax(0,1fr)_56px] sm:grid-cols-[150px_minmax(0,1fr)_56px] items-center gap-3 min-h-[30px] text-small';
-const TRACK = 'flex h-3.5 overflow-hidden rounded-[2px] bg-panel-2';
+const BAR_ROW = 'grid grid-cols-[96px_minmax(0,1fr)_64px] sm:grid-cols-[150px_minmax(0,1fr)_64px] items-center gap-3 min-h-[30px] text-small';
+const TRACK = 'flex h-3.5 overflow-hidden bg-panel-2';
 
 /** A vendor's ink square and its name, for a legend. */
 function Key({ colour, children }: { colour: string; children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className="size-2.5 shrink-0 rounded-[2px]" style={{ background: colour }} />
+      <span aria-hidden="true" className="size-2.5 shrink-0" style={{ background: colour }} />
       {children}
     </span>
   );
@@ -80,16 +80,16 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
           <span key={m.key} style={{ width: `${(m.total / Math.max(1, all)) * 100}%`, background: markColor[agentOf('openai-compatible', m.host, m.model).mark] }} title={`${modelName(m.model)}: ${tokens(m.total)} tokens`} />
         ))}
       </div>
-      <Scroller label="Models at work table">
+      <Scroller label="Models at work">
         <table className={cx(rev.table, 'min-w-[640px]')}>
           <thead>
             <tr>
-              {['Model', 'Ran on', 'Did'].map((h) => (
+              {['Model', 'Ran on', 'Role'].map((h) => (
                 <th key={h} scope="col" className={rev.th}>
                   {h}
                 </th>
               ))}
-              {['Tokens in', 'From cache', 'Out', 'Runs', 'Cost'].map((h) => (
+              {['Tokens read', 'From cache', 'Tokens written', 'Runs', 'Cost'].map((h) => (
                 <th key={h} scope="col" className={NUM_HEAD}>
                   {h}
                 </th>
@@ -119,23 +119,23 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
 }
 
 const BENCH_COLUMNS: Array<{ name: string; value: (m: BenchMode) => number | null; show: (n: number) => string }> = [
-  { name: 'Hand-over prompt', value: (m) => m.meanPromptTokens, show: (n) => `${Math.round(n).toLocaleString('en-US')} tokens` },
-  { name: 'Input, whole continued run', value: (m) => m.meanInputTokens, show: (n) => Math.round(n).toLocaleString('en-US') },
+  { name: 'Note to the next agent', value: (m) => m.meanPromptTokens, show: (n) => `${Math.round(n).toLocaleString('en-US')} tokens` },
+  { name: 'Tokens read by the next run', value: (m) => m.meanInputTokens, show: (n) => Math.round(n).toLocaleString('en-US') },
   { name: 'Cost per run', value: (m) => m.meanUsd, show: (n) => `$${n.toFixed(4)}` },
 ];
 
-/** The packet benchmark: each measure is its own column with its own scale, so no two scales share an axis. */
+/** The packet benchmark: each measure is its own column with its own scale, so no two scales share an axis. The transcript is called the full session log on screen. */
 function Benchmark({ data }: { data: BenchData }) {
   const lines = [
-    { label: 'the transcript', m: data.byMode.transcript, base: true },
+    { label: 'the full session log', m: data.byMode.transcript, base: true },
     { label: 'the packet', m: data.byMode.packet, base: false },
-    { label: 'the packet, again with the digest on', m: data.digest?.byMode.packet, base: false },
+    { label: 'the packet, with a summary of the change', m: data.digest?.byMode.packet, base: false },
   ].filter((l): l is { label: string; m: BenchMode; base: boolean } => l.m !== undefined);
   const tasks = new Set(data.rows.map((r) => r.task)).size;
   const colour = (base: boolean) => (base ? 'var(--rule-strong)' : 'var(--ink)');
   return (
     <div data-testid="bench" className="flex flex-col gap-3">
-      <Scroller label="Benchmark table">
+      <Scroller label="Packet against full log">
         <table className={cx(rev.table, 'table-fixed min-w-[640px]')}>
           <thead>
             <tr>
@@ -148,7 +148,7 @@ function Benchmark({ data }: { data: BenchData }) {
                 </th>
               ))}
               <th scope="col" className={cx(NUM_HEAD, 'w-[13%]')}>
-                Tests green
+                Tests passed
               </th>
             </tr>
           </thead>
@@ -163,9 +163,9 @@ function Benchmark({ data }: { data: BenchData }) {
                   const max = Math.max(...lines.map((x) => c.value(x.m) ?? 0));
                   return (
                     <td key={c.name} className={NUM}>
-                      {v === null ? <span className="text-ink-2">unpriced</span> : c.show(v)}
-                      <div className="mt-1 h-1.5 rounded-[1px] bg-panel-2">
-                        <div className="h-full rounded-[1px]" style={{ width: `${v === null || max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
+                      {v === null ? <span className="text-ink-2">not priced</span> : c.show(v)}
+                      <div className="mt-1 h-1.5 bg-panel-2">
+                        <div className="h-full" style={{ width: `${v === null || max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
                       </div>
                     </td>
                   );
@@ -179,18 +179,18 @@ function Benchmark({ data }: { data: BenchData }) {
         </table>
       </Scroller>
       <p className={PROSE}>
-        {data.synthetic ? 'Synthetic rows, ' : data.replay ? 'Rebuilt from recorded runs, ' : `Live on ${new Date(data.startedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}, `}
-        {tasks} tasks from commit <span className="font-mono">{data.commit.slice(0, 7)}</span>: {ADAPTER_NAMES[data.implementer] ?? data.implementer} is stopped at the same step each time, then the Stint agent on {modelName(data.models[data.continuer] ?? null)} continues and the daemon runs the tests. Means per run. One run per task, so read it as a first measurement.
+        {data.synthetic ? 'Synthetic rows, ' : data.replay ? 'Rebuilt from recorded runs, ' : `Measured live on ${new Date(data.startedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}, `}
+        {tasks} tasks from commit <span className="font-mono">{data.commit.slice(0, 7)}</span>: {ADAPTER_NAMES[data.implementer] ?? data.implementer} is stopped at the same step each time, then the Stint agent on {modelName(data.models[data.continuer] ?? null)} continues and Stint runs the tests. Averages per run, one run per task.
       </p>
     </div>
   );
 }
 
-function Figure({ label, value, detail, testId }: { label: string; value: string; detail?: string; testId?: string }) {
+function Figure({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="min-w-0 flex flex-col gap-0.5 px-3.5 py-3 bg-ground" data-testid={testId}>
+    <div className="min-w-0 flex flex-col gap-0.5 px-3.5 py-3 bg-ground">
       <dt className={NOTE}>{label}</dt>
-      <dd className="m-0 text-[18px] leading-6 font-semibold tabular">{value}</dd>
+      <dd className="m-0 text-section tabular">{value}</dd>
       {detail ? <dd className={cx(NOTE, 'm-0')}>{detail}</dd> : null}
     </div>
   );
@@ -206,7 +206,7 @@ const STAGES: Array<[string, string]> = [
   ['done', 'Done'],
 ];
 
-/** The stage funnel: amber where a task needs you, full ink where it merged, softer ink for the rest. */
+/** The stage funnel: every task that reached a stage, so one ink for all; amber would read as needing you now. */
 function Loops({ counts }: { counts: Record<string, number> }) {
   const max = Math.max(1, ...Object.values(counts));
   return (
@@ -215,9 +215,11 @@ function Loops({ counts }: { counts: Record<string, number> }) {
         <li key={k} className={BAR_ROW}>
           <span className="min-w-0 truncate">{name}</span>
           <span className={TRACK}>
-            <span className="block h-full" style={{ width: `${((counts[k] ?? 0) / max) * 100}%`, background: k === 'awaiting_approval' ? 'var(--amber)' : k === 'done' ? 'var(--ink)' : 'var(--ink-2)' }} />
+            <span className="block h-full bg-ink-2" style={{ width: `${((counts[k] ?? 0) / max) * 100}%` }} />
           </span>
-          <span className="tabular text-right">{counts[k] ?? 0}</span>
+          <span className="tabular text-right">
+            {counts[k] ?? 0} task{counts[k] === 1 ? '' : 's'}
+          </span>
         </li>
       ))}
     </ul>
@@ -244,12 +246,12 @@ function CostByDay({ rows }: { rows: CostRow[] }) {
           return (
             <div key={day} className="flex-1 flex flex-col items-center gap-1 min-w-0">
               <span className="text-small tabular text-ink-2">${total.toFixed(2)}</span>
-              <div className="w-full max-w-10 flex flex-col-reverse gap-px overflow-hidden rounded-[2px]" style={{ height: `${(total / max) * 88}px` }}>
+              <div className="w-full max-w-10 flex flex-col-reverse gap-px overflow-hidden" style={{ height: `${(total / max) * 88}px` }}>
                 {[...m.entries()].map(([h, v]) => (
                   <span key={h} style={{ height: `${(v / Math.max(total, 0.0001)) * 100}%`, background: hostColour(h) }} title={`${hostName(h)}: $${v.toFixed(2)}`} />
                 ))}
               </div>
-              <span className="text-small text-ink-2 tabular">{day.slice(5)}</span>
+              <span className="text-small text-ink-2 tabular">{new Date(`${day}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
             </div>
           );
         })}
@@ -352,19 +354,20 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
           [
             'Review findings',
             (b) => (
-              <span className={cx('tabular font-semibold', findings(b) > 0 && 'text-amber')}>
+              <span className="tabular font-semibold">
                 {findings(b)}
                 <span className="sr-only"> review finding{findings(b) === 1 ? '' : 's'}</span>
               </span>
             ),
           ],
-          ['Review', (b) => (b.review ? `${b.review.verdict.charAt(0).toUpperCase()}${b.review.verdict.slice(1).replace('_', ' ')}` : 'Not reviewed')],
+          // a verdict is a recommendation, not a state, so it takes the outline chip
+          ['Review', (b) => (b.review ? <StatusChip label={b.review.verdict.replace('_', ' ')} tone="recommend" /> : 'Not reviewed')],
           ['Cost', (b) => <span className="tabular">{money(costByTask.get(b.task.id) ?? null)}</span>],
         ];
         return (
           <div key={p.skill} className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className={NOTE}>Learned from a review and approved by you, then mounted on the next task</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={NOTE}>Skill</span>
               <Link to={`/skills?skill=${p.skill}`} className="inline-flex items-center min-h-6 px-2 rounded-[3px] bg-violet-wash font-mono text-small text-violet no-underline hover:underline">
                 {p.skill}
               </Link>
@@ -380,10 +383,10 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
                   <tr>
                     <td className={rev.th} />
                     <th scope="col" className={rev.th}>
-                      <span className="font-mono">{p.before.task.id}</span>, before the rule
+                      <span className="font-mono">{p.before.task.id}</span>, before the skill
                     </th>
                     <th scope="col" className={rev.th}>
-                      <span className="font-mono">{p.after.task.id}</span>, with the rule
+                      <span className="font-mono">{p.after.task.id}</span>, with the skill
                     </th>
                   </tr>
                 </thead>
@@ -403,7 +406,7 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
                 </tbody>
               </table>
             </Scroller>
-            <p className={PROSE}>One learned rule apart: the first task's review found the problem, and the next task ran with the rule mounted.</p>
+            <p className={PROSE}>The first task's review found the problem, you approved the skill, and the next task ran with it.</p>
           </div>
         );
       })}
@@ -416,17 +419,17 @@ type OutcomeRow = { adapter: string; merged: number; reverted: number; followup:
 /** What happened after merge, per agent that built the task: merged, reverted, followed up. */
 function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
   if (rows === null) return <EmptyState>Reading what happened after merge.</EmptyState>;
-  if (rows.length === 0) return <EmptyState>Outcomes appear here once a change has merged and the daemon has seen what happened to it.</EmptyState>;
+  if (rows.length === 0) return <EmptyState>What happened to each merged change appears here once one has merged.</EmptyState>;
   return (
     <div data-testid="outcomes" className="flex flex-col gap-3">
-      <Scroller label="Outcomes table">
+      <Scroller label="What happened after merge">
         <table className={cx(rev.table, 'min-w-[480px]')}>
           <thead>
             <tr>
               <th scope="col" className={rev.th}>
                 Agent
               </th>
-              {['Merged', 'Reverted', 'Followed up', 'Failing CI', 'Incidents'].map((h) => (
+              {['Merged', 'Reverted', 'Followed up', 'Checks failed', 'Incidents'].map((h) => (
                 <th key={h} scope="col" className={NUM_HEAD}>
                   {h}
                 </th>
@@ -449,12 +452,12 @@ function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
           </tbody>
         </table>
       </Scroller>
-      <p className={PROSE}>A task built by two agents counts for both. The daemon records a revert, a follow-up within 7 days, a failed CI run and a reported incident on the task that merged.</p>
+      <p className={PROSE}>A task built by two agents counts for both. A follow-up is another task on the same files within 7 days.</p>
     </div>
   );
 }
 
-/** Each agent and model by the attempts the daemon verified, per tag, and how autopilot picks from them. */
+/** Each agent and model by the attempts Stint tested, per tag, and how autopilot picks from them. */
 function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: string; explore: number } } | null }) {
   const [tag, setTag] = useState('*');
   if (data === null) return <EmptyState>Reading how each agent has done.</EmptyState>;
@@ -474,15 +477,19 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
           </div>
         ) : null}
         <span className={cx(NOTE, 'ml-auto')} data-testid="routing-mode">
-          {data.routing.mode === 'learned' ? `Autopilot picks from these results, and tries another agent ${Math.round(data.routing.explore * 100)}% of the time` : 'Autopilot picks agents in the order of autopilot.implementers'}
+          {data.routing.mode === 'learned' ? (
+            `Autopilot picks the agent with the best record here, and tries another one ${Math.round(data.routing.explore * 100)}% of the time.`
+          ) : (
+            <>
+              Autopilot tries agents in the order set in the config, <span className="font-mono">autopilot.implementers</span>.
+            </>
+          )}
         </span>
       </div>
       {rows.length === 0 ? (
-        <EmptyState>Each agent's record appears here once the daemon has verified one of its runs.</EmptyState>
+        <EmptyState>Each agent's record appears here once Stint has tested one of its runs.</EmptyState>
       ) : (
-        // narrower than the table, a phone says it scrolls; a keyboard can scroll it
-        <Scroller label="Agents table, scrolls sideways on a narrow screen">
-          <p className={cx(NOTE, 'sm:hidden mb-2')}>The table scrolls sideways for every column.</p>
+        <Scroller label="Agents, scrolls sideways on a narrow screen">
           <table className={cx(rev.table, 'min-w-[640px]')}>
             <thead>
               <tr>
@@ -490,19 +497,19 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
                   Agent
                 </th>
                 <th scope="col" className={NUM_HEAD}>
-                  Attempts
+                  Runs tested
                 </th>
                 <th scope="col" className={NUM_HEAD}>
                   Passed
                 </th>
-                <th scope="col" className={NUM_HEAD} title="All three of the last three attempts passed">
-                  Last 3 all passed
+                <th scope="col" className={NUM_HEAD}>
+                  Passed the last 3
                 </th>
                 <th scope="col" className={NUM_HEAD}>
                   Cost per merged task
                 </th>
                 <th scope="col" className={NUM_HEAD}>
-                  Reverts
+                  Reverted
                 </th>
               </tr>
             </thead>
@@ -518,18 +525,11 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
                   <td className={NUM}>{r.attempts}</td>
                   <td className={cx(NUM, 'font-semibold')}>{pct(r.passRate)}</td>
                   <td className={NUM}>{r.pass3 === null ? 'fewer than 3' : r.pass3 ? 'yes' : 'no'}</td>
-                  <td className={NUM}>{r.costPerResolved === null ? (r.resolved ? 'unpriced' : 'none merged') : `$${r.costPerResolved.toFixed(2)}`}</td>
+                  <td className={NUM}>{r.costPerResolved === null ? (r.resolved ? 'not priced' : 'none merged') : `$${r.costPerResolved.toFixed(2)}`}</td>
                   <td className={cx(NUM, r.reverts > 0 && 'text-red font-semibold')}>{r.reverts}</td>
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={6} className="p-2.5 border border-rule-strong bg-panel text-ink-2">
-                  Pass rate counts green verifications, run by the daemon, never by the agent.
-                </td>
-              </tr>
-            </tfoot>
           </table>
         </Scroller>
       )}
@@ -539,9 +539,9 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
 
 const gatePct = (n: number) => `${Math.round(n * 100)}%`;
 
-/** The phase gates: golden pass rates first, then whether each phase has opened and why. */
+/** The phase gates: the sample task pass rates first, then whether each phase has opened and why, in the words the daemon gives. */
 function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
-  if (!gates) return <EmptyState>The phase gates appear once the daemon can read the golden results.</EmptyState>;
+  if (!gates) return <EmptyState>The phase gates appear once Stint can read the sample task results.</EmptyState>;
   const rows: Array<[string, boolean, string]> = [
     ['Phase 2', gates.phase2.met, gates.phase2.detail],
     ['Phase 3', gates.phase3.met, gates.phase3.detail],
@@ -550,12 +550,12 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
     <div data-testid="phase-gates" className="flex flex-col gap-3">
       {gates.golden ? (
         <p className="tabular font-semibold" data-testid="golden-line">
-          Golden tasks: {gates.golden.tasks} tasks, pass@1 {gatePct(gates.golden.passAt1)}, pass^{gates.golden.k} {gatePct(gates.golden.passPowK)}
-          {gates.golden.usd !== null ? `, cost $${gates.golden.usd.toFixed(2)}` : ''}
+          {gates.golden.tasks} sample tasks, {gates.golden.k} tries each: {gatePct(gates.golden.passAt1)} of tries passed, {gatePct(gates.golden.passPowK)} of tasks passed every try
+          {gates.golden.usd !== null ? `, $${gates.golden.usd.toFixed(2)} in all` : ''}.
         </p>
       ) : (
         <p className={PROSE}>
-          No golden results yet. Run <span className="font-mono">stint eval --golden --k 3</span>.
+          No sample task results yet. Run <span className="font-mono">stint eval --golden --k 3</span>.
         </p>
       )}
       <ul className="flex flex-col">
@@ -565,7 +565,7 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
               <p className="font-semibold">{name}</p>
               <p className={PROSE}>{detail}</p>
             </div>
-            <StatusChip label={met ? 'open' : 'not yet'} tone={met ? 'good' : 'neutral'} />
+            <StatusChip label={met ? 'open' : 'not yet'} tone={met ? 'active' : 'neutral'} />
           </li>
         ))}
       </ul>
@@ -574,16 +574,16 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
 }
 
 function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged: () => void }) {
-  if (state === null) return <EmptyState>Reading the shadow record.</EmptyState>;
+  if (state === null) return <EmptyState>Reading what the policy would have done.</EmptyState>;
   const { lane } = state;
   return (
     <div data-testid="auto-approve" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <StatusChip label={lane.enabled ? 'lane on' : 'lane off'} tone={lane.enabled ? 'warn' : 'neutral'} />
+        <StatusChip label={lane.enabled ? 'lane on' : 'lane off'} tone={lane.enabled ? 'active' : 'neutral'} />
         <span className="text-ink-2">
           {lane.enabled
-            ? `The policy may approve ${lane.tiers.join(' and ')} risk once ${lane.shadowDays} days of shadow decisions agree with yours.`
-            : 'Every change waits for you. The record below shows what the policy would have done.'}
+            ? `The policy may approve ${lane.tiers.join(' and ')} risk changes itself once its choices have matched yours for ${lane.shadowDays} days.`
+            : 'Every change waits for you. Below is what the policy would have chosen.'}
         </span>
         {lane.enabled ? (
           <Button className={cx(SMALL, 'ml-auto')} tone="danger" data-testid="lane-off" onClick={() => void api.laneOff().then(onChanged)}>
@@ -594,14 +594,14 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
       {state.records.length === 0 ? (
         <EmptyState>Each approve or reject you make is recorded beside what the policy would have done.</EmptyState>
       ) : (
-        <Scroller label="Decisions table">
+        <Scroller label="Your decisions and the policy's">
           <table className={cx(rev.table, 'min-w-[520px]')}>
             <thead>
               <tr>
                 <th scope="col" className={rev.th}>
                   Risk
                 </th>
-                {['Decisions', 'Agreed with you', 'Disagreed', 'Reverted after it would approve', 'Days on record'].map((h) => (
+                {['Your decisions', 'Policy agreed', 'Policy disagreed', 'Would approve, then reverted', 'Days on record'].map((h) => (
                   <th key={h} scope="col" className={NUM_HEAD}>
                     {h}
                   </th>
@@ -639,7 +639,7 @@ function Upkeep({ data }: { data: Gardening | null }) {
   if (data.schedule === 'off') {
     return (
       <EmptyState testId="upkeep-off">
-        Upkeep is off. With <span className="font-mono">"gardening": {'{'} "schedule": "weekly" {'}'}</span> in the config, Stint makes a doc gardening task and a dead code and drift task each week, and they go through autopilot to your approval.
+        Upkeep is off. Add <span className="font-mono">"gardening": {'{'} "schedule": "weekly" {'}'}</span> to the config, and each week Stint opens a task to tidy the docs and one to find dead code and drift, each waiting for your approval.
       </EmptyState>
     );
   }
@@ -677,7 +677,7 @@ function AnyHarness({ health }: { health: Health | null }) {
   return (
     <div data-testid="any-harness" className="flex flex-col gap-3">
       <div className={row}>
-        <span className="text-ink-2 sm:leading-6">Harnesses</span>
+        <span className="text-ink-2 sm:leading-6">Agents</span>
         <div className="flex flex-wrap gap-2" data-testid="harness-chips">
           {agents.map((a) => {
             const ready = a.capability.level === 'supported';
@@ -686,7 +686,7 @@ function AnyHarness({ health }: { health: Health | null }) {
         </div>
       </div>
       <div className={row}>
-        <span className="text-ink-2 sm:leading-6">Hosts</span>
+        <span className="text-ink-2 sm:leading-6">Model hosts</span>
         <div className="flex flex-wrap gap-2" data-testid="host-chips">
           {hosts.map((h) => {
             const ready = (health.models ?? []).some((m) => m.host === h && m.ready);
@@ -694,7 +694,7 @@ function AnyHarness({ health }: { health: Health | null }) {
           })}
         </div>
       </div>
-      <p className={PROSE}>Each one is configured here, and the ones marked off are not ready on this machine. Every one of them starts from the same packet, so a task can move to any of them.</p>
+      <p className={PROSE}>Each one starts from the same packet, so a task can move to any of them. Those marked off are set up but not ready on this machine.</p>
     </div>
   );
 }
@@ -709,17 +709,17 @@ function Chevron() {
 
 /**
  * A section of the Factory: a heading over its figures, no box around it. A `collapsed` one is a disclosure that opens
- * on its heading, so the page leads with what the week came to and keeps the rest one click away.
+ * on its heading, so the page leads with what the agents did and keeps the rest one click away.
  */
-function Panel({ title, aside, children, className, testId, collapsed = false }: { title: string; aside?: ReactNode; children: ReactNode; className?: string; testId?: string; collapsed?: boolean }) {
+function Panel({ title, aside, children, className, testId, id: anchor, collapsed = false }: { title: string; aside?: ReactNode; children: ReactNode; className?: string; testId?: string; id?: string; collapsed?: boolean }) {
   const id = useId();
   if (collapsed)
     return (
-      <details className={cx('group min-w-0 border-t border-rule', className)} data-testid={testId}>
-        <summary className="flex flex-wrap items-center gap-x-2 gap-y-1 min-h-12 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-panel">
+      <details id={anchor} className={cx('group min-w-0 scroll-mt-4 border-t border-rule', className)} data-testid={testId}>
+        <summary className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-h-12 py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-panel">
           <Chevron />
-          <h2 className="text-section">{title}</h2>
-          {aside ? <span className={cx(NOTE, 'ml-auto')}>{aside}</span> : null}
+          <h3 className="font-semibold">{title}</h3>
+          {aside ? <span className={cx(NOTE, 'basis-full pl-5 sm:basis-auto sm:pl-0')}>{aside}</span> : null}
         </summary>
         <div className="flex flex-col gap-3 pt-1 pb-6">{children}</div>
       </details>
@@ -733,6 +733,19 @@ function Panel({ title, aside, children, className, testId, collapsed = false }:
         {aside ? <span className="text-small text-ink-3">{aside}</span> : null}
       </div>
       {children}
+    </section>
+  );
+}
+
+/** A heading over a few disclosures, so the page never shows more than about four at one level. */
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section className="flex flex-col gap-1 min-w-0" aria-labelledby={id}>
+      <h2 id={id} className="text-section">
+        {title}
+      </h2>
+      <div className="flex flex-col border-b border-rule">{children}</div>
     </section>
   );
 }
@@ -813,6 +826,8 @@ export function Factory() {
   const hops = metric('efficiency', 'efficiency.hops');
   const transcripts = metric('efficiency', 'efficiency.transcript_share');
   const packetTokens = metric('efficiency', 'efficiency.packet_tokens');
+  const firstPass = metric('verification', 'verify.first_pass');
+  const handoffs = metric('verification', 'verify.handoff_success');
   const [funnel, setFunnel] = useState<Record<string, number> | null>(null);
   const [spendByTask, setSpendByTask] = useState<TaskSpend[] | null>(null);
   useEffect(() => {
@@ -888,6 +903,9 @@ export function Factory() {
   useEffect(() => {
     if (!hash || !cards) return;
     const target = document.getElementById(hash.slice(1));
+    // a link to a section behind a disclosure opens it, as the replay's closing link does for #any-harness
+    const shut = target?.closest('details');
+    if (shut) shut.open = true;
     target?.scrollIntoView({ block: 'start' });
   }, [hash, cards, health]);
 
@@ -896,69 +914,82 @@ export function Factory() {
   const week = (byModel ?? []).reduce((s, r) => s + (r.usd ?? 0), 0);
   const input = (byModel ?? []).reduce((s, r) => s + r.inputTokens, 0);
   const cached = (byModel ?? []).reduce((s, r) => s + r.cachedTokens, 0);
-  const runs = (byModel ?? []).reduce((s, r) => s + r.runs, 0);
+  /** A share's figure and its "1 of 2 tasks" line, or what fills it in when there is nothing to count yet. */
+  const share = (m: typeof firstPass, none: string): [string, string] => (m?.value != null ? [metricValue(m), `${Math.round(m.value * m.n)} of ${sample(m)}`] : ['none yet', none]);
+  const [firstValue, firstDetail] = share(firstPass, "after a task's first tested run");
+  const [handoffValue, handoffDetail] = share(handoffs, 'once a stopped run is handed on');
 
   const merged = (cards ?? []).filter((c) => c.task.status === 'done').length;
-  // the lead says what the week came to: rules learned first, else merges, else that it has not started
-  const lead = learned ? `It learned ${learned === 1 ? 'one rule' : `${learned} rules`} this week, approved by you and now mounted.` : merged ? `It merged ${merged === 1 ? 'one task' : `${merged} tasks`} this week.` : 'It is ready for its first task.';
+  // the lead says what the agents came to: a skill learned first, else merges, else that it has not started
+  const lead = learned ? `It learned ${learned === 1 ? 'one skill' : `${learned} skills`}, approved by you.` : merged ? `It merged ${merged === 1 ? 'one task' : `${merged} tasks`}.` : 'It is ready for its first task.';
   return (
     <main className="relative flex-1 min-h-0 overflow-y-auto" data-testid="factory">
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 pt-5 pb-8 md:pt-7 md:pb-10 flex flex-col gap-8">
         <header className="flex flex-col gap-1.5 max-w-[75ch]">
           <h1 className="text-title">Factory</h1>
           <p className="text-ink-2" data-testid="factory-headline">
-            {lead} Every figure is computed by the daemon from the task event logs.
+            How the agents are doing, and what it costs. {lead}
           </p>
         </header>
 
-        <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule-strong bg-rule" data-testid="kpis">
-          <Figure label="Spend this week" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task, list prices` : undefined} />
-          <Figure
-            label="Runs and merges"
-            value={`${runs} run${runs === 1 ? '' : 's'}${merges?.value ? `, ${merges.value} merged` : ''}`}
-            detail={hops?.value !== null && hops?.value !== undefined ? `${metricValue(hops)} implementer runs per merged task` : 'no merges in this window yet'}
-          />
-          <Figure
-            label="Fed forward as transcripts"
-            value={transcripts?.value !== null && transcripts?.value !== undefined ? metricValue(transcripts) : '0%'}
-            detail={packetTokens?.value !== null && packetTokens?.value !== undefined ? `all in packets, a median ${metricValue(packetTokens)} each` : 'packets, never transcripts'}
-            testId="kpi-transcript-share"
-          />
-          <Figure label="Skills learned" value={String(learned)} detail={learned ? 'approved by you, now mounted' : 'none proposed yet'} />
-        </dl>
+        <MetricsPanel data={metrics.data} error={metrics.error} window={span} onWindow={setSpan}>
+          <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule-strong bg-rule" data-testid="kpis">
+            <Figure label="Tasks merged" value={String(merges?.value ?? 0)} detail={hops?.value != null ? `${metricValue(hops)} build runs each` : 'none in this period yet'} />
+            <Figure label="Spend this week" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task, at list prices` : undefined} />
+            <Figure label="Passed the tests first time" value={firstValue} detail={firstDetail} />
+            <Figure label="Hand-offs that passed" value={handoffValue} detail={handoffDetail} />
+          </dl>
+          <p className={NOTE} data-testid="kpi-transcript-share">
+            Each hand-off passes on a packet{packetTokens?.value != null ? ` of about ${metricValue(packetTokens)}` : ''}, not the full session log. Full logs passed on: {transcripts?.value != null ? metricValue(transcripts) : '0%'}.
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <Explain word="verify" />
+            <Explain word="handoff" />
+          </div>
+          {metrics.data ? (
+            <Panel title="All measures" aside="Each one in plain words, with a link to its definition" collapsed testId="panel-measures">
+              <Measures data={metrics.data} />
+            </Panel>
+          ) : null}
+        </MetricsPanel>
 
-        <MetricsPanel data={metrics.data} error={metrics.error} window={span} onWindow={setSpan} />
-
-        <div className="grid gap-x-6 gap-y-8 min-[760px]:grid-cols-2">
-          <Panel title="Stages, last 7 days" aside="Tasks that entered each stage" testId="panel-loops">
-            <Loops counts={counts} />
-            <p className={PROSE}>From each task's status history, in the 7 days up to the last event. A task counts once per stage.</p>
-          </Panel>
-          <Panel title="Spend by task" aside="Split by vendor, list prices" testId="panel-spend">
-            <SpendByTask rows={spendByTask} />
-          </Panel>
-        </div>
-
-        <div className="grid gap-x-6 gap-y-8 min-[760px]:grid-cols-2">
-          <Panel title="It learned" testId="panel-it-learned">
-            <ItLearned helped={helped ?? []} costByTask={costByTask} />
-          </Panel>
-          <Queue level={2} empty="Nothing waits for you. A review that would reverse a decision, a permission an agent asks for, or a proposed skill appears here." />
-        </div>
-
-        <Panel title="The relay" aside="Every run on its agent's lane, and what passed between them" testId="panel-relay">
-          <Relay />
-        </Panel>
-
-        <Panel title="Agents" aside="Each agent and model, by the attempts the daemon verified" testId="panel-scoreboard">
+        <Panel title="Agents" testId="panel-scoreboard">
           <Scoreboard data={scores} />
         </Panel>
 
-        <div className="flex flex-col border-b border-rule">
+        {/* shown only while something waits; a finding that would reverse a decision links here */}
+        <Queue level={2} />
+
+        <Group title="Runs and hand-offs">
+          <Panel title="Runs by agent, over time" aside="Each run on its agent's line, and the packets passed between them" collapsed testId="panel-relay">
+            <Explain word="packet" />
+            <Relay />
+          </Panel>
+          <Panel title="Stages reached, last 7 days" aside="A task counts in every stage it reached, so these are not today's counts" collapsed testId="panel-loops">
+            <Loops counts={counts} />
+          </Panel>
+          <Panel title="Packet against full log" aside="What the next agent reads, whether it passes, and what it costs" collapsed testId="panel-bench">
+            {bench ? (
+              <Benchmark data={bench} />
+            ) : (
+              <EmptyState testId="bench-empty">
+                The packet against the full session log appears here once <span className="font-mono">stint bench</span> has run.
+              </EmptyState>
+            )}
+          </Panel>
+          <Panel title="One packet, any agent" collapsed testId="panel-any-harness" id="any-harness">
+            <AnyHarness health={health as Health | null} />
+          </Panel>
+        </Group>
+
+        <Group title="Spend">
+          <Panel title="Spend by task" aside="Split by model maker, at list prices" collapsed testId="panel-spend">
+            <SpendByTask rows={spendByTask} />
+          </Panel>
           <Panel title="Meta models at work" collapsed testId="panel-models">
             <ModelsAtWork rows={byModel ?? []} />
             <p className={PROSE}>
-              Input from cache: {input ? `${Math.round((cached / input) * 100)}%` : 'none'}, {tokens(cached)} of {tokens(input)} tokens.
+              Read from cache overall: {input ? `${Math.round((cached / input) * 100)}%` : 'none'}, {tokens(cached)} of {tokens(input)} tokens.
             </p>
           </Panel>
           <Panel title="Cost per day" collapsed testId="panel-cost-day">
@@ -967,7 +998,22 @@ export function Factory() {
           <Panel title="Credits left" collapsed testId="panel-credits">
             <CreditsLeft rows={byHost ?? []} />
           </Panel>
-          <Panel title="Outcomes after merge" collapsed testId="panel-outcomes">
+        </Group>
+
+        <Group title="Learning and upkeep">
+          <Panel title="What it learned" aside="A skill learned on one task, and the next task that used it" collapsed testId="panel-it-learned">
+            <ItLearned helped={helped ?? []} costByTask={costByTask} />
+          </Panel>
+          <Panel title="Workspace memory" collapsed testId="panel-memory">
+            <WorkspaceMemory />
+          </Panel>
+          <Panel title={`Upkeep${upkeep && upkeep.schedule !== 'off' ? `, ${upkeep.schedule}` : ''}`} collapsed testId="panel-upkeep">
+            <Upkeep data={upkeep} />
+          </Panel>
+        </Group>
+
+        <Group title="Results and approvals">
+          <Panel title="What happened after merge" collapsed testId="panel-outcomes">
             <Outcomes rows={outcomeRows} />
           </Panel>
           <Panel title="Phase gates" collapsed testId="panel-phase-gates">
@@ -976,32 +1022,10 @@ export function Factory() {
           <Panel title="Auto-approve" collapsed testId="panel-auto-approve">
             <AutoApprove state={risk} onChanged={() => setRiskVersion((v) => v + 1)} />
           </Panel>
-          <Panel title={`Upkeep${upkeep && upkeep.schedule !== 'off' ? `, ${upkeep.schedule}` : ''}`} collapsed testId="panel-upkeep">
-            <Upkeep data={upkeep} />
-          </Panel>
-          <Panel title="Workspace memory" collapsed testId="panel-memory">
-            <WorkspaceMemory />
-          </Panel>
-        </div>
+        </Group>
 
-        <Panel title="Benchmark" aside="What the next agent reads, whether it finishes, and what it costs" testId="panel-bench">
-          {bench ? (
-            <Benchmark data={bench} />
-          ) : (
-            <EmptyState testId="bench-empty">
-              No benchmark yet. <span className="font-mono">stint bench</span> writes bench/results.json, and the transcript against the packet appears here.
-            </EmptyState>
-          )}
-        </Panel>
-
-        <section id="any-harness" className="scroll-mt-4 pt-6 border-t border-rule-strong">
-          <Panel title="One packet, any harness" testId="panel-any-harness">
-            <AnyHarness health={health as Health | null} />
-          </Panel>
-        </section>
-
-        <footer className={cx(NOTE, 'pt-3 border-t border-rule flex flex-wrap justify-between gap-2')}>
-          <span className="max-w-[60ch]">Every row is a folder in .stint/tasks/, and every figure is computed by the daemon from its events.jsonl at the list prices in config.json. Credits left are derived from metered spend, not read from the provider.</span>
+        <footer className={cx(NOTE, 'flex flex-wrap justify-between gap-2')}>
+          <span className="max-w-[60ch]">Every figure comes from the task logs in .stint/tasks/, priced at the list prices in config.json.</span>
           <span>Built on Meta's Muse models</span>
         </footer>
       </div>
