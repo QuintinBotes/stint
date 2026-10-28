@@ -46,7 +46,7 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
   const cap = reached ? caps[reached] : null;
   const isUsd = reached === 'usd';
   const floor = reached ? Math.max(used[reached], cap ?? 0) : 0;
-  const min = isUsd ? Math.ceil(floor * 100 + 1) / 100 : Math.floor(floor) + 1;
+  const min = isUsd ? Math.round(floor * 100 + 1) / 100 : Math.floor(floor) + 1;
   const suggest = reached ? Math.min(MAX[reached], Math.max(min, reached === 'minutes' ? (cap ?? 0) + 30 : isUsd ? Math.ceil(floor) + 1 : min)) : 0;
   const raise = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
