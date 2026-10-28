@@ -24,5 +24,5 @@ test('A skill the learn step proposed waits in the memory panel queue; Approve c
   await expect(row).toHaveCount(0);
   await expect.poll(async () => (await d.get<Array<{ id: string; status: string }>>('/api/skills')).find((s) => s.id === 'limits-live-in-one-place')?.status).toBe('probation');
   // the Skills page opened before the approval follows it from the event stream
-  await expect(skillsPage.locator('[data-list-skill="limits-live-in-one-place"]')).toContainText('probation');
+  await expect(skillsPage.locator('[data-list-skill="limits-live-in-one-place"]')).toContainText('on trial');
 });

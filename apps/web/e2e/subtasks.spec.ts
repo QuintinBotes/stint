@@ -32,8 +32,21 @@ test('The board sentence links each task, names the decision that waits on T-004
   const sentence = page.getByTestId('board-sentence');
   await expect(sentence).toContainText('T-0043 needs you. 1 decision waits on T-0042.');
   await expect(page.locator('[data-task="T-0043"]').getByTestId('card-tests')).toHaveText('36 tests passed');
-  // an empty lane keeps its place in the order and says what will appear in it
-  await expect(page.getByTestId('lane-reviewing')).toContainText('A task is here while a second model reviews it.');
+  // an empty lane keeps its place in the order and says what will appear in it; other tests may have filled some lanes
+  const empty: Record<string, string> = {
+    planned: 'A new task waits here for an agent.',
+    building: 'A task is here while an agent works on it.',
+    verifying: 'A task is here while Stint runs its tests.',
+    reviewing: 'A task is here while a second model reviews it.',
+  };
+  let checked = 0;
+  for (const [id, text] of Object.entries(empty)) {
+    const lane = page.getByTestId(`lane-${id}`);
+    if ((await lane.getByTestId('task-card').count()) > 0) continue;
+    await expect(lane).toContainText(text);
+    checked++;
+  }
+  expect(checked).toBeGreaterThan(0);
   // the task that needs you is one link in the sentence: focus it and press Enter
   await sentence.getByRole('link', { name: 'T-0043' }).focus();
   await page.keyboard.press('Enter');

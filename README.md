@@ -9,7 +9,7 @@
 
 Coding agents are good at a task until the session ends: the context fills up, the process dies, a rate limit hits, or you want a different agent for the next step. Stint makes the task, not the chat, the unit of work. The task is a folder in your repository that any agent can pick up. Every run gets its own git worktree, the daemon runs the tests itself, and when a run ends, however it ends, Stint writes a packet of a few hundred tokens that the next agent continues from. A local model reviews, and only you merge. It runs on Meta's Muse models by default, on your own machine.
 
-<p align="center"><img alt="The T-0042 task view: the title block with its state, spend and runs across the top, the run rail with the kill marked and the revision block under it on the left, the diff in the middle, and memory with a decision waiting for you on the right" src="assets/screenshot-task.png" width="900"></p>
+<p align="center"><img alt="The T-0042 task view: the title block with its state, spend and runs across the top; on the left the runs with a clock to rewind them and the revision block under them; on the right a decision waiting for you above the tabs, and the changed files beside the diff" src="assets/screenshot-task.png" width="900"></p>
 
 ## Three proofs
 
