@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { weekOf } from '@stint-dev/core';
 import { DEFAULT_RECORDING, Replayer } from '../src/index';
 import { makeApp, newTask, withFixtureRepo } from './helpers';
 
@@ -17,6 +18,23 @@ describe('/api/costs', () => {
       const sum = (rows: Row[]) => Math.round(rows.reduce((s, x) => s + x.usd, 0) * 10_000) / 10_000;
       expect(sum(days)).toBe(sum(tasks));
       expect(tasks.find((t) => t.key === 'T-0042')?.usd.toFixed(2)).toBe('0.61');
+    });
+  }, 60_000);
+
+  test('GET /api/costs?group=week on the replayed recording is one row for this local week, and every grouping adds up to it', async () => {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await makeApp(repo);
+      const r = new Replayer(ws);
+      r.load(DEFAULT_RECORDING);
+      await r.play({ speed: 0 });
+      const get = async (group: string) => (await (await app.request(`/api/costs?group=${group}`)).json()) as Row[];
+      const sum = (rows: Row[]) => Math.round(rows.reduce((s, x) => s + x.usd, 0) * 10_000) / 10_000;
+      // a replay stamps its events when it plays them, so all six runs land in the week it was played
+      expect(await get('week')).toEqual([expect.objectContaining({ key: weekOf(new Date()), usd: 0.7431, runs: 6, unpriced: 0 })]);
+      for (const group of ['task', 'run', 'day', 'model', 'day-host']) expect([group, sum(await get(group))]).toEqual([group, 0.7431]);
+      const bad = await app.request('/api/costs?group=month');
+      expect(bad.status).toBe(400);
+      expect(((await bad.json()) as { error: { hint: string } }).error.hint).toContain('week');
     });
   }, 60_000);
 

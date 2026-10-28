@@ -4,6 +4,7 @@ import type { Plan } from '../schemas/plan';
 import type { Review } from '../schemas/review';
 import type { Task } from '../schemas/task';
 import { canonicalJSON, sha256Hex } from '../canonical';
+import { localDay, weekOf } from '../cost';
 import type { VerificationRecord } from '../store/runs';
 import type { Workspace } from '../store/workspace';
 
@@ -179,33 +180,28 @@ export function latestHandoff(ws: Workspace, id: string): Promise<Handoff | null
   return ws.handoffs(id).latest();
 }
 
-export type CostRow = Cost & { key: string; runs: number; creditsLeft?: number; derived?: true; roles?: string[] };
+/** `unpriced` counts the row's runs with no price: their spend is unknown, so it is not in `usd` and not $0. */
+export type CostRow = Cost & { key: string; runs: number; unpriced: number; creditsLeft?: number; derived?: true; roles?: string[] };
 
 /** Local CLIs (Muse Code) run Meta models billed to the Meta Model API (D-018). */
 export function billingHost(host: string | null): string {
   return host === 'local-cli' || host === null ? 'meta-api' : host;
 }
-export type CostGroup = 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host';
+export type CostGroup = 'task' | 'run' | 'day' | 'week' | 'host' | 'model' | 'day-host';
 
-/** Cost rows across every task, from `run.finished` events. `day` is the UTC date of the run's end. */
+/**
+ * Cost rows across every task, from `run.finished` events: a run counts once, when it ended, and a run still going
+ * counts nothing yet. `day` is the local date it ended; `week` is the local Monday-to-Sunday week, keyed by its Monday.
+ */
 export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<CostRow[]> {
   const groups = new Map<string, Array<Cost | null>>();
   const roles = new Map<string, Set<string>>();
   for (const task of await ws.listTasks()) {
     for (const r of runsFromEvents(await ws.events(task.id).read())) {
       if (!r.endedAt) continue;
-      const key =
-        o.group === 'task'
-          ? task.id
-          : o.group === 'run'
-            ? `${task.id}/${r.run}`
-            : o.group === 'day'
-              ? r.endedAt.slice(0, 10)
-              : o.group === 'model'
-                ? `${billingHost(r.host)}/${r.model ?? 'unknown'}`
-                : o.group === 'day-host'
-                  ? `${r.endedAt.slice(0, 10)}|${billingHost(r.host)}`
-                  : billingHost(r.host);
+      const day = localDay(r.endedAt);
+      const host = billingHost(r.host);
+      const key = { task: task.id, run: `${task.id}/${r.run}`, day, week: weekOf(r.endedAt), host, model: `${host}/${r.model ?? 'unknown'}`, 'day-host': `${day}|${host}` }[o.group];
       const list = groups.get(key) ?? [];
       list.push(r.cost);
       groups.set(key, list);
@@ -214,5 +210,5 @@ export async function costs(ws: Workspace, o: { group: CostGroup }): Promise<Cos
   }
   return [...groups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, list]) => ({ key, ...sumCosts(list), runs: list.length, ...(o.group === 'model' ? { roles: [...(roles.get(key) ?? [])].sort() } : {}) }));
+    .map(([key, list]) => ({ key, ...sumCosts(list), runs: list.length, unpriced: list.filter((c) => (c?.usd ?? null) === null).length, ...(o.group === 'model' ? { roles: [...(roles.get(key) ?? [])].sort() } : {}) }));
 }

@@ -7,9 +7,9 @@ import { repoRoot } from './repo';
 const usd = (v: number | null) => (v === null ? 'unpriced' : v > 0 && v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`);
 
 export const costs = defineCommand({
-  meta: { name: 'costs', description: 'Tokens and money per task, run, day or host, as the daemon metered them' },
+  meta: { name: 'costs', description: 'Tokens and money per task, run, day, week or host, as the daemon metered them' },
   args: {
-    by: { type: 'string', description: 'task, run, day or host', default: 'task' },
+    by: { type: 'string', description: 'task, run, day, week (Monday to Sunday, local time) or host', default: 'task' },
     repo: { type: 'string', description: 'Repository root (default: the git top level)' },
     json: { type: 'boolean', description: 'Machine-readable output' },
   },
@@ -20,8 +20,8 @@ export const costs = defineCommand({
       process.exit(1);
     }
     const by = args.by as CostGroup;
-    if (!['task', 'run', 'day', 'host'].includes(by)) {
-      process.stderr.write(`--by must be task, run, day or host, not ${by}\n`);
+    if (!['task', 'run', 'day', 'week', 'host'].includes(by)) {
+      process.stderr.write(`--by must be task, run, day, week or host, not ${by}\n`);
       process.exit(2);
     }
     const rows = await costRows(await Workspace.open(root), { group: by });
@@ -31,7 +31,7 @@ export const costs = defineCommand({
     }
     for (const r of rows) {
       const share = r.inputTokens ? Math.round((r.cachedTokens / r.inputTokens) * 100) : 0;
-      process.stdout.write(`${r.key.padEnd(16)} ${String(r.inputTokens).padStart(9)} in (${share}% cached) ${String(r.outputTokens).padStart(7)} out  ${(r.estimated ? '≈' : '') + usd(r.usd)}\n`);
+      process.stdout.write(`${r.key.padEnd(16)} ${String(r.inputTokens).padStart(9)} in (${share}% cached) ${String(r.outputTokens).padStart(7)} out  ${(r.estimated ? '≈' : '') + usd(r.usd)}${r.unpriced ? `, ${r.unpriced} run${r.unpriced === 1 ? '' : 's'} unpriced` : ''}\n`);
     }
   },
 });
