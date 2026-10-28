@@ -187,6 +187,13 @@ export class DaemonError extends Error {
   }
 }
 
+/** What went wrong in the daemon's own words, with its hint when it gives one; anything else as it was thrown. */
+export function daemonMessage(e: unknown): string {
+  if (!(e instanceof DaemonError)) return e instanceof Error ? e.message : String(e);
+  const hint = e.error.hint;
+  return `${e.error.message}${hint ? `. ${typeof hint === 'string' ? hint : JSON.stringify(hint)}` : ''}`;
+}
+
 /** The daemon serves the UI, so the API is same-origin. Vite's dev server proxies /api. */
 const base = '';
 let token: string | null = null;

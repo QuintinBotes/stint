@@ -2,7 +2,7 @@ import type { StintEvent } from '@stint-dev/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
-import { ROLE_NAMES, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
+import { DAEMON, ROLE_NAMES, YOU, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
 import { type RunSummary, api } from '../api';
 import { duration, localTime } from '../format';
 import { useHealth } from '../hooks';
@@ -74,23 +74,23 @@ export function describe(e: StintEvent): ReactNode {
     case 'task.status':
       return <>Status {str(p.from)} to {str(p.to)}</>;
     case 'agent.message':
-      return <span className="text-muted">{str(p.text)}</span>;
+      return <span className="text-ink-2">{str(p.text)}</span>;
     case 'agent.tool_call': {
       const args = (p.args ?? {}) as Record<string, unknown>;
       const target = str(args.path) || str(args.file_path) || str(args.command) || str(args.pattern);
       return (
         <>
-          <span className="text-muted">{str(p.tool)}</span> <code className="font-mono text-[12px]">{target}</code>
+          <span className="text-ink-2">{str(p.tool)}</span> <code className="font-mono text-[12px]">{target}</code>
         </>
       );
     }
     case 'agent.tool_result':
-      return <span className="text-faint">{str(p.summary) || 'result'}</span>;
+      return <span className="text-ink-2">{str(p.summary) || 'result'}</span>;
     case 'file.changed':
       return (
         <>
           <code className="font-mono text-[12px]">{str(p.path)}</code>{' '}
-          <span className="tabular text-good">+{Number(p.added)}</span> <span className="tabular text-bad">-{Number(p.removed)}</span>
+          <span className="tabular text-green">+{Number(p.added)}</span> <span className="tabular text-red">-{Number(p.removed)}</span>
         </>
       );
     case 'decision.recorded':
@@ -120,7 +120,7 @@ export function describe(e: StintEvent): ReactNode {
       return (
         <>
           Refused by Stint rules: <code className="font-mono text-[12px]">{str(p.action)}</code>
-          <span className="text-faint"> ({str(p.reason)})</span>
+          <span className="text-ink-2"> ({str(p.reason)})</span>
         </>
       );
     case 'run.refused':
@@ -177,7 +177,7 @@ export function describe(e: StintEvent): ReactNode {
     case 'provider.fallback':
       return <>Fell back from {str(p.from)} to {str(p.to)} ({str(p.reason)})</>;
     case 'runtime.unclassified':
-      return <span className="text-faint">Unclassified output ({str(p.originalType)})</span>;
+      return <span className="text-ink-2">Unclassified output ({str(p.originalType)})</span>;
     case 'escalation.triggered':
       return p.unavailable ? (
         <>
@@ -197,7 +197,7 @@ export function describe(e: StintEvent): ReactNode {
         </>
       );
     default:
-      return <span className="text-faint">{e.type}</span>;
+      return <span className="text-ink-2">{e.type}</span>;
   }
 }
 
@@ -223,7 +223,7 @@ function items(events: StintEvent[], runs: RunSummary[], showAll: boolean): Item
       const shown = showAll ? b.events : b.events.filter((e) => NOTABLE.has(e.type));
       for (const e of shown) if (e.type !== 'run.finished') out.push({ kind: 'event', key: `e-${e.seq}`, e, seg: b, live });
       if (finished && str(finished.payload.endedBy) === 'killed') {
-        out.push({ kind: 'note', key: `k-${b.run}`, seg: b, live, text: `Killed. In-flight step unknown: ${str(finished.payload.inFlight) || 'none recorded'}`, warn: true });
+        out.push({ kind: 'note', key: `k-${b.run}`, seg: b, live, text: `Red flag: the run was stopped. In-flight step unknown: ${str(finished.payload.inFlight) || 'none recorded'}`, warn: true });
       }
       const hidden = b.events.length - shown.length;
       if (hidden > 0 && !showAll) out.push({ kind: 'note', key: `m-${b.run}`, seg: b, live, text: `${hidden} more, including messages`, warn: false });
@@ -253,7 +253,7 @@ const segAgent = (seg: Seg) => agentOf(seg.started.adapter, str(seg.started.payl
 function Spine({ seg, live, children }: { seg: Seg; live: boolean; children: ReactNode }) {
   return (
     <div className="relative pl-4">
-      <span aria-hidden className={cx('absolute left-0 top-0 bottom-0 w-[3px]', live && 'live-spine')} style={{ background: markColor[segAgent(seg).mark] }} />
+      <span aria-hidden="true" className={cx('absolute left-0 top-0 bottom-0 w-[3px] rounded-[1px]', live && 'live-spine')} style={{ background: markColor[segAgent(seg).mark] }} />
       {children}
     </div>
   );
@@ -266,9 +266,18 @@ function detail(e: StintEvent): string {
   return text.length > 4000 ? `${text.slice(0, 4000)}\n...` : text;
 }
 
-function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; selected: boolean; expanded: boolean; onActivate: (seq: number, keyboard: boolean) => void }) {
+/** Who an event belongs to in race control: you, the driver of its stint, or the daemon. */
+function driverOf(e: StintEvent, seg: Seg | null) {
+  if (e.type === 'human.command' || e.vendor === 'human') return YOU;
+  if (seg) return segAgent(seg);
+  return e.adapter ? agentOf(e.adapter) : DAEMON;
+}
+
+function EventRow({ e, seg, selected, expanded, onActivate }: { e: StintEvent; seg: Seg | null; selected: boolean; expanded: boolean; onActivate: (seq: number, keyboard: boolean) => void }) {
   const human = e.type === 'human.command' || e.vendor === 'human';
   const marked = e.type === 'verification.ran' || e.type === 'review.recorded' || e.type === 'rule.blocked';
+  const tint = e.type === 'verification.ran' ? (e.payload.status === 'green' ? 'bg-added' : 'bg-removed') : e.type === 'rule.blocked' ? 'bg-removed' : null;
+  const who = driverOf(e, seg);
   return (
     <>
       <button
@@ -280,19 +289,21 @@ function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; select
         // a click made by Enter or Space has detail 0
         onClick={(ev) => onActivate(e.seq, ev.detail === 0)}
         className={cx(
-          'w-full text-left grid grid-cols-[1fr_auto] gap-2 px-2 py-1 rounded-sm text-[12.5px] leading-[18px]',
-          selected ? 'bg-accent-tint' : 'hover:bg-sunken',
-          human && 'border-l-2 border-ink pl-1.5',
-          marked && 'font-medium',
+          'w-full text-left grid grid-cols-[44px_32px_minmax(0,1fr)] gap-2 px-2 py-1 border-b border-rule text-[14px] leading-5',
+          selected ? 'bg-panel-2' : tint ?? 'hover:bg-panel',
+          marked && 'font-semibold',
         )}
       >
-        <span className="min-w-0 break-words">{describe(e)}</span>
-        <time className="tabular text-faint text-[11px]" dateTime={e.ts}>
+        <time className={cx('tabular text-[12px]', tint ? 'text-ink-2' : 'text-ink-3')} dateTime={e.ts}>
           {storyClock(e.payload) ?? localTime(e.ts)}
         </time>
+        <span className={cx('text-[12px] font-extrabold stretch-75 tracking-[0.03em]', human ? 'text-ink' : 'text-ink-2')} title={who.name}>
+          {who.code}
+        </span>
+        <span className="min-w-0 break-words">{describe(e)}</span>
       </button>
       {selected && expanded ? (
-        <pre className="mx-2 mb-1 max-h-60 overflow-auto rounded-sm bg-sunken p-2 font-mono text-[11.5px] leading-[16px] whitespace-pre-wrap break-words" data-testid="event-detail" tabIndex={0}>
+        <pre className="mx-2 my-1 max-h-60 overflow-auto rounded-[3px] bg-panel p-2 font-mono text-[12px] leading-[16px] whitespace-pre-wrap break-words" data-testid="event-detail" tabIndex={0}>
           {detail(e)}
         </pre>
       ) : null}
@@ -329,16 +340,16 @@ function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk
   const endedBy = finished ? str(finished.payload.endedBy) : 'running';
   const tier = permissionTier(gate, risk);
   return (
-    <header data-testid="run-segment" data-run={seg.run} data-adapter={seg.started.adapter} className="flex items-start justify-between gap-2 py-2">
+    <header data-testid="run-segment" data-run={seg.run} data-adapter={seg.started.adapter} className="flex items-start justify-between gap-2 pt-3 pb-2 border-b border-rule">
       <div className="min-w-0">
-        <div className="flex items-center gap-2 text-[13px]">
-          <VendorMark agent={agent} showName={false} />
-          <span className="font-semibold truncate" data-testid="segment-model">
+        <div className="flex items-center gap-2 text-[14px]">
+          <VendorMark agent={agent} showName={false} size={18} />
+          <span className="font-bold truncate" data-testid="segment-model">
             {modelName(model)}
           </span>
-          <span className="text-faint shrink-0">{seg.run}</span>
+          <span className="text-ink-2 shrink-0">stint {seg.run}</span>
         </div>
-        <div className="text-[12px] text-muted mt-0.5 truncate">
+        <div className="text-[12px] text-ink-2 mt-1 truncate">
           {isCall
             ? `${ROLE_NAMES[role] ?? role} ${host === 'ollama' ? 'offline on this machine' : `on ${hostName(host)}`}`
             : `${agent.name} ${seg.started.payload.handoffFrom ? `continues from packet ${str(seg.started.payload.handoffFrom)}` : ROLE_NAMES[role] ?? role}`}
@@ -349,7 +360,7 @@ function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk
         <span data-testid="permission-tier" title="Permission tier">
           <StatusChip label={tier.label} tone={tier.tone} />
         </span>
-        <span className="text-[11px] text-faint tabular">
+        <span className="text-[12px] text-ink-2 tabular">
           {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
         </span>
       </div>
@@ -365,13 +376,13 @@ function Joint({ e, onOpen }: { e: StintEvent; onOpen: (name: string) => void })
       type="button"
       data-testid="handoff-joint"
       onClick={() => onOpen(str(p.name))}
-      className="relative w-full my-1 flex items-center gap-3 rounded-md border border-line-strong bg-raised px-3 py-2 text-left hover:border-accent"
+      className="relative w-full my-2 flex items-center gap-3 rounded-[4px] bg-board text-board-ink px-3 py-2 text-left hover:outline hover:outline-1 hover:outline-rule-strong"
     >
-      <span aria-hidden className="h-2.5 w-2.5 rotate-45 border border-ink bg-surface" />
-      <span className="text-[12.5px]">
-        <span className="font-semibold">Packet {str(p.name)}</span>
+      <span className="shrink-0 text-[14px] leading-4 font-extrabold stretch-70 tracking-[0.02em] uppercase">Pit stop</span>
+      <span className="text-[14px] leading-5">
+        <span className="font-bold">Packet {str(p.name)}</span>
         <span className="tabular">, {Number(p.tokens)} tokens</span>
-        <span className="text-faint tabular">, {kb} KB, after the run was {str(p.reason) || 'ended'}</span>
+        <span className="opacity-75 tabular">, {kb} KB, after the run was {str(p.reason) || 'ended'}</span>
       </span>
     </button>
   );
@@ -394,37 +405,31 @@ function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
       .finally(() => setBusy(false));
   };
   return (
-    <div className="py-1 text-[11.5px]" data-testid="checkpoint" data-run={seg.run}>
-      <div className="flex items-center gap-2 text-faint">
-        <span aria-hidden className="h-px flex-1 bg-line" />
+    <div className="py-2 text-[12px]" data-testid="checkpoint" data-run={seg.run}>
+      <div className="flex items-center gap-2 text-ink-3">
+        <span aria-hidden="true" className="h-px flex-1 bg-rule" />
         <span>
           Checkpoint after {seg.run}, <code className="font-mono">{commit.slice(0, 7)}</code>
         </span>
-        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-sm px-1.5 text-muted hover:text-ink border border-line hover:border-line-strong">
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-[3px] px-2 text-ink-2 hover:text-ink border border-ink-3 hover:border-ink">
           Restore
         </button>
-        <span aria-hidden className="h-px flex-1 bg-line" />
+        <span aria-hidden="true" className="h-px flex-1 bg-rule" />
       </div>
       {open ? (
         <div className="mt-1 flex flex-wrap items-center gap-2 justify-center" role="group" aria-label={`Restore the checkpoint after ${seg.run}`}>
           <Button className="h-7" disabled={busy} onClick={restore}>
             Code
           </Button>
-          <Button className="h-7" disabled title={LATER}>
-            Conversation
-          </Button>
-          <Button className="h-7" disabled title={LATER}>
-            Both
-          </Button>
-          <span className="w-full text-center text-faint">{LATER}</span>
+          <span className="w-full text-center text-ink-2">{LATER}</span>
         </div>
       ) : null}
       {result && 'path' in result ? (
-        <p className="mt-1 text-center text-muted" data-testid="checkpoint-restored">
+        <p className="mt-1 text-center text-ink-2" data-testid="checkpoint-restored">
           {seg.run}'s code at <code className="font-mono">{commit.slice(0, 7)}</code> is in <code className="font-mono text-ink">{result.path}</code>
         </p>
       ) : null}
-      {result && 'error' in result ? <p className="mt-1 text-center text-bad">{result.error}</p> : null}
+      {result && 'error' in result ? <p className="mt-1 text-center text-red">The checkpoint was not restored: {result.error}</p> : null}
     </div>
   );
 }
@@ -436,6 +441,7 @@ export function Rail({
   selected,
   onSelect,
   onOpenPacket,
+  rewound = false,
 }: {
   events: StintEvent[];
   runs: RunSummary[];
@@ -443,6 +449,8 @@ export function Rail({
   selected: number | null;
   onSelect: (seq: number) => void;
   onOpenPacket: (name: string) => void;
+  /** The view shows an earlier moment, so the newest events are not on the rail yet. */
+  rewound?: boolean;
 }) {
   const list = useMemo(() => items(events, runs, showAll), [events, runs, showAll]);
   const { data: health } = useHealth();
@@ -464,6 +472,14 @@ export function Rail({
     overscan: 12,
     scrollMargin: offsetIn(root.current, scroller()),
   });
+  // While the person scrolls up, rows measured above the fold do not move scrollTop: the window's corrections fought
+  // their scroll and left it drawing rows from further down. Otherwise the library's own rule stands, so what is on
+  // screen stays put: a row first measured with its top above the fold, or re-measured wholly above it.
+  v.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, inst) => {
+    if (inst.scrollDirection === 'backward') return false;
+    const fold = (inst.scrollOffset ?? 0) + inst.scrollAdjustments;
+    return inst.itemSizeCache.has(item.key) ? item.end <= fold : item.start < fold;
+  };
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const toggle = (seq: number) =>
@@ -532,7 +548,7 @@ export function Rail({
     else root.current?.querySelector(`[data-seq="${selected}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [selected, list]);
 
-  if (events.length === 0) return <EmptyState testId="empty-rail">Runs appear here, one segment per agent, as soon as the task is assigned.</EmptyState>;
+  if (events.length === 0) return <EmptyState testId="empty-rail">{rewound ? 'Nothing had happened yet at this moment on the race clock.' : 'Runs appear here, one stint per agent, as soon as the task is assigned.'}</EmptyState>;
 
   const render = (it: Item) => {
     switch (it.kind) {
@@ -543,19 +559,19 @@ export function Rail({
           </Spine>
         );
       case 'event': {
-        const row = <EventRow e={it.e} selected={selected === it.e.seq} expanded={expanded.has(it.e.seq)} onActivate={activate} />;
+        const row = <EventRow e={it.e} seg={it.seg} selected={selected === it.e.seq} expanded={expanded.has(it.e.seq)} onActivate={activate} />;
         return it.seg ? (
           <Spine seg={it.seg} live={it.live}>
             {row}
           </Spine>
         ) : (
-          <div className="pl-4">{row}</div>
+          <div className="pl-5">{row}</div>
         );
       }
       case 'note':
         return (
           <Spine seg={it.seg} live={it.live}>
-            <p className={cx('px-2 py-1', it.warn ? 'text-[12.5px] text-warn' : 'text-[11px] text-faint')}>{it.text}</p>
+            <p className={cx('px-2 py-2 border-b border-rule', it.warn ? 'text-[14px] font-semibold text-ink bg-removed' : 'text-[12px] text-ink-3')}>{it.text}</p>
           </Spine>
         );
       case 'joint':
@@ -570,7 +586,7 @@ export function Rail({
       type="button"
       data-testid="jump-latest"
       onClick={toEnd}
-      className="sticky bottom-2 left-full z-10 mt-2 block rounded-full border border-accent bg-accent-tint px-3 py-1 text-[12px] text-ink shadow-sm"
+      className="sticky bottom-2 left-full z-10 mt-2 block rounded-[3px] bg-ink px-3 py-1 text-[12px] font-bold text-ground shadow-[var(--shadow)]"
     >
       Jump to latest
     </button>

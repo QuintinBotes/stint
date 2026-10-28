@@ -28,24 +28,24 @@ export function PacketSources({ taskId, name, events, onSelect }: { taskId: stri
   if (!meta?.fields) return null;
   const seqOf = new Map(events.map((e) => [e.id, e.seq]));
   return (
-    <details className="rounded-lg border border-line bg-raised p-4" data-testid="packet-sources">
-      <summary className="text-[13px] font-semibold cursor-pointer">Where each part came from</summary>
+    <details className="rounded-lg border border-rule bg-panel p-4" data-testid="packet-sources">
+      <summary className="text-[14px] font-semibold cursor-pointer">Where each part came from</summary>
       <table className="mt-3 w-full text-[12px]">
         <tbody>
           {Object.entries(meta.fields).map(([field, f]) => (
-            <tr key={field} className="border-t border-line align-top">
-              <td className="py-1.5 pr-3 font-mono text-ink whitespace-nowrap">{field}</td>
-              <td className="py-1.5 pr-3 text-muted">{FROM[f.from] ?? f.from}</td>
-              <td className="py-1.5 tabular">
+            <tr key={field} className="border-t border-rule align-top">
+              <td className="py-2 pr-3 font-mono text-ink whitespace-nowrap">{field}</td>
+              <td className="py-2 pr-3 text-ink-2">{FROM[f.from] ?? f.from}</td>
+              <td className="py-2 tabular">
                 {f.eventIds.slice(0, 8).map((id) => {
                   const seq = seqOf.get(id);
                   return seq === undefined ? null : (
-                    <button key={id} type="button" className="mr-2 text-accent hover:underline" onClick={() => onSelect(seq)}>
+                    <button key={id} type="button" className="mr-2 text-ink hover:underline" onClick={() => onSelect(seq)}>
                       #{seq}
                     </button>
                   );
                 })}
-                {f.eventIds.length > 8 ? <span className="text-faint">and {f.eventIds.length - 8} more</span> : null}
+                {f.eventIds.length > 8 ? <span className="text-ink-3">and {f.eventIds.length - 8} more</span> : null}
               </td>
             </tr>
           ))}

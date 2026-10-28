@@ -25,7 +25,7 @@ test('A review with blockers shows them above the findings, counted and in the b
   await expect(blockers).toContainText('2 blockers');
   await expect(blockers).toContainText('The limiter counts retries as new requests.');
   await expect(blockers).toContainText('The window is read once at startup and cannot change.');
-  await expect(blockers.locator('li').first()).toHaveClass(/text-bad/);
+  await expect(blockers.locator('li').first()).toHaveClass(/text-red/);
   const blockersBox = await blockers.boundingBox();
   const findingBox = await page.getByTestId('finding').first().boundingBox();
   expect(blockersBox).not.toBeNull();

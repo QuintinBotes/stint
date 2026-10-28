@@ -1,51 +1,57 @@
-import type { Handoff } from '@stint-dev/core';
+import type { Handoff, StintEvent } from '@stint-dev/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useParams, useSearchParams } from 'react-router';
-import { agentOf } from '../agents';
-import { api } from '../api';
+import { ROLE_NAMES, agentOf, carNumber } from '../agents';
+import { type TaskBundle, api, daemonMessage } from '../api';
+import { toast } from 'sonner';
 import { ApprovalGate } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
 import { DiffView, readViewedFiles, writeViewedFiles } from '../components/DiffView';
 import { HandTo } from '../components/HandTo';
-import { MemoryPanel } from '../components/MemoryPanel';
+import { MemoryPanel, Queue } from '../components/MemoryPanel';
 import { PacketSources } from '../components/PacketSources';
 import { PermissionBanner } from '../components/Permissions';
+import { PitBoard, boardLines } from '../components/PitWall';
 import { QuizPanel } from '../components/Quiz';
 import { Terminal } from '../components/Terminal';
 import { FilesTab } from '../components/Files';
 import { VerificationTab } from '../components/Verification';
 import { WhoContinues } from '../components/WhoContinues';
 import { Rail } from '../components/Rail';
-import { Button, CostMeter, EmptyState, StatusChip, cx } from '../components/ui';
+import { StintChart, clockLabel, taskClock } from '../components/StintChart';
+import { Button, type ChipTone, CostMeter, EmptyState, Kbd, Swatch, cx } from '../components/ui';
 import { useEvents, useTask } from '../hooks';
+import { singleKey } from '../shortcuts';
 
 const GRAPH_EVENTS = new Set(['run.finished', 'decision.recorded', 'review.recorded', 'skill.applied', 'skill.approved', 'approval.granted', 'approval.rejected', 'merge.completed', 'human.command']);
 
-export const TABS = ['diff', 'files', 'terminal', 'plan', 'packet', 'review', 'verification'] as const;
+export const TABS = ['diff', 'memory', 'files', 'terminal', 'plan', 'packet', 'review', 'verification'] as const;
 export type Tab = (typeof TABS)[number];
-const TAB_NAMES: Record<Tab, string> = { diff: 'Diff', files: 'Files', terminal: 'Terminal', plan: 'Plan', packet: 'Packet', review: 'Review', verification: 'Verification' };
+const TAB_NAMES: Record<Tab, string> = { diff: 'Diff', memory: 'Memory', files: 'Files', terminal: 'Terminal', plan: 'Plan', packet: 'Packet', review: 'Review', verification: 'Verification' };
 
-function useWide(): boolean {
-  const [wide, setWide] = useState(() => matchMedia('(min-width: 1024px)').matches);
-  useEffect(() => {
-    const mq = matchMedia('(min-width: 1024px)');
-    const on = () => setWide(mq.matches);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return wide;
+/** Race control is a drawer: open on a wide screen, closed below 1600 px until its button, j or k, or a linked event opens it. */
+const WIDE = '(min-width: 1600px)';
+
+/** Stops a live run and says so; a refusal shows the daemon's own words. */
+function stopRun(taskId: string, run: string): void {
+  api
+    .stopRun(taskId, run)
+    .then(() => toast.success(`${run} stopped. The daemon builds a packet from the log.`))
+    .catch((e: unknown) => toast.error(`${run} was not stopped: ${daemonMessage(e)}`));
 }
 
-export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
+export function TaskView() {
   const { id = '' } = useParams();
   const [params, setParams] = useSearchParams();
   const { data: bundle, error, reload } = useTask(id);
   const { events } = useEvents(id);
   const [showAll, setShowAll] = useState(false);
-  const wide = useWide();
+  const [railOpen, setRailOpen] = useState(() => (typeof window.matchMedia === 'function' && window.matchMedia(WIDE).matches) || new URLSearchParams(window.location.search).has('ev'));
   const tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'diff';
   const selected = params.get('ev') ? Number(params.get('ev')) : null;
+  useEffect(() => {
+    if (selected !== null) setRailOpen(true);
+  }, [selected]);
   const setParam = useCallback(
     (k: string, v: string | null) =>
       setParams(
@@ -78,7 +84,7 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
   );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.metaKey || e.ctrlKey) return;
+      if (!singleKey(e)) return;
       // read the URL as it is now, so a fast second press is not handled with the previous selection
       const current = new URLSearchParams(window.location.search);
       if (e.key === 'd') {
@@ -115,8 +121,13 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
         if (currentFile) toggleViewed(currentFile);
       } else if (e.key === 't') setTab('terminal');
       else if (e.key === 'h') setTab('packet');
+      else if (e.key === 'm') setTab(new URLSearchParams(window.location.search).get('tab') === 'memory' ? 'diff' : 'memory');
       else if (e.key === 'j' || e.key === 'k') {
-        const seqs = events.map((x) => x.seq);
+        setRailOpen(true);
+        // the rows on the rail: those up to the moment the clock is on
+        const until = current.get('asOf');
+        const cut = until ? current.get('at') : null;
+        const seqs = events.filter((x) => (cut ? x.seq <= Number(cut) : !until || x.ts <= until)).map((x) => x.seq);
         const at = current.get('ev') ? Number(current.get('ev')) : null;
         const i = at === null ? -1 : seqs.indexOf(at);
         const next = e.key === 'j' ? seqs[Math.min(seqs.length - 1, i + 1)] : seqs[Math.max(0, i - 1)];
@@ -184,171 +195,223 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     setAutoBusy(true);
     api
       .autopilot(id, !autopilot.on)
-      .catch(() => undefined)
+      .catch((e: unknown) => toast.error(`Autopilot did not ${autopilot.on ? 'stop' : 'start'}: ${daemonMessage(e)}`))
       .finally(() => setAutoBusy(false));
   };
 
-  if (error) return <p className="p-4 text-bad">This task could not be read: {error}</p>;
-  if (!bundle) return <p className="p-4 text-faint">Reading the task.</p>;
-  const t = bundle.task;
+  // Cmd+. (Ctrl+. elsewhere) stops the run on track from anywhere on the task view, the terminal included: capture
+  // phase, before xterm sees the key
+  const liveRunId = bundle?.runs.find((r) => !r.endedAt)?.run ?? null;
+  useEffect(() => {
+    if (!liveRunId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '.' || !(e.metaKey || e.ctrlKey)) return;
+      e.preventDefault();
+      stopRun(id, liveRunId);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [id, liveRunId]);
 
-  const live = bundle.runs.find((r) => !r.endedAt);
-  const agentsUsed = new Set(bundle.runs.filter((r) => r.role === 'implementer').map((r) => r.adapter));
-  const holder = t.status === 'awaiting_approval' ? 'You, at the gate' : t.status === 'done' ? `Merged by ${!bundle.merge?.by || bundle.merge.by === 'human' || bundle.merge.by === 'you' ? 'you' : bundle.merge.by === 'policy' ? 'the auto-approve lane' : bundle.merge.by}` : live ? `${agentOf(live.adapter, live.host, live.model).name}, ${live.run}` : 'Nobody yet';
-  const v = bundle.verification;
+  // the moment the view shows: the stint chart, race control, the pit board, the diff and memory all read it
+  // asOf is the time memory reads; at, set by the stint chart, is the exact last event where several share a timestamp
+  const asOf = params.get('asOf');
+  const atParam = params.get('at');
+  const atSeq = asOf && atParam !== null ? Number(atParam) : null;
+  const visible = useMemo(() => (atSeq !== null ? events.filter((e) => e.seq <= atSeq) : asOf ? events.filter((e) => e.ts <= asOf) : events), [events, asOf, atSeq]);
+  const clock = useMemo(() => taskClock(events), [events]);
+  const setMoment = useCallback(
+    (value: string | null, at?: number) =>
+      setParams(
+        (p) => {
+          const next = new URLSearchParams(p);
+          if (value === null) next.delete('asOf');
+          else next.set('asOf', value);
+          if (value === null || at === undefined) next.delete('at');
+          else next.set('at', String(at));
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
+  // a moment on the memory graph's own clock, in the task's words: the story clock of a replay, else the time of day
+  const clockFor = useCallback(
+    (ms: number) => {
+      const first = events[0] ? Date.parse(events[0].ts) : null;
+      const last = events.at(-1) ? Date.parse((events.at(-1) as StintEvent).ts) : null;
+      if (!clock.story || first === null || last === null || ms < first || ms > last + 60_000) return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      let i = 0;
+      events.forEach((e, n) => {
+        if (Date.parse(e.ts) <= ms) i = n;
+      });
+      return clockLabel(clock.at[i] as number, true, clock.base);
+    },
+    [events, clock],
+  );
+  const stops = useMemo(() => visible.filter((e) => e.type === 'handoff.created'), [visible]);
+  const lastStop = stops.at(-1);
+  const stopName = typeof lastStop?.payload.name === 'string' ? lastStop.payload.name : null;
+  const latestName = useMemo(() => {
+    const all = events.filter((e) => e.type === 'handoff.created').at(-1);
+    return typeof all?.payload.name === 'string' ? all.payload.name : null;
+  }, [events]);
+  // the packet the pit board shows: the latest, or the one that was latest at the moment the clock is on
+  const [boardPacket, setBoardPacket] = useState<{ name: string; packet: Handoff } | null>(null);
+  useEffect(() => {
+    if (!stopName || stopName === latestName) {
+      setBoardPacket(null);
+      return;
+    }
+    let live = true;
+    api
+      .handoff(id, stopName)
+      .then((r) => live && setBoardPacket({ name: stopName, packet: r.packet }))
+      .catch(() => live && setBoardPacket(null));
+    return () => {
+      live = false;
+    };
+  }, [id, stopName, latestName]);
+  // diff files written by the moment the clock is on, from the file.changed events up to it
+  const atIndex = atSeq === null ? -1 : events.findIndex((e) => e.seq === atSeq);
+  const momentLabel = !asOf ? null : atIndex >= 0 ? clockLabel(clock.at[atIndex] as number, clock.story, clock.base) : clockFor(Date.parse(asOf));
+  // memory names the moment as the chart does when the chart set it
+  const memoryClock = useCallback((ms: number) => (momentLabel && asOf && ms === Date.parse(asOf) ? momentLabel : clockFor(ms)), [momentLabel, asOf, clockFor]);
+  const writtenBy = useMemo(() => (asOf ? new Set(visible.filter((e) => e.type === 'file.changed' && typeof e.payload.path === 'string').map((e) => e.payload.path as string)) : null), [visible, asOf]);
+
+  if (error) return <p className="p-6 text-red">This task could not be read: {error}. Check the task id, or go back to Timing.</p>;
+  if (!bundle) return <p className="p-6 text-ink-3">Reading the task.</p>;
+  const t = bundle.task;
+  // the car as it stood at the moment the clock is on; the gate always acts on the car as it is now
+  const then = bundleAt(bundle, asOf ? visible : null);
+
+  const live = then.runs.find((r) => !r.endedAt);
+  const v = then.verification;
+  const state = carState(then, stopName);
+  const lastBuild = then.runs.filter((r) => r.role === 'implementer').at(-1);
+  const redFlag = !live && then.task.status !== 'done' && lastBuild && (lastBuild.endedBy === 'killed' || lastBuild.endedBy === 'failed') ? lastBuild : null;
+  const redAt = redFlag ? events.find((e) => e.type === 'run.finished' && e.run === redFlag.run) : undefined;
+  const openPacket = (name: string) => {
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.set('packet', name);
+        next.set('tab', 'packet');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+  const shownPacket = boardPacket ? boardPacket.packet : stopName ? bundle.handoff : null;
+  const shownMeta = { name: stopName, tokens: lastStop ? Number(lastStop.payload.tokens) || null : null, bytes: lastStop ? Number(lastStop.payload.bytes) || null : null };
+
+  // the run on track now, which the stop control acts on wherever focus is (Cmd+. or Ctrl+.)
+  const liveNow = bundle.runs.find((r) => !r.endedAt)?.run ?? null;
+  const panelTitle = 'text-[14px] leading-5 font-bold';
+
   const header = (
-    <header className="shrink-0 border-b border-line px-6 py-4 flex flex-wrap gap-x-10 gap-y-4" data-testid="task-header">
-      <div className="min-w-0 flex-1 basis-[520px]">
-        <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
-          <span className="font-mono">{t.id}</span>
-          <StatusChip status={t.status} />
-          <span>
-            branch <span className="font-mono">{t.branch}</span>, base <span className="font-mono">{t.baseCommit.slice(0, 7)}</span>
+    <header className="shrink-0 flex flex-wrap items-start justify-between gap-x-8 gap-y-4 px-4 sm:px-6 pt-6 pb-5" data-testid="task-header">
+      <div className="flex items-start gap-4 min-w-0 flex-1 basis-[420px]">
+        <div aria-label={`Car ${carNumber(t.id)}, task ${t.id}`} role="img" className="flex flex-col items-center justify-center shrink-0 min-w-16 h-16 px-2 rounded-[4px] bg-plate text-on-plate">
+          <span aria-hidden="true" className="text-[34px] leading-8 font-black stretch-62 tabular">
+            {carNumber(t.id)}
           </span>
-          {t.links.issueUrl ? (
-            <a href={t.links.issueUrl} data-testid="issue-link" className="text-accent hover:underline" target="_blank" rel="noreferrer">
-              Issue
-            </a>
-          ) : null}
-          {t.status !== 'done' ? (
-            <Button
-              className="h-7 ml-auto"
-              onClick={toggleAutopilot}
-              disabled={autoBusy}
-              aria-pressed={autopilot.on}
-              data-testid="autopilot-switch"
-              title="Plan, build, verify and review on its own, handing off when a run fails; it stops at your approval"
-            >
-              {autopilot.on ? 'Autopilot on' : 'Autopilot'}
-            </Button>
-          ) : null}
+          <span aria-hidden="true" className="font-mono text-[12px] leading-4">
+            {t.id}
+          </span>
         </div>
-        <h1 className="mt-1.5 text-[26px] leading-[32px] font-semibold tracking-[-0.02em]">{t.title}</h1>
-        <p className="mt-1.5 text-[13px] text-muted max-w-[80ch]">{t.goal}</p>
-        <ul className="mt-2.5 flex flex-wrap gap-1.5" aria-label="Acceptance criteria" data-testid="header-acceptance">
-          {t.acceptance.map((a) => (
-            <li key={a} className="rounded-md border border-line bg-raised px-2 py-0.5 text-[12px]">
-              {a}
-            </li>
-          ))}
-        </ul>
+        <div className="min-w-0 flex flex-col gap-2">
+          <h1 className="text-[19px] leading-6 sm:text-[34px] sm:leading-10 font-bold stretch-112 tracking-[-0.02em] [text-wrap:balance]">{t.title}</h1>
+          <p className="text-ink-2 max-w-[70ch]">{t.goal}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[12px] text-ink-2">
+            <span>
+              branch <span className="font-mono">{t.branch}</span>, base <span className="font-mono">{t.baseCommit.slice(0, 7)}</span>
+            </span>
+            {t.links.issueUrl ? (
+              <a href={t.links.issueUrl} data-testid="issue-link" className="underline underline-offset-2 text-ink" target="_blank" rel="noreferrer">
+                Issue
+              </a>
+            ) : null}
+            {t.status !== 'done' ? (
+              <Button
+                className="h-7"
+                onClick={toggleAutopilot}
+                disabled={autoBusy}
+                aria-pressed={autopilot.on}
+                data-testid="autopilot-switch"
+                title="Plan, build, verify and review on its own, handing off when a run fails; it stops at your approval"
+              >
+                {autopilot.on ? 'Autopilot on' : 'Autopilot'}
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </div>
-      <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-1 text-[12px] self-start" data-testid="task-summary">
-        <dt className="text-muted">Task total</dt>
-        <dd className="font-semibold" data-testid="task-cost">
-          <CostMeter cost={bundle.cost} />
-        </dd>
-        <dt className="text-muted">Runs and hops</dt>
-        <dd className="tabular">
-          {bundle.runs.length} run{bundle.runs.length === 1 ? '' : 's'}, {agentsUsed.size} agent{agentsUsed.size === 1 ? '' : 's'}, {handoffCount} packet{handoffCount === 1 ? '' : 's'}
-        </dd>
-        <dt className="text-muted">Holder</dt>
-        <dd>{holder}</dd>
-        <dt className="text-muted">Tests</dt>
-        <dd className="tabular">{v ? `${v.passed} passed${v.failed ? `, ${v.failed} failed` : ''}${v.tamper === null ? ', unchanged' : ''}, by the daemon` : 'not run yet'}</dd>
-        <dt className="text-muted">Test command</dt>
-        <dd className="font-mono truncate max-w-[28ch]">{t.testCommand}</dd>
-      </dl>
+      <div className="flex flex-col items-start gap-3 min-w-[220px] max-w-[360px]">
+        <span className="flex flex-col items-start gap-1" data-testid="car-state">
+          <span className="inline-flex items-center gap-2 text-[19px] leading-6 font-bold">
+            <Swatch tone={state.tone} />
+            {state.label}
+          </span>
+          <span className="text-[14px] text-ink-2">{state.detail}</span>
+          {autopilot.text && !asOf ? (
+            <span className="text-[12px] text-ink-2" data-testid="autopilot-step">
+              Autopilot: {autopilot.text}
+            </span>
+          ) : null}
+        </span>
+        {liveNow && !asOf ? (
+          <Button tone="danger" className="h-8" title={`Stop ${liveNow}; the daemon builds a packet from the log`} onClick={() => stopRun(t.id, liveNow)} data-testid="stop-run">
+            Stop the run <Kbd>⌘.</Kbd>
+          </Button>
+        ) : null}
+        <dl className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1 text-[12px]" data-testid="task-summary">
+          <dt className="text-ink-2">Task total</dt>
+          <dd className="font-bold" data-testid="task-cost">
+            <CostMeter cost={bundle.cost} />
+          </dd>
+          <dt className="text-ink-2">Tests</dt>
+          <dd className="tabular">{v ? `${v.passed} passed${v.failed ? `, ${v.failed} failed` : ''}${v.tamper === null ? ', unchanged' : ''}, by the daemon` : 'not run yet'}</dd>
+        </dl>
+      </div>
     </header>
   );
 
   const rail = (
-    <div className="h-full flex flex-col min-h-0" data-testid="rail-column">
-      <div className="px-4 pt-3 pb-2 border-b border-line">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[15px] font-semibold">Timeline</h2>
-          <span className="flex items-center gap-2 text-[12px] text-muted">
-            <span className="tabular">{events.length} events</span>
-            <Button className="h-6 px-2 text-[12px]" onClick={() => setShowAll((s) => !s)} aria-pressed={showAll} data-testid="show-all">
-              {showAll ? 'Show what matters' : 'Show all'}
-            </Button>
-          </span>
-        </div>
-        {autopilot.text ? (
-          <p className="mt-2 text-[12px] text-muted" data-testid="autopilot-step">
-            {autopilot.text}
-          </p>
-        ) : null}
-        <div className="mt-2">
-          <PermissionBanner permissions={pendingPermissions.filter((p) => p.run === (bundle.runs.find((r) => !r.endedAt)?.run ?? p.run))} />
-        </div>
+    <section id="race-control" aria-labelledby="race-control-title" className="min-w-0 flex flex-col" data-testid="rail-column">
+      <div className="flex items-baseline justify-between gap-2 pb-2">
+        <h2 id="race-control-title" className="text-[19px] leading-6 font-bold stretch-112 whitespace-nowrap">
+          Race control
+        </h2>
+        <span className="flex items-center gap-2 text-[12px] text-ink-2">
+          <Button className="h-7 px-2 text-[12px]" onClick={() => setShowAll((s) => !s)} aria-pressed={showAll} data-testid="show-all">
+            {showAll ? 'Show what matters' : 'Show all'}
+          </Button>
+          <Button className="h-7 px-2 text-[12px]" onClick={() => setRailOpen(false)} aria-controls="race-control">
+            Close
+          </Button>
+        </span>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
-        <Rail events={events} runs={bundle.runs} showAll={showAll} selected={selected} onSelect={(s) => setParam('ev', String(s))} onOpenPacket={(name) => {
-            setParam('packet', name);
-            setTab('packet');
-          }} />
-      </div>
-      <WhoContinues bundle={bundle} onChoose={() => setTab('packet')} />
-      <ApprovalGate bundle={bundle} onDone={reload} />
-    </div>
-  );
-
-  const work = (
-    <div className="h-full flex flex-col min-h-0">
-      <div role="tablist" aria-label="Work area" className="flex gap-1 px-3 pt-3 border-b border-line overflow-x-auto">
-        {TABS.map((k) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            aria-selected={tab === k}
-            data-testid={`tab-${k}`}
-            onClick={() => setTab(k)}
-            className={cx('h-8 px-3 -mb-px border-b-2 text-[13px] whitespace-nowrap', tab === k ? 'border-accent text-ink font-medium' : 'border-transparent text-muted hover:text-ink')}
-          >
-            {TAB_NAMES[k]}
+      {asOf ? (
+        <p className="mb-2 flex flex-wrap items-center gap-2 rounded-[3px] bg-panel px-3 py-2 text-[12px] text-ink-2" data-testid="rewound">
+          As it stood at <span className="tabular font-bold text-ink">{momentLabel}</span> on the race clock.
+          <button type="button" className="underline underline-offset-2 text-ink" onClick={() => setMoment(null)}>
+            Back to the latest
           </button>
-        ))}
+        </p>
+      ) : null}
+      <div className="relative min-h-0 max-h-[70vh] lg:max-h-[calc(100vh-150px)] overflow-y-auto border-t border-rule-strong">
+        <Rail events={visible} runs={bundle.runs} showAll={showAll} selected={selected} onSelect={(s) => setParam('ev', String(s))} onOpenPacket={openPacket} rewound={!!asOf} />
       </div>
-      {/* focusable, so a keyboard can scroll it */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4" role="tabpanel" aria-label={TAB_NAMES[tab]} tabIndex={0}>
-        {tab === 'diff' ? (
-          <DiffView
-            taskId={t.id}
-            version={diffVersion}
-            files={diffFiles}
-            file={fileParam}
-            onFile={(path) => setParam('file', path)}
-            events={events}
-            runs={bundle.runs}
-            viewed={viewed}
-            onToggleViewed={toggleViewed}
-          />
-        ) : null}
-        {tab === 'files' ? <FilesTab taskId={t.id} /> : null}
-        {tab === 'terminal' ? <Terminal taskId={t.id} liveRun={bundle.runs.find((r) => !r.endedAt)?.run ?? null} /> : null}
-        {tab === 'plan' ? <PlanCard plan={bundle.plan} handoff={bundle.handoff} /> : null}
-        {tab === 'packet' ? (
-          <div className="flex flex-col gap-3">
-            {packetNames.length > 1 ? (
-              <div className="flex items-center gap-1" role="group" aria-label="Packets">
-                {packetNames.map((n) => (
-                  <Button key={n} className="h-7" aria-pressed={(packetName ?? packetNames.at(-1)) === n} onClick={() => setParam('packet', n)}>
-                    {n}
-                  </Button>
-                ))}
-                <span className="text-[12px] text-faint ml-2">every run that ended left one</span>
-              </div>
-            ) : null}
-            <HandoffCard handoff={packetName ? packet : bundle.handoff} />
-            {t.status !== 'done' ? <HandTo taskId={t.id} packet={packetName ? packet : bundle.handoff} live={bundle.runs.some((r) => !r.endedAt)} /> : null}
-            {packetNames.length ? <PacketSources taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} onSelect={(seq) => setParam('ev', String(seq))} /> : null}
-            {packetNames.length ? <QuizPanel taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} /> : null}
-          </div>
-        ) : null}
-        {tab === 'review' ? <ReviewCard review={bundle.review} decisions={decisions} /> : null}
-        {tab === 'verification' ? <VerificationTab taskId={t.id} acceptance={t.acceptance} locked={locked} live={bundle.runs.some((r) => !r.endedAt)} onChanged={reload} /> : null}
-      </div>
-    </div>
+    </section>
   );
 
   const memory = (
     <MemoryPanel
       id={t.id}
-      asOf={params.get('asOf')}
-      setAsOf={(v) => setParam('asOf', v)}
+      asOf={asOf}
       version={graphVersion}
+      clock={memoryClock}
       onOpenFile={(path) => {
         setParams(
           (p) => {
@@ -363,42 +426,222 @@ export function TaskView({ memoryOpen }: { memoryOpen: boolean }) {
     />
   );
 
-  if (!wide) {
-    return (
-      <main className="flex-1 min-h-0 overflow-y-auto flex flex-col" data-testid="task-view">
-        {header}
-        <div className="min-h-[60vh]">{rail}</div>
-        <div className="border-t border-line">{work}</div>
-        {memoryOpen ? memory : null}
-      </main>
-    );
-  }
-  return (
-    <main className="flex-1 min-h-0 flex flex-col" data-testid="task-view">
-      {header}
-      <Group orientation="horizontal" className="flex-1 min-h-0">
-        <Panel defaultSize="320px" minSize="260px" maxSize="520px">
-          {rail}
-        </Panel>
-        <Separator className="w-px" />
-        <Panel minSize="360px">{work}</Panel>
-        {memoryOpen ? (
-          <>
-            <Separator className="w-px" />
-            <Panel defaultSize="360px" minSize="280px" maxSize="560px">
-              {memory}
-            </Panel>
-          </>
+  const work = (
+    <section aria-label="Work" className="min-w-0 flex flex-col gap-3">
+      <div className="flex items-end gap-4 border-b border-rule">
+        {!railOpen ? (
+          <button
+            type="button"
+            data-testid="race-control-toggle"
+            aria-expanded={false}
+            aria-controls="race-control"
+            onClick={() => setRailOpen(true)}
+            className="shrink-0 mb-2 h-7 px-2 rounded-[3px] border border-ink-3 text-[12px] text-ink hover:border-ink"
+          >
+            Race control <span className="tabular text-ink-2">{asOf ? `${visible.length} of ${events.length}` : events.length} events</span>
+          </button>
         ) : null}
-      </Group>
+        <div role="tablist" aria-label="Work area" className="flex gap-5 overflow-x-auto min-w-0">
+          {TABS.map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={tab === k}
+              data-testid={`tab-${k}`}
+              onClick={() => setTab(k)}
+              className={cx('pb-2 -mb-px border-b-2 text-[14px] whitespace-nowrap', tab === k ? 'border-ink text-ink font-bold' : 'border-transparent text-ink-2 hover:text-ink')}
+            >
+              {TAB_NAMES[k]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <PermissionBanner permissions={pendingPermissions.filter((p) => p.run === (bundle.runs.find((r) => !r.endedAt)?.run ?? p.run))} />
+      {/* focusable, so a keyboard can reach and scroll it */}
+      <div className="min-w-0" role="tabpanel" aria-label={TAB_NAMES[tab]} tabIndex={0}>
+        {tab === 'diff' ? (
+          <DiffView
+            taskId={t.id}
+            version={diffVersion}
+            files={diffFiles}
+            file={fileParam}
+            onFile={(path) => setParam('file', path)}
+            events={events}
+            runs={bundle.runs}
+            viewed={viewed}
+            onToggleViewed={toggleViewed}
+            writtenBy={writtenBy}
+            asOfLabel={momentLabel}
+          />
+        ) : null}
+        {tab === 'memory' ? memory : null}
+        {tab === 'files' ? <FilesTab taskId={t.id} /> : null}
+        {tab === 'terminal' ? <Terminal taskId={t.id} liveRun={liveNow} onStop={liveNow ? () => stopRun(t.id, liveNow) : undefined} /> : null}
+        {tab === 'plan' ? <PlanCard plan={bundle.plan} handoff={bundle.handoff} status={t.status} /> : null}
+        {tab === 'packet' ? (
+          <div className="flex flex-col gap-4">
+            {packetNames.length > 1 ? (
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Packets">
+                <span className="text-[14px] text-ink-2 mr-1">Pit stops</span>
+                {packetNames.map((n) => (
+                  <Button key={n} className="h-7" aria-pressed={(packetName ?? packetNames.at(-1)) === n} onClick={() => setParam('packet', n)}>
+                    {n}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <HandoffCard handoff={packetName ? packet : bundle.handoff} status={t.status} />
+            {t.status !== 'done' ? <HandTo taskId={t.id} packet={packetName ? packet : bundle.handoff} live={bundle.runs.some((r) => !r.endedAt)} atGate={t.status === 'awaiting_approval'} /> : null}
+            {packetNames.length ? <PacketSources taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} onSelect={(seq) => setParam('ev', String(seq))} /> : null}
+            {packetNames.length ? <QuizPanel taskId={t.id} name={packetName ?? (packetNames.at(-1) as string)} events={events} /> : null}
+          </div>
+        ) : null}
+        {tab === 'review' ? <ReviewCard review={bundle.review} decisions={decisions} status={t.status} /> : null}
+        {tab === 'verification' ? <VerificationTab taskId={t.id} acceptance={t.acceptance} locked={locked} live={bundle.runs.some((r) => !r.endedAt)} onChanged={reload} status={t.status} /> : null}
+      </div>
+    </section>
+  );
+
+  // the pit board shows a packet's ask while someone still has to act on it: on track or in the pits, not at the gate or after the flag
+  const askLive = !!stopName && !['done', 'approved', 'awaiting_approval', 'abandoned'].includes(then.task.status);
+  const pitBoard = askLive ? (
+    <section className="flex flex-col gap-2" aria-labelledby="pit-board-title">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 id="pit-board-title" className={panelTitle}>
+          Pit board
+        </h2>
+        <button type="button" className="text-[12px] text-ink-2 underline-offset-2 hover:text-ink hover:underline" onClick={() => openPacket(stopName as string)}>
+          {stopName}
+          {shownMeta.tokens ? `, ${shownMeta.tokens} tokens` : ''}
+          {asOf ? ', as it stood' : ''}
+        </button>
+      </div>
+      <PitBoard lines={boardLines(t.id, shownPacket, shownMeta)} label={`Pit board, packet ${stopName}'s ask of next`} onOpen={() => openPacket(stopName as string)} />
+      {shownPacket && (shownPacket.from.endedBy === 'killed' || shownPacket.from.endedBy === 'failed') ? (
+        <p className="text-[12px] text-ink-2">
+          {agentOf(shownPacket.from.adapter, shownPacket.from.host, shownPacket.from.model).code} was {shownPacket.from.endedBy === 'killed' ? 'stopped' : 'out with a failure'}, so the daemon built this packet from the event log and the worktree.
+        </p>
+      ) : null}
+    </section>
+  ) : null;
+  const stewards = <Queue stewardsOf={t.id} />;
+  const change = <WhoContinues bundle={bundle} onChoose={() => setTab('packet')} />;
+  const gate = <ApprovalGate bundle={bundle} onDone={reload} />;
+  // what needs the person comes first: the gate when the car waits there, the driver change after a red flag; rewound,
+  // the order follows the car as it stood, so the moment's own panel leads
+  const stoppedNow = !!redFlag;
+  const order =
+    then.task.status === 'awaiting_approval' || then.task.status === 'done'
+      ? [gate, stewards, pitBoard]
+      : stoppedNow
+        ? [change, pitBoard, stewards, gate]
+        : [pitBoard, stewards, gate];
+
+  const side = (
+    <aside aria-label="What needs you" className="min-w-0 flex flex-col gap-6">
+      {asOf ? <p className="text-[12px] text-ink-2">The stewards and the flag act on the car as it is now, not as it stood at {momentLabel}.</p> : null}
+      {order.map((panel, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: the order is fixed per state, so the index names the slot
+        <div key={i} className="min-w-0 empty:hidden">
+          {panel}
+        </div>
+      ))}
+    </aside>
+  );
+
+  return (
+    <main className="relative flex-1 min-h-0 overflow-y-auto" data-testid="task-view">
+      {redFlag ? (
+        <div role="status" className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 sm:px-6 py-3 bg-[var(--red-band)] text-[var(--red-band-ink)]" data-testid="red-flag">
+          <span aria-hidden="true" className="w-6 h-4 rounded-[2px] bg-[var(--sw-red)] shadow-[inset_0_0_0_2px_var(--red-band-ink)]" />
+          <span className="text-[19px] leading-6 font-bold">
+            Red flag{redAt ? ` at ${clockFor(Date.parse(redAt.ts))}` : ''}. {agentOf(redFlag.adapter, redFlag.host, redFlag.model).code} was {redFlag.endedBy === 'killed' ? 'stopped mid-stint' : 'out with a failure'}.
+          </span>
+          <span className="text-[14px]">
+            Car {carNumber(t.id)} keeps its place. {stopName ? `Packet ${stopName} was built from the log, so the next driver starts from it.` : 'The daemon builds a packet from the log.'}
+          </span>
+        </div>
+      ) : null}
+      {header}
+      <div className="px-4 sm:px-6">
+        <StintChart events={events} runs={bundle.runs} review={bundle.review} done={t.status === 'done'} asOf={asOf} atSeq={atSeq} onAsOf={setMoment} onOpenPacket={openPacket} />
+      </div>
+      <div
+        className={cx(
+          'grid grid-cols-1 gap-y-8 px-4 sm:px-6 pt-6 pb-8',
+          railOpen ? 'lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_340px]' : 'lg:grid-cols-[minmax(0,1fr)_340px]',
+        )}
+      >
+        {railOpen ? <div className="lg:pr-6 lg:border-r border-rule min-w-0">{rail}</div> : null}
+        <div className={cx('min-w-0', railOpen ? 'lg:pl-6 xl:pr-6' : 'lg:pr-6')}>{work}</div>
+        {/* on a phone the column stacks; when the car needs a call it goes above the work, so the flag is not thousands of pixels down */}
+        <div className={cx('min-w-0', (then.task.status === 'awaiting_approval' || redFlag) && 'max-lg:order-first', railOpen ? 'lg:col-span-2 xl:col-span-1 xl:pl-6 xl:border-l border-rule' : 'lg:pl-6 lg:border-l border-rule')}>{side}</div>
+      </div>
     </main>
   );
+}
+
+/**
+ * The car as it stood at a moment: its status, its runs, its last verification, review and merge, from the events seen by then.
+ * The bundle is the car now; null is now.
+ */
+export function bundleAt(b: TaskBundle, seen: StintEvent[] | null): TaskBundle {
+  if (!seen) return b;
+  const last = (type: string) => [...seen].reverse().find((e) => e.type === type);
+  const status = last('task.status')?.payload.to;
+  const runs = b.runs
+    .filter((r) => seen.some((e) => e.type === 'run.started' && e.run === r.run))
+    .map((r) => {
+      const fin = seen.find((e) => e.type === 'run.finished' && e.run === r.run);
+      return fin ? { ...r, endedAt: fin.ts, endedBy: typeof fin.payload.endedBy === 'string' ? fin.payload.endedBy : r.endedBy } : { ...r, endedAt: null, endedBy: null };
+    });
+  const ver = last('verification.ran');
+  const verification = ver && b.verification ? { ...b.verification, status: ver.payload.status === 'red' ? ('red' as const) : ('green' as const), passed: Number(ver.payload.passed) || 0, failed: Number(ver.payload.failed) || 0 } : null;
+  return {
+    ...b,
+    task: { ...b.task, status: typeof status === 'string' ? (status as TaskBundle['task']['status']) : 'planned' },
+    runs,
+    verification,
+    review: last('review.recorded') ? b.review : null,
+    merge: last('merge.completed') ? b.merge : null,
+  };
+}
+
+/** The car's state in race words, with a plain line under it that says what is happening. */
+function carState(b: TaskBundle, packetName: string | null): { tone: ChipTone; label: string; detail: string } {
+  const t = b.task;
+  const live = b.runs.find((r) => !r.endedAt);
+  const v = b.verification;
+  const lastBuild = b.runs.filter((r) => r.role === 'implementer').at(-1);
+  if (t.status === 'done') return { tone: 'merged', label: 'Took the flag', detail: `Approved by ${!b.merge?.by || b.merge.by === 'human' ? 'you' : b.merge.by} and merged.` };
+  if (t.status === 'awaiting_approval') return { tone: 'warn', label: 'Your call', detail: v ? 'Waiting for you at the flag.' : 'Waiting at the flag; not verified yet.' };
+  if (t.status === 'rejected') return { tone: 'bad', label: 'Rejected', detail: 'Rejected at the gate. Hand it on with the reason, or leave it parked.' };
+  if (live) {
+    const a = agentOf(live.adapter, live.host, live.model);
+    return { tone: 'good', label: `${a.code} on track`, detail: `${a.name} ${live.run} ${ROLE_NAMES[live.role ?? ''] ?? 'runs'} in its worktree.` };
+  }
+  if (lastBuild && (lastBuild.endedBy === 'killed' || lastBuild.endedBy === 'failed')) {
+    const a = agentOf(lastBuild.adapter, lastBuild.host, lastBuild.model);
+    return { tone: 'bad', label: 'Stopped', detail: `${a.name} ${lastBuild.run} ${lastBuild.endedBy === 'killed' ? 'was stopped' : 'failed'}${packetName ? `; packet ${packetName} was built anyway` : ''}.` };
+  }
+  if (t.status === 'verifying') return { tone: 'good', label: 'Verifying', detail: 'The daemon runs the tests in the worktree.' };
+  if (t.status === 'reviewing') return { tone: 'good', label: 'Reviewing', detail: 'A review is offered only after a green verify.' };
+  if (t.status === 'in_review') return { tone: 'warn', label: 'In review', detail: 'A pull request waits; the task finishes when it merges.' };
+  if (t.status === 'planned') return { tone: 'neutral', label: 'On the grid', detail: b.plan ? 'Planned, waiting for a driver.' : 'Waiting for a plan and a driver.' };
+  return { tone: 'neutral', label: 'In the pits', detail: 'Waiting for the next driver.' };
+}
+
+/** A packet's size as the daemon counted it when it was built, from its handoff.created event. */
+function packetMeta(events: StintEvent[], name: string | null): { tokens: number | null; bytes: number | null } {
+  const e = name ? events.find((x) => x.type === 'handoff.created' && x.payload.name === name) : undefined;
+  return { tokens: e ? Number(e.payload.tokens) || null : null, bytes: e ? Number(e.payload.bytes) || null : null };
 }
 
 export function Placeholder({ title, children }: { title: string; children: string }) {
   return (
     <main className="flex-1 p-6">
-      <h1 className="text-[20px] font-semibold mb-2">{title}</h1>
+      <h1 className="text-[19px] font-bold stretch-112 mb-2">{title}</h1>
       <EmptyState>{children}</EmptyState>
     </main>
   );

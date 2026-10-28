@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DaemonError, type Verification, api } from '../api';
+import { DaemonError, type Verification, api, daemonMessage } from '../api';
 import { localTime } from '../format';
 import { StackTrace } from './StackTrace';
 import { Button, EmptyState, StatusChip, cx } from './ui';
@@ -54,7 +54,7 @@ export function mapCriteria(criteria: string[], tests: TestLine[]): Array<{ text
   });
 }
 
-export function VerificationTab({ taskId, acceptance, locked = [], live, onChanged }: { taskId: string; acceptance: string[]; locked?: string[]; live: boolean; onChanged: () => void }) {
+export function VerificationTab({ taskId, acceptance, locked = [], live, onChanged, status = 'planned' }: { taskId: string; acceptance: string[]; locked?: string[]; live: boolean; onChanged: () => void; status?: string }) {
   const [runs, setRuns] = useState<Verification[] | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [output, setOutput] = useState<string | null>(null);
@@ -116,12 +116,17 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
         load();
         onChanged();
       })
-      .catch((e: unknown) => setError(e instanceof DaemonError ? `${e.error.message}${e.error.hint ? `: ${String(e.error.hint)}` : ''}` : String(e)))
+      .catch((e: unknown) => setError(daemonMessage(e)))
       .finally(() => setBusy(false));
   };
 
-  if (runs === null) return <p className="text-faint">Reading the verifications.</p>;
-  if (!v) return <EmptyState testId="empty-verification">Verification runs here when the run ends.</EmptyState>;
+  if (runs === null) return <p className="text-ink-3">Reading the verifications.</p>;
+  if (!v)
+    return (
+      <EmptyState testId="empty-verification">
+        {['done', 'approved', 'abandoned'].includes(status) ? 'The daemon recorded no verification on this car.' : 'Verification runs here when the run ends.'}
+      </EmptyState>
+    );
 
   return (
     <div className="flex flex-col gap-4 max-w-[80ch]" data-testid="verification-tab">
@@ -135,50 +140,50 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
             aria-selected={r.run === v.run}
             onClick={() => setPicked(r.run)}
             data-testid={`verification-run-${r.run}`}
-            className={cx('inline-flex items-center gap-2 h-8 px-3 rounded-md border text-[12.5px]', r.run === v.run ? 'border-accent text-ink' : 'border-line text-muted hover:text-ink')}
+            className={cx('inline-flex items-center gap-2 h-8 px-3 rounded-md border text-[12px]', r.run === v.run ? 'border-ink text-ink' : 'border-rule text-ink-2 hover:text-ink')}
           >
             <span className="font-mono">{r.run}</span>
-            <span className={cx('tabular', r.status === 'green' ? 'text-good' : 'text-bad')}>
+            <span className={cx('tabular', r.status === 'green' ? 'text-green' : 'text-red')}>
               {r.passed}/{r.passed + r.failed}
             </span>
           </button>
         ))}
         </div>
         <span className="ml-auto flex items-center gap-2">
-          {live ? <span className="text-[12px] text-faint">A run is live; the daemon verifies when it ends.</span> : null}
+          {live ? <span className="text-[12px] text-ink-3">A run is live; the daemon verifies when it ends.</span> : null}
           <Button onClick={rerun} disabled={busy || live} data-testid="rerun">
             {busy ? 'Running the tests' : 'Re-run the tests'}
           </Button>
         </span>
       </div>
       {error ? (
-        <p className="text-[12.5px] text-bad" role="alert">
+        <p className="text-[12px] text-red" role="alert">
           {error}
         </p>
       ) : null}
 
-      <article data-testid="verification-card" className={cx('rounded-lg border p-4', v.status === 'green' ? 'border-good/50' : 'border-bad/50')}>
+      <article data-testid="verification-card" className={cx('rounded-lg border p-4', v.status === 'green' ? 'border-green/50' : 'border-red/50')}>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[15px] font-semibold tabular" data-testid="verification-summary">
+          <p className="text-[14px] font-semibold tabular" data-testid="verification-summary">
             {v.passed} passed{v.tamper === null ? ', tests unchanged' : ''}
             {v.failed ? `, ${v.failed} failed` : ''}, run by the daemon
           </p>
           <StatusChip status={v.status} />
         </div>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 mt-3 text-[12.5px]">
-          <dt className="text-muted">Command</dt>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 mt-3 text-[12px]">
+          <dt className="text-ink-2">Command</dt>
           <dd className="font-mono">{v.command}</dd>
-          <dt className="text-muted">Exit code</dt>
+          <dt className="text-ink-2">Exit code</dt>
           <dd className="tabular">{v.exitCode}</dd>
-          <dt className="text-muted">Duration</dt>
+          <dt className="text-ink-2">Duration</dt>
           <dd className="tabular">{(v.durationMs / 1000).toFixed(1)} s</dd>
-          <dt className="text-muted">Run</dt>
+          <dt className="text-ink-2">Run</dt>
           <dd>
             {v.run}, at {localTime(v.at)}
           </dd>
           {v.commit ? (
             <>
-              <dt className="text-muted">Commit</dt>
+              <dt className="text-ink-2">Commit</dt>
               <dd className="font-mono" title="Approve merges only this commit">
                 {v.commit.slice(0, 12)}
               </dd>
@@ -186,8 +191,8 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
           ) : null}
           {tamperText(v) ? (
             <>
-              <dt className="text-muted">Locked tests</dt>
-              <dd data-testid="tamper-line" className={cx(v.tamper && !v.tamper.allowedBy && 'text-bad')}>
+              <dt className="text-ink-2">Locked tests</dt>
+              <dd data-testid="tamper-line" className={cx(v.tamper && !v.tamper.allowedBy && 'text-red')}>
                 {tamperText(v)}
                 {v.tamper === null && locked.length ? `: ${locked.join(', ')}` : ''}
               </dd>
@@ -195,15 +200,15 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
           ) : null}
           {scenariosText(v) ? (
             <>
-              <dt className="text-muted">Scenarios</dt>
-              <dd data-testid="scenarios-line" className={cx((v.scenarios?.failed ?? 0) > 0 && 'text-bad')}>
+              <dt className="text-ink-2">Scenarios</dt>
+              <dd data-testid="scenarios-line" className={cx((v.scenarios?.failed ?? 0) > 0 && 'text-red')}>
                 {scenariosText(v)}
               </dd>
             </>
           ) : null}
           {coverageText(v) ? (
             <>
-              <dt className="text-muted">Coverage</dt>
+              <dt className="text-ink-2">Coverage</dt>
               <dd data-testid="coverage-line" className="tabular">
                 {coverageText(v)}
               </dd>
@@ -212,14 +217,14 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
         </dl>
         {v.checks?.length ? (
           <div className="mt-3">
-            <p className="text-[12px] text-muted mb-1">Checks</p>
+            <p className="text-[12px] text-ink-2 mb-1">Checks</p>
             <ul className="flex flex-col gap-1" data-testid="verify-checks">
               {v.checks.map((check) => (
                 <li key={check.name} data-testid={`check-${check.name}`} className="flex items-center gap-2 text-[12px]">
                   <StatusChip status={check.status} />
                   <span className="font-mono">{check.name}</span>
-                  <span className="text-faint">{check.kind}</span>
-                  <span className="tabular text-muted">
+                  <span className="text-ink-3">{check.kind}</span>
+                  <span className="tabular text-ink-2">
                     exit {check.exitCode}
                     {check.passed !== undefined ? `, ${check.passed} passed, ${check.failed ?? 0} failed` : ''}, {(check.durationMs / 1000).toFixed(1)} s
                   </span>
@@ -230,10 +235,10 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
         ) : null}
         {v.scenarios?.names.length ? (
           <div className="mt-3">
-            <p className="text-[12px] text-muted mb-1">Scenario names</p>
+            <p className="text-[12px] text-ink-2 mb-1">Scenario names</p>
             <ul className="flex flex-col gap-1" data-testid="scenario-names">
               {v.scenarios.names.map((name) => (
-                <li key={name} className="font-mono text-[12px] text-muted">
+                <li key={name} className="font-mono text-[12px] text-ink-2">
                   {name}
                 </li>
               ))}
@@ -242,10 +247,10 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
         ) : null}
         {failing.length ? (
           <div className="mt-3">
-            <p className="text-[12px] text-muted mb-1">Failing</p>
+            <p className="text-[12px] text-ink-2 mb-1">Failing</p>
             <ul className="flex flex-col gap-1" data-testid="failing-tests">
               {failing.map((name) => (
-                <li key={name} className="font-mono text-[12px] text-bad">
+                <li key={name} className="font-mono text-[12px] text-red">
                   {name}
                 </li>
               ))}
@@ -257,13 +262,13 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
       {output && v.failed > 0 ? <StackTrace taskId={taskId} output={output} changedFiles={changedFiles} /> : null}
 
       <section aria-label="Acceptance criteria" data-testid="acceptance">
-        <h3 className="text-[13px] font-semibold mb-1">Acceptance criteria</h3>
-        <p className="text-[12px] text-faint mb-2">Each criterion is matched to tests by the words in their names; a criterion with no match is for the review to check.</p>
+        <h3 className="text-[14px] font-semibold mb-1">Acceptance criteria</h3>
+        <p className="text-[12px] text-ink-3 mb-2">Each criterion is matched to tests by the words in their names; a criterion with no match is for the review to check.</p>
         <ul className="flex flex-col gap-2">
           {criteria.map((c) => {
             const bad = c.tests.some((t) => !t.ok);
             return (
-              <li key={c.text} className="rounded-md border border-line bg-raised px-3 py-2 text-[12.5px]">
+              <li key={c.text} className="rounded-md border border-rule bg-panel px-3 py-2 text-[12px]">
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-ink">{c.text}</span>
                   {c.tests.length === 0 ? (
@@ -275,7 +280,7 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
                 {c.tests.length ? (
                   <ul className="mt-1">
                     {c.tests.slice(0, 4).map((t) => (
-                      <li key={t.name} className={cx('font-mono text-[11.5px]', t.ok ? 'text-muted' : 'text-bad')}>
+                      <li key={t.name} className={cx('font-mono text-[12px]', t.ok ? 'text-ink-2' : 'text-red')}>
                         {t.ok ? 'pass' : 'fail'} {t.name}
                       </li>
                     ))}
@@ -289,16 +294,16 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
 
       <section aria-label="Test output">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-[13px] font-semibold">Output</h3>
+          <h3 className="text-[14px] font-semibold">Output</h3>
           {output ? (
             <Button className="h-7" onClick={() => setShowOutput((s) => !s)} aria-expanded={showOutput} data-testid="toggle-output">
               {showOutput ? 'Hide the output' : 'Show the output'}
             </Button>
           ) : null}
         </div>
-        {outputNote ? <p className="text-[12px] text-faint mt-1">{outputNote}</p> : null}
+        {outputNote ? <p className="text-[12px] text-ink-3 mt-1">{outputNote}</p> : null}
         {output && showOutput ? (
-          <pre className="mt-2 max-h-[420px] overflow-auto rounded-md border border-line bg-term p-3 font-mono text-[11.5px] leading-[16px] text-term-ink whitespace-pre-wrap" data-testid="verification-output">
+          <pre className="mt-2 max-h-[420px] overflow-auto rounded-md border border-rule bg-term p-3 font-mono text-[12px] leading-[16px] text-term-ink whitespace-pre-wrap" data-testid="verification-output">
             {output.replace(/\x1b\[[0-9;]*m/g, '')}
           </pre>
         ) : null}

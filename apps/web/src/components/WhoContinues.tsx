@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { agentOf } from '../agents';
 import { DaemonError, type TaskBundle, api } from '../api';
 import { useHealth } from '../hooks';
-import { Button, Kbd } from './ui';
+import { Button, Kbd, VendorMark } from './ui';
 
 /**
  * After a run is killed or fails, the timeline says who should pick the task up: a different agent from the one
@@ -26,24 +26,25 @@ export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoos
       .catch((e: unknown) => setState({ busy: false, said: e instanceof DaemonError ? e.error.message : String(e) }));
   };
   return (
-    <section className="mx-3 mb-2 rounded-lg border border-line bg-raised p-3 text-[12px]" data-testid="who-continues" aria-label="Who continues">
-      <h3 className="text-[13px] font-semibold">Who continues</h3>
-      <p className="mt-1 text-muted">
-        {next
-          ? `Recommended: ${agentOf(next.id).name}. A different agent from ${agentOf(leaving).name}, which ${last.endedBy === 'killed' ? 'was killed' : 'failed'}; it reads only the packet.`
-          : `No other agent is ready to take over from ${agentOf(leaving).name}. Turn one on, or hand it back from the packet tab.`}
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {next ? (
-          <Button tone="primary" className="h-7" onClick={hand} disabled={state.busy} data-testid="who-continues-hand">
-            Hand to {agentOf(next.id).name}
-          </Button>
-        ) : null}
-        <Button className="h-7" onClick={onChoose}>
-          Choose another <Kbd>h</Kbd>
-        </Button>
+    <section className="flex flex-col gap-3 text-[14px] leading-5" data-testid="who-continues" aria-label="Change driver">
+      <h2 className="text-[14px] leading-5 font-bold">Change driver</h2>
+      <div className="flex items-center gap-3">
+        {next ? <VendorMark agent={agentOf(next.id)} showName={false} size={22} /> : null}
+        <p className="text-ink">
+          {next
+            ? `Recommended: ${agentOf(next.id).name}. A different agent from ${agentOf(leaving).name}, which ${last.endedBy === 'killed' ? 'was killed' : 'failed'}; it reads only the packet.`
+            : `No other agent is ready to take over from ${agentOf(leaving).name}. Turn one on, or hand it back from the packet tab.`}
+        </p>
       </div>
-      {state.said ? <p className="mt-2 text-muted">{state.said}</p> : null}
+      {next ? (
+        <Button tone="primary" className="h-11 w-full justify-between px-4 text-[14px]" onClick={hand} disabled={state.busy} data-testid="who-continues-hand">
+          Hand to {agentOf(next.id).name}
+        </Button>
+      ) : null}
+      <button type="button" className="self-start text-ink-2 underline-offset-2 hover:text-ink hover:underline" onClick={onChoose}>
+        Pick another driver <Kbd>h</Kbd>
+      </button>
+      {state.said ? <p className="text-ink-2">{state.said}</p> : null}
     </section>
   );
 }

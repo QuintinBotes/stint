@@ -3,7 +3,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal as XTerm } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { useEffect, useRef, useState } from 'react';
-import { api, ptyUrl } from '../api';
+import { ptyUrl } from '../api';
 import { Button, EmptyState, Kbd } from './ui';
 
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -14,32 +14,21 @@ type State = { kind: 'connecting' } | { kind: 'open'; cwd: string } | { kind: 'c
 /** This tab, to the daemon: opening the terminal again replaces its shell rather than adding one. */
 const CLIENT = crypto.randomUUID();
 
-export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string | null }) {
+/** `onStop` stops the live run; the task view owns it, so Cmd+. works on the whole view, not only in this tab. */
+export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun: string | null; onStop?: () => void }) {
   const host = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<State>({ kind: 'connecting' });
   const [copied, setCopied] = useState(false);
 
-  // ⌘. kills the live run, even while the terminal has the keyboard (capture phase, before xterm sees it)
-  useEffect(() => {
-    if (!liveRun) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== '.' || !(e.metaKey || e.ctrlKey)) return;
-      e.preventDefault();
-      void api.stopRun(taskId, liveRun).catch(() => undefined);
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [taskId, liveRun]);
-
   useEffect(() => {
     if (!host.current) return;
     const term = new XTerm({
-      fontFamily: '"Geist Mono", ui-monospace, monospace',
+      fontFamily: '"Martian Mono Variable", ui-monospace, monospace',
       fontSize: 12.5,
       cursorBlink: true,
       // the WebGL renderer draws to a canvas; this keeps the rows readable by screen readers
       screenReaderMode: true,
-      theme: { background: token('--terminal-ground'), foreground: token('--terminal-ink'), cursor: token('--terminal-ink') },
+      theme: { background: token('--term'), foreground: token('--term-ink'), cursor: token('--term-ink') },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -100,11 +89,11 @@ export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string 
   }, [taskId]);
 
   return (
-    <div className="flex flex-col gap-2 h-full min-h-[360px]" data-testid="terminal">
-      <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
-        <span className="text-[13px] font-semibold text-ink">Shell in the run's worktree</span>
-        <span className="font-mono truncate rounded-md border border-line bg-sunken px-2 py-0.5 max-w-[48ch]" data-testid="terminal-cwd">
-          {state.kind === 'open' ? state.cwd : state.kind === 'connecting' ? 'Opening a shell in the worktree.' : state.reason}
+    <div className="flex flex-col gap-2 h-[min(70vh,640px)] min-h-[360px]" data-testid="terminal">
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-2">
+        <span className="text-[14px] font-semibold text-ink">Shell in the run's worktree</span>
+        <span className="font-mono truncate rounded-[3px] border border-rule bg-panel px-2 py-1 max-w-[48ch]" data-testid="terminal-cwd">
+          {state.kind === 'open' ? state.cwd : state.kind === 'connecting' ? 'Opening a shell in the worktree.' : state.reason.startsWith('No worktree') ? 'No worktree' : state.reason}
         </span>
         <span className="hidden lg:inline">owned by the daemon</span>
         <span className="ml-auto flex gap-2 shrink-0">
@@ -121,16 +110,16 @@ export function Terminal({ taskId, liveRun }: { taskId: string; liveRun: string 
               {copied ? 'Copied' : 'Copy cd'}
             </Button>
           ) : null}
-          {liveRun ? (
-            <Button tone="danger" className="h-7" title={`Kill ${liveRun}`} onClick={() => void api.stopRun(taskId, liveRun).catch(() => undefined)} data-testid="kill-run">
+          {liveRun && onStop ? (
+            <Button tone="danger" className="h-7" title={`Kill ${liveRun}`} onClick={onStop} data-testid="kill-run">
               Kill run <Kbd>⌘.</Kbd>
             </Button>
           ) : null}
         </span>
       </div>
       {state.kind === 'closed' && state.reason.startsWith('No worktree') ? <EmptyState testId="empty-terminal">{state.reason}</EmptyState> : null}
-      <div ref={host} className="flex-1 min-h-[320px] rounded-md overflow-hidden border border-line p-2" style={{ background: 'var(--terminal-ground)', display: state.kind === 'closed' && !state.reason.startsWith('The shell') ? 'none' : undefined }} />
-      <p className="text-[12px] text-faint">Lines you type here join the timeline as your commands, next to what the agent did.</p>
+      <div ref={host} className="flex-1 min-h-[320px] rounded-[4px] overflow-hidden border border-rule p-2" style={{ background: 'var(--term)', display: state.kind === 'closed' && !state.reason.startsWith('The shell') ? 'none' : undefined }} />
+      {state.kind === 'open' ? <p className="text-[12px] text-ink-2">Lines you type here join race control as your commands, next to what the agent did.</p> : null}
     </div>
   );
 }

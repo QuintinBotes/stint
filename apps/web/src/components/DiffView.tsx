@@ -1,9 +1,10 @@
 import type { StintEvent } from '@stint-dev/core';
 import { type ComponentType, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { agentOf } from '../agents';
+import { type Agent, agentOf } from '../agents';
 import { type DiffBlameFile, type LineComment, type RunSummary, api } from '../api';
 import { type CommentAnnotation, CommentEditor, CommentNote } from './DiffComments';
 import { type DiffFileEntry, DiffFileTree } from './DiffFileTree';
+import { useTheme } from '../theme';
 import { Button, EmptyState } from './ui';
 
 export type DiffLayout = 'split' | 'stacked';
@@ -108,13 +109,18 @@ export type DiffViewProps = {
   runs: RunSummary[];
   viewed: Set<string>;
   onToggleViewed: (path: string) => void;
+  /** The files written by the moment the race clock is on; null when the view shows now. */
+  writtenBy?: Set<string> | null;
+  /** That moment, as the race clock reads it. */
+  asOfLabel?: string | null;
 };
 
 /**
  * The task diff: a changed-file tree beside one file rendered with @pierre/diffs, what the latest packet
  * left out, who wrote the file, and line comments the next hand carries in its ask.
  */
-export function DiffView({ taskId, version, files, file, onFile, events, runs, viewed, onToggleViewed }: DiffViewProps) {
+export function DiffView({ taskId, version, files, file, onFile, events, runs, viewed, onToggleViewed, writtenBy = null, asOfLabel = null }: DiffViewProps) {
+  const theme = useTheme();
   const [patches, setPatches] = useState<FilePatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [layout, setLayout] = useState<DiffLayout>(readLayout);
@@ -210,6 +216,15 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
     },
     [runs],
   );
+  // the team livery on each changed file: the driver whose run first wrote it
+  const firstWriter = useMemo(() => {
+    const m = new Map<string, Agent>();
+    for (const [path, list] of writers) {
+      const summary = runs.find((r) => r.run === list[0]);
+      if (summary) m.set(path, agentOf(summary.adapter, summary.host, summary.model));
+    }
+    return m;
+  }, [writers, runs]);
   const attribution = useMemo(() => {
     if (!selected) return null;
     const list = writers.get(selected) ?? [];
@@ -286,8 +301,8 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
     if (next !== undefined) setCursor(next);
   };
 
-  if (error) return <p className="text-bad">The diff could not be read: {error}</p>;
-  if (!patches) return <p className="text-faint">Reading the diff.</p>;
+  if (error) return <p className="text-red">The diff could not be read: {error}</p>;
+  if (!patches) return <p className="text-ink-3">Reading the diff.</p>;
   if (patches.length === 0 && treeFiles.length === 0) {
     return <EmptyState testId="empty-diff">The diff appears here once a run commits to the task branch.</EmptyState>;
   }
@@ -295,8 +310,8 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
   const isViewed = !!selected && viewed.has(selected);
   return (
     <div className="flex flex-col gap-3" data-testid="diff">
-      <div className="flex flex-wrap items-center gap-2 text-[12px]">
-        <span className="text-muted">
+      <div className="flex flex-wrap items-center gap-2 text-[14px]">
+        <span className="text-ink-2">
           {treeFiles.length} changed file{treeFiles.length === 1 ? '' : 's'}. Click a line to comment on it.
         </span>
         <div role="group" aria-label="Diff layout" className="ml-auto flex gap-1">
@@ -322,16 +337,18 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             narrow={narrow}
             onSelect={onFile}
             onToggleWidth={() => setNarrow((n) => !n)}
+            writers={firstWriter}
+            later={writtenBy ? new Set(treeFiles.map((f) => f.path).filter((p) => !writtenBy.has(p))) : undefined}
           />
           {leftOut.length > 0 ? (
             <section
               data-testid="left-out"
               aria-label="Left out"
-              className="rounded-md border border-line bg-raised p-2"
+              className="rounded-[4px] border border-rule p-2"
               style={{ width: narrow ? 172 : 236 }}
             >
-              <h3 className="px-1 text-[12px] font-semibold">Left out</h3>
-              <ul className="mt-1 px-1 flex flex-col gap-1 text-[12px] text-muted">
+              <h3 className="px-1 text-[14px] font-bold">Left out</h3>
+              <ul className="mt-1 px-1 flex flex-col gap-1 text-[12px] text-ink-2">
                 {leftOut.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
@@ -339,16 +356,16 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             </section>
           ) : null}
         </div>
-        <section data-testid="diff-file" className="flex-1 min-w-[280px] rounded-md border border-line overflow-hidden scroll-mt-4">
-          <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 bg-raised border-b border-line">
+        <section data-testid="diff-file" className="flex-1 min-w-[260px] rounded-[4px] border border-rule overflow-hidden scroll-mt-4">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-panel border-b border-rule">
             <h3 className="font-mono text-[12px] truncate">{selected}</h3>
             {selectedEntry ? (
-              <span className="tabular text-[11px]">
-                <span className="text-good">+{selectedEntry.added}</span> <span className="text-bad">-{selectedEntry.removed}</span>
+              <span className="tabular text-[12px]">
+                <span className="text-green">+{selectedEntry.added}</span> <span className="text-ink-2">-{selectedEntry.removed}</span>
               </span>
             ) : null}
             <Button
-              className="h-6 px-2 text-[11px] ml-auto"
+              className="h-6 px-2 text-[12px] ml-auto"
               aria-pressed={isViewed}
               data-testid="mark-viewed"
               disabled={!selected}
@@ -357,7 +374,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
               {isViewed ? 'Viewed' : 'Mark as viewed'}
             </Button>
           </div>
-          <p aria-live="polite" data-testid="diff-attribution" className="px-3 py-1 min-h-6 border-b border-line text-[11px] text-faint">
+          <p aria-live="polite" data-testid="diff-attribution" className="px-3 py-1 min-h-6 border-b border-rule text-[12px] text-ink-2">
             {hover !== null
               ? hoverRun
                 ? `Written by ${runName(hoverRun)}`
@@ -368,7 +385,9 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
                     : 'No run is recorded as writing this file.'
               : cursor !== null
                 ? `Line ${cursor} selected. Press Enter to comment.`
-                : blameRanges
+                : writtenBy && selected && !writtenBy.has(selected)
+                  ? `At ${asOfLabel ?? 'that moment'} on the race clock this file was not written yet. It shows as the task branch has it now.`
+                  : blameRanges
                   ? 'Hover a line to see which run wrote it.'
                   : 'Hover a line to see which run wrote this file.'}
           </p>
@@ -378,7 +397,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             aria-label={`Diff of ${selected ?? 'no file'}. Use the up and down arrow keys to choose a line, then press Enter to comment on it.`}
             tabIndex={0}
             title={attribution ? `Written by ${attribution}` : undefined}
-            className="outline-none focus-visible:ring-1 focus-visible:ring-accent"
+            className="outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
             onKeyDown={(e) => {
               if (e.key === 'Escape' && editing) {
                 setEditing(null);
@@ -398,17 +417,18 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             }}
           >
             {viewerError ? (
-              <p className="p-3 text-bad text-[12px]">The diff viewer could not start: {viewerError}</p>
+              <p className="p-3 text-red text-[12px]">The diff viewer could not start: {viewerError}</p>
             ) : !PatchDiff || !selectedPatch ? (
-              <p className="p-3 text-faint text-[12px]">Reading the diff viewer.</p>
+              <p className="p-3 text-ink-3 text-[12px]">Reading the diff viewer.</p>
             ) : (
               <PatchDiff
                 patch={selectedPatch.patch}
                 disableWorkerPool
                 options={{
                   diffStyle: layout === 'split' ? 'split' : 'unified',
-                  theme: { dark: 'pierre-dark', light: 'pierre-light' },
-                  themeType: 'dark',
+                  // the high-contrast highlight themes keep every token at 4.5:1 on its line, added and removed lines included
+                  theme: { dark: 'github-dark-high-contrast', light: 'github-light-high-contrast' },
+                  themeType: theme === 'pitwall' ? 'dark' : 'light',
                   // wrapped lines keep the code out of a scrollable region a keyboard cannot reach
                   overflow: 'wrap',
                   disableFileHeader: true,

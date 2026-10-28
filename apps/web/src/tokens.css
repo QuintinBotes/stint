@@ -1,30 +1,81 @@
-/* Stint tokens, copied from design/tokens.css (generated from tokens.json). The UI is dark only; the light and stage themes in design/ are not shipped. Fonts are bundled, not fetched, so the UI works offline. */
-:root {
-  --surface: #0b0b0d; --surface-raised: #141417; --surface-sunken: #1c1c21;
-  --border: #27272a; --border-strong: #3f3f46;
-  --ink: #f4f4f5; --ink-muted: #a1a1aa; --ink-faint: #8b8b94;
-  --accent: #60a5fa; --on-accent: #0b0b0d; --accent-tint: #172554;
-  --status-good: #4ade80; --status-good-tint: #052e16;
-  --status-warn: #fbbf24; --status-warn-tint: #451a03;
-  --status-bad: #f87171; --status-bad-tint: #450a0a;
-  --vendor-meta: #facc15; --vendor-alt: #94a3b8; --vendor-openai: #4ade80; --vendor-local: #a1a1aa; --on-mark: #0b0b0d;
-  --focus: #60a5fa; --diff-added: #14532d; --diff-removed: #7f1d1d;
-  --terminal-ground: #09090b; --terminal-ink: #e4e4e7;
-  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.6);
+/* Stint tokens, pit wall edition, as the design's tokens.css has them. Dark ("pitwall") is the default theme; "sheet" (light, printed timing sheet) and "stage" (high contrast) are opt-in.
+   The language: a task is a car with a number plate; each agent is a driver with a three-letter code and a team livery;
+   a run is a stint; a handoff is a pit stop; the packet's ask of next is the pit board; status uses race flags, always with a word beside them.
+   Rules: liveries only on driver tags, stint bars, and per-team chart segments. Flag swatches are fixed colours in every theme; flag text uses the themed --green/--yellow/--red. No gradients except the chequer and the hatch patterns below.
+   Fonts are bundled (styles.css), never fetched, so the UI works with the network off. */
+
+:root, [data-theme] {
+  --sans: "Archivo Variable", "Archivo", system-ui, sans-serif;     /* words and numbers; use font-stretch 62% to 125% */
+  --mono: "Martian Mono Variable", "Martian Mono", ui-monospace, monospace; /* code, paths, commands, packets; font-stretch 87.5% */
+  --sw-green: #2fb36f;  /* flag swatch: verified, on track, merged step */
+  --sw-yellow: #f5c518; /* flag swatch: needs you, stewards, in-flight unknown */
+  --sw-red: #e5383b;    /* flag swatch: stopped, failed verify, rejected */
+  --radius-tag: 2px; --radius-control: 3px; --radius-panel: 4px; --radius-plate: 4px; --radius-dot: 999px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
 }
-:root {
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
-  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px; --radius-full: 999px;
-  --font-sans: "Geist", "Inter", system-ui, sans-serif;
-  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+:root, [data-theme="pitwall"] {
+  --ground: #17191c;        /* asphalt; the page */
+  --panel: #1f2226;         /* the stint chart, the diff header, raised blocks */
+  --panel-2: #2a2e33;       /* selected rows, disabled controls */
+  --rule: #33383e;          /* hairlines between rows and lanes */
+  --rule-strong: #4b5158;   /* control borders, ghost stints */
+  --ink: #f1f1ec;           /* track white */
+  --ink-2: #aab0b6;         /* secondary text */
+  --ink-3: #878d94;         /* timestamps, hints; never below 12px */
+  --green: #34c27a; --yellow: #f5c518; --red: #f0443a; --purple: #b48cf6; /* purple = learned / improved */
+  --meta: #4c86ff; --anthropic: #ee8c5c; --local: #b7bec6; --openai: #2ec4b6; --on-livery: #0e1012;
+  --plate: #f1f1ec; --on-plate: #0e1012;   /* car number plates */
+  --board: #0b0c0d; --board-ink: #f7f7f2;  /* the pit board */
+  --term: #0e0f11; --term-ink: #e6e6e1;    /* terminal pane */
+  --added: rgba(52, 194, 122, 0.16); --removed: rgba(240, 68, 58, 0.18);
+  --focus: #f5c518;
+  /* from the artboards: the needs-you band, the tints behind decisions and learned skills, the red-flag band, the overlay shadow */
+  --band: rgba(245, 197, 24, 0.10); --yellow-tint: rgba(245, 197, 24, 0.12); --purple-tint: rgba(180, 140, 246, 0.16);
+  --red-band: #5a1714; --red-band-ink: #fff4f2;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
 }
-.display { font-family: var(--font-sans); font-size: 28px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; }
-.heading { font-family: var(--font-sans); font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -0.01em; }
-.title { font-family: var(--font-sans); font-size: 15px; line-height: 20px; font-weight: 600; }
-.body { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 400; }
-.body-strong { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 600; }
-.small { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
-.micro { font-family: var(--font-sans); font-size: 11px; line-height: 14px; font-weight: 500; }
-.mono { font-family: var(--font-mono); font-size: 12.5px; line-height: 18px; font-weight: 400; }
-.mono-small { font-family: var(--font-mono); font-size: 11.5px; line-height: 16px; font-weight: 400; }
-.kbd { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 500; }
+
+[data-theme="sheet"] {
+  --ground: #ffffff; --panel: #f3f4f5; --panel-2: #e7e9ec; --rule: #d3d6da; --rule-strong: #8f959b;
+  --ink: #101214; --ink-2: #454b51; --ink-3: #5f656c;
+  --green: #0f7a45; --yellow: #835f00; --red: #c3261c; --purple: #6a3fc2;
+  --meta: #1d55e0; --anthropic: #ad4d23; --local: #5e666e; --openai: #0e7f75; --on-livery: #ffffff;
+  --plate: #101214; --on-plate: #ffffff; --board: #101214; --board-ink: #ffffff; --term: #15171a; --term-ink: #ececea;
+  --added: #daf2e3; --removed: #fbdfdc; --focus: #1d55e0;
+  --band: #fff6d6; --yellow-tint: #fff6d6; --purple-tint: #efe8fb;
+  --red-band: #c3261c; --red-band-ink: #ffffff;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.14);
+  color-scheme: light;
+}
+
+[data-theme="stage"] {
+  --ground: #ffffff; --panel: #ffffff; --panel-2: #eeeeee; --rule: #000000; --rule-strong: #000000;
+  --ink: #000000; --ink-2: #1a1a1a; --ink-3: #333333;
+  --green: #0a5c32; --yellow: #5c4300; --red: #9e1a12; --purple: #4b2391;
+  --meta: #123c9e; --anthropic: #7a3315; --local: #3a3f44; --openai: #0b5c55; --on-livery: #ffffff;
+  --plate: #000000; --on-plate: #ffffff; --board: #000000; --board-ink: #ffffff; --term: #000000; --term-ink: #ffffff;
+  --added: #c4ecd2; --removed: #f6c9c4; --focus: #000000;
+  --band: #fff2bf; --yellow-tint: #fff2bf; --purple-tint: #e6dcf7;
+  --red-band: #9e1a12; --red-band-ink: #ffffff;
+  --shadow: 0 0 0 2px #000000;
+  color-scheme: light;
+}
+
+/* Type roles */
+.display  { font: 700 34px/40px var(--sans); font-stretch: 112%; letter-spacing: -0.02em; } /* one sentence per screen that says what is going on */
+.heading  { font: 700 19px/24px var(--sans); font-stretch: 112%; letter-spacing: -0.01em; }
+.body     { font: 400 14px/20px var(--sans); }
+.small    { font: 400 12px/17px var(--sans); }
+.tag      { font: 800 14px/18px var(--sans); font-stretch: 75%; letter-spacing: 0.03em; }  /* driver codes */
+.plate    { font: 900 28px/28px var(--sans); font-stretch: 62%; font-variant-numeric: tabular-nums; } /* car numbers */
+.board    { font: 800 30px/34px var(--sans); font-stretch: 70%; letter-spacing: 0.02em; } /* pit board, uppercase by convention */
+.num      { font-variant-numeric: tabular-nums; }
+.mono     { font-family: var(--mono); font-stretch: 87.5%; font-size: 12px; line-height: 20px; }
+
+/* Patterns, the only non-flat fills */
+.chequer { background: repeating-conic-gradient(var(--ink) 0 25%, var(--ground) 0 50%) 0 0 / 10px 10px; } /* merged, the gate */
+.chequer-sm { background: repeating-conic-gradient(var(--ink) 0 25%, var(--ground) 0 50%) 0 0 / 6px 6px; }
+.hatch   { background: repeating-linear-gradient(135deg, var(--rule) 0 1px, transparent 1px 7px); }          /* not run yet */
+.hatch-strong { background: repeating-linear-gradient(135deg, var(--rule-strong) 0 1px, transparent 1px 6px); }

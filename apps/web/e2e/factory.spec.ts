@@ -4,7 +4,9 @@ import { expect, test } from '@playwright/test';
 
 test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost bars with a legend, the learned pair and the queue', async ({ page }) => {
   await page.goto('/factory');
-  await expect(page.getByTestId('kpis')).toContainText('Input from cache');
+  await expect(page.getByTestId('kpis')).toContainText('Spend this week');
+  // the cache share moved from the figures to the models it describes
+  await expect(page.getByTestId('panel-models')).toContainText('Input from cache');
   const models = page.getByTestId('model-row');
   await expect(models.first()).toContainText('Muse Spark 1.3');
   await expect(page.getByTestId('models-at-work')).toContainText('Muse Glimmer 30B');
@@ -17,6 +19,8 @@ test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost b
 
 test('The Factory shows the workspace graph with its scrubber, the transcript-share KPI and a 7-day funnel (R-052)', async ({ page }) => {
   await page.goto('/factory');
+  // the workspace graph is one click away, under its heading
+  await page.getByTestId('panel-memory').getByText('Workspace memory').click();
   const memory = page.getByTestId('factory-memory');
   await expect(memory.locator('[data-node="decision:T-0042/D3"]')).toBeVisible();
   const scrubber = page.getByTestId('factory-memory-scrubber');
@@ -30,7 +34,8 @@ test('The Factory shows the workspace graph with its scrubber, the transcript-sh
   await expect(share).toContainText('all in');
 
   const loops = page.getByTestId('loops');
-  await expect(page.getByRole('heading', { name: /last 7 days/ })).toBeVisible();
+  await page.getByRole('heading', { name: /last 7 days/ }).click();
+  await expect(loops).toBeVisible();
   await expect(loops.locator('li').filter({ hasText: 'Done' }).locator('span').last()).not.toHaveText('0');
   await expect(loops.locator('li').filter({ hasText: 'Planned' }).locator('span').last()).not.toHaveText('0');
 });
@@ -84,6 +89,8 @@ test('The demo closes on any harness, any model, one packet: every configured ha
   await page.getByTestId('replay-close').click();
   await expect(page).toHaveURL(/\/factory/);
   const panel = page.getByTestId('any-harness');
+  // the link lands on the panel, not on the top of the page
+  await expect(panel).toBeInViewport();
   await expect(panel.getByTestId('harness-chips')).toContainText('Muse Code');
   await expect(panel.getByTestId('harness-chips')).toContainText('Claude Code');
   await expect(panel.getByTestId('harness-chips')).toContainText('goose, acp');

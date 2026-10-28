@@ -25,7 +25,7 @@ test('The board has an In review lane between Reviewing and Done once a task wai
 test('The Factory Outcomes panel shows merged, reverted and followed up per agent', async ({ page }) => {
   await page.goto('/factory');
   const panel = page.getByTestId('panel-outcomes');
-  await expect(panel).toContainText('Outcomes after merge, per agent');
+  await expect(panel).toContainText('Outcomes after merge');
   const outcomes = page.getByTestId('outcomes');
   await expect(outcomes).toContainText('Merged');
   await expect(outcomes).toContainText('Reverted');

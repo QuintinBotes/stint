@@ -8,6 +8,7 @@ test('After real runs the Factory shows the relay with the agents that ran, the 
   await d.until(t.id, stopped);
   await page.goto('/factory');
   await expect(page.getByTestId('relay')).toContainText('Muse Code');
+  await page.getByTestId('panel-models').getByText('Meta models at work').click();
   await expect(page.getByTestId('models-at-work')).toBeVisible();
   await expect(page.getByTestId('scoreboard').locator('[data-testid="score-row"][data-agent="muse-code"]')).toBeVisible();
   await expect(page.getByTestId('kpis')).toContainText('Runs');

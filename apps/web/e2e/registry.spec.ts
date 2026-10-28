@@ -22,6 +22,8 @@ test('Health lists the turned off presets as disabled, and the Hand to picker ma
   await page.goto(`/t/${id}?tab=packet`);
   const picker = page.getByTestId('hand-to');
   await expect(picker).toBeVisible();
+  // the agents turned off in config fold into one line, which opens to list them
+  await picker.getByText(/more (is|are) turned off in config/).click();
   await expect(picker.getByText('disabled', { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId('hand-disabled').first()).toContainText('Turned off in config');
 });

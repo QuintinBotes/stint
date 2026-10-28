@@ -97,17 +97,17 @@ function FrameLine({ frame, taskId, changedFiles, first }: { frame: StackFrame; 
   return (
     <li
       data-testid={first ? 'stack-first-frame' : 'stack-frame'}
-      className={cx('font-mono text-[11.5px] leading-[16px]', first ? 'font-semibold text-ink' : frame.library ? 'text-faint' : 'text-muted')}
+      className={cx('font-mono text-[12px] leading-[16px]', first ? 'font-semibold text-ink' : frame.library ? 'text-ink-3' : 'text-ink-2')}
     >
       {frame.fn ? <span>{frame.fn} </span> : null}
       {changed ? (
-        <Link to={`/t/${taskId}?tab=diff&file=${encodeURIComponent(changed)}`} className="text-accent hover:underline" data-testid="stack-diff-link">
+        <Link to={`/t/${taskId}?tab=diff&file=${encodeURIComponent(changed)}`} className="text-ink hover:underline" data-testid="stack-diff-link">
           {place}
         </Link>
       ) : (
         <span>{place}</span>
       )}
-      {first ? <span className="ml-2 font-sans text-[11px] font-normal text-muted">first frame in this project</span> : null}
+      {first ? <span className="ml-2 font-sans text-[12px] font-normal text-ink-2">first frame in this project</span> : null}
     </li>
   );
 }
@@ -122,30 +122,30 @@ export function StackTrace({ taskId, output, changedFiles }: { taskId: string; o
   if (failures.length === 0) return null;
   return (
     <section aria-label="Failing tests" data-testid="stack-trace" className="flex flex-col gap-2">
-      <h3 className="text-[13px] font-semibold">Stack trace</h3>
+      <h3 className="text-[14px] font-semibold">Stack trace</h3>
       {failures.map((failure) => {
         const project = failure.frames.filter((f) => !f.library);
         const library = failure.frames.filter((f) => f.library);
         const first = project[0] ?? null;
         const shown = open[failure.name] ? failure.frames : project;
         return (
-          <article key={failure.name} data-testid="stack-failure" className="rounded-md border border-bad/50 bg-raised px-3 py-2.5">
-            <p className="font-mono text-[12px] font-semibold text-bad" data-testid="stack-name">
+          <article key={failure.name} data-testid="stack-failure" className="rounded-md border border-red/50 bg-panel px-3 py-3">
+            <p className="font-mono text-[12px] font-semibold text-red" data-testid="stack-name">
               {failure.name}
             </p>
             {failure.message ? (
-              <p className="mt-1 text-[12.5px] text-ink" data-testid="stack-message">
+              <p className="mt-1 text-[12px] text-ink" data-testid="stack-message">
                 {failure.message}
               </p>
             ) : null}
             {shown.length ? (
-              <ol className="mt-2 flex flex-col gap-0.5">
+              <ol className="mt-2 flex flex-col gap-1">
                 {shown.map((frame) => (
                   <FrameLine key={`${frame.file}:${frame.line}:${frame.col}:${frame.fn ?? ''}`} frame={frame} taskId={taskId} changedFiles={changedFiles} first={frame === first} />
                 ))}
               </ol>
             ) : (
-              <p className="mt-1 text-[12px] text-faint">No stack frames were printed for this failure.</p>
+              <p className="mt-1 text-[12px] text-ink-3">No stack frames were printed for this failure.</p>
             )}
             {library.length ? (
               <Button

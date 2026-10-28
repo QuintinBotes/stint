@@ -10,18 +10,18 @@ export type Credit = { host: string; left: number };
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 function Dot({ color }: { color: string }) {
-  return <span aria-hidden className="inline-block size-1.5 shrink-0 rounded-full" style={{ background: color }} />;
+  return <span aria-hidden="true" className="sw" style={{ background: color }} />;
 }
 
 function Row({ dot, name, detail, off }: { dot: string; name: string; detail?: string; off?: boolean }) {
   return (
     <li className="flex items-start gap-2 py-1">
-      <span className="mt-[7px]">
-        <Dot color={off ? 'var(--ink-faint)' : dot} />
+      <span className="mt-1">
+        <Dot color={off ? 'var(--rule-strong)' : dot} />
       </span>
       <span className="min-w-0">
-        <span className={cx('text-[13px]', off ? 'text-muted' : 'text-ink')}>{name}</span>
-        {detail ? <span className="block text-[12px] text-faint break-words">{detail}</span> : null}
+        <span className={cx('text-[14px]', off ? 'text-ink-2' : 'text-ink')}>{name}</span>
+        {detail ? <span className="block text-[12px] text-ink-3 break-words">{detail}</span> : null}
       </span>
     </li>
   );
@@ -29,8 +29,8 @@ function Row({ dot, name, detail, off }: { dot: string; name: string; detail?: s
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="border-t border-line first:border-t-0 pt-2 first:pt-0 mt-2 first:mt-0">
-      <h2 className="text-[12px] text-muted">{title}</h2>
+    <section className="border-t border-rule first:border-t-0 pt-2 first:pt-0 mt-2 first:mt-0">
+      <h2 className="text-[12px] font-bold text-ink-2">{title}</h2>
       <ul>{children}</ul>
     </section>
   );
@@ -86,13 +86,13 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
   if (!health) {
     // the first health read has not come back yet, or it failed: only the second is worth alarming anyone about
     return unreachable ? (
-      <span className="inline-flex shrink-0 items-center gap-2 h-8 px-2.5 rounded-md border border-bad/40 text-[12px] text-bad whitespace-nowrap" role="status" data-testid="status-unreachable">
-        <Dot color="var(--status-bad)" />
+      <span className="inline-flex shrink-0 items-center gap-2 h-[30px] px-3 rounded-[3px] border border-red text-[14px] font-bold text-red whitespace-nowrap" role="status" data-testid="status-unreachable">
+        <Dot color="var(--sw-red)" />
         Daemon not reachable
       </span>
     ) : (
-      <span className="inline-flex shrink-0 items-center gap-2 h-8 px-2.5 text-[12px] text-faint whitespace-nowrap" data-testid="status-loading">
-        <Dot color="var(--ink-faint)" />
+      <span className="inline-flex shrink-0 items-center gap-2 h-[30px] px-3 text-[12px] text-ink-2 whitespace-nowrap" data-testid="status-loading">
+        <Dot color="var(--rule-strong)" />
         <span className="sr-only sm:not-sr-only">Connecting</span>
       </span>
     );
@@ -106,7 +106,7 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
   const readyModels = models.filter((m) => m.ready).length;
   const daemon = health.mode === 'replay' ? 'Replay daemon' : 'Daemon';
   // a live daemon with no agent that can run is the one state that needs attention here
-  const tone = ready.length === 0 && health.mode === 'live' ? 'var(--status-warn)' : 'var(--status-good)';
+  const tone = ready.length === 0 && health.mode === 'live' ? 'var(--sw-yellow)' : 'var(--sw-green)';
 
   return (
     <div ref={root} className="relative shrink-0">
@@ -117,14 +117,14 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
         data-testid="status-button"
-        className="inline-flex items-center gap-1.5 sm:gap-2 h-8 px-2 sm:px-2.5 rounded-md border border-line bg-raised text-[12px] font-medium text-ink whitespace-nowrap hover:border-line-strong"
+        className="inline-flex items-center gap-2 h-8 px-2 sm:px-3 rounded-[3px] border border-ink-3 text-[12px] text-ink-2 whitespace-nowrap hover:border-ink hover:text-ink"
       >
         <Dot color={tone} />
         <span className="hidden lg:inline">
           {daemon}, {plural(ready.length, 'agent')}, {plural(readyModels, 'model')}
         </span>
         <span className="lg:hidden sr-only sm:not-sr-only">Status</span>
-        <svg aria-hidden viewBox="0 0 12 12" className={cx('size-3 text-faint transition-transform', open && 'rotate-180')}>
+        <svg aria-hidden="true" viewBox="0 0 12 12" className={cx('size-3 text-ink-2 transition-transform', open && 'rotate-180')}>
           <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
@@ -134,16 +134,16 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
           role="region"
           aria-label="Daemon, agents and models"
           data-testid="status-panel"
-          className="absolute right-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-32px)] max-h-[70vh] overflow-y-auto rounded-lg border border-line-strong bg-raised p-3"
+          className="absolute right-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-32px)] max-h-[70vh] overflow-y-auto rounded-[4px] border border-rule-strong bg-ground p-3 shadow-[var(--shadow)]"
         >
           <Group title="Daemon">
-            <Row dot="var(--status-good)" name={daemon} detail={`version ${health.version}, started ${localTime(health.startedAt)}${health.repo ? `, in ${health.repo}` : ''}`} />
+            <Row dot="var(--sw-green)" name={daemon} detail={`version ${health.version}, started ${localTime(health.startedAt)}${health.repo ? `, in ${health.repo}` : ''}`} />
           </Group>
           <Group title={`Agents, ${ready.length} ready`}>
             {ready.map((a) => (
               <Row key={a.id} dot={markColor[agentOf(a.id).mark]} name={ADAPTER_NAMES[a.id] ?? a.id} detail={[a.version, a.gate === 'none' ? null : `Stint's gate is ${a.gate}`].filter(Boolean).join(', ')} />
             ))}
-            {ready.length === 0 ? <li className="py-1 text-[12px] text-faint">No agent can take a run yet.</li> : null}
+            {ready.length === 0 ? <li className="py-1 text-[12px] text-ink-3">No agent can take a run yet.</li> : null}
           </Group>
           {broken.length ? (
             <Group title="Agents that cannot run">
@@ -154,9 +154,9 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
           ) : null}
           {disabled.length ? (
             <Group title="Agents you can turn on">
-              <li className="py-1 text-[13px] text-muted" data-testid="agents-off">
+              <li className="py-1 text-[12px] text-ink-2" data-testid="agents-off">
                 {disabled.map((a) => ADAPTER_NAMES[a.id] ?? a.id).join(', ')}
-                <span className="block text-[12px] text-faint">
+                <span className="block text-[12px] text-ink-3">
                   Set <code className="font-mono">agents.&lt;id&gt;.enabled</code> to true in .stint/config.json, then restart stint up.
                 </span>
               </li>
@@ -184,12 +184,12 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
           {credits.length ? (
             <Group title="Credits left, from metered spend against the balance you set">
               {credits.map((c) => (
-                <Row key={c.host} dot="var(--ink-faint)" name={hostName(c.host)} detail={`about $${c.left.toFixed(2)}`} />
+                <Row key={c.host} dot="var(--rule-strong)" name={hostName(c.host)} detail={`about $${c.left.toFixed(2)}`} />
               ))}
             </Group>
           ) : null}
-          <Link to="/factory" onClick={() => setOpen(false)} className="mt-3 block text-[12px] text-accent hover:underline">
-            Cost and models in the Factory
+          <Link to="/factory" onClick={() => setOpen(false)} className="mt-3 block text-[14px] text-ink underline underline-offset-2 hover:no-underline">
+            Cost and models in the Standings
           </Link>
         </div>
       ) : null}

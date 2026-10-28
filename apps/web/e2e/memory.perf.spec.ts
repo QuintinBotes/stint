@@ -1,8 +1,6 @@
 import { type Page, expect, test } from '@playwright/test';
 
 const T0 = Date.parse('2026-10-26T14:00:00Z');
-const W = 328;
-const H = 260;
 
 /** The panel's cap: the task and 59 neighbours, half on the task and half one hop out, recorded a minute apart. */
 function bigGraph() {
@@ -44,13 +42,17 @@ async function timeLayout(page: Page) {
 test('A 60-node graph lays out within 1 s of arriving, every node inside the panel, and the panel says it was capped', async ({ page }) => {
   await timeLayout(page);
   await page.route('**/api/tasks/T-0042/graph', (r) => r.fulfill({ json: bigGraph() }));
-  await page.goto('/t/T-0042');
+  await page.goto('/t/T-0042?tab=memory');
   const graph = page.getByTestId('memory-graph');
   await expect(graph).toHaveAttribute('data-layout', 'done');
   const t = await page.evaluate(() => (window as unknown as { __layout: { graphAt: number; doneAt: number } }).__layout);
   expect(t.doneAt - t.graphAt).toBeLessThan(1000);
 
   await expect(graph.locator('[data-node]')).toHaveCount(60);
+  // the panel's own size, in the pixels the graph lays out in (its viewBox)
+  const [W, H] = ((await graph.getAttribute('viewBox')) ?? '').split(' ').slice(2).map(Number) as [number, number];
+  expect(W).toBeGreaterThan(200);
+  expect(H).toBeGreaterThan(200);
   const spots = await graph.locator('[data-node]').evaluateAll((gs) => gs.map((g) => /translate\(([-\d.]+),([-\d.]+)\)/.exec(g.getAttribute('transform') ?? '')?.slice(1).map(Number) ?? [Number.NaN, Number.NaN]));
   for (const [x, y] of spots) {
     expect(x).toBeGreaterThanOrEqual(0);
@@ -63,7 +65,7 @@ test('A 60-node graph lays out within 1 s of arriving, every node inside the pan
   await expect(page.getByTestId('memory-count')).toHaveText('60 of 74 nodes, the closest to this task');
 });
 
-test('While the worker is still laying out, the scrubber moves and the graph answers: the main thread never waits on the layout', async ({ page }) => {
+test('While the worker is still laying out, the moment moves and the graph answers: the main thread never waits on the layout', async ({ page }) => {
   await page.route('**/api/tasks/T-0042/graph', (r) => r.fulfill({ json: bigGraph() }));
   // hold the worker 400 ms after each batch it posts, as a far larger layout would
   await page.route('**/graph.worker*.js', async (r) => {
@@ -71,14 +73,17 @@ test('While the worker is still laying out, the scrubber moves and the graph ans
     const hold = 'const __post = self.postMessage.bind(self); self.postMessage = (m) => { __post(m); if (!m.done) { const until = Date.now() + 400; while (Date.now() < until); } };\n';
     await r.fulfill({ response: res, body: hold + (await res.text()) });
   });
-  await page.goto('/t/T-0042');
+  await page.goto('/t/T-0042?tab=memory');
   const graph = page.getByTestId('memory-graph');
   await expect(graph.locator('[data-node]')).toHaveCount(60);
   await expect(graph).toHaveAttribute('data-layout', 'running');
 
   const now = await page.getByTestId('memory-asof').textContent();
-  const scrubber = page.getByTestId('memory-scrubber');
-  await scrubber.fill(String(await scrubber.getAttribute('min')));
+  // move the view's moment to the graph's first edge without a reload, as the stint chart does: the URL's asOf
+  await page.evaluate((asOf) => {
+    history.replaceState(null, '', `/t/T-0042?tab=memory&asOf=${encodeURIComponent(asOf)}`);
+    dispatchEvent(new PopStateEvent('popstate'));
+  }, new Date(T0 + 60_000).toISOString());
   await expect(page.getByTestId('memory-asof')).not.toHaveText(now ?? '');
   // at the first edge only the task and its first neighbour stand; the rest were not recorded yet
   await expect(graph.locator('[data-node]')).toHaveCount(2);

@@ -15,6 +15,7 @@ test('The gate shows the risk tier and why; approving it puts a shadow decision 
   expect(shadow?.payload).toMatchObject({ tier: 'low', wouldApprove: true, humanDecision: 'approved' });
 
   await page.goto('/factory');
+  await page.getByTestId('panel-auto-approve').locator('summary').click();
   const panel = page.getByTestId('auto-approve');
   await expect(panel).toContainText('lane off');
   await expect(panel.locator('[data-testid="shadow-row"][data-tier="low"]')).toBeVisible();

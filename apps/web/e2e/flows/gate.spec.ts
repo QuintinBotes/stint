@@ -18,16 +18,21 @@ test('The approval gate stays shut while the verification is absent or red', asy
   await expect(page.getByTestId('approve')).toBeDisabled();
 });
 
-test('After a green verification the gate opens and pressing a calls approve', async ({ page, request }) => {
+test('After a green verification the gate stays shut until the review puts the car at the gate; then it opens and pressing a calls approve', async ({ page, request }) => {
   const d = daemon(request);
   const t = await d.create('Flow: gate opens on green');
   await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'muse-code', role: 'implementer' });
   await d.until(t.id, (ev) => ev.some((e) => e.type === 'verification.ran' && e.payload.status === 'green'));
+  // green but not at the gate yet: Approve is shown, not offered
+  await page.goto(`/t/${t.id}`);
+  await expect(page.getByTestId('approve')).toBeDisabled();
+  await d.post(`/api/tasks/${t.id}/review`, {});
+  await d.until(t.id, (ev) => ev.some((e) => e.type === 'approval.requested'));
   await page.goto(`/t/${t.id}`);
   await expect(page.getByTestId('approval-gate')).toHaveAttribute('data-open', 'true');
   await expect(page.getByTestId('approve')).toBeEnabled();
 
-  await page.getByTestId('approval-gate').getByText('Approval', { exact: true }).click();
+  await page.getByTestId('approval-gate').getByText('The flag', { exact: true }).click();
   const approveCall = page.waitForRequest((r) => r.url().includes(`/api/tasks/${t.id}/approve`) && r.method() === 'POST');
   await page.keyboard.press('a');
   await approveCall;

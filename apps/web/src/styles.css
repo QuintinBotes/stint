@@ -1,44 +1,44 @@
 @import 'tailwindcss';
-@import '@fontsource/geist-sans/400.css';
-@import '@fontsource/geist-sans/500.css';
-@import '@fontsource/geist-sans/600.css';
-@import '@fontsource/geist-mono/400.css';
-@import '@fontsource/geist-mono/500.css';
+/* the variable fonts with their width axes, bundled so the UI never fetches a font */
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource-variable/martian-mono/wdth.css';
 @import './tokens.css';
 
-@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
-
 @theme inline {
-  --color-surface: var(--surface);
-  --color-raised: var(--surface-raised);
-  --color-sunken: var(--surface-sunken);
-  --color-line: var(--border);
-  --color-line-strong: var(--border-strong);
+  /* the design's names */
+  --color-ground: var(--ground);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
   --color-ink: var(--ink);
-  --color-muted: var(--ink-muted);
-  --color-faint: var(--ink-faint);
-  --color-accent: var(--accent);
-  --color-on-accent: var(--on-accent);
-  --color-accent-tint: var(--accent-tint);
-  --color-good: var(--status-good);
-  --color-good-tint: var(--status-good-tint);
-  --color-warn: var(--status-warn);
-  --color-warn-tint: var(--status-warn-tint);
-  --color-bad: var(--status-bad);
-  --color-bad-tint: var(--status-bad-tint);
-  --color-meta: var(--vendor-meta);
-  --color-alt: var(--vendor-alt);
-  --color-local: var(--vendor-local);
-  --color-on-mark: var(--on-mark);
-  --color-added: var(--diff-added);
-  --color-removed: var(--diff-removed);
-  --color-term: var(--terminal-ground);
-  --color-term-ink: var(--terminal-ink);
-  --font-sans: 'Geist Sans', 'Geist', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, Menlo, monospace;
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-green: var(--green);
+  --color-yellow: var(--yellow);
+  --color-red: var(--red);
+  --color-purple: var(--purple);
+  --color-band: var(--band);
+  --color-yellow-tint: var(--yellow-tint);
+  --color-purple-tint: var(--purple-tint);
+  --color-plate: var(--plate);
+  --color-on-plate: var(--on-plate);
+  --color-board: var(--board);
+  --color-board-ink: var(--board-ink);
+  --color-meta: var(--meta);
+  --color-anthropic: var(--anthropic);
+  --color-openai: var(--openai);
+  --color-local: var(--local);
+  --color-on-livery: var(--on-livery);
+  --color-added: var(--added);
+  --color-removed: var(--removed);
+  --color-term: var(--term);
+  --color-term-ink: var(--term-ink);
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+  --radius-sm: var(--radius-tag);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-panel);
 }
 
 html,
@@ -49,26 +49,71 @@ body,
 
 body {
   margin: 0;
-  background: var(--surface);
+  background: var(--ground);
   color: var(--ink);
-  font-family: 'Geist Sans', 'Geist', system-ui, sans-serif;
-  font-size: 13px;
-  line-height: 18px;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 20px;
   -webkit-font-smoothing: antialiased;
 }
 
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+/* Martian Mono is wide; the design sets it at 87.5% everywhere */
+code,
+kbd,
+pre,
+.font-mono {
+  font-stretch: 87.5%;
+}
+
+a {
+  color: inherit;
+}
+
+/* in the base layer, so a component's own focus style (the palette's input underline) wins over it */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--panel-2);
+    color: var(--ink);
+  }
+  p,
+  li,
+  dd {
+    text-wrap: pretty;
+  }
+  html {
+    scrollbar-color: var(--rule-strong) var(--ground);
+    caret-color: var(--ink);
+  }
 }
 
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* The live run segment breathes so the eye finds it; still when the person asks for less motion. */
+/* the type roles as utilities, so a component can take one role and a size */
+.stretch-62 { font-stretch: 62%; }
+.stretch-70 { font-stretch: 70%; }
+.stretch-75 { font-stretch: 75%; }
+.stretch-87 { font-stretch: 87.5%; }
+.stretch-112 { font-stretch: 112%; }
+.stretch-125 { font-stretch: 125%; }
+
+/* a flag swatch: always beside its word */
+.sw {
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 10px;
+  border-radius: 1px;
+}
+
+/* The live stint breathes so the eye finds it; still when the person asks for less motion. */
 @keyframes stint-pulse {
-  from { opacity: 0.6; }
+  from { opacity: 0.55; }
   to { opacity: 1; }
 }
 .live-spine {
@@ -80,10 +125,41 @@ body {
   }
 }
 
-[data-panel-resize-handle-id] {
-  background: var(--border);
+input[type='radio'],
+input[type='checkbox'] {
+  accent-color: var(--ink);
 }
-[data-panel-resize-handle-id]:hover,
-[data-panel-resize-handle-id][data-resize-handle-active] {
-  background: var(--accent);
+
+/* The clock: a thin quiet track and a solid thumb, so the slider is found without being the brightest thing on screen. */
+input[type='range'] {
+  appearance: none;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink-3);
+}
+input[type='range']::-moz-range-track {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink-3);
+}
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--panel);
+}
+input[type='range']::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--panel);
 }

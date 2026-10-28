@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { agentOf } from '../agents';
+import { type Agent, agentOf, markColor } from '../agents';
 import { type TaskCardData, api } from '../api';
 import { age } from '../format';
-import { CostMeter, StatusChip, VendorMark, cx } from './ui';
+import { CostMeter, Plate, StatusChip, VendorMark, cx } from './ui';
 
 type CardTask = TaskCardData['task'];
 
@@ -85,17 +85,44 @@ function standing(t: CardTask, all: Map<string, CardTask>): string {
   return open.length ? `waits for ${open.join(', ')}` : t.status.replace('_', ' ');
 }
 
-/** Who holds the task now, in the words a person uses: you at the gate, the agent that is running, or nobody yet. */
-function holding(card: TaskCardData): string {
+/** Who holds the car now, in the words a person uses: you at the gate, the driver on track, or nobody yet. */
+function Holding({ card }: { card: TaskCardData }) {
   const { task, lastRun } = card;
-  if (task.status === 'awaiting_approval') return 'held by you';
-  if (task.status === 'done') return '';
-  if (lastRun && !lastRun.endedAt) return `${agentOf(lastRun.adapter, lastRun.host, lastRun.model).name}, ${lastRun.run}, live`;
-  if (task.status === 'planned' && !lastRun) return 'no holder yet';
-  return lastRun ? `last: ${agentOf(lastRun.adapter, lastRun.host, lastRun.model).name}` : 'unassigned';
+  if (task.status === 'awaiting_approval') return <span className="text-[12px] text-ink-2">In the pits for you</span>;
+  if (task.status === 'done' || task.status === 'approved') return <span className="text-[12px] text-ink-2">Parked</span>;
+  if (lastRun && !lastRun.endedAt) {
+    const a = agentOf(lastRun.adapter, lastRun.host, lastRun.model);
+    return (
+      <span className="inline-flex items-center gap-2 text-[14px]">
+        <VendorMark agent={a} showName={false} size={15} />
+        <span className="text-ink-2">{lastRun.run}, live</span>
+      </span>
+    );
+  }
+  if (task.status === 'planned' && !lastRun) return <span className="text-[12px] text-ink-2">Nobody yet</span>;
+  if (!lastRun) return <span className="text-[12px] text-ink-2">Unassigned</span>;
+  return <span className="text-[12px] text-ink-2">Last: {agentOf(lastRun.adapter, lastRun.host, lastRun.model).name}</span>;
 }
 
-export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, CardTask> }) {
+/** Every driver that took the car out, in order, one block each: who drove, not how long, which the board does not know. */
+function Drivers({ agents, live, done }: { agents: Agent[]; live: boolean; done: boolean }) {
+  return (
+    <span className="flex flex-col gap-1 min-w-0" data-testid="card-agents">
+      <span aria-hidden="true" className="flex items-center gap-1 h-[18px] border-b border-dashed border-rule-strong">
+        {agents.slice(0, 6).map((a, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: the same agent can drive twice, so position is the identity
+          <span key={i} className={cx('h-3 flex-1 max-w-12 rounded-[2px]', live && i === agents.length - 1 && 'live-spine')} style={{ background: markColor[a.mark] }} />
+        ))}
+      </span>
+      <span aria-hidden="true" className="flex gap-2 text-[12px] font-extrabold stretch-75 tracking-[0.03em] text-ink-2 truncate">
+        {agents.length ? agents.slice(0, 6).map((a, i) => <span key={`${a.code}-${i}`}>{a.code}</span>) : <span className="font-normal [font-stretch:100%]">No stint yet</span>}
+      </span>
+      <span className="sr-only">{agents.length ? `Drivers so far: ${agents.map((a) => a.name).join(', ')}` : 'No driver has taken it out yet'}</span>
+    </span>
+  );
+}
+
+export function TaskCard({ card, all, lane }: { card: TaskCardData; all?: Map<string, CardTask>; lane?: string }) {
   const { task, lastRun } = card;
   const modelSummary = useModelSummary(card);
   const tasks = all ?? new Map<string, CardTask>();
@@ -103,73 +130,81 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
   const children = [...tasks.values()].filter((t) => t.parent === task.id).sort((a, b) => a.id.localeCompare(b.id));
   const agents = (card.agents ?? (lastRun?.adapter ? [{ adapter: lastRun.adapter, host: lastRun.host, model: lastRun.model, role: lastRun.role }] : [])).map((a) => agentOf(a.adapter, a.host, a.model));
   const live = !!lastRun && !lastRun.endedAt;
-  const gate = task.status === 'awaiting_approval';
+  const done = task.status === 'done';
+  const gate = lane === 'needs-you';
+  const chip = done ? <StatusChip label="merged" tone="merged" /> : <StatusChip status={task.status} />;
+  const summary = modelSummary ?? card.summary;
   return (
     <Link
       to={`/t/${task.id}`}
       data-testid="task-card"
       data-task={task.id}
-      className={cx('block rounded-lg border bg-raised p-3 hover:border-line-strong focus-visible:border-accent', gate ? 'border-warn/60' : live ? 'border-accent/60' : 'border-line')}
+      className={cx(
+        'group grid grid-cols-[48px_minmax(0,1fr)_auto] lg:grid-cols-[56px_minmax(0,1fr)_160px_200px_88px_72px] items-center gap-x-3 px-3 py-3 border-b border-rule no-underline hover:bg-panel focus-visible:bg-panel',
+        gate && 'bg-band',
+      )}
     >
-      <div className="flex items-center justify-between gap-2 text-[12px] text-muted">
-        <span className="font-mono text-faint">{task.id}</span>
-        <span className="flex items-center gap-1.5 tabular">
-          <span>{age(card.lastEventAt)},</span>
-          <CostMeter cost={card.cost} />
+      <Plate id={task.id} variant={done ? 'dim' : task.status === 'planned' ? 'grid' : 'solid'} />
+      <span className="min-w-0 flex flex-col gap-1">
+        <span className="text-[14px] font-bold leading-5 group-hover:underline underline-offset-2">{task.title}</span>
+        {summary ? (
+          <span className="text-[12px] text-ink-2 line-clamp-2" data-testid="card-summary" data-source={modelSummary ? 'model' : 'agent.message'}>
+            {summary}
+          </span>
+        ) : (
+          <span className="text-[12px] text-ink-2 line-clamp-1">{task.goal}</span>
+        )}
+        <span className="font-mono text-[12px] text-ink-2 lg:hidden">{task.id}</span>
+        {card.autopilot?.on ? (
+          <span className="mt-1 flex items-center gap-2 text-[12px] min-w-0" data-testid="autopilot-chip">
+            <StatusChip label={card.autopilot.queued ? 'queued' : `autopilot: ${card.autopilot.step}`} tone={card.autopilot.queued ? 'neutral' : 'active'} />
+            {card.autopilot.reason ? <span className="text-ink-2 truncate">{card.autopilot.reason}</span> : null}
+          </span>
+        ) : null}
+        {task.parent || task.dependsOn?.length ? (
+          <span className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-ink-2" data-testid="task-family">
+            {task.parent ? <span>Part of <span className="font-mono">{task.parent}</span></span> : null}
+            {task.dependsOn?.length ? (
+              <span>
+                after{' '}
+                {task.dependsOn.map((d, i) => (
+                  <span key={d} className="font-mono">
+                    {i ? ', ' : ''}
+                    {d}
+                    {tasks.get(d)?.status === 'done' ? ' (merged)' : ''}
+                  </span>
+                ))}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
+        {children.length ? (
+          <ol className="mt-2 flex flex-col gap-1 border-l-2 border-rule-strong pl-2 text-[12px]" data-testid="subtasks" aria-label={`${children.length} subtasks`}>
+            {children.map((c) => (
+              <li key={c.id} className="flex items-baseline gap-2 min-w-0" data-subtask={c.id}>
+                <span className="font-mono text-ink-2 shrink-0">{c.id}</span>
+                <span className="truncate">{c.title}</span>
+                <span className="ml-auto shrink-0 text-ink-2">{standing(c, tasks)}</span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+        <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
+          {chip}
+          <Holding card={card} />
+          <span className="text-[12px] text-ink-2 tabular">{age(card.lastEventAt)} ago</span>
         </span>
-      </div>
-      <h3 className="mt-1.5 text-[15px] font-semibold leading-[20px] tracking-[-0.01em]">{task.title}</h3>
-      <div className="mt-2 flex items-center gap-1 text-[12px] text-muted min-w-0" data-testid="card-agents">
-        {agents.slice(0, 5).map((a, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: the same agent can appear on two models, so position is the identity
-          <VendorMark key={i} agent={a} showName={false} />
-        ))}
-        <span className={cx('truncate', agents.length ? 'ml-1' : '')}>{holding(card)}</span>
-      </div>
-      {card.autopilot?.on ? (
-        <p className="mt-2 flex items-center gap-2 text-[12px] min-w-0" data-testid="autopilot-chip">
-          <StatusChip label={card.autopilot.queued ? 'queued' : `autopilot: ${card.autopilot.step}`} tone={card.autopilot.queued ? 'neutral' : 'active'} />
-          {card.autopilot.reason ? <span className="text-muted truncate">{card.autopilot.reason}</span> : null}
-        </p>
-      ) : null}
-      {task.parent || task.dependsOn?.length ? (
-        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-[12px] text-muted" data-testid="task-family">
-          {task.parent ? <span>Part of <span className="font-mono">{task.parent}</span></span> : null}
-          {task.dependsOn?.length ? (
-            <span>
-              after{' '}
-              {task.dependsOn.map((d, i) => (
-                <span key={d} className="font-mono">
-                  {i ? ', ' : ''}
-                  {d}
-                  {tasks.get(d)?.status === 'done' ? ' (merged)' : ''}
-                </span>
-              ))}
-            </span>
-          ) : null}
-        </p>
-      ) : null}
-      {children.length ? (
-        <ol className="mt-2 flex flex-col gap-1 border-l border-line pl-2 text-[12px]" data-testid="subtasks" aria-label={`${children.length} subtasks`}>
-          {children.map((c) => (
-            <li key={c.id} className="flex items-baseline gap-2 min-w-0" data-subtask={c.id}>
-              <span className="font-mono text-faint shrink-0">{c.id}</span>
-              <span className="truncate">{c.title}</span>
-              <span className="ml-auto shrink-0 text-muted">{standing(c, tasks)}</span>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      {modelSummary ?? card.summary ? (
-        <p className="mt-2 text-[12px] text-muted line-clamp-3" data-testid="card-summary" data-source={modelSummary ? 'model' : 'agent.message'}>
-          {modelSummary ?? card.summary}
-        </p>
-      ) : null}
-      <div className="mt-2 flex items-center gap-2">
-        {task.status === 'done' ? <StatusChip label="merged" tone="good" /> : <StatusChip status={task.status} />}
-        {task.status === 'done' ? <span className="font-mono text-[11px] text-faint">Stint-Task: {task.id}</span> : null}
-      </div>
-      {live ? <div aria-hidden className="mt-2 h-0.5 rounded-full bg-accent live-spine" /> : null}
+      </span>
+      <span className="hidden lg:block min-w-0">
+        <Holding card={card} />
+      </span>
+      <span className="hidden lg:block min-w-0">
+        <Drivers agents={agents} live={live} done={done} />
+      </span>
+      <span className="hidden lg:block text-[12px] text-ink-2 tabular">{age(card.lastEventAt)} ago</span>
+      <span className={cx('text-right font-bold tabular', !card.cost.usd && 'text-ink-2 font-normal')}>
+        <CostMeter cost={card.cost} />
+      </span>
     </Link>
   );
 }

@@ -31,27 +31,27 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
       .catch((e: unknown) => toast.error(said(e)));
   const open = tasks.filter((c) => c.task.status !== 'done' && c.task.status !== 'abandoned');
   return (
-    <section className="mx-4 mt-4 rounded-lg border border-line bg-raised p-3" aria-label="Intake" data-testid="intake">
-      <h2 className="text-[13px] font-semibold mb-2">
-        Intake <span className="text-faint font-normal tabular">{items.length}</span>
-        <span className="text-muted font-normal ml-2">Issues from GitHub and Linear, triaged. None is a task until you accept it.</span>
+    <section className="flex flex-col gap-2" aria-label="Intake" data-testid="intake">
+      <h2 className="flex flex-wrap items-baseline gap-x-2 text-[19px] font-bold stretch-112">
+        Intake <span className="text-ink-3 font-normal tabular text-[12px]">{items.length}</span>
+        <span className="text-ink-2 font-normal text-[12px] [font-stretch:100%]">Issues from GitHub and Linear, triaged. None is a car on the grid until you accept it.</span>
       </h2>
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col border-t-2 border-ink">
         {items.map((i) => (
-          <li key={i.id} className="rounded-md border border-line p-2 text-[13px]" data-testid="intake-row" data-item={i.id}>
+          <li key={i.id} className="border-b border-rule px-3 py-3 text-[14px]" data-testid="intake-row" data-item={i.id}>
             <div className="flex flex-wrap items-center gap-2">
               <StatusChip label={`${i.source === 'github' ? 'GitHub' : 'Linear'} ${i.ref}`} tone="neutral" />
               {i.url ? (
-                <a href={i.url} target="_blank" rel="noreferrer" className="font-medium hover:text-accent min-w-0 truncate">
+                <a href={i.url} target="_blank" rel="noreferrer" className="font-bold underline-offset-2 hover:underline min-w-0 truncate">
                   {i.triage?.title ?? i.title}
                 </a>
               ) : (
-                <span className="font-medium min-w-0 truncate">{i.triage?.title ?? i.title}</span>
+                <span className="font-bold min-w-0 truncate">{i.triage?.title ?? i.title}</span>
               )}
               {i.triage ? <StatusChip label={`size ${i.triage.size}`} tone="neutral" /> : null}
               {i.triage ? <StatusChip label={`${i.triage.risk} risk`} tone={i.triage.risk === 'high' ? 'bad' : i.triage.risk === 'medium' ? 'warn' : 'neutral'} /> : null}
             </div>
-            <p className="text-[12px] text-muted mt-1">
+            <p className="text-[12px] text-ink-2 mt-1">
               {i.triage ? i.triage.reason : `Not triaged: ${i.triageError ?? 'no planner answered'}. You can still accept it as written.`}
               {i.triage?.duplicates.length ? (
                 <>
@@ -60,7 +60,7 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
                   {i.triage.duplicates.map((d, n) => (
                     <span key={d}>
                       {n ? ', ' : ''}
-                      <Link to={`/t/${d}`} className="text-accent hover:underline font-mono">
+                      <Link to={`/t/${d}`} className="underline underline-offset-2 font-mono">
                         {d}
                       </Link>
                     </span>
@@ -75,7 +75,7 @@ export function IntakePanel({ tasks }: { tasks: TaskCardData[] }) {
               </Button>
               <select
                 aria-label="Merge into"
-                className="h-7 rounded-md border border-line bg-surface px-2 text-[12px]"
+                className="h-7 rounded-[3px] border border-rule-strong bg-ground px-2 text-[12px] text-ink"
                 value={merging[i.id] ?? i.triage?.duplicates[0] ?? ''}
                 onChange={(e) => setMerging((m) => ({ ...m, [i.id]: e.target.value }))}
               >

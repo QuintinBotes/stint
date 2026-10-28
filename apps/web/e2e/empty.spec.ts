@@ -10,6 +10,7 @@ test('Every panel in an empty task shows its empty-state sentence, and every car
   expect(res.status()).toBe(201);
   const { id } = (await res.json()) as { id: string };
   await page.goto(`/t/${id}`);
+  await page.getByTestId('tab-memory').click();
   await expect(page.getByTestId('memory-panel').getByTestId('empty-memory')).toBeVisible();
   const expected: Record<string, string> = {
     diff: 'The diff appears here once a run commits to the task branch.',
@@ -46,6 +47,7 @@ test('The Files tab and the timeline show their empty states in an empty task', 
   await page.getByLabel('Filter files').fill('no-such-file-zzz');
   await expect(page.getByTestId('files-empty')).toContainText('No file matches.');
   // the timeline has the creation row and no run segments yet
+  await page.getByTestId('race-control-toggle').click();
   const rail = page.getByTestId('rail-column');
   await expect(rail.getByTestId('run-segment')).toHaveCount(0);
   await expect(rail).toContainText('Task created');

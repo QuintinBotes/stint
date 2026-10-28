@@ -25,7 +25,10 @@ test('The Hand to picker never recommends the leaving agent when another is read
     const agentId = await row.getAttribute('data-agent');
     const fromHealth = health.adapters.find((a) => a.id === agentId);
     expect(fromHealth, `health lists ${agentId}`).toBeTruthy();
-    await expect(row.getByTestId('hand-vendor')).toHaveText(`${(fromHealth as { vendor: string }).vendor.charAt(0).toUpperCase()}${(fromHealth as { vendor: string }).vendor.slice(1)}`);
+    // the vendor as people write it: OpenAI, not Openai
+    const vendor = (fromHealth as { vendor: string }).vendor;
+    const names: Record<string, string> = { meta: 'Meta', anthropic: 'Anthropic', openai: 'OpenAI', local: 'Local', other: 'Other' };
+    await expect(row.getByTestId('hand-vendor')).toHaveText(names[vendor] ?? `${vendor.charAt(0).toUpperCase()}${vendor.slice(1)}`);
     await expect(row.getByTestId('hand-roles')).toContainText('implementer');
     const note = row.getByTestId('capability-note');
     await expect(note).toContainText('resume');

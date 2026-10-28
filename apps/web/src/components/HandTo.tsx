@@ -1,7 +1,7 @@
 import type { Handoff } from '@stint-dev/core';
 import { useState } from 'react';
 import { agentOf, modelName } from '../agents';
-import { type AdapterHealth, DaemonError, api } from '../api';
+import { type AdapterHealth, api, daemonMessage } from '../api';
 import { useHealth } from '../hooks';
 import { Button, StatusChip, VendorMark, cx } from './ui';
 
@@ -11,7 +11,8 @@ const GATE: Record<string, string> = {
   none: 'no gate',
 };
 
-const vendorLabel = (vendor: string) => (vendor ? `${vendor.charAt(0).toUpperCase()}${vendor.slice(1)}` : 'Vendor unknown');
+const VENDOR_NAMES: Record<string, string> = { meta: 'Meta', anthropic: 'Anthropic', openai: 'OpenAI', local: 'Local', other: 'Other' };
+export const vendorLabel = (vendor: string) => (vendor ? (VENDOR_NAMES[vendor] ?? `${vendor.charAt(0).toUpperCase()}${vendor.slice(1)}`) : 'Vendor unknown');
 
 /** What this agent can do, in the words health reports: resume, structured output, sandbox, cost reporting. */
 function capabilityNote(caps: AdapterHealth['capabilities']): string {
@@ -27,7 +28,7 @@ const harnessOf = (a: AdapterHealth) => a.harness ?? a.id;
  * The recommendation compares harness and model (ADR-0006): a different agent from the one leaving, on a
  * different harness and model where one is ready; each agent's vendor stays visible so a person can choose.
  */
-export function HandTo({ taskId, packet, live }: { taskId: string; packet: Handoff | null; live: boolean }) {
+export function HandTo({ taskId, packet, live, atGate = false }: { taskId: string; packet: Handoff | null; live: boolean; atGate?: boolean }) {
   const { data: health } = useHealth();
   const leaving = packet?.from.adapter ?? null;
   const all = (health?.adapters ?? []).filter((a) => a.id !== 'replay' && a.roles.includes('implementer'));
@@ -50,70 +51,101 @@ export function HandTo({ taskId, packet, live }: { taskId: string; packet: Hando
     api
       .hand(taskId, choice, ask.trim() || undefined)
       .then((r) => setSent(`${agentOf(choice).name} started ${r.run} from this packet.`))
-      .catch((e: unknown) => setError(e instanceof DaemonError ? `${e.error.message}${e.error.hint ? `: ${typeof e.error.hint === 'string' ? e.error.hint : JSON.stringify(e.error.hint)}` : ''}` : String(e)))
+      .catch((e: unknown) => setError(daemonMessage(e)))
       .finally(() => setBusy(false));
   };
-  return (
-    <section className="rounded-lg border border-line bg-raised p-4" data-testid="hand-to">
-      <h3 className="text-[13px] font-semibold">Hand to</h3>
-      {recommended && recommended.id !== leaving && leaving ? (
-        <p className="text-[12px] text-muted mt-1" data-testid="hand-reason">
-          Recommended: {agentOf(recommended.id).name}, a different agent from {agentOf(leaving).name}, which ended {packet.from.endedBy}. It runs on a different harness
-          {harnessOf(recommended) !== recommended.id ? ` (${harnessOf(recommended)})` : ''}
-          {recommended.model && recommended.model !== packet.from.model ? ` and a different model (${modelName(recommended.model)})` : ''}. A fresh agent reads only the packet, so nothing the last one assumed carries over unchecked.
-        </p>
-      ) : null}
-      <ul className="mt-3 flex flex-col gap-1.5" role="radiogroup" aria-label="Next agent">
-        {all.map((a) => {
-          const disabled = a.enabled === false;
-          const selectable = ready.some((r) => r.id === a.id);
-          return (
-            <li key={a.id} data-testid="hand-agent" data-agent={a.id}>
-              <label
-                className={cx('flex items-start gap-3 rounded-md border px-3 py-2 text-[13px]', selectable ? 'cursor-pointer' : 'opacity-60', choice === a.id ? 'border-accent' : 'border-line')}
-                data-testid={disabled ? 'hand-disabled' : undefined}
-              >
-                <input type="radio" name="hand-to" value={a.id} checked={choice === a.id} disabled={!selectable} onChange={() => setPicked(a.id)} className="accent-[var(--accent)] mt-0.5" />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <VendorMark agent={agentOf(a.id)} />
-                    <span className="text-[12px] text-muted" data-testid="hand-vendor">
-                      {vendorLabel(a.vendor)}
-                    </span>
-                    <span className="text-[12px] text-muted" data-testid="hand-roles">
-                      {a.roles.join(', ')}
-                    </span>
-                  </span>
-                  <span className="text-[12px] text-muted" data-testid="capability-note">
-                    {capabilityNote(a.capabilities)}
-                  </span>
-                  <span className="text-[12px] text-muted" data-testid="hand-gate">
-                    {disabled ? 'Turned off in config' : `Gate: ${a.gate}. ${GATE[a.gate] ?? a.gate}.`}
-                  </span>
-                </span>
-                <span className="flex shrink-0 flex-col items-end gap-1">
-                  {a.id === recommended?.id ? <StatusChip label="recommended" tone="active" /> : null}
-                  {a.id === leaving ? <StatusChip label="leaving" tone="neutral" /> : null}
-                  {disabled ? <StatusChip label="disabled" tone="neutral" /> : null}
-                  {!disabled && !selectable ? <StatusChip label="unavailable" tone="neutral" /> : null}
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-      <label className="block mt-3 text-[12px] text-muted" htmlFor="hand-ask">
-        Anything to add to the packet's ask (optional)
+  const off = all.filter((a) => a.enabled === false);
+  const row = (a: AdapterHealth) => {
+    const disabled = a.enabled === false;
+    const selectable = ready.some((r) => r.id === a.id);
+    const chosen = choice === a.id;
+    return (
+      <li key={a.id} data-testid="hand-agent" data-agent={a.id}>
+        <label
+          className={cx('grid grid-cols-[20px_minmax(0,1fr)_auto] gap-x-3 items-start py-2 border-b border-rule text-[14px] leading-5', selectable ? 'cursor-pointer' : 'text-ink-2', chosen && 'bg-panel')}
+          data-testid={disabled ? 'hand-disabled' : undefined}
+        >
+          <input type="radio" name="hand-to" value={a.id} checked={chosen} disabled={!selectable} onChange={() => setPicked(a.id)} className="mt-1" />
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="flex flex-wrap items-center gap-x-2">
+              <VendorMark agent={agentOf(a.id)} showName={false} size={14} />
+              <span className="font-bold text-ink">{agentOf(a.id).name}</span>
+              <span className="text-[12px] text-ink-2" data-testid="hand-vendor">
+                {vendorLabel(a.vendor)}
+              </span>
+              <span className="text-[12px] text-ink-2" data-testid="hand-roles">
+                {a.roles.join(', ')}
+              </span>
+            </span>
+            {/* the detail of the chosen row only; the others keep it for a screen reader's row name */}
+            <span className={cx('text-[12px] text-ink-2', !chosen && 'sr-only')} data-testid="capability-note">
+              {capabilityNote(a.capabilities)}
+            </span>
+            <span className={cx('text-[12px] text-ink-2', !chosen && !disabled && 'sr-only')} data-testid="hand-gate">
+              {disabled ? 'Turned off in config' : `Gate: ${a.gate}. ${GATE[a.gate] ?? a.gate}.`}
+            </span>
+          </span>
+          <span className="flex shrink-0 flex-col items-end gap-1">
+            {a.id === recommended?.id ? <StatusChip label="recommended" tone="good" /> : null}
+            {a.id === leaving ? <StatusChip label="leaving" tone="neutral" /> : null}
+            {disabled ? <StatusChip label="disabled" tone="neutral" /> : null}
+            {!disabled && !selectable ? <StatusChip label="unavailable" tone="neutral" /> : null}
+          </span>
+        </label>
+      </li>
+    );
+  };
+  const picker = (
+    <>
+      <fieldset className="m-0 p-0 border-0 flex flex-col min-w-0">
+        <legend className="pb-2 text-[14px] font-bold">Who drives next</legend>
+        {recommended && recommended.id !== leaving && leaving ? (
+          <p className="text-[14px] text-ink-2 pb-2" data-testid="hand-reason">
+            Recommended: {agentOf(recommended.id).name}, a different agent from {agentOf(leaving).name}, which ended {packet.from.endedBy}. It runs on a different harness
+            {harnessOf(recommended) !== recommended.id ? ` (${harnessOf(recommended)})` : ''}
+            {recommended.model && recommended.model !== packet.from.model ? ` and a different model (${modelName(recommended.model)})` : ''}.
+          </p>
+        ) : null}
+        <ul className="flex flex-col border-t border-rule-strong" role="radiogroup" aria-label="Next agent">
+          {all.filter((a) => a.enabled !== false).map(row)}
+        </ul>
+        {off.length ? (
+          <details className="mt-2 text-[12px] text-ink-2">
+            <summary className="cursor-pointer hover:text-ink">
+              {off.length} more {off.length === 1 ? 'is' : 'are'} turned off in config
+            </summary>
+            <ul className="flex flex-col">{off.map(row)}</ul>
+          </details>
+        ) : null}
+      </fieldset>
+      <label className="flex flex-col gap-2" htmlFor="hand-ask">
+        <span className="text-[14px] font-bold">
+          Add to the board <span className="font-normal text-ink-2">optional</span>
+        </span>
+        <textarea id="hand-ask" rows={2} value={ask} placeholder="Anything the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[3px] border border-ink-3 bg-panel px-3 py-2 text-[14px] text-ink placeholder:text-ink-3" />
       </label>
-      <textarea id="hand-ask" rows={2} value={ask} onChange={(e) => setAsk(e.target.value)} className="mt-1 w-full rounded-md border border-line bg-surface p-2 text-[13px]" />
-      <div className="mt-2 flex items-center gap-3">
-        <Button tone="primary" onClick={hand} disabled={busy || live || !choice} data-testid="hand-button">
-          {busy ? 'Handing' : `Hand to ${choice ? agentOf(choice).name : 'an agent'}`}
+      <div className="flex flex-col gap-2">
+        <Button tone="primary" className="h-11 w-full justify-between px-4 text-[14px]" onClick={hand} disabled={busy || live || !choice} data-testid="hand-button">
+          {busy ? 'Handing over' : `Send ${choice ? agentOf(choice).name : 'a driver'} out`}
         </Button>
-        {live ? <span className="text-[12px] text-faint">A run is live; stop it first.</span> : null}
-        {sent ? <span className="text-[12px] text-good">{sent}</span> : null}
+        <span className="text-[12px] text-ink-2">The next driver reads this packet, never the last driver's transcript.</span>
+        {live ? <span className="text-[14px] text-ink-2">A run is on track; stop it first.</span> : null}
+        {sent ? <span className="text-[14px] text-green">{sent}</span> : null}
       </div>
-      {error ? <p className="text-[12px] text-bad mt-2">{error}</p> : null}
+      {error ? <p className="text-[14px] text-red">The hand-off did not start: {error}</p> : null}
+    </>
+  );
+  return (
+    <section className="flex flex-col gap-3" data-testid="hand-to">
+      {atGate ? (
+        // at the gate the call is approve or not; a new driver is the exception, one click away
+        <details className="flex flex-col gap-3">
+          <summary className="cursor-pointer text-[14px] font-bold hover:underline underline-offset-2">Change driver instead</summary>
+          <div className="mt-3 flex flex-col gap-3">{picker}</div>
+        </details>
+      ) : (
+        picker
+      )}
     </section>
   );
 }

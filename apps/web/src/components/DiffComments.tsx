@@ -7,12 +7,12 @@ export type CommentAnnotation = { kind: 'comment'; comment: LineComment } | { ki
 
 export function CommentNote({ comment }: { comment: LineComment }) {
   return (
-    <div data-testid="diff-comment" data-line={comment.line} className="border-t border-line bg-raised px-3 py-2 text-[12px]">
-      <p className="font-mono text-[11px] text-faint">
+    <div data-testid="diff-comment" data-line={comment.line} className="border-t border-rule bg-panel px-3 py-2 text-[12px]">
+      <p className="font-mono text-[12px] text-ink-3">
         {comment.file}:{comment.line}
         {comment.handedTo ? <span>{` handed to ${comment.handedTo}`}</span> : null}
       </p>
-      <p className="mt-0.5 whitespace-pre-wrap">{comment.text}</p>
+      <p className="mt-1 whitespace-pre-wrap">{comment.text}</p>
     </div>
   );
 }
@@ -41,7 +41,7 @@ export function CommentEditor({
   return (
     <form
       data-testid="diff-comment-form"
-      className="border-t border-line bg-raised px-3 py-2 flex flex-col gap-2"
+      className="border-t border-rule bg-panel px-3 py-2 flex flex-col gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         save();
@@ -63,10 +63,10 @@ export function CommentEditor({
         onKeyDown={(e) => {
           if (e.key === 'Escape') onCancel();
         }}
-        className="w-full rounded-md border border-line bg-surface px-2 py-1 text-[13px] outline-none focus-visible:border-accent"
+        className="w-full rounded-md border border-rule bg-ground px-2 py-1 text-[14px] outline-none focus-visible:border-ink"
       />
       {error ? (
-        <p role="alert" className="text-bad text-[12px]">
+        <p role="alert" className="text-red text-[12px]">
           {error}
         </p>
       ) : null}

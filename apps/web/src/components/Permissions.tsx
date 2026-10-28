@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { type PendingPermission, type PermissionOptionData, api } from '../api';
+import { toast } from 'sonner';
+import { type PendingPermission, type PermissionOptionData, api, daemonMessage } from '../api';
 import { Button } from './ui';
 
 /** The plain words for one permission choice, whatever name the agent gave it. */
@@ -18,7 +19,7 @@ function PermissionButtons({ p, onDecided }: { p: PendingPermission; onDecided?:
     api
       .decidePermission(p.task, p.run, p.requestId, optionId)
       .then(() => onDecided?.())
-      .catch(() => undefined)
+      .catch((e: unknown) => toast.error(`The answer to ${p.tool} was not sent: ${daemonMessage(e)}`))
       .finally(() => setBusy(null));
   };
   return (
@@ -40,9 +41,9 @@ export function PermissionBanner({ permissions }: { permissions: PendingPermissi
   return (
     <div className="flex flex-col gap-2" data-testid="permission-banner">
       {waiting.map((p) => (
-        <section key={p.requestId} className="rounded-md border border-warn/40 bg-warn-tint p-3" aria-label="Permission needed">
-          <p className="text-[13px] font-medium text-ink">Permission needed</p>
-          <p className="text-[12px] text-muted mt-1" data-testid="permission-title">
+        <section key={p.requestId} className="rounded-md border border-yellow/40 bg-yellow-tint p-3" aria-label="Permission needed">
+          <p className="text-[14px] font-medium text-ink">Permission needed</p>
+          <p className="text-[12px] text-ink-2 mt-1" data-testid="permission-title">
             <span className="font-mono">{p.tool}</span>: {p.title}
           </p>
           <div className="mt-2">
@@ -60,9 +61,9 @@ export function PermissionRows({ permissions, onDecided }: { permissions: Pendin
   return (
     <>
       {permissions.map((p) => (
-        <li key={`${p.task}-${p.requestId}`} className="rounded-md border border-warn/40 bg-warn-tint p-3 text-[12px]" data-testid="permission-row">
-          <p className="text-muted mb-2">
-            <Link to={`/t/${p.task}`} className="font-medium text-ink hover:text-accent" data-testid="permission-task-link">
+        <li key={`${p.task}-${p.requestId}`} className="rounded-md border border-yellow/40 bg-yellow-tint p-3 text-[12px]" data-testid="permission-row">
+          <p className="text-ink-2 mb-2">
+            <Link to={`/t/${p.task}`} className="font-medium text-ink hover:text-ink" data-testid="permission-task-link">
               {p.task}
             </Link>{' '}
             {p.run} is waiting for permission: <span className="font-mono">{p.tool}</span>, {p.title}
