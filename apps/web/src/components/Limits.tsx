@@ -35,8 +35,9 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
     };
   }, [taskId, changes]);
   const used = useMemo(() => taskUsage(events), [events]);
+  // the stop stands until autopilot is switched on again or a run starts some other way, such as a hand-off
   const stop = useMemo(() => {
-    const last = events.filter((e) => e.type.startsWith('autopilot.')).at(-1);
+    const last = events.findLast((e) => e.type.startsWith('autopilot.') || e.type === 'run.started');
     return last?.type === 'autopilot.stopped' && typeof last.payload.limit === 'string' ? { limit: last.payload.limit as LimitName, reason: String(last.payload.reason ?? '') } : null;
   }, [events]);
   if (!caps) return null;
