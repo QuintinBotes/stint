@@ -63,4 +63,6 @@ test('A task made with Builds 1 stops at the build limit after a failing build; 
   await stop.getByRole('button', { name: 'Hand to another agent' }).click();
   await expect(page.getByTestId('tab-packet')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('hand-to')).toBeVisible();
+  // the hand-to choices are a list inside a radio group, which axe checks with the panel open
+  expect(await axe(page)).toEqual([]);
 });

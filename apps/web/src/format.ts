@@ -8,6 +8,14 @@ export function money(c: Pick<Cost, 'usd' | 'estimated'> | null | undefined): st
   return c.estimated ? `≈${text}` : text;
 }
 
+/** Spend against its cap at one precision: four decimals for both when either is under a cent, so $0.0000 of $0.0040. */
+export function moneyOf(used: number, cap: number | null): string {
+  if (cap === null) return money({ usd: used });
+  const fine = [used, cap].some((v) => v > 0 && v < 0.01);
+  const f = (v: number) => (fine ? `$${v.toFixed(4)}` : money({ usd: v }));
+  return `${f(used)} of ${f(cap)}`;
+}
+
 export function tokens(n: number): string {
   return n >= 10_000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }

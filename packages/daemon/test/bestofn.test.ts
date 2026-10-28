@@ -76,7 +76,16 @@ test('With two green candidates the reviewer picks, and its cost is on bestofn.p
       const t = await ws.createTask(task("grep -q 'LIMIT = 60' src/lib/limiter.ts"));
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
       const events = await until(ws, t.id, stopped, 120_000);
-      const [first] = (events.find((e) => e.type === 'bestofn.started')?.payload as { candidates: string[] }).candidates;
+      const [first, second] = (events.find((e) => e.type === 'bestofn.started')?.payload as { candidates: string[] }).candidates;
+      if (!models.asked.includes('pick')) {
+        // say why when only one candidate reached the pick green, so a failure on a slow runner explains itself
+        const why = [];
+        for (const c of [first, second] as string[]) {
+          const ev = await ws.events(c).read();
+          why.push({ c, verification: (await ws.verification(c).latest())?.status ?? null, stopped: ev.filter((e) => e.type === 'autopilot.stopped').map((e) => e.payload.reason), odd: ev.filter((e) => e.type === 'run.refused' || (e.type === 'run.finished' && e.payload.endedBy !== 'completed')).map((e) => [e.type, e.payload]) });
+        }
+        console.error('bestofn pick diagnostics', JSON.stringify({ picked: events.find((e) => e.type === 'bestofn.picked')?.payload, why }));
+      }
       expect(models.asked).toContain('pick');
       expect(events.find((e) => e.type === 'bestofn.picked')?.payload).toMatchObject({ pick: first, host: 'ollama', model: 'fake', cost: { inputTokens: 100, outputTokens: 20, usd: 0 } });
       expect((await costs(ws, { group: 'run' })).find((r) => r.key === `${t.id}/pick`)).toMatchObject({ inputTokens: 100, runs: 0 });

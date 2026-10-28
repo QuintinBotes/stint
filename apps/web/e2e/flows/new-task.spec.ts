@@ -33,4 +33,7 @@ test('A task created with an issue URL shows it as a link in the task header', a
   const link = page.getByTestId('task-header').getByTestId('issue-link');
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute('href', issueUrl);
+  // nothing is built yet, so there is nothing to send back or reject
+  await expect(page.getByRole('button', { name: 'Request changes' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Reject' })).toBeDisabled();
 });

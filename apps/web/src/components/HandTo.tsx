@@ -114,9 +114,10 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
             {recommended.model && recommended.model !== packet.from.model ? ` and model (${modelName(recommended.model)})` : ''}.
           </p>
         ) : null}
-        <ul className="flex flex-col gap-2" role="radiogroup" aria-label="Next agent">
-          {all.filter((a) => a.enabled !== false).map(row)}
-        </ul>
+        {/* the group role sits on a wrapper: on the ul itself it would replace the list role its items need */}
+        <div role="radiogroup" aria-label="Next agent">
+          <ul className="flex flex-col gap-2">{all.filter((a) => a.enabled !== false).map(row)}</ul>
+        </div>
         {off.length ? (
           <details className="text-small text-ink-2">
             <summary className="w-fit min-h-6 cursor-pointer hover:text-ink">

@@ -5,14 +5,14 @@ import { type GoalView, api, daemonMessage } from '../api';
 import { Meter } from '../components/Limits';
 import { Sharpen } from '../components/SharpenPanel';
 import { Button, EmptyState, Explain, StatusChip, cx, rev } from '../components/ui';
-import { money } from '../format';
+import { money, moneyOf } from '../format';
 import { useGoal, useGoals } from '../hooks';
 
 // green only for proven, amber only for failing, ink for the rest, as How it went shows a task's criteria
 const INK: Partial<Record<CriterionState, string>> = { proven: 'text-green', failing: 'text-amber' };
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const met = (o: GoalOutcome) => `${o.met} of ${plural(o.criteria.length, 'criterion', 'criteria')} met`;
-const spend = (o: GoalOutcome) => `${money({ usd: o.spend.usd })}${o.spend.limit === null ? '' : ` of ${money({ usd: o.spend.limit })}`}`;
+const spend = (o: GoalOutcome) => moneyOf(o.spend.usd, o.spend.limit);
 const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 text-ink placeholder:text-ink-3';
 
 function Page({ testId, children }: { testId: string; children: ReactNode }) {
@@ -178,7 +178,7 @@ function GoalPage({ id }: { id: string }) {
                 {o.tasks.map((t) => (
                   <tr key={t.id} data-testid={`goal-task-${t.id}`}>
                     <th scope="row" className={cx(rev.td, 'font-normal')}>
-                      <Link to={`/t/${t.id}`} className="underline decoration-rule-strong underline-offset-4 hover:decoration-ink">
+                      <Link to={`/t/${t.id}`} className="inline-flex items-center gap-1 min-h-6 underline decoration-rule-strong underline-offset-4 hover:decoration-ink">
                         <span className="font-mono text-ink-2">{t.id}</span> {titles[t.id] ?? ''}
                       </Link>
                     </th>
@@ -205,7 +205,7 @@ function TaskLinks({ ids }: { ids: string[] }) {
   return (
     <span className="flex flex-wrap gap-x-2">
       {ids.map((t) => (
-        <Link key={t} to={`/t/${t}`} className="font-mono underline decoration-rule-strong underline-offset-4 hover:decoration-ink">
+        <Link key={t} to={`/t/${t}`} className="inline-flex items-center min-h-6 font-mono underline decoration-rule-strong underline-offset-4 hover:decoration-ink">
           {t}
         </Link>
       ))}

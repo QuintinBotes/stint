@@ -20,9 +20,9 @@ export const GLOSSARY = {
   tokens: { word: 'Tokens', ask: 'What are tokens?', plain: 'The units AI models read, write and are billed in; a token is about four characters of text.' },
   sample: { word: 'Sample tasks', ask: 'What are sample tasks?', plain: 'A fixed set of practice tasks Stint runs several times, to check that agents pass every time and not just once.' },
   replay: { word: 'Replay', ask: 'What is the replay?', plain: 'A recorded demo. Nothing runs and nothing is charged.' },
-  limit: { word: 'Limit', ask: 'What is a limit?', plain: 'A cap you set on a task, on builds, hand-offs, spend or agent time. Stint stops and asks you before it would go past one.' },
+  limit: { word: 'Limit', ask: 'What is a limit?', plain: 'A cap you set on a task or a goal, on builds, hand-offs, spend or agent time. Stint stops and asks you before it would go past one.' },
   sharpen: { word: 'Sharpen', ask: 'What does sharpen do?', plain: 'Before work starts, Stint asks the few questions whose answers change what gets built or how it is proven, recommends an answer to each, and records yours as decisions.' },
-  proof: { word: 'Proof', ask: 'What is a proof?', plain: 'What shows a criterion is met: a test that failed before the change and passes after, a hidden scenario, a check, or you.' },
+  proof: { word: 'Proof', ask: 'What is a proof?', plain: 'What shows a criterion is met: a test that failed before the change and passes after, a check the agent never saw, another check, or you.' },
   goal: { word: 'Goal', ask: 'What is a goal?', plain: 'An outcome bigger than one task, with the criteria that prove it. Stint splits it into tasks and shows how each part went.' },
 } as const;
 

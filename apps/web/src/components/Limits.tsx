@@ -2,7 +2,7 @@ import { type LimitName, type Limits as Caps, type StintEvent, taskUsage } from 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { api, daemonMessage } from '../api';
-import { money } from '../format';
+import { money, moneyOf } from '../format';
 import { Button, Explain, cx } from './ui';
 
 const METERS: Array<{ k: LimitName; word: string }> = [
@@ -118,7 +118,7 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
               used={used[k]}
               cap={c}
               reached={reached === k && stop?.scope !== 'goal'}
-              value={`${show(k, used[k])}${c === null ? '' : ` of ${show(k, c)}`}${k === 'minutes' ? ' min' : ''}`}
+              value={k === 'usd' ? moneyOf(used.usd, c) : `${show(k, used[k])}${c === null ? '' : ` of ${show(k, c)}`}${k === 'minutes' ? ' min' : ''}`}
               note={k === 'usd' && used.unpriced ? `, ${used.unpriced} not priced` : ''}
             />
           );

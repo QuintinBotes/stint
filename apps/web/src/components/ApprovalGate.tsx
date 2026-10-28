@@ -96,6 +96,8 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
   };
   // a approves, r asks for changes, x rejects: the keys the help lists, and the palette's request. While the form is
   // open no key acts but Escape, which closes it.
+  // nothing built yet: there is no change to send back or reject
+  const built = bundle.runs.some((r) => r.role === 'implementer' && r.endedAt);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (asking) {
@@ -107,14 +109,14 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
         if (armed) void approve();
         else arm();
       } else if (e.key === 'Escape' && armed) setArmed(false);
-      else if (e.key === 'r') setAsking('changes');
-      else if (e.key === 'x') setAsking('reject');
+      else if (e.key === 'r' && built) setAsking('changes');
+      else if (e.key === 'x' && built) setAsking('reject');
     };
     const onAsk = (e: Event) => {
       const want = (e as CustomEvent<'changes' | 'reject' | 'approve'>).detail;
       if (want === 'approve') {
         if (open) arm();
-      } else setAsking(want);
+      } else if (built) setAsking(want);
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('stint:gate', onAsk);
@@ -374,10 +376,10 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                       </p>
                     ) : null}
                     <div className="grid grid-cols-2 gap-2">
-                      <Button ref={askChanges} className={small} aria-keyshortcuts="r" onClick={() => setAsking('changes')}>
+                      <Button ref={askChanges} className={small} aria-keyshortcuts="r" disabled={!built} onClick={() => setAsking('changes')}>
                         Request changes
                       </Button>
-                      <Button ref={askReject} className={small} aria-keyshortcuts="x" onClick={() => setAsking('reject')}>
+                      <Button ref={askReject} className={small} aria-keyshortcuts="x" disabled={!built} onClick={() => setAsking('reject')}>
                         Reject
                       </Button>
                     </div>

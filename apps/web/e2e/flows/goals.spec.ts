@@ -111,6 +111,13 @@ test('The Goals list, a goal page and the New goal dialog have no WCAG A or AA v
   await expect(dialog).toBeVisible();
   await dialog.getByText('Limits', { exact: true }).click();
   expect(await axe()).toEqual([]);
+  // more criteria than a goal takes is said in words, before the daemon is asked
+  await dialog.getByLabel('Title').fill('Too many');
+  await dialog.getByLabel(/^Outcome/).fill('o');
+  await dialog.getByLabel(/criteria/i).first().fill(Array.from({ length: 13 }, (_, i) => `criterion ${i + 1}`).join('\n'));
+  await dialog.getByRole('button', { name: /Create goal/ }).click();
+  await expect(dialog).toContainText('A goal takes 1 to 12 criteria, one per line; this has 13.');
+  await expect(dialog).not.toContainText('"origin"');
 });
 
 test("A task stopped at its goal's build limit says so and sends you to the goal, whose builds meter reads reached", async ({ page, request }) => {

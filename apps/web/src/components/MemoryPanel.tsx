@@ -332,7 +332,8 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
           {tab === 'similar' ? 'No earlier task shares files, findings or tags with this one. Similar tasks appear here as the workspace grows.' : tab === 'constrains' ? 'No decision or open finding applies to these files. Decisions that bind them appear here.' : 'These files have not changed alongside others yet. Files that change together appear here.'}
         </p>
       ) : null}
-      <ul className="flex flex-col" id="memory-rows" role="tabpanel" aria-labelledby={`memory-tab-${tab}`} data-testid={`memory-rows-${tab}`}>
+      <div id="memory-rows" role="tabpanel" aria-labelledby={`memory-tab-${tab}`} data-testid={`memory-rows-${tab}`}>
+        <ul className="flex flex-col">
         {tab === 'similar'
           ? (rows as SimilarRow[] | null)?.map((r) => (
               <li key={r.task} className={row}>
@@ -376,7 +377,8 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
               </li>
             ))
           : null}
-      </ul>
+        </ul>
+      </div>
     </div>
   );
 }

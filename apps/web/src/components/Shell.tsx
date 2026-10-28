@@ -448,9 +448,14 @@ export function NewGoalDialog({ open, onClose }: { open: boolean; onClose: () =>
           if (f.get('usd')) limits.usd = Number(f.get('usd'));
           if (f.get('builds')) limits.builds = Number(f.get('builds'));
           const nonGoals = lines(f.get('nonGoals'));
+          const criteria = lines(f.get('criteria'));
+          // said before the daemon has to: the schema's own bounds, in words
+          if (criteria.length < 1 || criteria.length > 12) return setError(`A goal takes 1 to 12 criteria, one per line; this has ${criteria.length}.`);
+          if (criteria.some((c) => c.length > 300)) return setError('Each criterion fits in 300 characters.');
+          if (nonGoals.length > 8) return setError(`A goal takes at most 8 non-goals; this has ${nonGoals.length}.`);
           setError(null);
           api
-            .createGoal({ title: String(f.get('title')), outcome: String(f.get('outcome')), criteria: lines(f.get('criteria')), ...(nonGoals.length ? { nonGoals } : {}), ...(Object.keys(limits).length ? { limits } : {}) })
+            .createGoal({ title: String(f.get('title')), outcome: String(f.get('outcome')), criteria, ...(nonGoals.length ? { nonGoals } : {}), ...(Object.keys(limits).length ? { limits } : {}) })
             .then((g) => {
               onClose();
               navigate(`/goals/${g.id}`);

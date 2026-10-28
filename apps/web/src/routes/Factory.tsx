@@ -922,8 +922,8 @@ export function Factory() {
   const [handoffValue, handoffDetail] = share(handoffs, 'once a stopped run is handed on');
 
   const merged = (cards ?? []).filter((c) => c.task.status === 'done').length;
-  // the lead says what the agents came to: a skill learned first, else merges, else that it has not started
-  const lead = learned ? `It learned ${learned === 1 ? 'one skill' : `${learned} skills`}, approved by you.` : merged ? `It merged ${merged === 1 ? 'one task' : `${merged} tasks`}.` : 'It is ready for its first task.';
+  // the lead says what the agents came to over all time (the figures below count the chosen period): a skill learned first, else merges, else that it has not started
+  const lead = learned ? `It has learned ${learned === 1 ? 'one skill' : `${learned} skills`} so far, approved by you.` : merged ? `It has merged ${merged === 1 ? 'one task' : `${merged} tasks`} so far.` : 'It is ready for its first task.';
   return (
     <main className="relative flex-1 min-h-0 overflow-y-auto" data-testid="factory">
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 pt-5 pb-8 md:pt-7 md:pb-10 flex flex-col gap-8">

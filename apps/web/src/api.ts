@@ -195,7 +195,19 @@ export class DaemonError extends Error {
 export function daemonMessage(e: unknown): string {
   if (!(e instanceof DaemonError)) return e instanceof Error ? e.message : String(e);
   const hint = e.error.hint;
-  return `${e.error.message}${hint ? `. ${typeof hint === 'string' ? hint : JSON.stringify(hint)}` : ''}`;
+  return `${e.error.message}${hint ? `. ${typeof hint === 'string' ? hint : plainIssues(hint)}` : ''}`;
+}
+
+/** A schema's complaints as a sentence a person reads ("criteria: at most 12"), never as raw JSON. */
+function plainIssues(hint: unknown): string {
+  const issues = Array.isArray(hint) ? hint : [];
+  const said = issues.flatMap((i: { path?: unknown[]; code?: string; maximum?: number; minimum?: number; message?: string }) => {
+    const field = (i.path ?? []).filter((p) => typeof p === 'string').join('.') || 'the request';
+    if (i.code === 'too_big' && typeof i.maximum === 'number') return [`${field}: at most ${i.maximum}`];
+    if (i.code === 'too_small' && typeof i.minimum === 'number') return [`${field}: at least ${i.minimum}`];
+    return i.message ? [`${field}: ${i.message}`] : [];
+  });
+  return said.length ? `${said.slice(0, 3).join('; ')}.` : 'Check the fields and try again.';
 }
 
 /** The daemon serves the UI, so the API is same-origin. Vite's dev server proxies /api. */
