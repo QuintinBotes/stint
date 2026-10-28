@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
-import type { SharpenState } from '@stint-dev/core';
-import { costs } from '@stint-dev/core/node';
-import { fakeModels, setup } from './autopilot.fixtures';
+import { LIMIT_DEFAULTS, type SharpenState, type StintEvent } from '@stint-dev/core';
+import { type Workspace, costs } from '@stint-dev/core/node';
+import { nextStep } from '../src/autopilot';
+import { fakeModels, setup, stopped, until } from './autopilot.fixtures';
 import { post, withFixtureRepo } from './helpers';
 
 const GOAL = { title: 'Webhooks survive a noisy tenant', outcome: 'One noisy tenant slows only itself.', criteria: ['429 with Retry-After', 'Other tenants are served as before'], nonGoals: ['Billing for extra webhooks'] };
@@ -144,3 +145,49 @@ test('A goal made, sharpened, answered and split into two tasks: the proposal cr
     models.stop();
   }
 }, 60_000);
+
+/** A finished run with what it cost, written as the daemon writes one. */
+async function spent(ws: Workspace, task: string, run: string, role: 'planner' | 'implementer', usd: number) {
+  await ws.events(task).append({ task, run, vendor: 'daemon', type: 'run.started', payload: { role } });
+  await ws.events(task).append({ task, run, vendor: 'daemon', type: 'run.finished', payload: { endedBy: 'completed', cost: { inputTokens: 10, cachedTokens: 0, outputTokens: 10, usd } } });
+}
+
+test("Two tasks whose spend reaches the goal's spend limit stop the next build with limit.reached scope goal, though neither task is at its own limit", async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [], models);
+      const g = await ws.createGoal({ ...GOAL, limits: { usd: 3 } });
+      const [a, b] = await Promise.all(['Count webhooks per tenant', 'Serve the other tenants'].map((title) => ws.createTask({ title, goal: `${title}.`, acceptance: ['it works'], testCommand: 'true', goalId: g.id, goalCriteria: [1] })));
+      await ws.updateGoal(g.id, () => ({ tasks: [a?.id as string, b?.id as string], status: 'running' }));
+      await spent(ws, a?.id as string, 'r1', 'implementer', 2);
+      await spent(ws, b?.id as string, 'r1', 'planner', 1);
+      await post(app, `/api/tasks/${b?.id}/autopilot`, { on: true });
+      const events = await until(ws, b?.id as string, stopped);
+      expect(events.find((e) => e.type === 'limit.reached')?.payload).toEqual({ limit: 'usd', used: 3, cap: 3, scope: 'goal', goal: g.id });
+      expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toMatchObject({ reason: `Needs you: the goal's $3.00 spend limit is reached ($3.00 spent across ${g.id}'s tasks).`, needsYou: true, limit: 'usd' });
+      // nothing was built
+      expect(events.filter((e) => e.type === 'run.started').length).toBe(1);
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
+
+test("nextStep stops a build at the goal's builds and at the expected cost of one more, and checks no goal limit before planning", () => {
+  const t = { id: 'T-0002', acceptance: ['it works'], status: 'planned', tags: [] } as unknown as Parameters<typeof nextStep>[1];
+  const s = { implementers: ['muse-code'], maxHops: 3, parallel: 1 };
+  let seq = 0;
+  const ev = (type: StintEvent['type'], payload: Record<string, unknown> = {}, run?: string): StintEvent => ({ id: '01M5WBKEC0GGGGGGGGGGGG0001', seq: ++seq, ts: '2026-10-28T10:00:00Z', task: 'T-0002', vendor: 'daemon', type, payload, ...(run ? { run } : {}) });
+  const on = [ev('autopilot.started')];
+  const goal = (usd: number, builds: number, limits: { usd: number | null; builds: number | null }) => ({ goal: { id: 'G-0001', usage: { usd, builds }, limits } });
+  // before the plan, a goal over its limits does not stop anything: only a build is checked
+  expect(nextStep(on, t, s, false, LIMIT_DEFAULTS, goal(9, 9, { usd: 1, builds: 1 }))).toEqual({ kind: 'plan' });
+  const planned = [...on, ev('run.started', { role: 'planner' }, 'r1'), ev('run.finished', { endedBy: 'completed', cost: { inputTokens: 1, cachedTokens: 0, outputTokens: 1, usd: 0 } }, 'r1')];
+  expect(nextStep(planned, t, s, false, LIMIT_DEFAULTS, goal(0, 4, { usd: null, builds: 4 }))).toMatchObject({ kind: 'stop', limit: 'builds', used: 4, cap: 4, scope: 'goal', goal: 'G-0001', reason: "Needs you: the goal's build limit is reached (4 of 4 across G-0001's tasks)." });
+  expect(nextStep(planned, t, s, false, LIMIT_DEFAULTS, goal(0, 3, { usd: null, builds: 4 })).kind).toBe('build');
+  // a task that built before: one more build at its usual cost would pass the goal's spend
+  const built = [...planned, ev('run.started', { role: 'implementer' }, 'r2'), ev('run.finished', { endedBy: 'failed', cost: { inputTokens: 1, cachedTokens: 0, outputTokens: 1, usd: 0.5 } }, 'r2')];
+  expect(nextStep(built, t, s, false, LIMIT_DEFAULTS, goal(2.7, 1, { usd: 3, builds: null }))).toMatchObject({ kind: 'stop', limit: 'usd', scope: 'goal', reason: "Needs you: the next build would pass the goal's $3.00 spend limit ($2.70 spent across G-0001's tasks; builds here cost about $0.50)." });
+  expect(nextStep(built, t, s, false, LIMIT_DEFAULTS, goal(2.4, 1, { usd: 3, builds: null })).kind).toBe('hand');
+});
