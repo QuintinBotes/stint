@@ -13,6 +13,7 @@ import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
 import { type Adapter, replayAdapter, warmAvailability } from './adapter';
 import { type AppOptions, DAEMON_VERSION, createApp, daemonContext } from './app';
 import { gardenTick } from './gardening';
+import { recoverRuns } from './lifecycle';
 import { scheduledPull } from './intake';
 import { pollReleases, scanOutcomes } from './outcomes';
 import { killAllPtys } from './pty';
@@ -66,12 +67,17 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     ...(o.health ? { health: o.health } : {}),
     ...(o.digest ? { digest: true } : {}),
   });
-  // a task the log says is on autopilot picks up where it was
-  void daemonContext(app).autopilot.resume();
-  // outcomes after merge are scanned on start, then every 10 minutes; pull requests every minute (R-030, R-042)
   const outcomeCtx = daemonContext(app);
   const logScanFailure = (what: string) => (err: unknown) =>
     process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `${what} did NOT run: ${err instanceof Error ? err.message : String(err)}` })}\n`);
+  // runs a crash or a stop cut off are closed first; then a task the log says is on autopilot picks up where it was
+  const recovering = recoverRuns(outcomeCtx)
+    .catch(logScanFailure('closing the runs a restart cut off'))
+    .then(() => outcomeCtx.autopilot.resume())
+    .catch(logScanFailure('resuming autopilot'));
+  outcomeCtx.pending.add(recovering);
+  void recovering.finally(() => outcomeCtx.pending.delete(recovering));
+  // outcomes after merge are scanned on start, then every 10 minutes; pull requests every minute (R-030, R-042)
   await scanOutcomes(outcomeCtx).catch(logScanFailure('the outcome scan on start'));
   const outcomeTimer = setInterval(() => void scanOutcomes(outcomeCtx).catch(logScanFailure('the outcome scan')), 10 * 60_000);
   (outcomeTimer as unknown as { unref?: () => void }).unref?.();
