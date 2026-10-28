@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/questions/1",
+  "title": "stint.questions/1",
+  "description": "What the sharpen model returns before work starts: the questions whose answers change what gets built or how it is proven, the reversible details it settled itself, and one proof per criterion. This is the shape only; the daemon checks every question against the rules in docs/sharpen.md and drops the ones that break them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "questions", "assumed", "proofs"],
+  "properties": {
+    "version": { "const": "stint.questions/1" },
+    "questions": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "changes", "evidence", "options", "recommendation", "safeDefault", "blocks", "material"],
+        "properties": {
+          "text": { "type": "string", "maxLength": 300, "description": "The question, ending in a question mark, at least 5 words." },
+          "changes": { "type": "string", "maxLength": 40, "description": "What the answer changes: implementation, proof, scope or authority." },
+          "evidence": { "type": "string", "maxLength": 400, "description": "What Stint found in the task, the files or the memory that raised the question." },
+          "options": {
+            "type": "array",
+            "maxItems": 6,
+            "description": "2 to 4 answers with distinct labels.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["label", "consequence"],
+              "properties": {
+                "label": { "type": "string", "maxLength": 120 },
+                "consequence": { "type": "string", "maxLength": 300, "description": "What happens if this answer is chosen." }
+              }
+            }
+          },
+          "recommendation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["option", "why"],
+            "properties": {
+              "option": { "type": "string", "maxLength": 120, "description": "The label of the recommended option." },
+              "why": { "type": "string", "maxLength": 300 }
+            }
+          },
+          "safeDefault": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exists"],
+            "properties": {
+              "exists": { "type": "boolean", "description": "Whether an answer exists that is cheap to reverse later." },
+              "option": { "type": "string", "maxLength": 120, "description": "The label of that option." },
+              "why": { "type": "string", "maxLength": 300 }
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "maxItems": 12,
+            "description": "The acceptance criteria the answer affects, counting from 1.",
+            "items": { "type": "integer", "minimum": 1 }
+          },
+          "material": { "type": "boolean", "description": "True when a wrong answer is costly or hard to undo." }
+        }
+      }
+    },
+    "assumed": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "Reversible details settled without asking, each with why.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "why"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "why": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "proofs": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "One suggested proof per acceptance criterion.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["criterion", "kind", "ref", "why"],
+        "properties": {
+          "criterion": { "type": "integer", "minimum": 1, "description": "The criterion, counting from 1." },
+          "kind": { "type": "string", "enum": ["test", "scenario", "check", "human"] },
+          "ref": { "type": "string", "minLength": 1, "maxLength": 200, "description": "A test name or part of one, a scenario name, a check name, or what a person checks." },
+          "why": { "type": "string", "maxLength": 300 }
+        }
+      }
+    }
+  }
+}

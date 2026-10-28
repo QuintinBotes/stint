@@ -67,6 +67,9 @@
         "provider.fallback",
         "cost.unpriced",
         "cost.recorded",
+        "sharpen.asked",
+        "sharpen.answered",
+        "proofs.set",
         "runtime.unclassified"
       ]
     },

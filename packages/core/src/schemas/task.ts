@@ -49,6 +49,12 @@ export const TaskRoutesSchema = z.strictObject({
 });
 export type TaskRoutes = z.infer<typeof TaskRoutesSchema>;
 
+/** How a criterion is proven: a test that must fail before and pass after, a held-out scenario, a check, or a person (R-064). */
+export const ProofKindSchema = z.enum(['test', 'scenario', 'check', 'human']);
+/** One criterion's proof; `criterion` counts from 1, the first line of `acceptance`. */
+export const TaskProofSchema = z.strictObject({ criterion: z.int().min(1).max(12), kind: ProofKindSchema, ref: z.string().min(1).max(200) });
+export type TaskProof = z.infer<typeof TaskProofSchema>;
+
 export const TaskSchema = z.strictObject({
   version: z.literal('stint.task/1'),
   id: z.string().regex(TASK_ID),
@@ -87,6 +93,8 @@ export const TaskSchema = z.strictObject({
   risk: z.enum(['low', 'medium', 'high']).nullable().optional(),
   /** Where the task came from (R-041, R-044). */
   source: z.strictObject({ kind: z.enum(['manual', 'github', 'linear', 'gardening']), ref: z.string().max(200), url: z.url().optional() }).nullable().optional(),
+  /** The accepted proof of each acceptance criterion (R-064). */
+  proofs: z.array(TaskProofSchema).max(12).optional(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });

@@ -356,6 +356,42 @@
         }
       },
       "description": "Where the task came from."
+    },
+    "proofs": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "How each acceptance criterion is proven. criterion counts from 1, the first line of acceptance.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "criterion",
+          "kind",
+          "ref"
+        ],
+        "properties": {
+          "criterion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "test",
+              "scenario",
+              "check",
+              "human"
+            ]
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "A test name or part of one, a scenario name, a check name, or what a person checks."
+          }
+        }
+      }
     }
   }
 }

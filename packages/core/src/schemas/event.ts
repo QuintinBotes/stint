@@ -62,6 +62,9 @@ export const EVENT_TYPES = [
   'provider.fallback',
   'cost.unpriced',
   'cost.recorded',
+  'sharpen.asked',
+  'sharpen.answered',
+  'proofs.set',
   'runtime.unclassified',
 ] as const;
 

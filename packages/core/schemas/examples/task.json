@@ -18,6 +18,10 @@
   "budgets": { "planner": 40000, "implementer": 150000, "reviewer": 30000, "learn": 20000 },
   "links": { "beadsId": null, "issueUrl": null },
   "pendingAsk": null,
+  "proofs": [
+    { "criterion": 1, "kind": "test", "ref": "429 with Retry-After" },
+    { "criterion": 3, "kind": "human", "ref": "The limit and window are in .env.example" }
+  ],
   "createdAt": "2026-11-02T14:36:00Z",
   "updatedAt": "2026-11-02T14:38:12Z"
 }
