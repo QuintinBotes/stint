@@ -211,7 +211,7 @@ function limitStop(events: StintEvent[], limits: Limits, next: 'work' | 'build' 
 /**
  * The next thing autopilot does, as a pure function of the task's log: a daemon restart resumes from the
  * same place. It never approves; the furthest it goes on its own is the approval gate, and it stops before any
- * step that would pass one of the task's limits.
+ * step that would pass one of the task's limits, or a build that would pass its goal's.
  */
 export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings, live: boolean, limits: Limits, o: { sharpenFirst?: boolean; goal?: GoalLimits } = {}): Step {
   const tail = autopilotTail(events);

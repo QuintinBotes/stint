@@ -58,7 +58,7 @@ export function Sharpen({ subject, st, onChange }: { subject: SharpenSubject; st
     },
     [onChange],
   );
-  const start = useCallback(() => void act(`Stint is reading the ${subject.noun}, its files and what it remembers. The questions appear here.`, api.sharpen(subject.id)), [act, subject.id, subject.noun]);
+  const start = useCallback(() => void act(`${subject.noun === 'goal' ? 'Stint is reading the goal and the tracked files.' : 'Stint is reading the task, its files and what it remembers.'} The questions appear here.`, api.sharpen(subject.id)), [act, subject.id, subject.noun]);
 
   // "Sharpen it first" in the New task dialog opens the task with ?sharpen=1: the round starts once, and the flag goes
   useEffect(() => {
