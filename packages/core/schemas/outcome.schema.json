@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/outcome/1",
+  "title": "stint.outcome/1",
+  "description": "How one task went: each acceptance criterion's state with evidence a person can check, the loops it took against its limits, its spend and times, the review, and what happened after merge. Defined in docs/metrics.md, How it went.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "task", "result", "resultLabel", "criteria", "loops", "spend", "minutes", "review", "handoffs"],
+  "properties": {
+    "version": { "const": "stint.outcome/1" },
+    "task": { "type": "string", "pattern": "^T-[0-9]{4,}$" },
+    "result": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "waiting_for_you",
+        "stopped_at_limit",
+        "stopped_needs_you",
+        "rejected",
+        "abandoned",
+        "merged",
+        "merged_reverted",
+        "merged_followup",
+        "merged_ci_failed",
+        "merged_incident",
+        "merged_held_up"
+      ]
+    },
+    "resultLabel": { "type": "string", "minLength": 1 },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["index", "text", "state", "evidence"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0 },
+          "text": { "type": "string", "minLength": 1 },
+          "state": { "type": "string", "enum": ["proven", "passing", "failing", "you_check", "checked_by_you", "not_checked"] },
+          "proof": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["test", "scenario", "check", "human"] },
+              "ref": { "type": "string", "maxLength": 200 }
+            }
+          },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "loops": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["builds", "handoffs", "reviewRounds"],
+      "properties": {
+        "builds": { "type": "integer", "minimum": 0 },
+        "handoffs": { "type": "integer", "minimum": 0 },
+        "reviewRounds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "limits": {
+      "description": "The task's limits as it runs under them; null is no limit.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builds": { "type": ["integer", "null"], "minimum": 0 },
+        "handoffs": { "type": ["integer", "null"], "minimum": 0 },
+        "reviewRounds": { "type": ["integer", "null"], "minimum": 0 },
+        "usd": { "type": ["number", "null"], "minimum": 0 },
+        "minutes": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "spend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usd", "unpriced"],
+      "properties": {
+        "usd": { "type": "number", "minimum": 0 },
+        "unpriced": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "minutes": { "type": "number", "minimum": 0 },
+    "timeToFirstGreen": { "type": "integer", "minimum": 0 },
+    "timeToApprovalRequest": { "type": "integer", "minimum": 0 },
+    "approvalWait": { "type": "integer", "minimum": 0 },
+    "leadTime": { "type": "integer", "minimum": 0 },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rounds", "verdicts", "findings"],
+      "properties": {
+        "rounds": { "type": "integer", "minimum": 0 },
+        "verdicts": { "type": "array", "items": { "type": "string", "enum": ["approve", "request_changes", "block"] } },
+        "findings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "bySeverity"],
+          "properties": {
+            "total": { "type": "integer", "minimum": 0 },
+            "bySeverity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["blocker", "major", "minor", "note"],
+              "properties": {
+                "blocker": { "type": "integer", "minimum": 0 },
+                "major": { "type": "integer", "minimum": 0 },
+                "minor": { "type": "integer", "minimum": 0 },
+                "note": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "handoffs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "packetTokens"],
+        "properties": {
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "packetTokens": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "afterMerge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["window", "reverted", "followups", "incidents"],
+      "properties": {
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["days", "endsAt", "mature"],
+          "properties": {
+            "days": { "type": "number", "minimum": 0 },
+            "endsAt": { "type": "string", "format": "date-time" },
+            "mature": { "type": "boolean" }
+          }
+        },
+        "reverted": { "type": "boolean" },
+        "followups": { "type": "array", "items": { "type": "string", "pattern": "^T-[0-9]{4,}$" } },
+        "ci": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "run"],
+          "properties": {
+            "status": { "type": "string", "minLength": 1 },
+            "run": { "type": ["string", "null"] }
+          }
+        },
+        "incidents": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}
