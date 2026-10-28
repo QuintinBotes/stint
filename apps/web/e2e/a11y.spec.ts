@@ -29,17 +29,17 @@ test('The command line, open over the task view, has no WCAG A or AA violations'
   await page.goto('/t/T-0042');
   await page.waitForLoadState('networkidle');
   await page.keyboard.press('Meta+k');
-  await expect(page.getByPlaceholder('Type a command or a task')).toBeFocused();
+  await expect(page.getByPlaceholder('Search or run a command')).toBeFocused();
   const found = await axe(page);
   expect(found, found.join('\n')).toEqual([]);
 });
 
-test('The task view rewound to the red flag, on the terminal tab, has no WCAG A or AA violations', async ({ page }) => {
+test('The task view rewound to the kill, on the terminal tab, has no WCAG A or AA violations', async ({ page }) => {
   const { events } = (await (await page.request.get('/api/tasks/T-0042/events')).json()) as { events: Array<{ seq: number; ts: string; type: string; payload: Record<string, unknown> }> };
   const h1 = events.find((e) => e.type === 'handoff.created' && e.payload.name === 'h1');
   expect(h1).toBeDefined();
   await page.goto(`/t/T-0042?tab=terminal&asOf=${encodeURIComponent(h1?.ts ?? '')}&at=${h1?.seq}`);
-  await expect(page.getByTestId('red-flag')).toBeVisible();
+  await expect(page.getByTestId('kill-notice')).toBeVisible();
   await page.waitForLoadState('networkidle');
   const found = await axe(page);
   expect(found, found.join('\n')).toEqual([]);

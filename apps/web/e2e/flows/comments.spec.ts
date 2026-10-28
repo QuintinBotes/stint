@@ -36,9 +36,9 @@ test('A line comment added in the Diff tab is stored by the daemon and handed to
 
   await page.goto(`/t/${t.id}?tab=packet`);
   const hand = page.getByTestId('hand-to');
-  // at the gate the hand-off sits behind "Change driver instead"; elsewhere it is open
+  // at the gate the hand-off sits behind "Change who continues instead"; elsewhere it is open
   await expect(hand).toBeVisible();
-  const instead = hand.getByText('Change driver instead');
+  const instead = hand.getByText('Change who continues instead');
   if (await instead.isVisible()) await instead.click();
   await hand.locator('input[value="stint-agent"]').check();
   await hand.getByTestId('hand-button').click();

@@ -10,8 +10,6 @@ test('After stint demo --speed 0, the board shows three cards in the right lanes
 
   await page.getByTestId('lane-done').locator('[data-task="T-0042"]').click();
   await expect(page).toHaveURL(/\/t\/T-0042/);
-  // race control is a drawer, closed below 1600 px wide
-  await page.getByTestId('race-control-toggle').click();
   await expect(page.getByTestId('run-segment')).toHaveCount(4);
   await expect(page.getByTestId('handoff-joint').first()).toContainText('412 tokens');
   await page.getByTestId('show-all').click();

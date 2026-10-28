@@ -60,7 +60,7 @@ export function FilesTab({ taskId }: { taskId: string }) {
 
   return (
     <section data-testid="files" className="flex flex-col gap-3 min-h-0">
-      <header className="flex flex-wrap items-center gap-2 text-[12px]">
+      <header className="flex flex-wrap items-center gap-2 text-small">
         <span className="text-ink-2">Showing {where}.</span>
         <span className="ml-auto flex items-center gap-2">
           {data.editable ? null : <span className="text-ink-2">No worktree to open in an editor.</span>}
@@ -77,7 +77,7 @@ export function FilesTab({ taskId }: { taskId: string }) {
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter files"
               aria-label="Filter files"
-              className="flex-1 min-w-0 h-8 rounded-md border border-rule bg-ground px-2 text-[14px] focus-visible:border-ink outline-none"
+              className="flex-1 min-w-0 h-8 rounded-[5px] border border-rule bg-ground px-2 text-body focus-visible:border-ink outline-none"
             />
             <Button aria-pressed={onlyChanged} onClick={() => setOnlyChanged((v) => !v)} className="h-8" disabled={data.changed.length === 0}>
               Changed ({data.changed.length})
@@ -86,7 +86,7 @@ export function FilesTab({ taskId }: { taskId: string }) {
           {shown.length === 0 ? (
             <EmptyState testId="files-empty">{onlyChanged ? 'The change touches no files yet.' : 'No file matches.'}</EmptyState>
           ) : (
-            <ul className="flex flex-col overflow-y-auto max-h-[60vh] text-[14px]" data-testid="file-list">
+            <ul className="flex flex-col overflow-y-auto max-h-[60vh] text-body" data-testid="file-list">
               {shown.map((p) => {
                 const c = changed.get(p);
                 const slash = p.lastIndexOf('/');
@@ -98,14 +98,14 @@ export function FilesTab({ taskId }: { taskId: string }) {
                       data-path={p}
                       aria-current={p === path ? 'true' : undefined}
                       onClick={() => setPath(p)}
-                      className={cx('w-full flex items-baseline gap-2 rounded-md px-2 py-1 text-left hover:bg-panel', p === path && 'bg-panel')}
+                      className={cx('w-full flex items-baseline gap-2 rounded-[5px] px-2 py-1 text-left hover:bg-panel', p === path && 'bg-panel')}
                     >
                       <span className="min-w-0 truncate">
                         {slash >= 0 ? <span className="text-ink-3">{p.slice(0, slash + 1)}</span> : null}
                         {p.slice(slash + 1)}
                       </span>
                       {c ? (
-                        <span className="ml-auto shrink-0 tabular text-[12px]">
+                        <span className="ml-auto shrink-0 tabular text-small">
                           <span className="text-green">+{c.added}</span> <span className="text-ink-2">-{c.removed}</span>
                         </span>
                       ) : null}
@@ -120,17 +120,17 @@ export function FilesTab({ taskId }: { taskId: string }) {
           {path ? (
             <>
               <div className="flex items-center gap-2">
-                <code className="font-mono text-[12px] truncate">{path}</code>
+                <code className="font-mono text-small truncate">{path}</code>
                 <Button className="ml-auto" disabled={!data.editable} onClick={() => open(path)} data-testid="open-file">
                   Open in your editor
                 </Button>
               </div>
               {content === null ? (
-                <p className="text-ink-3 text-[12px]">Reading {path}.</p>
+                <p className="text-ink-3 text-small">Reading {path}.</p>
               ) : content.content === null ? (
                 <EmptyState testId="file-unreadable">{`Not shown here: ${content.reason ?? 'unreadable'}.`}</EmptyState>
               ) : (
-                <pre tabIndex={0} className="overflow-auto max-h-[60vh] rounded-md border border-rule bg-panel p-3 text-[12px] leading-5 font-mono" data-testid="file-content">
+                <pre tabIndex={0} className="overflow-auto max-h-[60vh] rounded-[5px] border border-rule bg-panel p-3 text-small font-mono" data-testid="file-content">
                   {content.content.split('\n').map((line, i) => (
                     // biome-ignore lint/suspicious/noArrayIndexKey: lines of one file, in order
                     <div key={i} className="flex">

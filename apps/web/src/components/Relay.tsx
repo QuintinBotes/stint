@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { agentOf, carNumber, hostName, markColor, modelName } from '../agents';
+import { agentOf, hostName, markColor, modelName } from '../agents';
 import { api } from '../api';
 import { money } from '../format';
 import { useWidth } from '../hooks';
@@ -17,6 +17,8 @@ export type RelayData = { lanes: Lane[]; runs: Run[]; links: Link[]; marks: Mark
 const LABEL_W = 176;
 const LANE_H = 52;
 const BAR_H = 22;
+/** A run's label, its task and run, needs this much room on its bar. */
+const MIN_BAR = 78;
 const TOP = 28;
 
 const AGENT: Record<string, string> = { 'muse-code': 'Muse Code', 'stint-agent': 'Stint agent', replay: 'Replay' };
@@ -54,10 +56,10 @@ export function Relay() {
     };
   }, []);
 
-  if (!data) return <p className="text-ink-3 text-[12px]">Reading the relay.</p>;
+  if (!data) return <p className="text-small text-ink-2">Reading the relay.</p>;
   if (data.runs.length === 0) return <EmptyState>The relay appears here once a run starts: one lane per agent, and a link each time a task passes from one to the next.</EmptyState>;
 
-  // a stint wears its driver's team livery; the car it belongs to is the number on it
+  // a run takes its agent's vendor ink; you are drawn in ink
   const lanes = new Map(data.lanes.map((l) => [l.id, l]));
   const colour = (lane: string) => {
     const l = lanes.get(lane);
@@ -97,13 +99,12 @@ export function Relay() {
           return (
             <g key={l.id} data-lane={l.id}>
               <line x1={LABEL_W} y1={y + LANE_H} x2={width - 16} y2={y + LANE_H} stroke="var(--rule)" strokeWidth={1} />
-              <rect x={0} y={y + LANE_H / 2 - 14} width={5} height={13} rx={1.5} fill={colour(l.id)} />
-              <text x={11} y={y + LANE_H / 2 - 3} fontSize={14} fontWeight={700} fill="var(--ink)">
-                {l.human ? 'YOU' : agentOf(l.adapter, l.host, l.model).code}
-                {l.human ? null : <tspan fontWeight={400} fill="var(--ink-2)">{` ${t.name}`}</tspan>}
+              <rect x={0} y={y + LANE_H / 2 - 13} width={10} height={10} rx={2} fill={colour(l.id)} />
+              <text x={16} y={y + LANE_H / 2 - 4} fontSize={13} fontWeight={600} fill="var(--ink)">
+                {t.name}
               </text>
-              <text x={11} y={y + LANE_H / 2 + 12} fontSize={12} fill="var(--ink-2)">
-                {t.detail.length > 28 ? `${t.detail.slice(0, 27)}…` : t.detail}
+              <text x={16} y={y + LANE_H / 2 + 13} fontSize={12} fill="var(--ink-2)">
+                {t.detail.length > 26 ? `${t.detail.slice(0, 25)}…` : t.detail}
               </text>
             </g>
           );
@@ -131,8 +132,8 @@ export function Relay() {
               <g key={`p${i}`} data-link="packet">
                 <path d={curve(x1, y1, x2, y2)} fill="none" stroke="var(--ink-2)" strokeWidth={2} opacity={0.9} />
                 <g transform={`translate(${(x1 + x2) / 2},${(y1 + y2) / 2})`}>
-                  <rect x={-36} y={-10} width={72} height={20} rx={3} fill="var(--board)" />
-                  <text textAnchor="middle" y={4} fontSize={12} fontWeight={700} fill="var(--board-ink)" className="tabular">
+                  <rect x={-36} y={-10} width={72} height={20} rx={3} fill="var(--term)" stroke="var(--rule-strong)" />
+                  <text textAnchor="middle" y={4} fontSize={12} fontWeight={600} fill="var(--term-ink)" className="tabular">
                     {l.tokens ? `${l.tokens} tok` : l.name}
                   </text>
                 </g>
@@ -148,8 +149,8 @@ export function Relay() {
           const y2 = yOf(b.lane);
           return (
             <g key={`s${i}`} data-link="skill">
-              <path d={curve(x1, y1, x2, y2)} fill="none" stroke="var(--purple)" strokeWidth={2} strokeDasharray="4 4" />
-              <text x={x2 - 8} y={y2 - BAR_H / 2 - 6} textAnchor="end" fontSize={12} fill="var(--purple)">
+              <path d={curve(x1, y1, x2, y2)} fill="none" stroke="var(--violet)" strokeWidth={2} strokeDasharray="4 4" />
+              <text x={x2 - 8} y={y2 - BAR_H / 2 - 6} textAnchor="end" fontSize={12} fill="var(--violet)">
                 learned: {l.skill}
               </text>
             </g>
@@ -159,7 +160,7 @@ export function Relay() {
         {data.runs.map((r) => {
           const x1 = x(r.start);
           // a short run still gets room for its label
-          const x2 = Math.max(x1 + 60, x(r.end ?? to));
+          const x2 = Math.max(x1 + MIN_BAR, x(r.end ?? to));
           const y = yOf(r.lane) - BAR_H / 2;
           const c = colour(r.lane);
           const lines = [
@@ -180,13 +181,13 @@ export function Relay() {
               onMouseLeave={() => setHover(null)}
             >
               <rect x={x1} y={y} width={x2 - x1} height={BAR_H} rx={3} fill={c} className={r.endedBy ? undefined : 'live-spine'} />
-              <text x={x1 + 6} y={y + 15} fontSize={12} fontWeight={800} fill="var(--on-livery)" className="tabular select-none">
-                {carNumber(r.task)} {r.run}
+              <text x={x1 + 6} y={y + 15} fontSize={12} fontWeight={600} fill="var(--on-ink)" className="tabular select-none">
+                {r.task} {r.run}
               </text>
               {r.endedBy === 'killed' ? (
                 <g>
-                  <rect x={x2 - 4} y={y} width={4} height={BAR_H} fill="var(--sw-red)" />
-                  <text x={x2 + 4} y={y - 2} fontSize={12} fill="var(--red)" fontWeight={700}>
+                  <rect x={x2 - 4} y={y} width={4} height={BAR_H} fill="var(--red)" />
+                  <text x={x2 + 4} y={y - 2} fontSize={12} fill="var(--red)" fontWeight={600}>
                     killed
                   </text>
                 </g>
@@ -209,18 +210,18 @@ export function Relay() {
         })}
       </svg>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12px] text-ink-2" data-testid="relay-legend">
-        <span>Each bar is a stint in its driver's team livery; the number on it is the car.</span>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-small text-ink-2" data-testid="relay-legend">
+        <span>Each bar is a run in its agent's vendor ink, labelled with its task and run.</span>
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="inline-block w-4 border-t-2 border-ink-2" /> pit stop, a packet with its tokens
+          <span aria-hidden="true" className="inline-block w-4 border-t-2 border-ink-2" /> a packet passed on, with its tokens
         </span>
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed border-purple" /> a skill learned on one car, used on another
+          <span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed border-violet" /> a skill learned on one task, used on another
         </span>
       </div>
 
       {hover ? (
-        <div className="absolute pointer-events-none z-10 rounded-[3px] border border-rule-strong bg-ground px-3 py-2 text-[12px] shadow-[var(--shadow)]" style={{ left: hover.x, top: hover.y }}>
+        <div className="absolute pointer-events-none z-10 rounded-[5px] border border-rule-strong bg-panel px-3 py-2 text-small" style={{ left: hover.x, top: hover.y }}>
           {hover.lines.map((l) => (
             <div key={l} className="tabular whitespace-nowrap">
               {l}

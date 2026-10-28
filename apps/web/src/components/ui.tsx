@@ -1,66 +1,34 @@
 import type { Cost } from '@stint-dev/core';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { type Agent, carNumber, markColor } from '../agents';
+import type { ComponentProps, ReactNode } from 'react';
+import { type Agent, markColor } from '../agents';
 import { money, tokens } from '../format';
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }
 
-/** A driver: the team livery, the three-letter code, and the name in words. Colour lives only here, on stint bars and on team segments. */
-export function VendorMark({ agent, showName = true, size = 14 }: { agent: Agent; showName?: boolean; size?: number }) {
+/** Who did the work: the vendor's ink square and the agent or model name, always together. `live` breathes the square while a run is going; the caller sets the weight. */
+export function Who({ agent, live = false, className }: { agent: Agent; live?: boolean; className?: string }) {
   return (
-    <span className={cx('inline-flex items-center gap-2 align-middle', showName ? 'min-w-0' : 'shrink-0')}>
-      <span aria-hidden="true" className="inline-block shrink-0 rounded-[2px]" style={{ width: Math.max(6, Math.round(size * 0.55)), height: size, background: markColor[agent.mark] }} />
-      <span className="font-extrabold stretch-75 tracking-[0.03em] leading-none" style={{ fontSize: Math.max(12, size - 1) }} aria-hidden="true">
-        {agent.code}
-      </span>
-      {showName ? <span className="truncate text-ink-2">{agent.name}</span> : <span className="sr-only">{agent.name}</span>}
+    <span className={cx('inline-flex items-center gap-1.5 min-w-0 whitespace-nowrap', className)}>
+      <span aria-hidden="true" className={cx('size-2.5 shrink-0 rounded-[2px]', live && 'live-spine')} style={{ background: markColor[agent.mark] }} />
+      <span className="truncate">{agent.name}</span>
     </span>
   );
 }
 
-/** A car number plate. Solid on track and at the gate, dashed on the grid, outlined for a call with the stewards, dim once it took the flag. */
-export function Plate({ id, size = 'md', variant = 'solid', className }: { id: string; size?: 'sm' | 'md' | 'lg' | 'xl'; variant?: 'solid' | 'grid' | 'outline' | 'dim'; className?: string }) {
-  const box = { sm: 'min-w-8 h-6 text-[19px]', md: 'min-w-11 h-8 text-[28px]', lg: 'min-w-12 h-10 text-[34px]', xl: 'min-w-16 h-12 text-[34px]' }[size];
-  return (
-    <span
-      className={cx(
-        'relative inline-flex shrink-0 items-center justify-center rounded-[4px] px-2 box-border font-black stretch-62 leading-none tabular',
-        box,
-        variant === 'solid' && 'bg-plate text-on-plate',
-        variant === 'dim' && 'bg-plate text-on-plate opacity-70',
-        variant === 'outline' && 'border-2 border-ink text-ink',
-        variant === 'grid' && 'border-2 border-dashed border-ink-3 text-ink',
-        className,
-      )}
-    >
-      <span className="sr-only">Car </span>
-      {carNumber(id)}
-    </span>
-  );
-}
+export type ChipTone = 'neutral' | 'active' | 'good' | 'warn' | 'bad' | 'merged' | 'learned' | 'recommend';
 
-export type ChipTone = 'neutral' | 'active' | 'good' | 'warn' | 'bad' | 'merged' | 'learned';
-
-/** Each tone is a race flag; its word always stands beside it, in the themed colour for the flag. */
-const SWATCH: Record<ChipTone, string | null> = {
-  neutral: 'var(--rule-strong)',
-  active: 'var(--sw-green)',
-  good: 'var(--sw-green)',
-  warn: 'var(--sw-yellow)',
-  bad: 'var(--sw-red)',
-  merged: null,
-  learned: 'var(--purple)',
-};
-const WORD: Record<ChipTone, string> = {
-  neutral: 'text-ink-2',
-  active: 'text-ink',
-  good: 'text-green',
-  warn: 'text-yellow',
-  bad: 'text-red',
-  merged: 'text-ink',
-  learned: 'text-purple',
+/** A chip's wash and ink: amber needs you, green verified or merged, red stopped, violet learned; a recommendation is an ink outline, not a state. */
+const CHIP: Record<ChipTone, string> = {
+  neutral: 'bg-panel-2 text-ink-2',
+  active: 'bg-panel-2 text-ink',
+  good: 'bg-green-wash text-green',
+  warn: 'bg-amber-wash text-amber',
+  bad: 'bg-red-wash text-red',
+  merged: 'bg-green-wash text-green',
+  learned: 'bg-violet-wash text-violet',
+  recommend: 'bg-transparent text-ink shadow-[inset_0_0_0_1px_var(--ink)]',
 };
 
 const STATUS: Record<string, { label: string; tone: ChipTone }> = {
@@ -75,7 +43,7 @@ const STATUS: Record<string, { label: string; tone: ChipTone }> = {
   done: { label: 'done', tone: 'merged' },
   abandoned: { label: 'abandoned', tone: 'neutral' },
   running: { label: 'running', tone: 'active' },
-  completed: { label: 'finished', tone: 'good' },
+  completed: { label: 'finished', tone: 'neutral' },
   killed: { label: 'killed', tone: 'bad' },
   capped: { label: 'capped', tone: 'warn' },
   failed: { label: 'failed', tone: 'bad' },
@@ -84,18 +52,12 @@ const STATUS: Record<string, { label: string; tone: ChipTone }> = {
   red: { label: 'red', tone: 'bad' },
 };
 
-export function Swatch({ tone, className }: { tone: ChipTone; className?: string }) {
-  const fill = SWATCH[tone];
-  return <span aria-hidden="true" className={cx('sw', fill === null && 'chequer-sm', className)} style={fill ? { background: fill } : undefined} />;
-}
-
-/** A status as a flag with its word: the swatch never stands alone. */
+/** A status as a chip: its word on the state's wash. */
 export function StatusChip({ status, label, tone }: { status?: string; label?: string; tone?: ChipTone }) {
   const s = status ? STATUS[status] : undefined;
   const t = tone ?? s?.tone ?? 'neutral';
   return (
-    <span data-status={status} className={cx('inline-flex items-center gap-2 h-5 text-[12px] font-bold leading-none whitespace-nowrap', WORD[t])}>
-      <Swatch tone={t} />
+    <span data-status={status} className={cx('inline-flex items-center h-6 px-2 rounded-[3px] text-small font-medium whitespace-nowrap', CHIP[t])}>
       {/* sentence case on screen; the words stay as the daemon and the tests name them */}
       <span className="inline-block first-letter:uppercase">{label ?? s?.label ?? status}</span>
     </span>
@@ -120,14 +82,14 @@ export function CostMeter({ cost, detail = false, className }: { cost: Cost | nu
 
 export function EmptyState({ children, testId }: { children: ReactNode; testId?: string }) {
   return (
-    <p data-testid={testId ?? 'empty'} className="text-ink-2 max-w-[60ch] py-4 text-[14px]">
+    <p data-testid={testId ?? 'empty'} className="text-ink-2 max-w-[60ch] py-4 text-body">
       {children}
     </p>
   );
 }
 
 type ButtonTone = 'primary' | 'quiet' | 'danger';
-export function Button({ tone = 'quiet', className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { tone?: ButtonTone }) {
+export function Button({ tone = 'quiet', className, ...rest }: ComponentProps<'button'> & { tone?: ButtonTone }) {
   // a height, padding or size the caller gives replaces the default; two utilities for one property would leave the
   // winner to the stylesheet's order, not to the caller
   const own = (re: RegExp) => re.test(className ?? '');
@@ -136,30 +98,43 @@ export function Button({ tone = 'quiet', className, ...rest }: ButtonHTMLAttribu
       type="button"
       {...rest}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-[3px] whitespace-nowrap transition-colors disabled:cursor-not-allowed',
-        !own(/(^|\s)h-/) && 'h-8',
-        !own(/(^|\s)px-/) && 'px-3',
-        !own(/(^|\s)text-\[/) && 'text-[14px]',
-        tone === 'primary' && 'bg-ink text-ground font-extrabold stretch-87 border border-ink hover:opacity-90 disabled:bg-panel-2 disabled:text-ink-2 disabled:border-panel-2',
+        'inline-flex items-center justify-center gap-2 rounded-[5px] border whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:bg-panel-2 disabled:text-ink-3 disabled:border-rule',
+        !own(/(^|\s)h-/) && 'h-9',
+        !own(/(^|\s)px-/) && 'px-3.5',
+        !own(/(^|\s)text-(\[|title|section|body|small|code)/) && 'text-body',
+        tone === 'primary' && 'bg-ink text-on-ink font-semibold border-ink hover:bg-ink-2 hover:border-ink-2',
         // a toggle shows its state through aria-pressed; a variant, so it wins over the base colours
-        tone === 'quiet' && 'bg-transparent text-ink font-semibold border border-ink-3 hover:border-ink disabled:text-ink-3 disabled:border-rule aria-pressed:border-ink aria-pressed:bg-panel-2 aria-selected:border-ink aria-selected:bg-panel-2',
-        tone === 'danger' && 'bg-transparent text-red font-semibold border border-ink-3 hover:border-red disabled:opacity-60',
+        tone === 'quiet' && 'bg-transparent text-ink font-medium border-rule-strong hover:border-ink-2 hover:bg-panel aria-pressed:border-ink aria-pressed:bg-panel-2 aria-selected:border-ink aria-selected:bg-panel-2',
+        tone === 'danger' && 'bg-transparent text-red font-medium border-rule-strong hover:border-red hover:bg-panel',
         className,
       )}
     />
   );
 }
 
+/** The revision block's parts (DESIGN.md): a rule-strong table under the heavy ink-3 object line, its caption and header cells on panel, its body cells on ground. */
+export const rev = {
+  // text-left here, so a header cell starts at the left and a figure's cell can say text-right without a second alignment
+  table: 'w-full border-collapse text-left text-small outline outline-ink-3',
+  caption: 'caption-top px-2.5 py-2 text-left font-semibold border border-b-0 border-rule-strong bg-panel',
+  th: 'px-2.5 py-1.5 border border-rule-strong align-top font-medium text-ink-2 bg-panel',
+  td: 'px-2.5 py-1.5 border border-rule-strong align-top bg-ground',
+};
+
 export function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="inline-grid place-items-center min-w-4 h-4 px-1 font-mono text-[12px] font-medium leading-none opacity-75">{children}</kbd>;
+  return <kbd className="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-[3px] border border-current font-mono text-[12px] font-medium leading-none opacity-80">{children}</kbd>;
 }
+
+/** A tab in a tab list: ink-2 at rest, ink with a 2 px ink underline when chosen. */
+export const tabClass = (on: boolean) =>
+  cx('inline-flex items-center gap-1.5 min-h-10 px-3 -mb-px whitespace-nowrap font-medium', on ? 'text-ink shadow-[inset_0_-2px_0_var(--ink)]' : 'text-ink-2 hover:text-ink');
 
 /** A heading in the design's heading role, with an aside on the right. */
 export function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
     <section className="py-3">
       <div className="flex items-baseline justify-between gap-3 mb-2">
-        <h3 className="text-[14px] font-bold">{title}</h3>
+        <h3 className="font-semibold">{title}</h3>
         {aside}
       </div>
       {children}

@@ -28,9 +28,9 @@ export function PacketSources({ taskId, name, events, onSelect }: { taskId: stri
   if (!meta?.fields) return null;
   const seqOf = new Map(events.map((e) => [e.id, e.seq]));
   return (
-    <details className="rounded-lg border border-rule bg-panel p-4" data-testid="packet-sources">
-      <summary className="text-[14px] font-semibold cursor-pointer">Where each part came from</summary>
-      <table className="mt-3 w-full text-[12px]">
+    <details className="rounded-[5px] border border-rule bg-panel p-4" data-testid="packet-sources">
+      <summary className="text-body font-semibold cursor-pointer">Where each part came from</summary>
+      <table className="mt-3 w-full text-small">
         <tbody>
           {Object.entries(meta.fields).map(([field, f]) => (
             <tr key={field} className="border-t border-rule align-top">

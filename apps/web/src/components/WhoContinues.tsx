@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { agentOf } from '../agents';
 import { DaemonError, type TaskBundle, api } from '../api';
 import { useHealth } from '../hooks';
-import { Button, Kbd, VendorMark } from './ui';
+import { Button, Kbd, StatusChip, Who } from './ui';
 
 /**
- * After a run is killed or fails, the timeline says who should pick the task up: a different agent from the one
+ * After a run is killed or fails, the task view says who should pick the task up: a different agent from the one
  * that stopped, ready now, from the packet the daemon built. One click hands it over; the packet tab has the rest.
  */
 export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoose: () => void }) {
@@ -26,23 +26,33 @@ export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoos
       .catch((e: unknown) => setState({ busy: false, said: e instanceof DaemonError ? e.error.message : String(e) }));
   };
   return (
-    <section className="flex flex-col gap-3 text-[14px] leading-5" data-testid="who-continues" aria-label="Change driver">
-      <h2 className="text-[14px] leading-5 font-bold">Change driver</h2>
-      <div className="flex items-center gap-3">
-        {next ? <VendorMark agent={agentOf(next.id)} showName={false} size={22} /> : null}
-        <p className="text-ink">
-          {next
-            ? `Recommended: ${agentOf(next.id).name}. A different agent from ${agentOf(leaving).name}, which ${last.endedBy === 'killed' ? 'was killed' : 'failed'}; it reads only the packet.`
-            : `No other agent is ready to take over from ${agentOf(leaving).name}. Turn one on, or hand it back from the packet tab.`}
-        </p>
+    <section className="flex flex-col gap-3" data-testid="who-continues" aria-labelledby="who-continues-title">
+      <div>
+        <h2 id="who-continues-title" className="text-section">
+          Who continues
+        </h2>
+        <p className="mt-1 text-small text-ink-2">The next agent reads the packet {last.run} left, the plan, the skills list and the diff. Never the transcript.</p>
       </div>
       {next ? (
-        <Button tone="primary" className="h-11 w-full justify-between px-4 text-[14px]" onClick={hand} disabled={state.busy} data-testid="who-continues-hand">
+        <div className="flex flex-col gap-1 p-3 rounded-[5px] border border-ink bg-panel-2">
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            <Who agent={agentOf(next.id)} className="font-semibold" />
+            <StatusChip label="recommended" tone="recommend" />
+          </span>
+          <p className="text-small text-ink-2">
+            Recommended: {agentOf(next.id).name}. A different agent from {agentOf(leaving).name}, which {last.endedBy === 'killed' ? 'was killed' : 'failed'}; it reads only the packet.
+          </p>
+        </div>
+      ) : (
+        <p>No other agent is ready to take over from {agentOf(leaving).name}. Turn one on, or hand it back from the packet tab.</p>
+      )}
+      {next ? (
+        <Button tone="primary" className="self-start" onClick={hand} disabled={state.busy} data-testid="who-continues-hand">
           Hand to {agentOf(next.id).name}
         </Button>
       ) : null}
-      <button type="button" className="self-start text-ink-2 underline-offset-2 hover:text-ink hover:underline" onClick={onChoose}>
-        Pick another driver <Kbd>h</Kbd>
+      <button type="button" className="self-start text-small text-ink-2 underline decoration-rule-strong hover:text-ink hover:decoration-ink" onClick={onChoose}>
+        Pick another agent <Kbd>h</Kbd>
       </button>
       {state.said ? <p className="text-ink-2">{state.said}</p> : null}
     </section>

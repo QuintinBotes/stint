@@ -245,6 +245,8 @@ export const api = {
   diffFiles: (id: string) => request<Array<{ path: string; added: number; removed: number }>>(`/api/tasks/${id}/diff?format=json`),
   diffBlame: (id: string) => request<DiffBlameFile[]>(`/api/tasks/${id}/diff?format=json&blame=1`),
   workspaceGraph: () => request<GraphData>('/api/graph'),
+  /** Events on no task's timeline: skills imported, edited, approved or rejected with no task to carry them (R-060). */
+  workspaceEvents: () => request<{ events: StintEvent[] }>('/api/workspace/events').then((r) => r.events),
   comments: (id: string) => request<LineComment[]>(`/api/tasks/${id}/comments`),
   addComment: (id: string, comment: { file: string; line: number; text: string }) => post<LineComment[]>(`/api/tasks/${id}/comments`, comment),
   costs: (group: 'task' | 'run' | 'day' | 'host' | 'model' | 'day-host') => request<CostRow[]>(`/api/costs?group=${group}`),

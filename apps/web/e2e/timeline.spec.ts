@@ -2,8 +2,6 @@ import { expect, test } from '@playwright/test';
 
 test('The T-0042 rail shows its four runs with their agents, the 412-token joint, and a checkpoint after each run that committed', async ({ page }) => {
   await page.goto('/t/T-0042');
-  // race control is a drawer, closed below 1600 px wide
-  await page.getByTestId('race-control-toggle').click();
   const segments = page.getByTestId('run-segment');
   await expect(segments).toHaveCount(4);
   await expect(segments.nth(0)).toHaveAttribute('data-run', 'r1');
@@ -17,8 +15,6 @@ test('The T-0042 rail shows its four runs with their agents, the 412-token joint
 
 test('Each T-0042 rail segment shows a permission tier chip', async ({ page }) => {
   await page.goto('/t/T-0042');
-  // race control is a drawer, closed below 1600 px wide
-  await page.getByTestId('race-control-toggle').click();
   const segments = page.getByTestId('run-segment');
   await expect(segments).toHaveCount(4);
   const tiers = page.getByTestId('permission-tier');
@@ -29,35 +25,34 @@ test('Each T-0042 rail segment shows a permission tier chip', async ({ page }) =
   }
 });
 
-test("The T-0042 rail runs to r4, and each segment's spine takes its driver's team livery", async ({ page }) => {
+test("The T-0042 rail runs to r4, and each run's axis takes its vendor's ink, beside the agent's name", async ({ page }) => {
   await page.goto('/t/T-0042');
-  // race control is a drawer, closed below 1600 px wide
-  await page.getByTestId('race-control-toggle').click();
   const segments = page.getByTestId('run-segment');
   await expect(segments).toHaveCount(4);
   await expect(segments.nth(3)).toHaveAttribute('data-run', 'r4');
   await expect(segments.nth(3)).toHaveAttribute('data-adapter', 'openai-compatible');
-  // r1 to r3 ran Meta's models on Meta's hosts and the local CLI, so they wear the Meta livery (--meta);
-  // r4 is Glimmer served by Ollama on this machine, which drives for the local team (--local)
-  const livery = ['rgb(76, 134, 255)', 'rgb(76, 134, 255)', 'rgb(76, 134, 255)', 'rgb(183, 190, 198)'];
+  // r1 to r3 ran Meta's models on Meta's hosts and the local CLI, so they take Meta's ink (--meta);
+  // r4 is Glimmer served by Ollama on this machine, which takes the local ink (--local)
+  const ink = ['rgb(143, 202, 255)', 'rgb(143, 202, 255)', 'rgb(143, 202, 255)', 'rgb(211, 220, 229)'];
   for (let i = 0; i < 4; i++) {
     const colours = await segments.nth(i).evaluate((header) => {
       const mark = header.querySelector('span[aria-hidden="true"]');
-      const spine = header.parentElement?.querySelector(':scope > span[aria-hidden="true"]');
+      const axis = header.parentElement?.querySelector(':scope > span[aria-hidden="true"]');
       return {
         mark: mark ? getComputedStyle(mark).backgroundColor : null,
-        spine: spine ? getComputedStyle(spine).backgroundColor : null,
+        axis: axis ? getComputedStyle(axis).backgroundColor : null,
+        name: mark?.nextElementSibling?.textContent ?? '',
       };
     });
-    expect(colours.mark).toBe(livery[i]);
-    expect(colours.spine).toBe(colours.mark);
+    expect(colours.mark).toBe(ink[i]);
+    expect(colours.axis).toBe(colours.mark);
+    // the ink is never alone: the agent's name sits beside it
+    expect(colours.name.length).toBeGreaterThan(0);
   }
 });
 
 test("Restore on a checkpoint opens that run's code in a worktree of its own; the conversation waits for a later release", async ({ page }) => {
   await page.goto('/t/T-0042');
-  // race control is a drawer, closed below 1600 px wide
-  await page.getByTestId('race-control-toggle').click();
   const cp = page.locator('[data-testid="checkpoint"][data-run="r3"]');
   await cp.getByRole('button', { name: 'Restore' }).click();
   // only the code can be restored today; the conversation is not offered, and the panel says why
@@ -70,8 +65,6 @@ test("Restore on a checkpoint opens that run's code in a worktree of its own; th
 
 test('Selecting a row and pressing Enter expands it to the full event; Enter again folds it', async ({ page }) => {
   await page.goto('/t/T-0042');
-  // race control is a drawer, closed below 1600 px wide
-  await page.getByTestId('race-control-toggle').click();
   const row = page.locator('[data-testid="event-row"][data-type="decision.recorded"]').first();
   await row.click();
   await expect(page).toHaveURL(/ev=\d+/);

@@ -38,7 +38,6 @@ async function serveSynthetic(page: Page, more: { at: number; count: number }) {
 test('A 5,000-event live run renders as a window: pinned to the newest row, a deep link renders its row, and scrolling keeps the frame budget', async ({ page }) => {
   await serveSynthetic(page, { at: Number.POSITIVE_INFINITY, count: 0 });
   await page.goto(`/t/${ID}`);
-  await page.getByTestId('race-control-toggle').click();
   const rail = page.locator('[data-testid="rail"][data-virtual="true"]');
   await expect(rail).toBeVisible();
   await expect(rail.locator(`[data-seq="${N}"]`)).toBeVisible();
@@ -78,7 +77,6 @@ test('A 5,000-event live run renders as a window: pinned to the newest row, a de
 test('Rows that arrive while the person has scrolled up raise "Jump to latest", which brings the newest row back', async ({ page }) => {
   await serveSynthetic(page, { at: 3, count: 3 });
   await page.goto(`/t/${ID}`);
-  await page.getByTestId('race-control-toggle').click();
   const rail = page.locator('[data-testid="rail"][data-virtual="true"]');
   await expect(rail.locator(`[data-seq="${N}"]`)).toBeVisible();
   await page.evaluate(() => {

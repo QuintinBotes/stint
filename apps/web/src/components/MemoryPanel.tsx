@@ -1,42 +1,42 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { agentOf, carNumber, markColor, modelName } from '../agents';
+import { agentOf, markColor, modelName } from '../agents';
 import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, type SkillRecord, api, daemonMessage } from '../api';
 import { toast } from 'sonner';
 import { PermissionRows } from './Permissions';
 import type { LayoutIn, LayoutOut } from '../graph.worker';
 import { useTasks, useWidth } from '../hooks';
-import { Button, EmptyState, cx } from './ui';
+import { Button, EmptyState, StatusChip, cx, tabClass } from './ui';
 
-// the graph lays out in the pixels it is drawn at, so its text is the same size on the task view and the Standings
+// the graph lays out in the pixels it is drawn at, so its text is the same size on the task view and the Factory
 const W = 328;
 const H = 260;
 
-// the design's memory colours: cars on the plate, decisions yellow, what was learned purple, findings red, stints blue
+// the design's memory inks: the task in ink, decisions in ink-2, findings amber (they wait for you), what was learned
+// violet, files quiet, and each run in its vendor's ink
 const COLOUR: Record<string, string> = {
-  task: 'var(--plate)',
-  decision: 'var(--yellow)',
-  skill: 'var(--purple)',
-  finding: 'var(--red)',
-  outcome: 'var(--green)',
-  merge: 'var(--green)',
+  task: 'var(--ink)',
+  decision: 'var(--ink-2)',
+  skill: 'var(--violet)',
+  finding: 'var(--amber)',
+  outcome: 'var(--ink-2)',
+  merge: 'var(--ink-2)',
   model: 'var(--ink-2)',
-  rule: 'var(--yellow)',
+  rule: 'var(--ink-2)',
   file: 'var(--ink-3)',
   run: 'var(--meta)',
 };
 
 const str = (v: unknown) => (typeof v === 'string' ? v : null);
-/** A stint wears its driver's team livery; every other node takes its type's colour. */
+/** A run takes its vendor's ink; every other node takes its type's ink. */
 const fill = (n: GraphNode) => (n.type === 'run' ? markColor[agentOf(str(n.data.adapter), str(n.data.host), str(n.data.model)).mark] : (COLOUR[n.type] ?? 'var(--ink-3)'));
 const TYPE_NAMES: Array<[string, string]> = [
-  ['task', 'car'],
+  ['task', 'task'],
   ['decision', 'decision'],
   ['finding', 'finding'],
   ['skill', 'learned skill'],
   ['file', 'file'],
-  ['run', 'stint, in its team livery'],
-  ['model', 'model'],
+  ['run', "run, in its vendor's ink"],
 ];
 
 /** File basename, decision id, run, finding id: the shortest name that is still unambiguous on this graph. */
@@ -59,9 +59,10 @@ type LabelSpot = { dx: number; dy: number; anchor: 'start' | 'middle' | 'end' };
  * Where each label goes: beside its node, above or below it, or on a diagonal, else nowhere. Higher-ranked nodes go first, so a
  * crowded graph keeps the labels that matter legible; a node without a label still names itself in its tooltip.
  */
-export function placeLabels(nodes: Array<{ id: string; x: number; y: number; r: number; text?: string; size: number; rank: number }>, width: number, height: number): Map<string, LabelSpot> {
+export function placeLabels(nodes: Array<{ id: string; x: number; y: number; r: number; text?: string; size: number; rank: number }>, width: number, height: number, blocks: Box[] = []): Map<string, LabelSpot> {
   const dots: Box[] = nodes.map((n) => ({ x0: n.x - n.r, y0: n.y - n.r, x1: n.x + n.r, y1: n.y + n.r }));
-  const placed: Box[] = [];
+  // the skill pills carry their own names: every label keeps off them
+  const placed: Box[] = [...blocks];
   const spots = new Map<string, LabelSpot>();
   for (const n of [...nodes].sort((a, b) => a.rank - b.rank)) {
     if (!n.text) continue;
@@ -91,12 +92,30 @@ export function placeLabels(nodes: Array<{ id: string; x: number; y: number; r: 
   return spots;
 }
 
-/** A finding citing the decision it was checked against: the line the stewards are asked about. */
+/** A finding citing the decision it was checked against: the line a person is asked to decide. */
 const cites = (e: GraphEdge) => e.type === 'links_to' && typeof e.data.decision === 'string';
 
 const radius = (n: GraphNode, centre: string) => (n.id === centre ? 8 : n.type === 'task' || n.type === 'decision' || n.type === 'skill' ? 6 : 4);
 
 const at = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+/**
+ * Each standing skill as a pill with its name inside, 24 px tall with a 12 px radius, kept inside the graph. A pill that
+ * would cover one placed before it stays a dot, and its name is placed beside it like any other label.
+ */
+export function skillPills(nodes: GraphNode[], pos: Map<string, { x: number; y: number }>, state: Map<string, NodeState>, width: number, height: number): Map<string, Box> {
+  const out = new Map<string, Box>();
+  for (const n of nodes) {
+    const p = pos.get(n.id);
+    if (n.type !== 'skill' || !p || (state.get(n.id) ?? 'hidden') === 'hidden') continue;
+    const w = Math.min(width - 2, shortLabel(n).length * 12 * 0.62 + 16);
+    const x0 = Math.min(width - 1 - w, Math.max(1, p.x - w / 2));
+    const y0 = Math.min(height - 25, Math.max(1, p.y - 12));
+    const box = { x0, y0, x1: x0 + w, y1: y0 + 24 };
+    if (![...out.values()].some((b) => overlaps(b, box))) out.set(n.id, box);
+  }
+  return out;
+}
 
 type NodeState = 'on' | 'faded' | 'hidden';
 
@@ -147,6 +166,7 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
   const width = Math.max(240, Math.round(measured / 8) * 8);
   const { pos, done } = useLayout(graph, centre, width, height);
   const state = useMemo(() => stateAt(graph.nodes, graph.edges, ts, centre), [graph, ts, centre]);
+  const pills = useMemo(() => skillPills(graph.nodes, pos, state, width, height), [graph, pos, state, width, height]);
   const labels = useMemo(
     () =>
       placeLabels(
@@ -154,12 +174,15 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
           const p = pos.get(n.id);
           if (!p || (state.get(n.id) ?? 'hidden') === 'hidden') return [];
           const rank = n.id === centre ? -1 : LABEL_RANK.indexOf(n.type);
-          return [{ id: n.id, x: p.x, y: p.y, r: radius(n, centre), size: 12, rank: rank < 0 && n.id !== centre ? LABEL_RANK.length : rank, ...(LABEL_RANK.includes(n.type) ? { text: shortLabel(n) } : {}) }];
+          // a skill drawn as a pill carries its name inside it
+          const named = LABEL_RANK.includes(n.type) && !pills.has(n.id);
+          return [{ id: n.id, x: p.x, y: p.y, r: radius(n, centre), size: 12, rank: rank < 0 && n.id !== centre ? LABEL_RANK.length : rank, ...(named ? { text: shortLabel(n) } : {}) }];
         }),
         width,
         height,
+        [...pills.values()].map((b) => ({ x0: b.x0 - 2, y0: b.y0 - 2, x1: b.x1 + 2, y1: b.y1 + 2 })),
       ),
-    [graph, pos, state, centre, width, height],
+    [graph, pos, state, centre, width, height, pills],
   );
   const firstEdge = useMemo(() => {
     const m = new Map<string, GraphEdge>();
@@ -168,7 +191,7 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
   }, [graph]);
   return (
     <div ref={measure}>
-    <svg viewBox={`0 0 ${width} ${height}`} className="block w-full h-auto rounded-[4px] border border-rule bg-panel" role="group" aria-label="Memory graph" tabIndex={-1} data-testid="memory-graph" data-layout={done ? 'done' : 'running'}>
+    <svg viewBox={`0 0 ${width} ${height}`} className="block w-full h-auto rounded-[5px] border border-rule bg-panel" role="group" aria-label="Memory graph" tabIndex={-1} data-testid="memory-graph" data-layout={done ? 'done' : 'running'}>
       {graph.edges.map((e) => {
         const a = pos.get(e.from);
         const b = pos.get(e.to);
@@ -176,14 +199,16 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
         const recorded = Date.parse(e.recordedAt) <= ts;
         const valid = recorded && (e.validTo === null || ts < Date.parse(e.validTo));
         if (!recorded) return null;
-        return <line key={e.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={cites(e) ? 'var(--yellow)' : 'var(--rule-strong)'} strokeWidth={cites(e) ? 1.5 : 1} strokeDasharray={cites(e) ? '4 3' : undefined} opacity={valid ? 0.9 : 0.25} />;
+        return <line key={e.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={cites(e) ? 'var(--amber)' : 'var(--rule-strong)'} strokeWidth={cites(e) ? 1.5 : 1} strokeDasharray={cites(e) ? '4 3' : undefined} opacity={valid ? 0.9 : 0.25} />;
       })}
-      {graph.nodes.map((n) => {
+      {/* skills last, so a pill and its name sit above the dots around it */}
+      {[...graph.nodes].sort((a, b) => Number(pills.has(a.id)) - Number(pills.has(b.id))).map((n) => {
         const p = pos.get(n.id);
         const s = state.get(n.id) ?? 'hidden';
         if (!p || s === 'hidden') return null;
         const first = firstEdge.get(n.id);
         const spot = labels.get(n.id);
+        const pill = pills.get(n.id);
         // a file opens in the diff; a decision or a run selects its place on the timeline (R-052)
         const activate = n.type === 'file' && onOpenFile ? () => onOpenFile(n.label) : (n.type === 'decision' || n.type === 'run') && onSelectNode ? () => onSelectNode(n) : undefined;
         const fadedNote = s === 'faded' ? ', no longer in force' : '';
@@ -194,7 +219,8 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
             opacity={s === 'faded' ? 0.35 : 1}
             data-node={n.id}
             data-state={s}
-            className={cx(activate && 'cursor-pointer')}
+            // a node that goes out of force at the moment the clock is on fades over 220 ms; no motion when less is asked for
+            className={cx('transition-opacity duration-[220ms] ease-out motion-reduce:transition-none', activate && 'cursor-pointer')}
             onClick={activate}
             {...(activate
               ? {
@@ -211,7 +237,18 @@ function Graph({ graph, centre, ts, height = H, onOpenFile, onSelectNode }: { gr
               : {})}
           >
             <title>{`${n.label}${first ? `, recorded at ${at(first.recordedAt)} by event ${first.eventId}` : ''}${fadedNote}`}</title>
-            <circle r={radius(n, centre)} fill={fill(n)} stroke="var(--panel)" strokeWidth={1.5} />
+            {pill ? (
+              <>
+                {/* the wash is translucent: a panel fill under it keeps the edges behind from showing through the name */}
+                <rect x={pill.x0 - p.x} y={pill.y0 - p.y} width={pill.x1 - pill.x0} height={pill.y1 - pill.y0} rx={12} fill="var(--panel)" />
+                <rect x={pill.x0 - p.x} y={pill.y0 - p.y} width={pill.x1 - pill.x0} height={pill.y1 - pill.y0} rx={12} fill="var(--violet-wash)" stroke="var(--violet)" />
+                <text x={(pill.x0 + pill.x1) / 2 - p.x} y={(pill.y0 + pill.y1) / 2 - p.y + 4} textAnchor="middle" fontSize={12} fill="var(--ink)" className="font-mono select-none">
+                  {shortLabel(n)}
+                </text>
+              </>
+            ) : (
+              <circle r={radius(n, centre)} fill={fill(n)} stroke="var(--panel)" strokeWidth={1.5} />
+            )}
             {spot ? (
               <text x={spot.dx} y={spot.dy} textAnchor={spot.anchor} fontSize={12} fill="var(--ink)" className="tabular select-none">
                 {shortLabel(n)}
@@ -263,35 +300,28 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
     };
   }, [tab, id, graph, asOf]);
 
+  const row = 'flex flex-col gap-0.5 py-2 border-t border-rule first:border-t-0 text-small';
   return (
-    <div className="mt-4">
-      <h3 className="text-[14px] font-bold stretch-112 mb-2">Ask the memory</h3>
-      <div role="tablist" aria-label="Ask the memory" className="flex gap-4 border-b border-rule mb-2">
+    <div>
+      <h3 className="sr-only">Ask the memory</h3>
+      <div role="tablist" aria-label="Ask the memory" className="flex flex-wrap border-b border-rule">
         {QUERY_TABS.map(([k, name]) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            aria-selected={tab === k}
-            data-testid={`memory-tab-${k}`}
-            onClick={() => setTab(k)}
-            className={cx('pb-1 -mb-px border-b-[3px] text-[14px]', tab === k ? 'border-ink text-ink font-bold' : 'border-transparent text-ink-2 hover:text-ink')}
-          >
+          <button key={k} type="button" role="tab" aria-selected={tab === k} data-testid={`memory-tab-${k}`} onClick={() => setTab(k)} className={tabClass(tab === k)}>
             {name}
           </button>
         ))}
       </div>
-      {rows === null ? <p className="text-ink-3 text-[12px] py-2">Reading the graph.</p> : null}
+      {rows === null ? <p className="text-ink-3 text-small py-2">Reading the graph.</p> : null}
       {rows?.length === 0 ? (
-        <p className="text-ink-3 text-[12px] py-2">
-          {tab === 'similar' ? 'No earlier task shares files, findings or tags with this one.' : tab === 'constrains' ? 'No decision or open finding applies to these files.' : 'These files have not changed alongside others yet.'}
+        <p className="text-ink-2 text-small py-2">
+          {tab === 'similar' ? 'No earlier task shares files, findings or tags with this one. Similar tasks appear here as the workspace grows.' : tab === 'constrains' ? 'No decision or open finding applies to these files. Decisions that bind them appear here.' : 'These files have not changed alongside others yet. Files that change together appear here.'}
         </p>
       ) : null}
-      <ul className="flex flex-col gap-2" data-testid={`memory-rows-${tab}`}>
+      <ul className="flex flex-col" data-testid={`memory-rows-${tab}`}>
         {tab === 'similar'
           ? (rows as SimilarRow[] | null)?.map((r) => (
-              <li key={r.task} className="text-[12px]">
-                <Link to={`/t/${r.task}`} className="font-bold text-ink underline-offset-2 hover:underline">
+              <li key={r.task} className={row}>
+                <Link to={`/t/${r.task}`} className="font-semibold text-ink underline decoration-rule-strong hover:decoration-ink">
                   {r.task} {title(r.task)}
                 </Link>
                 <p className="text-ink-2">
@@ -308,21 +338,26 @@ function Queries({ id, graph, asOf }: { id: string; graph: GraphData; asOf: stri
           : null}
         {tab === 'constrains'
           ? (rows as ConstrainsRow[] | null)?.map((r) => (
-              <li key={`${r.task}-${r.id}`} className="text-[12px]">
-                <span className={cx('font-mono font-bold', r.kind === 'decision' ? 'text-yellow' : 'text-red')}>
-                  {r.id}
-                  {r.task !== id ? ` (${r.task})` : ''}
-                </span>{' '}
-                <span className="text-ink">{r.text}</span>
-                <p className="text-ink-3">{r.files.slice(0, 3).join(', ')}{r.files.length > 3 ? `, ${r.files.length - 3} more` : ''}</p>
+              <li key={`${r.task}-${r.id}`} className={row}>
+                <p>
+                  <span className={cx('font-mono font-semibold', r.kind === 'finding' && 'text-amber')}>
+                    {r.id}
+                    {r.task !== id ? ` (${r.task})` : ''}
+                  </span>{' '}
+                  <span className="text-ink">{r.text}</span>
+                </p>
+                <p className="font-mono text-ink-3 break-words">
+                  {r.files.slice(0, 3).join(', ')}
+                  {r.files.length > 3 ? `, ${r.files.length - 3} more` : ''}
+                </p>
               </li>
             ))
           : null}
         {tab === 'travels'
           ? (rows as Array<{ path: string; count: number }> | null)?.map((r) => (
-              <li key={r.path} className="text-[12px] flex justify-between gap-2">
+              <li key={r.path} className={cx(row, 'flex-row justify-between gap-3')}>
                 <span className="font-mono text-ink truncate">{r.path}</span>
-                <span className="tabular text-ink-2 shrink-0">{r.count === 1 ? 'once' : `${r.count} times`}</span>
+                <span className="tabular text-ink-3 shrink-0">{r.count === 1 ? 'once' : `${r.count} times`}</span>
               </li>
             ))
           : null}
@@ -346,15 +381,15 @@ function SkillProposal({ s, onDecided }: { s: SkillRecord; onDecided: () => void
       .finally(() => setBusy(false));
   };
   return (
-    <li className="border-t-2 border-purple bg-purple-tint px-3 py-3 text-[14px]" data-testid="queue-skill" data-skill={s.id}>
-      <p className="text-ink-2 mb-1">
+    <li className="flex flex-col gap-1.5 rounded-[5px] border border-violet bg-violet-wash px-3 py-3 text-small" data-testid="queue-skill" data-skill={s.id}>
+      <p className="text-ink-2">
         The learn step proposes a skill from {s.evidence.join(', ')}. Nothing is written until you approve it.
       </p>
-      <Link to={`/skills?skill=${s.id}`} className="font-mono font-bold text-ink underline-offset-2 hover:underline">
+      <Link to={`/skills?skill=${s.id}`} className="self-start font-mono font-semibold text-ink underline decoration-rule-strong hover:decoration-ink">
         {s.id}
       </Link>
-      <p className="text-ink mb-2">{s.description}</p>
-      {s.eval ? <p className="tabular text-ink-2 mb-2">{s.eval.card}</p> : null}
+      <p className="text-ink">{s.description}</p>
+      {s.eval ? <p className="tabular text-ink-2">{s.eval.card}</p> : null}
       {rejecting ? (
         <form
           className="flex gap-2"
@@ -363,47 +398,48 @@ function SkillProposal({ s, onDecided }: { s: SkillRecord; onDecided: () => void
             act(() => api.rejectSkill(s.id, reason));
           }}
         >
-          <input required value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Why reject ${s.id}`} placeholder="Why not?" className="flex-1 min-w-0 h-7 rounded-[3px] border border-rule-strong bg-ground px-2 text-ink" />
-          <Button className="h-7" tone="danger" type="submit" disabled={busy}>
+          <input required value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Why reject ${s.id}`} placeholder="Why not?" className="flex-1 min-w-0 h-8 rounded-[5px] border border-rule-strong bg-ground px-2.5 text-ink placeholder:text-ink-3" />
+          <Button className="h-8 px-2.5 text-small" tone="danger" type="submit" disabled={busy}>
             Reject
           </Button>
-          <Button className="h-7" onClick={() => setRejecting(false)}>
+          <Button className="h-8 px-2.5 text-small" onClick={() => setRejecting(false)}>
             Cancel
           </Button>
         </form>
       ) : (
         <div className="flex gap-2">
-          <Button className="h-7" tone="primary" disabled={busy} onClick={() => act(() => api.approveSkill(s.id))}>
+          <Button className="h-8 px-2.5 text-small" tone="primary" disabled={busy} onClick={() => act(() => api.approveSkill(s.id))}>
             Approve and commit
           </Button>
-          <Button className="h-7" disabled={busy} onClick={() => setRejecting(true)}>
+          <Button className="h-8 px-2.5 text-small" disabled={busy} onClick={() => setRejecting(true)}>
             Reject
           </Button>
         </div>
       )}
-      {error ? <p className="mt-2 text-red">{error}</p> : null}
+      {error ? <p className="text-red">{error}</p> : null}
     </li>
   );
 }
 
 /**
  * Contradictions and proposed skills wait here for a person: a reviewer may not reverse a decision, nor the learn step write a
- * skill, on its own. On a task view the stewards beside the gate take that task's contradictions, and the memory panel the rest.
+ * skill, on its own. On a task view, "Decisions waiting for you" takes that task's contradictions (`decisionsOf`, testid
+ * `task-decisions`), and the memory panel the rest. `empty` is the sentence shown when nothing waits; without it the queue hides.
  */
-export function Queue({ only, stewardsOf, exceptStewardsOf, onSettled }: { only?: string; stewardsOf?: string; exceptStewardsOf?: string; onSettled?: () => void }) {
+export function Queue({ only, decisionsOf, exceptDecisionsOf, onSettled, empty, level = 3 }: { only?: string; decisionsOf?: string; exceptDecisionsOf?: string; onSettled?: () => void; empty?: string; level?: 2 | 3 }) {
   const [items, setItems] = useState<PendingItem[] | null>(null);
   const [permissions, setPermissions] = useState<PendingPermission[]>([]);
   const [skills, setSkills] = useState<SkillRecord[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(() => {
-    const mine = (x: PendingItem) => x.kind === 'contradiction' && x.task === stewardsOf;
-    const theirs = (x: PendingItem) => x.kind === 'contradiction' && x.task === exceptStewardsOf;
+    const mine = (x: PendingItem) => x.kind === 'contradiction' && x.task === decisionsOf;
+    const theirs = (x: PendingItem) => x.kind === 'contradiction' && x.task === exceptDecisionsOf;
     api
       .pending()
-      .then((p) => setItems(p.filter((x) => (!only || x.task === only) && (stewardsOf ? mine(x) : !theirs(x)))))
+      .then((p) => setItems(p.filter((x) => (!only || x.task === only) && (decisionsOf ? mine(x) : !theirs(x)))))
       .catch(() => setItems([]));
-    // the stewards settle contradictions only; permissions and proposed skills wait in the memory panel
-    if (stewardsOf) return;
+    // a task's own decisions are settled there; permissions and proposed skills wait in the memory panel
+    if (decisionsOf) return;
     api
       .permissions()
       .then((p) => setPermissions(only ? p.filter((x) => x.task === only) : p))
@@ -412,13 +448,14 @@ export function Queue({ only, stewardsOf, exceptStewardsOf, onSettled }: { only?
       .skills()
       .then((s) => setSkills(s.filter((x) => x.status === 'proposed' && (!only || x.evidence.some((e) => e.startsWith(`${only}/`))))))
       .catch(() => setSkills([]));
-  }, [only, stewardsOf, exceptStewardsOf]);
+  }, [only, decisionsOf, exceptDecisionsOf]);
   useEffect(() => {
     load();
     const t = setInterval(load, 3000);
     return () => clearInterval(t);
   }, [load]);
-  if ((!items || items.length === 0) && permissions.length === 0 && skills.length === 0) return null;
+  const nothing = (!items || items.length === 0) && permissions.length === 0 && skills.length === 0;
+  if (nothing && !empty) return null;
   // the queue carries contradictions, rename merges and skill proposals (R-052); proposals render from the skills list below, which carries their evidence
   const contradictions = (items ?? []).filter((p) => p.kind === 'contradiction');
   const renames = (items ?? []).filter((p) => p.kind === 'rename-merge');
@@ -433,51 +470,51 @@ export function Queue({ only, stewardsOf, exceptStewardsOf, onSettled }: { only?
       .catch((e: unknown) => toast.error(`${action === 'keep' ? 'Not kept' : 'Not superseded'}: ${daemonMessage(e)}`))
       .finally(() => setBusy(null));
   };
+  const waiting = contradictions.length + renames.length + permissions.length + skills.length;
+  const title = decisionsOf ? 'Decisions waiting for you' : 'Waiting for you';
   return (
-    <section className="mb-4" aria-label={stewardsOf ? 'Stewards' : 'Waiting for you'} data-testid={stewardsOf ? 'stewards' : 'queue'}>
-      {stewardsOf ? (
-        <h2 className="text-[14px] leading-5 font-bold mb-2">Stewards</h2>
-      ) : (
-        <h2 className="flex items-center gap-2 text-[14px] font-bold text-yellow mb-2">
-          <span aria-hidden="true" className="sw" style={{ background: 'var(--sw-yellow)' }} />
-          Waiting for you
-        </h2>
-      )}
+    <section className="flex flex-col gap-2.5" aria-label={title} data-testid={decisionsOf ? 'task-decisions' : 'queue'}>
+      <div className="flex items-baseline justify-between gap-3">
+        {/* a page section on the Factory, a part of the memory column on a task */}
+        {level === 2 ? <h2 className="text-section">{title}</h2> : <h3 className="font-semibold">{title}</h3>}
+        {waiting ? <StatusChip label={`${waiting} open`} tone="warn" /> : null}
+      </div>
+      {nothing ? <p className="text-small text-ink-2">{empty}</p> : null}
       <ul className="flex flex-col gap-3">
         <PermissionRows permissions={permissions} onDecided={load} />
         {contradictions.map((p) => (
-          <li key={p.id} className="flex flex-col gap-2 border-t-2 border-yellow pt-2 text-[14px] leading-5" data-testid="queue-row">
+          <li key={p.id} className="flex flex-col gap-2 text-small" data-testid="queue-row">
             <p className="text-ink">
               {modelName(p.agent)}'s review of {p.task} would reverse {p.decision?.id ?? 'a decision'}. It is not applied until you decide.
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <p className="font-mono font-bold text-yellow">{p.decision?.id ?? 'Decision'}</p>
-                <p className="text-ink">{p.decision?.text ?? 'Not found in decisions.md'}</p>
+            <div className="grid grid-cols-2 rounded-[5px] border border-rule-strong overflow-hidden">
+              <div className="min-w-0 px-3 py-2.5">
+                <p className="font-mono font-semibold">{p.decision?.id ?? 'Decision'}</p>
+                <p className="mt-1 text-ink">{p.decision?.text ?? 'Not found in decisions.md'}</p>
               </div>
-              <div className="min-w-0">
-                <p className="font-mono font-bold text-ink">{p.finding.id}</p>
-                <p className="text-ink">{p.finding.text}</p>
+              <div className="min-w-0 px-3 py-2.5 border-l border-rule-strong">
+                <p className="font-mono font-semibold text-amber">{p.finding.id}</p>
+                <p className="mt-1 text-ink">{p.finding.text}</p>
               </div>
             </div>
             <p className="text-ink-2">A finding never overrules a decision. {p.decision?.id ?? 'The decision'} stands until you choose.</p>
             <div className="flex flex-wrap gap-2">
-              <Button disabled={busy === p.id} onClick={() => settle(p.id, 'keep')}>
+              <Button className="h-8 px-2.5 text-small" disabled={busy === p.id} onClick={() => settle(p.id, 'keep')}>
                 Keep {p.decision?.id ?? 'it'}
               </Button>
-              <Button disabled={busy === p.id || !p.decision} onClick={() => settle(p.id, 'supersede')}>
+              <Button className="h-8 px-2.5 text-small" disabled={busy === p.id || !p.decision} onClick={() => settle(p.id, 'supersede')}>
                 Supersede {p.decision?.id ?? ''}
               </Button>
             </div>
           </li>
         ))}
         {renames.map((p) => (
-          <li key={p.id} className="border-t border-rule pt-2 text-[14px]" data-testid="queue-rename">
-            <p className="text-ink-2 mb-1">The merge of {p.task} renamed a file other work touches by its old name, so the memory graph has it twice until you note it.</p>
-            <p className="font-mono text-ink mb-2">
+          <li key={p.id} className="flex flex-col gap-1.5 border-t border-rule pt-2 text-small" data-testid="queue-rename">
+            <p className="text-ink-2">The merge of {p.task} renamed a file other work touches by its old name, so the memory graph has it twice until you note it.</p>
+            <p className="font-mono text-ink break-words">
               {p.from} is now {p.to}
             </p>
-            <Button disabled={busy === p.id} onClick={() => settle(p.id, 'keep')}>
+            <Button className="self-start h-8 px-2.5 text-small" disabled={busy === p.id} onClick={() => settle(p.id, 'keep')}>
               Note it as the same file
             </Button>
           </li>
@@ -499,18 +536,22 @@ export function Queue({ only, stewardsOf, exceptStewardsOf, onSettled }: { only?
 
 function Legend() {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-2">
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-small text-ink-2">
       {TYPE_NAMES.map(([t, name]) => (
         <span key={t} className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="inline-block size-2.5 rounded-full" style={{ background: COLOUR[t] }} />
+          {t === 'skill' ? (
+            <span aria-hidden="true" className="inline-block w-4 h-2.5 rounded-[12px] border border-violet bg-violet-wash" />
+          ) : (
+            <span aria-hidden="true" className="inline-block size-2.5 rounded-full" style={{ background: COLOUR[t] }} />
+          )}
           {name}
         </span>
       ))}
       <span className="inline-flex items-center gap-2">
-        <span aria-hidden="true" className="inline-block w-5 border-t-2 border-dashed border-yellow" />
-        a finding that cites a decision
+        <span aria-hidden="true" className="inline-block w-5 border-t-2 border-dashed border-amber" />
+        contradicts a decision, sent to you
       </span>
-      <span>Faint means no longer in force at this moment.</span>
+      <span>Faint: no longer in force at this moment.</span>
     </div>
   );
 }
@@ -519,8 +560,8 @@ function Legend() {
 function Clock({ id, range, ts, label, onChange, onNow, nowDisabled, scrubberTestId, asOfTestId }: { id: string; range: { from: number; to: number }; ts: number; label: string; onChange: (v: number) => void; onNow: () => void; nowDisabled: boolean; scrubberTestId: string; asOfTestId: string }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <label htmlFor={id} className="text-[12px] text-ink-2 shrink-0">
-        Race clock
+      <label htmlFor={id} className="text-small text-ink-2 shrink-0">
+        As of
       </label>
       <input
         id={id}
@@ -533,10 +574,10 @@ function Clock({ id, range, ts, label, onChange, onNow, nowDisabled, scrubberTes
         onChange={(e) => onChange(Number(e.target.value))}
         className="flex-1 min-w-[140px]"
       />
-      <span className="tabular text-[14px] font-extrabold stretch-87 min-w-[70px] text-right" data-testid={asOfTestId}>
+      <span className="font-mono text-code min-w-[70px] text-right" data-testid={asOfTestId}>
         {label}
       </span>
-      <Button className="h-7" tone={nowDisabled ? 'quiet' : 'primary'} disabled={nowDisabled} onClick={onNow}>
+      <Button className="h-8 px-2.5 text-small" disabled={nowDisabled} onClick={onNow}>
         Now
       </Button>
     </div>
@@ -544,10 +585,10 @@ function Clock({ id, range, ts, label, onChange, onNow, nowDisabled, scrubberTes
 }
 
 /**
- * What the car knows, on the task view's own clock: the stint chart sets the moment (asOf), and the graph, the queries
- * and the queue answer for it. No second clock here, so one drag rewinds the whole view.
+ * What the task knows, at the moment the task view shows (asOf, set by the one clock above it): the queue, the graph and
+ * the queries all answer for that moment.
  */
-export function MemoryPanel({ id, asOf, onOpenFile, version, clock }: { id: string; asOf: string | null; onOpenFile: (path: string) => void; version: number; clock?: (ms: number) => string }) {
+export function MemoryPanel({ id, asOf, onOpenFile, version }: { id: string; asOf: string | null; onOpenFile: (path: string) => void; version: number }) {
   const [, setParams] = useSearchParams();
   const navigate = useNavigate();
   const [graph, setGraph] = useState<GraphData | null>(null);
@@ -600,43 +641,31 @@ export function MemoryPanel({ id, asOf, onOpenFile, version, clock }: { id: stri
     [id, navigate, setParams],
   );
 
+  const ready = graph && graph.nodes.length > 1 && range;
   return (
-    <section className="flex flex-col gap-3" aria-label="Memory" data-testid="memory-panel" id="memory">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] items-start">
-        <div className="min-w-0 flex flex-col gap-2">
-          {error ? <EmptyState testId="empty-memory">The memory graph could not be read: {error}. Reload the page; if it stays, check the daemon log.</EmptyState> : null}
-          {!error && graph && graph.nodes.length <= 1 ? (
-            <EmptyState testId="empty-memory">Similar past tasks, the decisions that constrain this task and the files that change together appear here once a run has touched something.</EmptyState>
+    <section className="flex flex-col gap-5" aria-label="Memory graph and queries" data-testid="memory-panel" id="memory">
+      <Queue exceptDecisionsOf={id} />
+      {error ? <EmptyState testId="empty-memory">The memory graph could not be read: {error}. Reload the page; if it stays, check the daemon log.</EmptyState> : null}
+      {!error && graph && graph.nodes.length <= 1 ? (
+        <EmptyState testId="empty-memory">Similar past tasks, the decisions that constrain this task and the files that change together appear here once a run has touched something.</EmptyState>
+      ) : null}
+      {ready ? (
+        <div className="flex flex-col gap-2">
+          <Graph graph={graph} centre={centre} ts={ts} height={360} onOpenFile={onOpenFile} onSelectNode={(n) => void openNode(n)} />
+          {graph.total > graph.nodes.length ? (
+            <p className="text-small text-ink-2 tabular" data-testid="memory-count">
+              {graph.nodes.length} of {graph.total} nodes, the closest to this task
+            </p>
           ) : null}
-          {graph && graph.nodes.length > 1 && range ? (
-            <>
-              <p className="text-[12px] text-ink-2">
-                What car {carNumber(id)} knew {asOf ? 'at ' : 'by '}
-                <span className="tabular font-bold text-ink" data-testid="memory-asof">
-                  {clock ? clock(ts) : at(new Date(ts).toISOString())}
-                </span>
-                {asOf ? '' : ', now'}. Move the stint chart's clock to rewind it.
-              </p>
-              <Graph graph={graph} centre={centre} ts={ts} height={340} onOpenFile={onOpenFile} onSelectNode={(n) => void openNode(n)} />
-              {graph.total > graph.nodes.length ? (
-                <p className="text-[12px] text-ink-2 tabular" data-testid="memory-count">
-                  {graph.nodes.length} of {graph.total} nodes, the closest to this task
-                </p>
-              ) : null}
-              <Legend />
-            </>
-          ) : null}
+          <Legend />
         </div>
-        <aside aria-label="Ask the memory" className="min-w-0">
-          <Queue exceptStewardsOf={id} />
-          {graph && graph.nodes.length > 1 && range ? <Queries id={id} graph={graph} asOf={asOf} /> : null}
-        </aside>
-      </div>
+      ) : null}
+      {ready ? <Queries id={id} graph={graph} asOf={asOf} /> : null}
     </section>
   );
 }
 
-/** The same graph and scrubber over the whole workspace, for the Standings (R-052). */
+/** The same graph and scrubber over the whole workspace, for the Factory (R-052). */
 export function WorkspaceMemory() {
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -665,7 +694,7 @@ export function WorkspaceMemory() {
     <div data-testid="factory-memory" className="flex flex-col gap-2">
       <Graph graph={graph} centre={centre} ts={ts} height={380} />
       {graph.total > graph.nodes.length ? (
-        <p className="text-[12px] text-ink-3 tabular">
+        <p className="text-small text-ink-3 tabular">
           {graph.nodes.length} of {graph.total} nodes, the most connected
         </p>
       ) : null}

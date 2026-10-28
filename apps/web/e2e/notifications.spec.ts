@@ -22,13 +22,13 @@ test('The palette asks for desktop notification permission and the sound choice 
   await page.goto('/');
 
   await page.keyboard.press('Meta+k');
-  await page.getByPlaceholder('Type a command or a task').fill('desktop notifications');
+  await page.getByPlaceholder('Search or run a command').fill('desktop notifications');
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => (window as unknown as { __permAsked: number }).__permAsked)).toBe(1);
   expect(await page.evaluate(() => Notification.permission)).toBe('granted');
 
   await page.keyboard.press('Meta+k');
-  await page.getByPlaceholder('Type a command or a task').fill('Turn sound off');
+  await page.getByPlaceholder('Search or run a command').fill('Turn sound off');
   await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => {
     try {

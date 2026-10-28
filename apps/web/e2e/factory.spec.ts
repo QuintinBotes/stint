@@ -118,7 +118,7 @@ test('The Factory shows the benchmark the fixture was measured with: transcript,
   await expect(bench).toContainText(`commit ${plain.commit.slice(0, 7)}`);
 });
 
-test('Standings shows Verification and outcomes: four groups, a window switch that changes the window, and each label linked to its definition (R-061)', async ({ page }) => {
+test('The Factory shows Verification and outcomes: four groups, a window switch that changes the window, and each label linked to its definition (R-061)', async ({ page }) => {
   await page.goto('/factory');
   const panel = page.getByTestId('panel-metrics');
   await expect(panel).toBeVisible();

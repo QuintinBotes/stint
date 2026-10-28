@@ -23,7 +23,7 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
   useEffect(() => {
     if (!host.current) return;
     const term = new XTerm({
-      fontFamily: '"Martian Mono Variable", ui-monospace, monospace',
+      fontFamily: '"Geist Mono Variable", ui-monospace, monospace',
       fontSize: 12.5,
       cursorBlink: true,
       // the WebGL renderer draws to a canvas; this keeps the rows readable by screen readers
@@ -90,8 +90,8 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
 
   return (
     <div className="flex flex-col gap-2 h-[min(70vh,640px)] min-h-[360px]" data-testid="terminal">
-      <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-2">
-        <span className="text-[14px] font-semibold text-ink">Shell in the run's worktree</span>
+      <div className="flex flex-wrap items-center gap-2 text-small text-ink-2">
+        <span className="text-body font-semibold text-ink">Shell in the run's worktree</span>
         <span className="font-mono truncate rounded-[3px] border border-rule bg-panel px-2 py-1 max-w-[48ch]" data-testid="terminal-cwd">
           {state.kind === 'open' ? state.cwd : state.kind === 'connecting' ? 'Opening a shell in the worktree.' : state.reason.startsWith('No worktree') ? 'No worktree' : state.reason}
         </span>
@@ -99,7 +99,7 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
         <span className="ml-auto flex gap-2 shrink-0">
           {state.kind === 'open' ? (
             <Button
-              className="h-7"
+              className="h-8 px-2.5 text-small"
               onClick={() => {
                 void navigator.clipboard.writeText(`cd ${state.cwd}`).then(() => {
                   setCopied(true);
@@ -111,15 +111,15 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
             </Button>
           ) : null}
           {liveRun && onStop ? (
-            <Button tone="danger" className="h-7" title={`Kill ${liveRun}`} onClick={onStop} data-testid="kill-run">
+            <Button tone="danger" className="h-8 px-2.5 text-small" title={`Kill ${liveRun}`} onClick={onStop} data-testid="kill-run">
               Kill run <Kbd>⌘.</Kbd>
             </Button>
           ) : null}
         </span>
       </div>
       {state.kind === 'closed' && state.reason.startsWith('No worktree') ? <EmptyState testId="empty-terminal">{state.reason}</EmptyState> : null}
-      <div ref={host} className="flex-1 min-h-[320px] rounded-[4px] overflow-hidden border border-rule p-2" style={{ background: 'var(--term)', display: state.kind === 'closed' && !state.reason.startsWith('The shell') ? 'none' : undefined }} />
-      {state.kind === 'open' ? <p className="text-[12px] text-ink-2">Lines you type here join race control as your commands, next to what the agent did.</p> : null}
+      <div ref={host} className="flex-1 min-h-[320px] rounded-[5px] overflow-hidden border border-rule p-2" style={{ background: 'var(--term)', display: state.kind === 'closed' && !state.reason.startsWith('The shell') ? 'none' : undefined }} />
+      {state.kind === 'open' ? <p className="text-small text-ink-2">Lines you type here join the run rail as your commands, next to what the agents did.</p> : null}
     </div>
   );
 }

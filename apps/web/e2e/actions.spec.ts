@@ -10,12 +10,12 @@ test('On a task, the palette runs Verify for real and opens Request changes; r a
   await page.goto(`/t/${id}`);
 
   await page.keyboard.press('Meta+k');
-  await page.getByPlaceholder('Type a command or a task').fill('Verify');
+  await page.getByPlaceholder('Search or run a command').fill('Verify');
   await page.keyboard.press('Enter');
   await expect(page.locator('[data-sonner-toast]').filter({ hasText: `${id}: tests run by the daemon` })).toBeVisible({ timeout: 30_000 });
 
   await page.keyboard.press('Meta+k');
-  await page.getByPlaceholder('Type a command or a task').fill('Request changes');
+  await page.getByPlaceholder('Search or run a command').fill('Request changes');
   await page.keyboard.press('Enter');
   await expect(page.getByText('What should change? This becomes the next ask.')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();

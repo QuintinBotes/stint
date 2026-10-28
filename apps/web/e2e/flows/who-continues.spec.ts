@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { daemon } from './daemon';
 
-test('After a kill the timeline recommends a different agent; one click hands the task over and a new run starts from the packet', async ({ page, request }) => {
+test('After a kill the task view recommends a different agent; one click hands the task over and a new run starts from the packet', async ({ page, request }) => {
   const d = daemon(request);
   const t = await d.create('Flow: who continues');
   await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'sleeper', role: 'implementer' });

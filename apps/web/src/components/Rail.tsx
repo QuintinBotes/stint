@@ -2,11 +2,11 @@ import type { StintEvent } from '@stint-dev/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
-import { DAEMON, ROLE_NAMES, YOU, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
+import { ROLE_NAMES, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
 import { type RunSummary, api } from '../api';
 import { duration, localTime } from '../format';
 import { useHealth } from '../hooks';
-import { Button, type ChipTone, CostMeter, EmptyState, StatusChip, VendorMark, cx } from './ui';
+import { Button, type ChipTone, CostMeter, EmptyState, StatusChip, Who, cx } from './ui';
 
 /** What raises attention on the rail when collapsed: what the agent did, what changed, what was decided or refused. */
 const NOTABLE = new Set([
@@ -80,7 +80,7 @@ export function describe(e: StintEvent): ReactNode {
       const target = str(args.path) || str(args.file_path) || str(args.command) || str(args.pattern);
       return (
         <>
-          <span className="text-ink-2">{str(p.tool)}</span> <code className="font-mono text-[12px]">{target}</code>
+          <span className="text-ink-2">{str(p.tool)}</span> <code className="font-mono break-all">{target}</code>
         </>
       );
     }
@@ -89,8 +89,10 @@ export function describe(e: StintEvent): ReactNode {
     case 'file.changed':
       return (
         <>
-          <code className="font-mono text-[12px]">{str(p.path)}</code>{' '}
-          <span className="tabular text-green">+{Number(p.added)}</span> <span className="tabular text-red">-{Number(p.removed)}</span>
+          <code className="font-mono break-all">{str(p.path)}</code>{' '}
+          <span className="tabular text-ink-2">
+            +{Number(p.added)} -{Number(p.removed)}
+          </span>
         </>
       );
     case 'decision.recorded':
@@ -119,7 +121,7 @@ export function describe(e: StintEvent): ReactNode {
     case 'rule.blocked':
       return (
         <>
-          Refused by Stint rules: <code className="font-mono text-[12px]">{str(p.action)}</code>
+          Refused by Stint rules: <code className="font-mono">{str(p.action)}</code>
           <span className="text-ink-2"> ({str(p.reason)})</span>
         </>
       );
@@ -157,10 +159,10 @@ export function describe(e: StintEvent): ReactNode {
       // a typed command, or a person's word on a queue item ("Kept D3"), which has text and no command
       return p.command ? (
         <>
-          You ran <code className="font-mono text-[12px]">{str(p.command)}</code>
+          <code className="font-mono break-all">{str(p.command)}</code>
         </>
       ) : (
-        <>You: {str(p.text)}</>
+        <>{str(p.text)}</>
       );
     case 'approval.requested':
       return <>Approval requested</>;
@@ -171,7 +173,7 @@ export function describe(e: StintEvent): ReactNode {
     case 'merge.completed':
       return (
         <>
-          Merged into {str(p.into) || 'the base branch'} as <code className="font-mono text-[12px]">{str(p.commit).slice(0, 7)}</code>
+          Merged into {str(p.into) || 'the base branch'} as <code className="font-mono">{str(p.commit).slice(0, 7)}</code>
         </>
       );
     case 'provider.fallback':
@@ -223,7 +225,7 @@ function items(events: StintEvent[], runs: RunSummary[], showAll: boolean): Item
       const shown = showAll ? b.events : b.events.filter((e) => NOTABLE.has(e.type));
       for (const e of shown) if (e.type !== 'run.finished') out.push({ kind: 'event', key: `e-${e.seq}`, e, seg: b, live });
       if (finished && str(finished.payload.endedBy) === 'killed') {
-        out.push({ kind: 'note', key: `k-${b.run}`, seg: b, live, text: `Red flag: the run was stopped. In-flight step unknown: ${str(finished.payload.inFlight) || 'none recorded'}`, warn: true });
+        out.push({ kind: 'note', key: `k-${b.run}`, seg: b, live, text: `In-flight step unknown: ${str(finished.payload.inFlight) || 'none recorded'}`, warn: true });
       }
       const hidden = b.events.length - shown.length;
       if (hidden > 0 && !showAll) out.push({ kind: 'note', key: `m-${b.run}`, seg: b, live, text: `${hidden} more, including messages`, warn: false });
@@ -249,11 +251,11 @@ function offsetIn(el: HTMLElement | null, scroller: HTMLElement | null): number 
 
 const segAgent = (seg: Seg) => agentOf(seg.started.adapter, str(seg.started.payload.host), str(seg.started.payload.model));
 
-/** The run's coloured spine, drawn beside every row of its segment. */
+/** The run's axis: a 4 px bar in its vendor's ink beside every row of its segment; the agent's name is in its head. */
 function Spine({ seg, live, children }: { seg: Seg; live: boolean; children: ReactNode }) {
   return (
-    <div className="relative pl-4">
-      <span aria-hidden="true" className={cx('absolute left-0 top-0 bottom-0 w-[3px] rounded-[1px]', live && 'live-spine')} style={{ background: markColor[segAgent(seg).mark] }} />
+    <div className="relative pl-8 pr-4">
+      <span aria-hidden="true" className={cx('absolute left-4 top-0 bottom-0 w-1 rounded-[2px]', live && 'live-spine')} style={{ background: markColor[segAgent(seg).mark] }} />
       {children}
     </div>
   );
@@ -266,18 +268,11 @@ function detail(e: StintEvent): string {
   return text.length > 4000 ? `${text.slice(0, 4000)}\n...` : text;
 }
 
-/** Who an event belongs to in race control: you, the driver of its stint, or the daemon. */
-function driverOf(e: StintEvent, seg: Seg | null) {
-  if (e.type === 'human.command' || e.vendor === 'human') return YOU;
-  if (seg) return segAgent(seg);
-  return e.adapter ? agentOf(e.adapter) : DAEMON;
-}
-
-function EventRow({ e, seg, selected, expanded, onActivate }: { e: StintEvent; seg: Seg | null; selected: boolean; expanded: boolean; onActivate: (seq: number, keyboard: boolean) => void }) {
+function EventRow({ e, selected, expanded, onActivate }: { e: StintEvent; selected: boolean; expanded: boolean; onActivate: (seq: number, keyboard: boolean) => void }) {
   const human = e.type === 'human.command' || e.vendor === 'human';
   const marked = e.type === 'verification.ran' || e.type === 'review.recorded' || e.type === 'rule.blocked';
-  const tint = e.type === 'verification.ran' ? (e.payload.status === 'green' ? 'bg-added' : 'bg-removed') : e.type === 'rule.blocked' ? 'bg-removed' : null;
-  const who = driverOf(e, seg);
+  // green is a passing verification only; a red one or a refusal is red
+  const tint = e.type === 'verification.ran' ? (e.payload.status === 'green' ? 'bg-green-wash' : 'bg-red-wash') : e.type === 'rule.blocked' ? 'bg-red-wash' : null;
   return (
     <>
       <button
@@ -289,21 +284,21 @@ function EventRow({ e, seg, selected, expanded, onActivate }: { e: StintEvent; s
         // a click made by Enter or Space has detail 0
         onClick={(ev) => onActivate(e.seq, ev.detail === 0)}
         className={cx(
-          'w-full text-left grid grid-cols-[44px_32px_minmax(0,1fr)] gap-2 px-2 py-1 border-b border-rule text-[14px] leading-5',
-          selected ? 'bg-panel-2' : tint ?? 'hover:bg-panel',
-          marked && 'font-semibold',
+          'w-full text-left grid grid-cols-[56px_minmax(0,1fr)] gap-2 px-1.5 py-1 rounded-[3px] text-small',
+          selected ? 'bg-panel-2 shadow-[inset_0_0_0_1px_var(--rule-strong)]' : (tint ?? 'hover:bg-panel-2'),
+          marked && 'font-medium',
         )}
       >
-        <time className={cx('tabular text-[12px]', tint ? 'text-ink-2' : 'text-ink-3')} dateTime={e.ts}>
+        <time className="font-mono text-[12px] leading-[18px] text-ink-3 tabular" dateTime={e.ts}>
           {storyClock(e.payload) ?? localTime(e.ts)}
         </time>
-        <span className={cx('text-[12px] font-extrabold stretch-75 tracking-[0.03em]', human ? 'text-ink' : 'text-ink-2')} title={who.name}>
-          {who.code}
+        <span className="min-w-0 break-words">
+          {human ? <span className="mr-1.5 inline-flex items-center h-5 px-1.5 rounded-[3px] bg-panel-2 text-ink font-medium">You</span> : null}
+          {describe(e)}
         </span>
-        <span className="min-w-0 break-words">{describe(e)}</span>
       </button>
       {selected && expanded ? (
-        <pre className="mx-2 my-1 max-h-60 overflow-auto rounded-[3px] bg-panel p-2 font-mono text-[12px] leading-[16px] whitespace-pre-wrap break-words" data-testid="event-detail" tabIndex={0}>
+        <pre className="my-1 max-h-60 overflow-auto rounded-[3px] bg-term text-term-ink p-2 font-mono text-small whitespace-pre-wrap break-words" data-testid="event-detail" tabIndex={0}>
           {detail(e)}
         </pre>
       ) : null}
@@ -319,9 +314,11 @@ function EventRow({ e, seg, selected, expanded, onActivate }: { e: StintEvent; s
  */
 export function permissionTier(gate: string | null | undefined, risk: string | null | undefined): { label: string; tone: ChipTone } {
   if (gate === 'observed') return { label: 'never bypass', tone: 'warn' };
-  if (risk === 'low') return { label: 'auto, verified', tone: 'good' };
+  if (risk === 'low') return { label: 'auto, verified', tone: 'neutral' };
   return { label: 'manual', tone: 'neutral' };
 }
+
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk?: string | null }) {
   const s = seg.summary;
@@ -335,56 +332,59 @@ function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk
   const endAt = finished?.payload.replayAt;
   const took =
     typeof startAt === 'number' && (typeof endAt === 'number' || !finished)
-      ? `${Math.round(((typeof endAt === 'number' ? endAt : startAt) - startAt) / 1000)}s`
+      ? `${Math.round(((typeof endAt === 'number' ? endAt : startAt) - startAt) / 1000)} s`
       : duration(seg.started.ts, finished?.ts ?? null);
   const endedBy = finished ? str(finished.payload.endedBy) : 'running';
   const tier = permissionTier(gate, risk);
+  const from = str(seg.started.payload.handoffFrom);
+  const what = isCall ? `${capital(ROLE_NAMES[role] ?? role)} ${host === 'ollama' ? 'offline on this machine' : `on ${hostName(host)}`}` : `${capital(ROLE_NAMES[role] ?? role)}${from ? ` from packet ${from}` : ''}`;
   return (
-    <header data-testid="run-segment" data-run={seg.run} data-adapter={seg.started.adapter} className="flex items-start justify-between gap-2 pt-3 pb-2 border-b border-rule">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 text-[14px]">
-          <VendorMark agent={agent} showName={false} size={18} />
-          <span className="font-bold truncate" data-testid="segment-model">
-            {modelName(model)}
-          </span>
-          <span className="text-ink-2 shrink-0">stint {seg.run}</span>
-        </div>
-        <div className="text-[12px] text-ink-2 mt-1 truncate">
-          {isCall
-            ? `${ROLE_NAMES[role] ?? role} ${host === 'ollama' ? 'offline on this machine' : `on ${hostName(host)}`}`
-            : `${agent.name} ${seg.started.payload.handoffFrom ? `continues from packet ${str(seg.started.payload.handoffFrom)}` : ROLE_NAMES[role] ?? role}`}
-        </div>
-      </div>
-      <div className="flex flex-col items-end gap-1 shrink-0">
+    <header data-testid="run-segment" data-run={seg.run} data-adapter={seg.started.adapter} className="pt-3 pb-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-mono text-code text-ink-3">{seg.run}</span>
+        <Who agent={agent} live={!finished} className="font-semibold" />
         <StatusChip status={endedBy} />
+      </div>
+      <p className="mt-0.5 text-small text-ink-2">
+        {what}
+        {isCall ? '' : (
+          <>
+            , <span data-testid="segment-model">{modelName(model)}</span>
+          </>
+        )}
+        , {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
+      </p>
+      <p className="mt-1 flex items-center gap-2 text-small text-ink-2">
+        Permissions{' '}
         <span data-testid="permission-tier" title="Permission tier">
           <StatusChip label={tier.label} tone={tier.tone} />
         </span>
-        <span className="text-[12px] text-ink-2 tabular">
-          {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
-        </span>
-      </div>
+      </p>
     </header>
   );
 }
 
+/** The square joint between two runs: the packet one run left the next, with its size. */
 function Joint({ e, onOpen }: { e: StintEvent; onOpen: (name: string) => void }) {
   const p = e.payload;
-  const kb = (Number(p.bytes) / 1024).toFixed(1);
+  const reason = str(p.reason) || 'ended';
+  const stopped = reason === 'killed' || reason === 'failed';
   return (
-    <button
-      type="button"
-      data-testid="handoff-joint"
-      onClick={() => onOpen(str(p.name))}
-      className="relative w-full my-2 flex items-center gap-3 rounded-[4px] bg-board text-board-ink px-3 py-2 text-left hover:outline hover:outline-1 hover:outline-rule-strong"
-    >
-      <span className="shrink-0 text-[14px] leading-4 font-extrabold stretch-70 tracking-[0.02em] uppercase">Pit stop</span>
-      <span className="text-[14px] leading-5">
-        <span className="font-bold">Packet {str(p.name)}</span>
-        <span className="tabular">, {Number(p.tokens)} tokens</span>
-        <span className="opacity-75 tabular">, {kb} KB, after the run was {str(p.reason) || 'ended'}</span>
-      </span>
-    </button>
+    <div className="relative pl-8 pr-4 py-1">
+      <span aria-hidden="true" className={cx('absolute left-3 top-[15px] size-3 border-2 bg-ground', stopped ? 'border-red' : 'border-ink')} />
+      <button
+        type="button"
+        data-testid="handoff-joint"
+        onClick={() => onOpen(str(p.name))}
+        title={`${(Number(p.bytes) / 1024).toFixed(1)} KB. Open the packet`}
+        className={cx('w-full flex items-baseline justify-between gap-2 rounded-[3px] border bg-ground px-2.5 py-2 text-left text-small hover:border-ink-2', stopped ? 'border-red' : 'border-rule-strong')}
+      >
+        <span className="min-w-0">
+          <span className="font-semibold">Packet {str(p.name)}</span> <span className="text-ink-2">{stopped ? `${reason}, built from the log` : reason}</span>
+        </span>
+        <span className="shrink-0 font-mono tabular">{Number(p.tokens)} tokens</span>
+      </button>
+    </div>
   );
 }
 
@@ -405,31 +405,30 @@ function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
       .finally(() => setBusy(false));
   };
   return (
-    <div className="py-2 text-[12px]" data-testid="checkpoint" data-run={seg.run}>
-      <div className="flex items-center gap-2 text-ink-3">
-        <span aria-hidden="true" className="h-px flex-1 bg-rule" />
+    <div className="pl-8 pr-4 py-1.5 text-small" data-testid="checkpoint" data-run={seg.run}>
+      <div className="flex items-center gap-2 text-ink-2">
         <span>
           Checkpoint after {seg.run}, <code className="font-mono">{commit.slice(0, 7)}</code>
         </span>
-        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="rounded-[3px] px-2 text-ink-2 hover:text-ink border border-ink-3 hover:border-ink">
-          Restore
-        </button>
         <span aria-hidden="true" className="h-px flex-1 bg-rule" />
+        <Button className="h-7 px-2 text-small" aria-expanded={open} onClick={() => setOpen(!open)}>
+          Restore
+        </Button>
       </div>
       {open ? (
-        <div className="mt-1 flex flex-wrap items-center gap-2 justify-center" role="group" aria-label={`Restore the checkpoint after ${seg.run}`}>
-          <Button className="h-7" disabled={busy} onClick={restore}>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2" role="group" aria-label={`Restore the checkpoint after ${seg.run}`}>
+          <Button className="h-7 px-2 text-small" disabled={busy} onClick={restore}>
             Code
           </Button>
-          <span className="w-full text-center text-ink-2">{LATER}</span>
+          <span className="text-ink-2">{LATER}</span>
         </div>
       ) : null}
       {result && 'path' in result ? (
-        <p className="mt-1 text-center text-ink-2" data-testid="checkpoint-restored">
-          {seg.run}'s code at <code className="font-mono">{commit.slice(0, 7)}</code> is in <code className="font-mono text-ink">{result.path}</code>
+        <p className="mt-1 text-ink-2" data-testid="checkpoint-restored">
+          {seg.run}'s code at <code className="font-mono">{commit.slice(0, 7)}</code> is in <code className="font-mono text-ink break-all">{result.path}</code>
         </p>
       ) : null}
-      {result && 'error' in result ? <p className="mt-1 text-center text-red">The checkpoint was not restored: {result.error}</p> : null}
+      {result && 'error' in result ? <p className="mt-1 text-red">The checkpoint was not restored: {result.error}</p> : null}
     </div>
   );
 }
@@ -467,8 +466,9 @@ export function Rail({
   const v = useVirtualizer({
     count: virtual ? list.length : 0,
     getScrollElement: scroller,
-    // measured on the replay in the drawer: a wrong guess makes every newly drawn row correct the layout while scrolling
-    estimateSize: (i) => (list[i]?.kind === 'head' ? 90 : list[i]?.kind === 'joint' ? 72 : list[i]?.kind === 'checkpoint' ? 38 : 50),
+    // the mean heights measured in the 320 px rail on the replay: a wrong guess makes every newly drawn row correct the
+    // layout while scrolling
+    estimateSize: (i) => ({ head: 100, joint: 50, checkpoint: 40, note: 30, event: 40 })[list[i]?.kind ?? 'event'],
     getItemKey: (i) => list[i]?.key ?? i,
     // at 12, each scroll step drew enough rows to miss the frame budget on a slow CI runner (p95 50 ms, 33 ms at 6)
     overscan: 6,
@@ -550,7 +550,12 @@ export function Rail({
     else root.current?.querySelector(`[data-seq="${selected}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [selected, list]);
 
-  if (events.length === 0) return <EmptyState testId="empty-rail">{rewound ? 'Nothing had happened yet at this moment on the race clock.' : 'Runs appear here, one stint per agent, as soon as the task is assigned.'}</EmptyState>;
+  if (events.length === 0)
+    return (
+      <div className="px-4">
+        <EmptyState testId="empty-rail">{rewound ? 'Nothing had happened yet at this moment.' : 'Runs appear here, one segment per agent, as soon as the task is assigned.'}</EmptyState>
+      </div>
+    );
 
   const render = (it: Item) => {
     switch (it.kind) {
@@ -561,19 +566,25 @@ export function Rail({
           </Spine>
         );
       case 'event': {
-        const row = <EventRow e={it.e} seg={it.seg} selected={selected === it.e.seq} expanded={expanded.has(it.e.seq)} onActivate={activate} />;
+        const row = <EventRow e={it.e} selected={selected === it.e.seq} expanded={expanded.has(it.e.seq)} onActivate={activate} />;
         return it.seg ? (
           <Spine seg={it.seg} live={it.live}>
             {row}
           </Spine>
         ) : (
-          <div className="pl-5">{row}</div>
+          <div className="pl-8 pr-4">{row}</div>
         );
       }
       case 'note':
         return (
           <Spine seg={it.seg} live={it.live}>
-            <p className={cx('px-2 py-2 border-b border-rule', it.warn ? 'text-[14px] font-semibold text-ink bg-removed' : 'text-[12px] text-ink-3')}>{it.text}</p>
+            {it.warn ? (
+              <p className="my-1 rounded-[3px] bg-red-wash px-2.5 py-2 text-small">
+                <b className="font-semibold text-red">Killed.</b> {it.text}
+              </p>
+            ) : (
+              <p className="px-1.5 py-1 text-small text-ink-3">{it.text}</p>
+            )}
           </Spine>
         );
       case 'joint':
@@ -588,7 +599,7 @@ export function Rail({
       type="button"
       data-testid="jump-latest"
       onClick={toEnd}
-      className="sticky bottom-2 left-full z-10 mt-2 block rounded-[3px] bg-ink px-3 py-1 text-[12px] font-bold text-ground shadow-[var(--shadow)]"
+      className="sticky bottom-2 left-full z-10 mt-2 mr-4 block rounded-[5px] bg-ink px-3 h-8 text-small font-semibold text-on-ink"
     >
       Jump to latest
     </button>
@@ -597,7 +608,7 @@ export function Rail({
   if (!virtual) {
     return (
       <>
-        <ol ref={root} className="flex flex-col" data-testid="rail" aria-label="Timeline">
+        <ol ref={root} className="flex flex-col pt-1 pb-3" data-testid="rail" aria-label="Runs and their events">
           {list.map((it) => (
             <li key={it.key}>{render(it)}</li>
           ))}
@@ -609,7 +620,7 @@ export function Rail({
   const margin = v.options.scrollMargin;
   return (
     <>
-      <ol ref={root} className="relative" style={{ height: v.getTotalSize() }} data-testid="rail" data-virtual="true" aria-label="Timeline">
+      <ol ref={root} className="relative" style={{ height: v.getTotalSize() }} data-testid="rail" data-virtual="true" aria-label="Runs and their events">
         {v.getVirtualItems().map((row) => (
           <li key={row.key} data-index={row.index} ref={v.measureElement} className="absolute left-0 right-0 top-0" style={{ transform: `translateY(${row.start - margin}px)` }}>
             {render(list[row.index] as Item)}

@@ -1,22 +1,43 @@
 import type { Metrics } from '@stint-dev/core';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { ADAPTER_NAMES, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, carNumber, hostMark, hostName, markColor, modelName } from '../agents';
-import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, api, daemonMessage } from '../api';
+import { ADAPTER_NAMES, type Agent, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, hostMark, hostName, markColor, modelName } from '../agents';
+import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, type TaskBundle, api, daemonMessage } from '../api';
 import { Queue, WorkspaceMemory } from '../components/MemoryPanel';
 import { MetricsPanel, type WindowName, metricValue } from '../components/MetricsPanel';
 import { Relay } from '../components/Relay';
-import { Button, EmptyState, Plate, StatusChip, Swatch, VendorMark, cx } from '../components/ui';
+import { Button, EmptyState, StatusChip, Who, cx, rev } from '../components/ui';
 import { money, tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
 
 const isMeta = (model: string) => /(^|\/)(muse-|llama)/i.test(model);
 
-/** A host's spend takes its team's livery: the local team on this machine, Meta's models wherever they are served. */
+/** A host's spend takes its vendor's ink: local for this machine, Meta's models wherever they are served. */
 const hostColour = (host: string) => markColor[hostMark(host)];
 
-const TH = 'font-semibold pb-2 pt-1 border-b border-rule';
-const TD = 'py-3 border-b border-rule';
+const SMALL = 'h-8 px-2.5 text-small';
+const NOTE = 'text-small text-ink-2';
+/** A note's paragraph, kept to a readable measure. */
+const PROSE = 'text-small text-ink-2 max-w-[60ch]';
+const NUM = cx(rev.td, 'text-right');
+const NUM_HEAD = cx(rev.th, 'text-right');
+/** A row's own header cell, on the body's ground: the design sets the row labels of a comparison in ink-2. */
+const ROW_HEAD = 'px-2.5 py-1.5 border border-rule-strong align-top font-medium text-ink-2 bg-ground';
+/** A wide table scrolls inside its panel on a narrow screen; the padding keeps the block's outer line inside the scroller. */
+const SCROLLER = 'overflow-x-auto p-px';
+/** One bar row, as the design sets the loops and the spend: label, track, figure. */
+const BAR_ROW = 'grid grid-cols-[96px_minmax(0,1fr)_56px] sm:grid-cols-[150px_minmax(0,1fr)_56px] items-center gap-3 min-h-[30px] text-small';
+const TRACK = 'flex h-3.5 overflow-hidden rounded-[2px] bg-panel-2';
+
+/** A vendor's ink square and its name, for a legend. */
+function Key({ colour, children }: { colour: string; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span aria-hidden="true" className="size-2.5 shrink-0 rounded-[2px]" style={{ background: colour }} />
+      {children}
+    </span>
+  );
+}
 
 function useLoad<T>(load: () => Promise<T>, deps: unknown[]): T | null {
   const [v, setV] = useState<T | null>(null);
@@ -44,47 +65,45 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
   const all = models.reduce((s, m) => s + m.total, 0);
   if (models.length === 0) return <EmptyState>The models that do the work appear here once a run ends.</EmptyState>;
   return (
-    <div data-testid="models-at-work">
-      <div className="flex h-4 gap-px overflow-hidden mb-4" role="img" aria-label={`Share of tokens by model: ${models.map((m) => `${modelName(m.model)} ${Math.round((m.total / Math.max(1, all)) * 100)}%`).join(', ')}`}>
+    <div data-testid="models-at-work" className="flex flex-col gap-4">
+      <div className={cx(TRACK, 'gap-px')} role="img" aria-label={`Share of tokens by model: ${models.map((m) => `${modelName(m.model)} ${Math.round((m.total / Math.max(1, all)) * 100)}%`).join(', ')}`}>
         {models.map((m) => (
-          <span
-            key={m.key}
-            style={{ width: `${(m.total / Math.max(1, all)) * 100}%`, background: markColor[agentOf('openai-compatible', m.host, m.model).mark] }}
-            title={`${modelName(m.model)}: ${tokens(m.total)} tokens`}
-          />
+          <span key={m.key} style={{ width: `${(m.total / Math.max(1, all)) * 100}%`, background: markColor[agentOf('openai-compatible', m.host, m.model).mark] }} title={`${modelName(m.model)}: ${tokens(m.total)} tokens`} />
         ))}
       </div>
-      <div className="overflow-x-auto">
-      <table className="w-full text-[14px] min-w-[560px]">
-        <thead className="text-[12px] text-ink-2 text-left">
-          <tr>
-            <th className={TH}>Model</th>
-            <th className={TH}>Ran on</th>
-            <th className={TH}>Did</th>
-            <th className={cx(TH, 'text-right')}>Tokens in</th>
-            <th className={cx(TH, 'text-right')}>From cache</th>
-            <th className={cx(TH, 'text-right')}>Out</th>
-            <th className={cx(TH, 'text-right')}>Runs</th>
-            <th className={cx(TH, 'text-right')}>Cost</th>
-          </tr>
-        </thead>
-        <tbody className="tabular">
-          {models.map((m) => (
-            <tr key={m.key} data-testid="model-row">
-              <td className={cx(TD, 'font-bold')}>
-                <VendorMark agent={agentOf('openai-compatible', m.host, m.model)} showName={false} size={15} /> <span className="ml-1">{modelName(m.model)}</span>
-              </td>
-              <td className={cx(TD, 'text-ink-2')}>{hostName(m.host)}</td>
-              <td className={cx(TD, 'text-ink-2')}>{(m.roles ?? []).map((r) => ROLE_NAMES[r] ?? r).join(', ') || 'runs'}</td>
-              <td className={cx(TD, 'text-right')}>{tokens(m.inputTokens)}</td>
-              <td className={cx(TD, 'text-right text-ink-2')}>{m.inputTokens ? `${Math.round((m.cachedTokens / m.inputTokens) * 100)}%` : 'none'}</td>
-              <td className={cx(TD, 'text-right')}>{tokens(m.outputTokens)}</td>
-              <td className={cx(TD, 'text-right')}>{m.runs}</td>
-              <td className={cx(TD, 'text-right font-bold')}>{m.host === 'ollama' ? 'free, local' : money(m)}</td>
+      <div className={SCROLLER}>
+        <table className={cx(rev.table, 'min-w-[640px]')}>
+          <thead>
+            <tr>
+              {['Model', 'Ran on', 'Did'].map((h) => (
+                <th key={h} scope="col" className={rev.th}>
+                  {h}
+                </th>
+              ))}
+              {['Tokens in', 'From cache', 'Out', 'Runs', 'Cost'].map((h) => (
+                <th key={h} scope="col" className={NUM_HEAD}>
+                  {h}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="tabular">
+            {models.map((m) => (
+              <tr key={m.key} data-testid="model-row">
+                <td className={rev.td}>
+                  <Who agent={{ ...agentOf('openai-compatible', m.host, m.model), name: modelName(m.model) }} className="font-semibold" />
+                </td>
+                <td className={cx(rev.td, 'text-ink-2')}>{hostName(m.host)}</td>
+                <td className={cx(rev.td, 'text-ink-2')}>{(m.roles ?? []).map((r) => ROLE_NAMES[r] ?? r).join(', ') || 'runs'}</td>
+                <td className={NUM}>{tokens(m.inputTokens)}</td>
+                <td className={cx(NUM, 'text-ink-2')}>{m.inputTokens ? `${Math.round((m.cachedTokens / m.inputTokens) * 100)}%` : 'none'}</td>
+                <td className={NUM}>{tokens(m.outputTokens)}</td>
+                <td className={NUM}>{m.runs}</td>
+                <td className={cx(NUM, 'font-semibold')}>{m.host === 'ollama' ? 'free, local' : money(m)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -106,42 +125,43 @@ function Benchmark({ data }: { data: BenchData }) {
   const tasks = new Set(data.rows.map((r) => r.task)).size;
   const colour = (base: boolean) => (base ? 'var(--rule-strong)' : 'var(--ink)');
   return (
-    <div data-testid="bench">
-      <div className="overflow-x-auto">
-        <table className="w-full table-fixed text-[14px] min-w-[640px]">
-          <thead className="text-[12px] text-ink-2 text-left">
+    <div data-testid="bench" className="flex flex-col gap-3">
+      <div className={SCROLLER}>
+        <table className={cx(rev.table, 'table-fixed min-w-[640px]')}>
+          <thead>
             <tr>
-              <th className={cx(TH, 'w-[26%]')}>Continue from</th>
+              <th scope="col" className={cx(rev.th, 'w-[28%]')}>
+                Continue from
+              </th>
               {BENCH_COLUMNS.map((c) => (
-                <th key={c.name} className={cx(TH, 'pl-4 text-right')}>
+                <th key={c.name} scope="col" className={NUM_HEAD}>
                   {c.name}
                 </th>
               ))}
-              <th className={cx(TH, 'pl-4 text-right w-[12%]')}>Tests green</th>
+              <th scope="col" className={cx(NUM_HEAD, 'w-[13%]')}>
+                Tests green
+              </th>
             </tr>
           </thead>
           <tbody className="tabular">
             {lines.map((l) => (
               <tr key={l.label} data-testid="bench-row">
-                <td className={cx(TD, 'font-bold')}>
-                  <span className="inline-flex items-center gap-2">
-                    <span aria-hidden="true" className="size-2.5 rounded-[2px]" style={{ background: colour(l.base) }} />
-                    {l.label}
-                  </span>
+                <td className={cx(rev.td, 'font-semibold')}>
+                  <Key colour={colour(l.base)}>{l.label}</Key>
                 </td>
                 {BENCH_COLUMNS.map((c) => {
                   const v = c.value(l.m);
                   const max = Math.max(...lines.map((x) => c.value(x.m) ?? 0));
                   return (
-                    <td key={c.name} className={cx(TD, 'pl-4 text-right')}>
+                    <td key={c.name} className={NUM}>
                       {v === null ? <span className="text-ink-2">unpriced</span> : c.show(v)}
-                      <div className="mt-1 h-1.5 bg-panel-2">
-                        <div className="h-full" style={{ width: `${v === null || max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
+                      <div className="mt-1 h-1.5 rounded-[1px] bg-panel-2">
+                        <div className="h-full rounded-[1px]" style={{ width: `${v === null || max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
                       </div>
                     </td>
                   );
                 })}
-                <td className={cx(TD, 'pl-4 text-right font-bold')}>
+                <td className={cx(NUM, 'font-semibold')}>
                   {Math.round(l.m.passRate * l.m.runs)} of {l.m.runs}
                 </td>
               </tr>
@@ -149,7 +169,7 @@ function Benchmark({ data }: { data: BenchData }) {
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-[12px] text-ink-3 max-w-[90ch]">
+      <p className={PROSE}>
         {data.synthetic ? 'Synthetic rows, ' : data.replay ? 'Rebuilt from recorded runs, ' : `Live on ${new Date(data.startedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}, `}
         {tasks} tasks from commit <span className="font-mono">{data.commit.slice(0, 7)}</span>: {ADAPTER_NAMES[data.implementer] ?? data.implementer} is stopped at the same step each time, then the Stint agent on {modelName(data.models[data.continuer] ?? null)} continues and the daemon runs the tests. Means per run. One run per task, so read it as a first measurement.
       </p>
@@ -159,10 +179,10 @@ function Benchmark({ data }: { data: BenchData }) {
 
 function Figure({ label, value, detail, testId }: { label: string; value: string; detail?: string; testId?: string }) {
   return (
-    <div className="min-w-0 flex flex-col gap-1" data-testid={testId}>
-      <dt className="text-[12px] text-ink-2">{label}</dt>
-      <dd className="m-0 text-[28px] leading-8 font-extrabold stretch-75 tabular">{value}</dd>
-      {detail ? <dd className="m-0 text-[12px] text-ink-2">{detail}</dd> : null}
+    <div className="min-w-0 flex flex-col gap-0.5 px-3.5 py-3 bg-ground" data-testid={testId}>
+      <dt className={NOTE}>{label}</dt>
+      <dd className="m-0 text-[18px] leading-6 font-semibold tabular">{value}</dd>
+      {detail ? <dd className={cx(NOTE, 'm-0')}>{detail}</dd> : null}
     </div>
   );
 }
@@ -177,20 +197,18 @@ const STAGES: Array<[string, string]> = [
   ['done', 'Done'],
 ];
 
+/** The stage funnel: amber where a task needs you, green where it was verified and merged, ink for the rest. */
 function Loops({ counts }: { counts: Record<string, number> }) {
   const max = Math.max(1, ...Object.values(counts));
   return (
-    <ul className="flex flex-col gap-2" data-testid="loops">
+    <ul className="flex flex-col" data-testid="loops">
       {STAGES.map(([k, name]) => (
-        <li key={k} className="grid grid-cols-[96px_1fr_28px] items-center gap-3 py-1 border-b border-rule text-[14px]">
-          <span className="inline-flex items-center gap-2 text-ink-2">
-            {k === 'awaiting_approval' ? <Swatch tone="warn" /> : k === 'done' ? <Swatch tone="merged" /> : null}
-            {name}
+        <li key={k} className={BAR_ROW}>
+          <span className="min-w-0 truncate">{name}</span>
+          <span className={TRACK}>
+            <span className="block h-full" style={{ width: `${((counts[k] ?? 0) / max) * 100}%`, background: k === 'awaiting_approval' ? 'var(--amber)' : k === 'done' ? 'var(--green)' : 'var(--ink-2)' }} />
           </span>
-          <span className="h-3 bg-panel overflow-hidden">
-            <span className={cx('block h-full', k === 'awaiting_approval' ? 'bg-[var(--sw-yellow)]' : k === 'done' ? 'chequer-sm' : 'bg-ink-2')} style={{ width: `${((counts[k] ?? 0) / max) * 100}%` }} />
-          </span>
-          <span className="tabular text-right font-bold">{counts[k] ?? 0}</span>
+          <span className="tabular text-right">{counts[k] ?? 0}</span>
         </li>
       ))}
     </ul>
@@ -210,29 +228,28 @@ function CostByDay({ rows }: { rows: CostRow[] }) {
   const hosts = [...new Set(rows.map((r) => r.key.split('|')[1] as string))];
   if (list.length === 0) return <EmptyState>Cost per day appears once a run ends.</EmptyState>;
   return (
-    <div data-testid="cost-by-day">
+    <div data-testid="cost-by-day" className="flex flex-col gap-3">
       <div className="flex items-end gap-3 h-32">
         {list.map(([day, m]) => {
           const total = [...m.values()].reduce((s, v) => s + v, 0);
           return (
             <div key={day} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-              <span className="text-[12px] tabular text-ink-2">${total.toFixed(2)}</span>
-              <div className="w-full max-w-10 flex flex-col-reverse gap-px overflow-hidden" style={{ height: `${(total / max) * 96}px` }}>
+              <span className="text-small tabular text-ink-2">${total.toFixed(2)}</span>
+              <div className="w-full max-w-10 flex flex-col-reverse gap-px overflow-hidden rounded-[2px]" style={{ height: `${(total / max) * 88}px` }}>
                 {[...m.entries()].map(([h, v]) => (
                   <span key={h} style={{ height: `${(v / Math.max(total, 0.0001)) * 100}%`, background: hostColour(h) }} title={`${hostName(h)}: $${v.toFixed(2)}`} />
                 ))}
               </div>
-              <span className="text-[12px] text-ink-3 tabular">{day.slice(5)}</span>
+              <span className="text-small text-ink-2 tabular">{day.slice(5)}</span>
             </div>
           );
         })}
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[12px] text-ink-2" data-testid="cost-legend">
+      <div className={cx(NOTE, 'flex flex-wrap gap-x-4 gap-y-1')} data-testid="cost-legend">
         {hosts.map((h) => (
-          <span key={h} className="inline-flex items-center gap-2">
-            <span aria-hidden="true" className="size-2.5 rounded-[2px]" style={{ background: hostColour(h) }} />
+          <Key key={h} colour={hostColour(h)}>
             {hostName(h)}
-          </span>
+          </Key>
         ))}
       </div>
     </div>
@@ -244,31 +261,40 @@ function CreditsLeft({ rows }: { rows: CostRow[] }) {
   const left = rows.filter((r) => typeof r.creditsLeft === 'number');
   if (left.length === 0) return <EmptyState>Credits left appear here once a host balance is entered in the config.</EmptyState>;
   return (
-    <div data-testid="credits-left">
-      <ul className="flex flex-col gap-2 text-[14px]">
+    <div data-testid="credits-left" className="flex flex-col gap-3">
+      <ul className="flex flex-col">
         {left.map((r) => (
           <li key={r.key} className="flex items-baseline justify-between gap-2 py-2 border-b border-rule" data-testid="credits-row" data-host={r.key}>
             <span className="text-ink-2">{hostName(r.key)}</span>
-            <span className="tabular font-bold">≈ ${(r.creditsLeft as number).toFixed(2)} left</span>
+            <span className="tabular font-semibold">≈ ${(r.creditsLeft as number).toFixed(2)} left</span>
           </li>
         ))}
       </ul>
-      <p className="text-[12px] text-ink-3 mt-3">Derived from metered spend, not read from the provider.</p>
+      <p className={PROSE}>Derived from metered spend, not read from the provider.</p>
     </div>
   );
 }
 
 type Helped = { skill: string; appliedIn: string[]; approvedAfter: number };
+type Pair = { skill: string; before: TaskBundle; after: TaskBundle };
 
-/** The learn loop's proof: the task a skill was learned from, next to the first task it was applied to. */
+/** A task's runs in words: how many, and how many were killed. */
+const runsLine = (b: TaskBundle) => {
+  const killed = b.runs.filter((r) => r.endedBy === 'killed').length;
+  return `${b.runs.length}, ${killed === 0 ? 'none' : killed === 1 ? 'one' : killed} killed`;
+};
+/** Every agent that ran on a task, once each, in the order they first ran. */
+const agentsOf = (b: TaskBundle): Agent[] => [...new Map(b.runs.map((r) => agentOf(r.adapter, r.host, r.model)).map((a) => [a.name, a])).values()];
+
+/** The learn loop's proof: the task a skill was learned from, next to the first task it was applied to, as one revision block. */
 function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<string, CostRow> }) {
-  const [pairs, setPairs] = useState<Array<{ skill: string; before: string; after: string; beforeFindings: number; afterFindings: number }>>([]);
+  const [pairs, setPairs] = useState<Pair[]>([]);
   const { data: cards } = useTasks();
   useEffect(() => {
     if (!cards) return;
     let live = true;
     (async () => {
-      const out = [];
+      const out: Pair[] = [];
       for (const h of helped) {
         const after = h.appliedIn[0]?.split('/')[0];
         if (!after) continue;
@@ -280,7 +306,7 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
         }
         if (!before) continue;
         const [b, a] = await Promise.all([api.task(before), api.task(after)]);
-        out.push({ skill: h.skill, before, after, beforeFindings: b.review?.findings.length ?? 0, afterFindings: a.review?.findings.length ?? 0 });
+        out.push({ skill: h.skill, before: b, after: a });
       }
       if (live) setPairs(out);
     })().catch(() => undefined);
@@ -288,48 +314,90 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
       live = false;
     };
   }, [helped, cards]);
-  const title = (id: string) => cards?.find((c) => c.task.id === id)?.task.title ?? id;
   if (pairs.length === 0) return <EmptyState>When a skill learned from one task is applied to the next, the two appear here side by side.</EmptyState>;
   return (
     <div className="flex flex-col gap-5" data-testid="it-learned">
-      {pairs.map((p) => (
-        <div key={p.skill} className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="text-[12px] text-ink-2">Learned from a review and approved by you, then given to the next car</span>
-            <Link to={`/skills?skill=${p.skill}`} className="rounded-full bg-purple-tint px-3 py-1 font-mono text-[12px] text-purple no-underline hover:underline">
-              {p.skill}
-            </Link>
+      {pairs.map((p) => {
+        const sides = [p.before, p.after];
+        const findings = (b: TaskBundle) => b.review?.findings.length ?? 0;
+        const rows: Array<[string, (b: TaskBundle) => ReactNode]> = [
+          [
+            'Task',
+            (b) => (
+              <Link to={`/t/${b.task.id}`} className="underline decoration-rule-strong hover:decoration-ink">
+                {b.task.title}
+              </Link>
+            ),
+          ],
+          ['Runs', runsLine],
+          [
+            'Agents',
+            (b) => (
+              <span className="flex flex-wrap gap-x-3 gap-y-1">
+                {agentsOf(b).map((a) => (
+                  <Who key={a.name} agent={a} className="font-medium" />
+                ))}
+              </span>
+            ),
+          ],
+          [
+            'Review findings',
+            (b) => (
+              <span className={cx('tabular font-semibold', findings(b) > 0 && 'text-amber')}>
+                {findings(b)}
+                <span className="sr-only"> review finding{findings(b) === 1 ? '' : 's'}</span>
+              </span>
+            ),
+          ],
+          ['Review', (b) => (b.review ? `${b.review.verdict.charAt(0).toUpperCase()}${b.review.verdict.slice(1).replace('_', ' ')}` : 'Not reviewed')],
+          ['Cost', (b) => <span className="tabular">{money(costByTask.get(b.task.id) ?? null)}</span>],
+        ];
+        return (
+          <div key={p.skill} className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className={NOTE}>Learned from a review and approved by you, then mounted on the next task</span>
+              <Link to={`/skills?skill=${p.skill}`} className="inline-flex items-center min-h-6 px-2 rounded-[3px] bg-violet-wash font-mono text-small text-violet no-underline hover:underline">
+                {p.skill}
+              </Link>
+            </div>
+            <div className={SCROLLER}>
+              <table className={cx(rev.table, 'table-fixed')}>
+                <colgroup>
+                  <col className="w-[112px] sm:w-[132px]" />
+                  <col />
+                  <col />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <td className={rev.th} />
+                    <th scope="col" className={rev.th}>
+                      <span className="font-mono">{p.before.task.id}</span>, before the rule
+                    </th>
+                    <th scope="col" className={rev.th}>
+                      <span className="font-mono">{p.after.task.id}</span>, with the rule
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(([label, cell]) => (
+                    <tr key={label}>
+                      <th scope="row" className={ROW_HEAD}>
+                        {label}
+                      </th>
+                      {sides.map((b) => (
+                        <td key={b.task.id} className={rev.td}>
+                          {cell(b)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className={PROSE}>One learned rule apart: the first task's review found the problem, and the next task ran with the rule mounted.</p>
           </div>
-          <div className="grid grid-cols-[52px_minmax(0,1fr)_auto_auto] gap-x-4 items-center text-[14px]">
-            <span />
-            <span className="pb-2 text-[12px] text-ink-2">Task</span>
-            <span className="pb-2 text-[12px] text-ink-2">Review findings</span>
-            <span className="pb-2 text-[12px] text-ink-2 text-right">Cost</span>
-            {[
-              ['Before', p.before, p.beforeFindings],
-              ['After', p.after, p.afterFindings],
-            ].map(([label, id, findings]) => (
-              <div key={label as string} className="contents">
-                <span className="py-2 border-t border-rule">
-                  <Plate id={id as string} size="sm" />
-                </span>
-                <span className="py-2 border-t border-rule min-w-0">
-                  <span className="block text-[12px] text-ink-3">{label}</span>
-                  <Link to={`/t/${id}`} className="font-bold underline-offset-2 hover:underline">
-                    {id} {title(id as string)}
-                  </Link>
-                </span>
-                <span className={cx('py-2 border-t border-rule text-[19px] font-extrabold stretch-75 tabular', findings === 0 ? 'text-green' : 'text-yellow')}>
-                  {findings as number}
-                  <span className="sr-only"> review finding{findings === 1 ? '' : 's'}</span>
-                </span>
-                <span className="py-2 border-t border-rule text-right font-bold tabular">{money(costByTask.get(id as string) ?? null)}</span>
-              </div>
-            ))}
-          </div>
-          <span className="text-[12px] text-ink-3">Same road, one learned rule apart: the first car's review found the problem, the next car went out with the rule mounted.</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -341,40 +409,43 @@ function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
   if (rows === null) return <EmptyState>Reading what happened after merge.</EmptyState>;
   if (rows.length === 0) return <EmptyState>Outcomes appear here once a change has merged and the daemon has seen what happened to it.</EmptyState>;
   return (
-    <div data-testid="outcomes">
-      <div className="overflow-x-auto">
-      <table className="w-full text-[14px] min-w-[420px]">
-        <thead className="text-[12px] text-ink-2 text-left">
-          <tr>
-            <th className={TH}>Agent</th>
-            <th className={cx(TH, 'text-right')}>Merged</th>
-            <th className={cx(TH, 'text-right')}>Reverted</th>
-            <th className={cx(TH, 'text-right')}>Followed up</th>
-            <th className={cx(TH, 'text-right')}>Failing CI</th>
-            <th className={cx(TH, 'text-right')}>Incidents</th>
-          </tr>
-        </thead>
-        <tbody className="tabular">
-          {rows.map((r) => (
-            <tr key={r.adapter} data-testid="outcome-row" data-agent={r.adapter}>
-              <td className={TD}>
-                <VendorMark agent={agentOf(r.adapter)} />
-              </td>
-              <td className={cx(TD, 'text-right font-bold')}>{r.merged}</td>
-              <td className={cx(TD, 'text-right', r.reverted > 0 && 'text-red font-bold')}>{r.reverted}</td>
-              <td className={cx(TD, 'text-right')}>{r.followup}</td>
-              <td className={cx(TD, 'text-right')}>{r.ci}</td>
-              <td className={cx(TD, 'text-right')}>{r.incident}</td>
+    <div data-testid="outcomes" className="flex flex-col gap-3">
+      <div className={SCROLLER}>
+        <table className={cx(rev.table, 'min-w-[480px]')}>
+          <thead>
+            <tr>
+              <th scope="col" className={rev.th}>
+                Agent
+              </th>
+              {['Merged', 'Reverted', 'Followed up', 'Failing CI', 'Incidents'].map((h) => (
+                <th key={h} scope="col" className={NUM_HEAD}>
+                  {h}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="tabular">
+            {rows.map((r) => (
+              <tr key={r.adapter} data-testid="outcome-row" data-agent={r.adapter}>
+                <td className={rev.td}>
+                  <Who agent={agentOf(r.adapter)} className="font-semibold" />
+                </td>
+                <td className={cx(NUM, 'font-semibold')}>{r.merged}</td>
+                <td className={cx(NUM, r.reverted > 0 && 'text-red font-semibold')}>{r.reverted}</td>
+                <td className={NUM}>{r.followup}</td>
+                <td className={NUM}>{r.ci}</td>
+                <td className={NUM}>{r.incident}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <p className="text-[12px] text-ink-3 mt-3">A task built by two agents counts for both. The daemon records a revert, a follow-up within 7 days, a failed CI run and a reported incident on the task that merged.</p>
+      <p className={PROSE}>A task built by two agents counts for both. The daemon records a revert, a follow-up within 7 days, a failed CI run and a reported incident on the task that merged.</p>
     </div>
   );
 }
 
+/** Each agent and model by the attempts the daemon verified, per tag, and how autopilot picks from them. */
 function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: string; explore: number } } | null }) {
   const [tag, setTag] = useState('*');
   if (data === null) return <EmptyState>Reading how each agent has done.</EmptyState>;
@@ -382,16 +453,18 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
   const rows = data.rows.filter((r) => r.tag === tag);
   const pct = (v: number | null) => (v === null ? 'none yet' : `${Math.round(v * 100)}%`);
   return (
-    <div data-testid="scoreboard">
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        {tags.length > 1
-          ? tags.map((t) => (
-              <Button key={t} aria-pressed={t === tag} onClick={() => setTag(t)} className="h-7">
+    <div data-testid="scoreboard" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {tags.length > 1 ? (
+          <div role="group" aria-label="Tasks tagged" className="flex flex-wrap gap-2">
+            {tags.map((t) => (
+              <Button key={t} aria-pressed={t === tag} onClick={() => setTag(t)} className={SMALL}>
                 {t === '*' ? 'All tasks' : t}
               </Button>
-            ))
-          : null}
-        <span className="text-[12px] text-ink-3 ml-auto" data-testid="routing-mode">
+            ))}
+          </div>
+        ) : null}
+        <span className={cx(NOTE, 'ml-auto')} data-testid="routing-mode">
           {data.routing.mode === 'learned' ? `Autopilot picks from these results, and tries another agent ${Math.round(data.routing.explore * 100)}% of the time` : 'Autopilot picks agents in the order of autopilot.implementers'}
         </span>
       </div>
@@ -399,37 +472,56 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
         <EmptyState>Each agent's record appears here once the daemon has verified one of its runs.</EmptyState>
       ) : (
         // narrower than the table, a phone says it scrolls; a keyboard can scroll it
-        <div className="overflow-x-auto" role="region" aria-label="Drivers table, scrolls sideways on a narrow screen" tabIndex={0}>
-          <p className="sm:hidden mb-2 text-[12px] text-ink-2">The table scrolls sideways for every column.</p>
-        <table className="w-full text-[14px] min-w-[600px]">
-          <thead className="text-[12px] text-ink-2 text-left">
-            <tr>
-              <th className={cx(TH, 'w-[34px]')}>Pos</th>
-              <th className={TH}>Driver</th>
-              <th className={cx(TH, 'text-right')}>Attempts</th>
-              <th className={cx(TH, 'text-right')}>Passed</th>
-              <th className={cx(TH, 'text-right')} title="All three of the last three attempts passed">Last 3 all passed</th>
-              <th className={cx(TH, 'text-right')}>Cost per merged task</th>
-              <th className={cx(TH, 'text-right')}>Reverts</th>
-            </tr>
-          </thead>
-          <tbody className="tabular">
-            {rows.map((r, i) => (
-              <tr key={`${r.agent}/${r.model ?? ''}`} data-testid="score-row" data-agent={r.agent}>
-                <td className={cx(TD, 'text-[19px] font-extrabold stretch-75')}>{i + 1}</td>
-                <td className={TD}>
-                  <VendorMark agent={agentOf(r.agent)} size={17} />
-                  {r.model ? <span className="text-[12px] text-ink-2 ml-2">{modelName(r.model)}</span> : null}
-                </td>
-                <td className={cx(TD, 'text-right')}>{r.attempts}</td>
-                <td className={cx(TD, 'text-right font-bold')}>{pct(r.passRate)}</td>
-                <td className={cx(TD, 'text-right')}>{r.pass3 === null ? 'fewer than 3' : r.pass3 ? 'yes' : 'no'}</td>
-                <td className={cx(TD, 'text-right')}>{r.costPerResolved === null ? (r.resolved ? 'unpriced' : 'none merged') : `$${r.costPerResolved.toFixed(2)}`}</td>
-                <td className={cx(TD, 'text-right', r.reverts > 0 && 'text-red font-bold')}>{r.reverts}</td>
+        <div className={SCROLLER} role="region" aria-label="Agents table, scrolls sideways on a narrow screen" tabIndex={0}>
+          <p className={cx(NOTE, 'sm:hidden mb-2')}>The table scrolls sideways for every column.</p>
+          <table className={cx(rev.table, 'min-w-[640px]')}>
+            <thead>
+              <tr>
+                <th scope="col" className={rev.th}>
+                  Agent
+                </th>
+                <th scope="col" className={NUM_HEAD}>
+                  Attempts
+                </th>
+                <th scope="col" className={NUM_HEAD}>
+                  Passed
+                </th>
+                <th scope="col" className={NUM_HEAD} title="All three of the last three attempts passed">
+                  Last 3 all passed
+                </th>
+                <th scope="col" className={NUM_HEAD}>
+                  Cost per merged task
+                </th>
+                <th scope="col" className={NUM_HEAD}>
+                  Reverts
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="tabular">
+              {rows.map((r) => (
+                <tr key={`${r.agent}/${r.model ?? ''}`} data-testid="score-row" data-agent={r.agent}>
+                  <td className={rev.td}>
+                    <span className="flex flex-wrap items-baseline gap-x-2">
+                      <Who agent={agentOf(r.agent)} className="font-semibold" />
+                      {r.model ? <span className="text-ink-2">{modelName(r.model)}</span> : null}
+                    </span>
+                  </td>
+                  <td className={NUM}>{r.attempts}</td>
+                  <td className={cx(NUM, 'font-semibold')}>{pct(r.passRate)}</td>
+                  <td className={NUM}>{r.pass3 === null ? 'fewer than 3' : r.pass3 ? 'yes' : 'no'}</td>
+                  <td className={NUM}>{r.costPerResolved === null ? (r.resolved ? 'unpriced' : 'none merged') : `$${r.costPerResolved.toFixed(2)}`}</td>
+                  <td className={cx(NUM, r.reverts > 0 && 'text-red font-semibold')}>{r.reverts}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={6} className="p-2.5 border border-rule-strong bg-panel text-ink-2">
+                  Pass rate counts green verifications, run by the daemon, never by the agent.
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
     </div>
@@ -446,21 +538,23 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
     ['Phase 3', gates.phase3.met, gates.phase3.detail],
   ];
   return (
-    <div data-testid="phase-gates">
+    <div data-testid="phase-gates" className="flex flex-col gap-3">
       {gates.golden ? (
-        <p className="text-[14px] tabular mb-3 font-bold" data-testid="golden-line">
+        <p className="tabular font-semibold" data-testid="golden-line">
           Golden tasks: {gates.golden.tasks} tasks, pass@1 {gatePct(gates.golden.passAt1)}, pass^{gates.golden.k} {gatePct(gates.golden.passPowK)}
           {gates.golden.usd !== null ? `, cost $${gates.golden.usd.toFixed(2)}` : ''}
         </p>
       ) : (
-        <p className="text-[12px] text-ink-2 mb-3">No golden results yet. Run stint eval --golden --k 3.</p>
+        <p className={PROSE}>
+          No golden results yet. Run <span className="font-mono">stint eval --golden --k 3</span>.
+        </p>
       )}
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col">
         {rows.map(([name, met, detail]) => (
-          <li key={name} className="flex items-start justify-between gap-3 border-t border-rule pt-2">
+          <li key={name} className="flex items-start justify-between gap-3 border-t border-rule py-2.5">
             <div className="min-w-0">
-              <p className="text-[14px] font-bold">{name}</p>
-              <p className="text-[12px] text-ink-2">{detail}</p>
+              <p className="font-semibold">{name}</p>
+              <p className={PROSE}>{detail}</p>
             </div>
             <StatusChip label={met ? 'open' : 'not yet'} tone={met ? 'good' : 'neutral'} />
           </li>
@@ -474,7 +568,7 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
   if (state === null) return <EmptyState>Reading the shadow record.</EmptyState>;
   const { lane } = state;
   return (
-    <div data-testid="auto-approve" className="flex flex-col gap-3 text-[14px]">
+    <div data-testid="auto-approve" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <StatusChip label={lane.enabled ? 'lane on' : 'lane off'} tone={lane.enabled ? 'warn' : 'neutral'} />
         <span className="text-ink-2">
@@ -483,7 +577,7 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
             : 'Every change waits for you. The record below shows what the policy would have done.'}
         </span>
         {lane.enabled ? (
-          <Button className="ml-auto" tone="danger" data-testid="lane-off" onClick={() => void api.laneOff().then(onChanged)}>
+          <Button className={cx(SMALL, 'ml-auto')} tone="danger" data-testid="lane-off" onClick={() => void api.laneOff().then(onChanged)}>
             Turn the lane off
           </Button>
         ) : null}
@@ -491,34 +585,36 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
       {state.records.length === 0 ? (
         <EmptyState>Each approve or reject you make is recorded beside what the policy would have done.</EmptyState>
       ) : (
-        <div className="overflow-x-auto">
-        <table className="w-full text-[14px] min-w-[480px]">
-          <thead className="text-[12px] text-ink-2 text-left">
-            <tr>
-              <th className={TH}>Risk</th>
-              <th className={cx(TH, 'text-right')}>Decisions</th>
-              <th className={cx(TH, 'text-right')}>Agreed with you</th>
-              <th className={cx(TH, 'text-right')}>Disagreed</th>
-              <th className={cx(TH, 'text-right')}>Reverted after it would approve</th>
-              <th className={cx(TH, 'text-right')}>Days on record</th>
-            </tr>
-          </thead>
-          <tbody className="tabular">
-            {state.records.map((r) => (
-              <tr key={r.tier} data-testid="shadow-row" data-tier={r.tier}>
-                <td className={TD}>{r.tier}</td>
-                <td className={cx(TD, 'text-right')}>{r.decisions}</td>
-                <td className={cx(TD, 'text-right')}>{r.agreements}</td>
-                <td className={cx(TD, 'text-right')}>{r.disagreements}</td>
-                <td className={cx(TD, 'text-right')}>{r.revertsAfterWouldApprove}</td>
-                <td className={cx(TD, 'text-right')}>{r.days}</td>
+        <div className={SCROLLER}>
+          <table className={cx(rev.table, 'min-w-[520px]')}>
+            <thead>
+              <tr>
+                <th scope="col" className={rev.th}>
+                  Risk
+                </th>
+                {['Decisions', 'Agreed with you', 'Disagreed', 'Reverted after it would approve', 'Days on record'].map((h) => (
+                  <th key={h} scope="col" className={NUM_HEAD}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="tabular">
+              {state.records.map((r) => (
+                <tr key={r.tier} data-testid="shadow-row" data-tier={r.tier}>
+                  <td className={rev.td}>{r.tier}</td>
+                  <td className={NUM}>{r.decisions}</td>
+                  <td className={NUM}>{r.agreements}</td>
+                  <td className={NUM}>{r.disagreements}</td>
+                  <td className={NUM}>{r.revertsAfterWouldApprove}</td>
+                  <td className={NUM}>{r.days}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-      <ul className="text-[12px] text-ink-2 flex flex-col gap-1">
+      <ul className={cx(NOTE, 'flex flex-col gap-1')}>
         {state.lanes.map((l) => (
           <li key={l.tier} data-testid="lane-tier" data-tier={l.tier}>
             {l.tier}: {l.open ? 'may be approved by policy' : 'waits for you'}, {l.why}.
@@ -539,15 +635,15 @@ function Upkeep({ data }: { data: Gardening | null }) {
     );
   }
   return (
-    <ul className="flex flex-col gap-2 text-[14px]" data-testid="upkeep">
+    <ul className="flex flex-col" data-testid="upkeep">
       {data.templates.map((t) => (
-        <li key={t.id} className="flex flex-wrap items-baseline gap-2 border-t border-rule pt-2" data-testid="upkeep-row" data-template={t.id}>
-          <span className="font-bold min-w-0">{t.title}</span>
-          <span className="ml-auto text-ink-2 text-[12px] tabular">
+        <li key={t.id} className="flex flex-wrap items-baseline gap-2 border-t border-rule py-2.5" data-testid="upkeep-row" data-template={t.id}>
+          <span className="font-semibold min-w-0">{t.title}</span>
+          <span className={cx(NOTE, 'ml-auto tabular')}>
             {t.openTask ? (
               <>
                 open as{' '}
-                <Link to={`/t/${t.openTask}`} className="underline underline-offset-2">
+                <Link to={`/t/${t.openTask}`} className="font-mono underline underline-offset-2">
                   {t.openTask}
                 </Link>
               </>
@@ -568,94 +664,107 @@ function AnyHarness({ health }: { health: Health | null }) {
   if (!health) return null;
   const agents = health.adapters.filter((a) => a.id !== 'replay');
   const hosts = [...new Set((health.models ?? []).map((m) => m.host))];
+  const row = 'grid grid-cols-[minmax(0,1fr)] sm:grid-cols-[80px_minmax(0,1fr)] items-start gap-x-4 gap-y-2';
   return (
-    <div data-testid="any-harness" className="flex flex-col gap-3 text-[14px]">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2" data-testid="harness-chips">
-        <span className="text-ink-2 w-[72px]">Harnesses</span>
-        {agents.map((a) => (
-          <StatusChip key={a.id} label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.harness && a.harness !== 'cli' ? `, ${a.harness}` : ''}`} tone={a.capability.level === 'supported' ? 'good' : 'neutral'} />
-        ))}
+    <div data-testid="any-harness" className="flex flex-col gap-3">
+      <div className={row}>
+        <span className="text-ink-2 sm:leading-6">Harnesses</span>
+        <div className="flex flex-wrap gap-2" data-testid="harness-chips">
+          {agents.map((a) => {
+            const ready = a.capability.level === 'supported';
+            return <StatusChip key={a.id} label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.harness && a.harness !== 'cli' && a.harness !== a.id ? `, ${a.harness}` : ''}${ready ? '' : ', off'}`} tone={ready ? 'active' : 'neutral'} />;
+          })}
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2" data-testid="host-chips">
-        <span className="text-ink-2 w-[72px]">Hosts</span>
-        {hosts.map((h) => {
-          const ready = (health.models ?? []).some((m) => m.host === h && m.ready);
-          return <StatusChip key={h} label={hostName(h)} tone={ready ? 'good' : 'neutral'} />;
-        })}
+      <div className={row}>
+        <span className="text-ink-2 sm:leading-6">Hosts</span>
+        <div className="flex flex-wrap gap-2" data-testid="host-chips">
+          {hosts.map((h) => {
+            const ready = (health.models ?? []).some((m) => m.host === h && m.ready);
+            return <StatusChip key={h} label={`${hostName(h)}${ready ? '' : ', off'}`} tone={ready ? 'active' : 'neutral'} />;
+          })}
+        </div>
       </div>
-      <p className="text-[12px] text-ink-2">A green flag is ready here; a grey one is configured and off. Every one of them starts from the same packet, so a car can change driver to any of them.</p>
+      <p className={PROSE}>Each one is configured here, and the ones marked off are not ready on this machine. Every one of them starts from the same packet, so a task can move to any of them.</p>
     </div>
   );
 }
 
+function Chevron() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 12 12" className="size-3 shrink-0 text-ink-2 transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none">
+      <path d="M4.5 3 7.5 6 4.5 9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /**
- * A section of the standings: a heading over its figures, no box around it. A `collapsed` one is a disclosure that opens
+ * A section of the Factory: a heading over its figures, no box around it. A `collapsed` one is a disclosure that opens
  * on its heading, so the page leads with what the week came to and keeps the rest one click away.
  */
-function Panel({ title, aside, children, className, testId, collapsed = false }: { title: string; aside?: React.ReactNode; children: React.ReactNode; className?: string; testId?: string; collapsed?: boolean }) {
-  const head = (
-    <>
-      <h2 className="text-[19px] leading-6 font-bold stretch-112 tracking-[-0.01em]">{title}</h2>
-      {aside}
-    </>
-  );
+function Panel({ title, aside, children, className, testId, collapsed = false }: { title: string; aside?: ReactNode; children: ReactNode; className?: string; testId?: string; collapsed?: boolean }) {
+  const id = useId();
   if (collapsed)
     return (
       <details className={cx('group min-w-0 border-t border-rule', className)} data-testid={testId}>
-        <summary className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:underline underline-offset-4">
-          <span className="flex items-baseline gap-2">
-            <span aria-hidden="true" className="inline-block w-3 text-ink-2 transition-transform group-open:rotate-90">
-              ›
-            </span>
-            {head}
-          </span>
+        <summary className="flex flex-wrap items-center gap-x-2 gap-y-1 min-h-12 py-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-panel">
+          <Chevron />
+          <h2 className="text-section">{title}</h2>
+          {aside ? <span className={cx(NOTE, 'ml-auto')}>{aside}</span> : null}
         </summary>
-        <div className="flex flex-col gap-3 pb-6">{children}</div>
+        <div className="flex flex-col gap-3 pt-1 pb-6">{children}</div>
       </details>
     );
   return (
-    <section className={cx('flex flex-col gap-3 min-w-0', className)} data-testid={testId}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">{head}</div>
+    <section className={cx('flex flex-col gap-3 min-w-0', className)} data-testid={testId} aria-labelledby={id}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id={id} className="text-section">
+          {title}
+        </h2>
+        {aside ? <span className="text-small text-ink-3">{aside}</span> : null}
+      </div>
       {children}
     </section>
   );
 }
 
-/** Spend by car, split by team from what each stint cost; the rest of a car's total is planning and review calls. */
-function SpendByCar({ rows }: { rows: Array<{ task: string; total: number; teams: Array<[Mark, number]> }> | null }) {
-  if (rows === null) return <EmptyState>Reading what each car cost.</EmptyState>;
-  if (rows.length === 0) return <EmptyState>Spend by car appears once a run ends.</EmptyState>;
+type TaskSpend = { task: string; total: number; vendors: Array<[Mark, number]> };
+
+/** Spend by task, split by the vendor of each run's agent; the rest of a task's total is planning and review calls. */
+function SpendByTask({ rows }: { rows: TaskSpend[] | null }) {
+  if (rows === null) return <EmptyState>Reading what each task cost.</EmptyState>;
+  if (rows.length === 0) return <EmptyState>Spend by task appears once a run ends.</EmptyState>;
   const max = Math.max(0.0001, ...rows.map((r) => r.total));
-  const teams = [...new Set(rows.flatMap((r) => r.teams.map(([t]) => t)))];
+  const other = (r: TaskSpend) => Math.max(0, r.total - r.vendors.reduce((s, [, usd]) => s + usd, 0));
+  const vendors = new Map<Mark, number>();
+  for (const r of rows) for (const [m, usd] of r.vendors) vendors.set(m, (vendors.get(m) ?? 0) + usd);
+  const others = rows.reduce((s, r) => s + other(r), 0);
   return (
-    <div data-testid="spend-by-car" className="flex flex-col gap-3">
-      <ul className="grid grid-cols-[44px_minmax(0,1fr)_60px] gap-x-3 gap-y-3 items-center">
+    <div data-testid="spend-by-task" className="flex flex-col gap-3">
+      <ul className="flex flex-col">
         {rows.map((r) => (
-          <li key={r.task} className="contents">
-            <Plate id={r.task} size="sm" />
-            <span className="flex h-4 gap-px" role="img" aria-label={`Car ${carNumber(r.task)}: ${r.teams.map(([t, usd]) => `${TEAM_NAMES[t]} $${usd.toFixed(2)}`).join(', ') || 'no stint cost'}`} style={{ width: `${Math.max(2, (r.total / max) * 100)}%` }}>
-              {r.teams.map(([t, usd]) => (
-                <span key={t} style={{ flexGrow: Math.max(usd, r.total * 0.02), background: markColor[t] }} />
+          <li key={r.task} className={BAR_ROW}>
+            <Link to={`/t/${r.task}`} className="font-mono no-underline hover:underline">
+              {r.task}
+            </Link>
+            <span className={TRACK} role="img" aria-label={`${r.task}: ${[...r.vendors.map(([m, usd]) => `${TEAM_NAMES[m]} $${usd.toFixed(2)}`), ...(other(r) > 0.005 ? [`other calls $${other(r).toFixed(2)}`] : [])].join(', ') || 'no run cost'}`}>
+              {r.vendors.map(([m, usd]) => (
+                // a run that cost nothing still shows its vendor, as a sliver
+                <span key={m} style={{ width: `${(Math.max(usd, max * 0.01) / max) * 100}%`, background: markColor[m] }} />
               ))}
-              {r.total - r.teams.reduce((s, [, usd]) => s + usd, 0) > 0.005 ? <span style={{ flexGrow: r.total - r.teams.reduce((s, [, usd]) => s + usd, 0) }} className="bg-rule-strong" /> : null}
+              {other(r) > 0.005 ? <span style={{ width: `${(other(r) / max) * 100}%` }} className="bg-rule-strong" /> : null}
             </span>
-            <span className="text-right font-bold tabular">${r.total.toFixed(2)}</span>
+            <span className="text-right tabular">${r.total.toFixed(2)}</span>
           </li>
         ))}
       </ul>
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-2">
-        {teams.map((t) => (
-          <span key={t} className="inline-flex items-center gap-2">
-            <span aria-hidden="true" className="size-2.5 rounded-[2px]" style={{ background: markColor[t] }} />
-            {TEAM_NAMES[t]}{t === 'local' ? ', a sliver because it costs nothing' : ''}
-          </span>
+      <div className={cx(NOTE, 'flex flex-wrap gap-x-4 gap-y-1')}>
+        {[...vendors.entries()].map(([m, usd]) => (
+          <Key key={m} colour={markColor[m]}>
+            {TEAM_NAMES[m]} ${usd.toFixed(2)}
+          </Key>
         ))}
-        {rows.some((r) => r.total - r.teams.reduce((s, [, usd]) => s + usd, 0) > 0.005) ? (
-          <span className="inline-flex items-center gap-2">
-            <span aria-hidden="true" className="size-2.5 rounded-[2px] bg-rule-strong" />
-            Other calls on the car, outside a stint
-          </span>
-        ) : null}
+        {others > 0.005 ? <Key colour="var(--rule-strong)">Planning and review calls ${others.toFixed(2)}</Key> : null}
       </div>
     </div>
   );
@@ -696,7 +805,7 @@ export function Factory() {
   const transcripts = metric('efficiency', 'efficiency.transcript_share');
   const packetTokens = metric('efficiency', 'efficiency.packet_tokens');
   const [funnel, setFunnel] = useState<Record<string, number> | null>(null);
-  const [spendByCar, setSpendByCar] = useState<Array<{ task: string; total: number; teams: Array<[Mark, number]> }> | null>(null);
+  const [spendByTask, setSpendByTask] = useState<TaskSpend[] | null>(null);
   useEffect(() => {
     if (!cards) return;
     let live = true;
@@ -717,23 +826,23 @@ export function Factory() {
             else if (e.type === 'task.status' && typeof e.payload.to === 'string') enter(e.payload.to, task);
           }
         }
-        // what each car cost, by the team of the driver whose stint spent it
-        const cars = all.flatMap((events, i) => {
+        // what each task cost, by the vendor of the agent whose run spent it
+        const spend = all.flatMap((events, i) => {
           const card = cards[i];
           if (!card) return [];
-          const team = new Map<string, Mark>();
-          const byTeam = new Map<Mark, number>();
+          const vendor = new Map<string, Mark>();
+          const byVendor = new Map<Mark, number>();
           for (const e of events) {
-            if (e.type === 'run.started' && e.run) team.set(e.run, agentOf(e.adapter, typeof e.payload.host === 'string' ? e.payload.host : null, typeof e.payload.model === 'string' ? e.payload.model : null).mark);
+            if (e.type === 'run.started' && e.run) vendor.set(e.run, agentOf(e.adapter, typeof e.payload.host === 'string' ? e.payload.host : null, typeof e.payload.model === 'string' ? e.payload.model : null).mark);
             const usd = e.type === 'run.finished' && e.run ? Number((e.payload.cost as { usd?: unknown } | undefined)?.usd) || 0 : 0;
-            const mark = e.run ? team.get(e.run) : undefined;
-            // a stint that cost nothing still shows its team, as a sliver
-            if (e.type === 'run.finished' && mark) byTeam.set(mark, (byTeam.get(mark) ?? 0) + usd);
+            const mark = e.run ? vendor.get(e.run) : undefined;
+            // a run that cost nothing still shows its vendor, as a sliver
+            if (e.type === 'run.finished' && mark) byVendor.set(mark, (byVendor.get(mark) ?? 0) + usd);
           }
-          const total = card.cost.usd ?? [...byTeam.values()].reduce((s, v) => s + v, 0);
-          return total > 0 || byTeam.size ? [{ task: card.task.id, total, teams: [...byTeam.entries()] }] : [];
+          const total = card.cost.usd ?? [...byVendor.values()].reduce((s, v) => s + v, 0);
+          return total > 0 || byVendor.size ? [{ task: card.task.id, total, vendors: [...byVendor.entries()] }] : [];
         });
-        setSpendByCar(cars.sort((a, b) => b.total - a.total));
+        setSpendByTask(spend.sort((a, b) => b.total - a.total));
         setFunnel(Object.fromEntries([...entered.entries()].map(([state, tasks]) => [state, tasks.size])));
         // learned means proposed by the learn step and approved by a person, not written by hand
         setLearned(new Set(all.flat().filter((e) => e.type === 'skill.approved').map((e) => String(e.payload.id ?? e.payload.skill))).size);
@@ -781,16 +890,19 @@ export function Factory() {
   const runs = (byModel ?? []).reduce((s, r) => s + r.runs, 0);
 
   const merged = (cards ?? []).filter((c) => c.task.status === 'done').length;
-  // the headline says what the week came to: rules learned first, else merges, else that it has not started
-  const headline = learned ? `The factory learned ${learned === 1 ? 'one rule' : `${learned} rules`} this week` : merged ? `The factory merged ${merged === 1 ? 'one task' : `${merged} tasks`} this week` : 'The factory is ready for its first task';
+  // the lead says what the week came to: rules learned first, else merges, else that it has not started
+  const lead = learned ? `It learned ${learned === 1 ? 'one rule' : `${learned} rules`} this week, approved by you and now mounted.` : merged ? `It merged ${merged === 1 ? 'one task' : `${merged} tasks`} this week.` : 'It is ready for its first task.';
   return (
     <main className="relative flex-1 min-h-0 overflow-y-auto" data-testid="factory">
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-8 pb-8 flex flex-col gap-8">
-        <h1 className="text-[19px] leading-6 sm:text-[34px] sm:leading-10 font-bold stretch-112 tracking-[-0.02em] [text-wrap:balance]" data-testid="factory-headline">
-          {headline}
-        </h1>
+      <div className="max-w-[1440px] mx-auto px-4 md:px-6 pt-5 pb-8 md:pt-7 md:pb-10 flex flex-col gap-8">
+        <header className="flex flex-col gap-1.5 max-w-[75ch]">
+          <h1 className="text-title">Factory</h1>
+          <p className="text-ink-2" data-testid="factory-headline">
+            {lead} Every figure is computed by the daemon from the task event logs.
+          </p>
+        </header>
 
-        <dl className="m-0 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4 border-t border-rule-strong pt-4" data-testid="kpis">
+        <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule-strong bg-rule" data-testid="kpis">
           <Figure label="Spend this week" value={`$${week.toFixed(2)}`} detail={cards?.length ? `$${(week / cards.length).toFixed(2)} per task, list prices` : undefined} />
           <Figure
             label="Runs and merges"
@@ -808,34 +920,37 @@ export function Factory() {
 
         <MetricsPanel data={metrics.data} error={metrics.error} window={span} onWindow={setSpan} />
 
-        <Queue />
+        <div className="grid gap-x-6 gap-y-8 min-[760px]:grid-cols-2">
+          <Panel title="Stages, last 7 days" aside="Tasks that entered each stage" testId="panel-loops">
+            <Loops counts={counts} />
+            <p className={PROSE}>From each task's status history, in the 7 days up to the last event. A task counts once per stage.</p>
+          </Panel>
+          <Panel title="Spend by task" aside="Split by vendor, list prices" testId="panel-spend">
+            <SpendByTask rows={spendByTask} />
+          </Panel>
+        </div>
 
-        <Panel title="It learned" testId="panel-it-learned">
-          <ItLearned helped={helped ?? []} costByTask={costByTask} />
-        </Panel>
+        <div className="grid gap-x-6 gap-y-8 min-[760px]:grid-cols-2">
+          <Panel title="It learned" testId="panel-it-learned">
+            <ItLearned helped={helped ?? []} costByTask={costByTask} />
+          </Panel>
+          <Queue level={2} empty="Nothing waits for you. A review that would reverse a decision, a permission an agent asks for, or a proposed skill appears here." />
+        </div>
 
-        <Panel title="The relay" testId="panel-relay">
+        <Panel title="The relay" aside="Every run on its agent's lane, and what passed between them" testId="panel-relay">
           <Relay />
         </Panel>
 
-        <Panel title="Drivers" testId="panel-scoreboard">
+        <Panel title="Agents" aside="Each agent and model, by the attempts the daemon verified" testId="panel-scoreboard">
           <Scoreboard data={scores} />
-          <span className="text-[12px] text-ink-2">Each agent and model, by its attempts the daemon verified. Pass rate counts green verifications.</span>
         </Panel>
 
-        <div className="flex flex-col">
-          <Panel title="Stages, last 7 days" collapsed testId="panel-loops">
-            <Loops counts={counts} />
-            <p className="text-[12px] text-ink-2">Tasks that entered each stage in the 7 days up to the last event, from each task's status history. A task counts once per stage.</p>
-          </Panel>
+        <div className="flex flex-col border-b border-rule">
           <Panel title="Meta models at work" collapsed testId="panel-models">
             <ModelsAtWork rows={byModel ?? []} />
-            <p className="text-[12px] text-ink-2">
+            <p className={PROSE}>
               Input from cache: {input ? `${Math.round((cached / input) * 100)}%` : 'none'}, {tokens(cached)} of {tokens(input)} tokens.
             </p>
-          </Panel>
-          <Panel title="Spend by car" aside={<span className="text-[12px] text-ink-2">split by team</span>} collapsed testId="panel-spend">
-            <SpendByCar rows={spendByCar} />
           </Panel>
           <Panel title="Cost per day" collapsed testId="panel-cost-day">
             <CostByDay rows={byDayHost ?? []} />
@@ -858,12 +973,17 @@ export function Factory() {
           <Panel title="Workspace memory" collapsed testId="panel-memory">
             <WorkspaceMemory />
           </Panel>
-          {bench ? (
-            <Panel title="Packet against transcript" collapsed testId="panel-bench">
-              <Benchmark data={bench} />
-            </Panel>
-          ) : null}
         </div>
+
+        <Panel title="Benchmark" aside="What the next agent reads, whether it finishes, and what it costs" testId="panel-bench">
+          {bench ? (
+            <Benchmark data={bench} />
+          ) : (
+            <EmptyState testId="bench-empty">
+              No benchmark yet. <span className="font-mono">stint bench</span> writes bench/results.json, and the transcript against the packet appears here.
+            </EmptyState>
+          )}
+        </Panel>
 
         <section id="any-harness" className="scroll-mt-4 pt-6 border-t border-rule-strong">
           <Panel title="One packet, any harness" testId="panel-any-harness">
@@ -871,8 +991,8 @@ export function Factory() {
           </Panel>
         </section>
 
-        <footer className="pt-3 border-t border-rule flex flex-wrap justify-between gap-2 text-[12px] text-ink-2">
-          <span>Every row is a folder in .stint/tasks/, and every figure is computed by the daemon from its events.jsonl at the list prices in config.json. Credits left are derived from metered spend, not read from the provider.</span>
+        <footer className={cx(NOTE, 'pt-3 border-t border-rule flex flex-wrap justify-between gap-2')}>
+          <span className="max-w-[60ch]">Every row is a folder in .stint/tasks/, and every figure is computed by the daemon from its events.jsonl at the list prices in config.json. Credits left are derived from metered spend, not read from the provider.</span>
           <span>Built on Meta's Muse models</span>
         </footer>
       </div>

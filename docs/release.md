@@ -11,7 +11,7 @@ The daemon scans on start, every 10 minutes, and when a person calls `POST /api/
 - Failing CI: a failed workflow run on the base branch, on a commit that carries a `Stint-Task:` trailer, records `outcome.ci` with the run id, once per run. CI is read with `gh run list`. If `gh` cannot answer, the daemon says on stderr that CI was not checked.
 - Incident: a production system can report one with `POST /api/outcomes` and a body of `{ commit, kind: 'incident', summary, url }` (or a task id instead of a commit). The call needs the daemon token, like every call that changes state. The incident lands on the task the commit came from.
 
-Outcomes show on the task itself (`outcomes` in `GET /api/tasks/:id`, and under the approval gate in the web UI), in the memory graph as a `resulted_in` edge from the merge to the outcome, and on Standings (`/factory`), where the Outcomes panel counts merged, reverted and followed up per agent. A reverted task that had a skill mounted counts as hurt in that skill's track record on the Setup sheet (`/skills`).
+Outcomes show on the task itself (`outcomes` in `GET /api/tasks/:id`, and under the approval gate in the web UI), in the memory graph as a `resulted_in` edge from the merge to the outcome, and on the Factory (`/factory`), where the Outcomes panel counts merged, reverted and followed up per agent. A reverted task that had a skill mounted counts as hurt in that skill's track record on the Skills page (`/skills`).
 
 ## Pull request mode
 
@@ -21,7 +21,7 @@ By default approve merges locally. With a release config in `.stint/config.json`
 "release": { "mode": "pr", "remote": "origin", "base": "main" }
 ```
 
-approve instead pushes the task branch to the remote and opens a pull request with `gh pr create`. The title is the task title; the body is the packet summary and the same trailers a local merge commit would carry (`Stint-Task`, `Stint-Runs`, `Stint-Handoff`, `Stint-Verified`). The daemon records `release.pr_opened` with the URL and number, and the task waits in the In review lane on Timing (`/`).
+approve instead pushes the task branch to the remote and opens a pull request with `gh pr create`. The title is the task title; the body is the packet summary and the same trailers a local merge commit would carry (`Stint-Task`, `Stint-Runs`, `Stint-Handoff`, `Stint-Verified`). The daemon records `release.pr_opened` with the URL and number, and the task waits in the In review lane on the Board (`/`).
 
 A poller reads the pull request every 60 seconds (`gh pr view`), and `POST /api/tasks/:id/release/refresh` reads it on demand. Changed checks are recorded as `release.checks` with the check name and status. When the pull request merges, the daemon records `merge.completed` with the pull request's merge commit and the task is done. When a check fails, the task goes back to Needs you with the failing check named as the next ask.
 

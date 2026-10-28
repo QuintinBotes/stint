@@ -14,8 +14,8 @@ test('A skill the learn step proposed waits in the memory panel queue; Approve c
   const skillsPage = await context.newPage();
   await skillsPage.goto('/skills');
   await skillsPage.getByRole('heading', { name: 'Skills' }).waitFor();
-  // the memory panel is the task view's Memory tab
-  await page.goto(`/t/${t.id}?tab=memory`);
+  // the memory panel is the task view's memory column
+  await page.goto(`/t/${t.id}`);
   const row = page.getByTestId('memory-panel').locator('[data-testid="queue-skill"][data-skill="limits-live-in-one-place"]');
   await expect(row).toContainText('Nothing is written until you approve it');
   const approve = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/api/skills/limits-live-in-one-place/approve'));

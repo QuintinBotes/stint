@@ -4,11 +4,11 @@ This page is for whoever presents at the live judging on 9 November: the run ord
 
 ## The 60-second version
 
-1. **Timing, at `/` (0:00):** "Coding agents lose the work when the session ends. In Stint the task outlives the agent."
+1. **Board, at `/` (0:00):** "Coding agents lose the work when the session ends. In Stint the task outlives the agent."
 2. **T-0042, Muse Code building on Muse Spark (0:10):** kill it. "The daemon builds the packet from the log and the diff: 412 tokens."
 3. **The Stint agent continues (0:25):** it picks up from the packet on Muse Spark. "The daemon, not the agent, runs the tests: green."
 4. **Glimmer reviews on the laptop, offline (0:40):** a finding that would reverse a decision goes to the queue. Approve. A real merge with trailers.
-5. **Standings, at `/factory` (0:50):** which Muse model did what, what it cost, and the skill it learned. "Every model is Meta's; the benchmark is in the repository."
+5. **Factory, at `/factory` (0:50):** which Muse model did what, what it cost, and the skill it learned. "Every model is Meta's; the benchmark is in the repository."
 
 ## Questions to expect
 
@@ -46,7 +46,7 @@ Not by default. The auto-approve lane is off, and only config turns it on, for t
 All of it, from 26 October; see [`timeline.md`](timeline.md) and `PROGRESS.md`. The specs were the plan, written before the event. Parts of the code were written by Muse Code on Muse Wonder Full from a brief. Until 27 October those commits carried a `Model:` trailer; since then commits carry only a `Spec:` trailer, and the spec's row in `PROGRESS.md` names the model.
 
 **Where are Meta's models used?**
-Muse Wonder 1.0 plans and writes the quiz. Muse Spark 1.3 builds through Muse Code and continues through the Stint agent. Muse Glimmer 30B reviews offline and reads diffs. Muse Spark Open on Fireworks, Baseten and Modal runs the learn step and is the fallback for the rest. Standings shows each model's tokens and cost from the meter.
+Muse Wonder 1.0 plans and writes the quiz. Muse Spark 1.3 builds through Muse Code and continues through the Stint agent. Muse Glimmer 30B reviews offline and reads diffs. Muse Spark Open on Fireworks, Baseten and Modal runs the learn step and is the fallback for the rest. The Factory shows each model's tokens and cost from the meter.
 
 ## If an agent misbehaves on stage
 

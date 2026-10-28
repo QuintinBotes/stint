@@ -16,7 +16,7 @@ This page is the runbook for whoever presents the demo: the commands, the checks
 1. `scripts/bootstrap.sh --check-only` lists every adapter and host as available or not, with the reason.
 2. `ollama list` shows `muse-glimmer:30b-mlx`; run one review the day before so the model is warm.
 3. `stint demo --live` checks what it needs before it starts: `META_API_KEY`, Ollama with `muse-glimmer:30b-mlx` pulled (unless `--allow-online`), and `muse` on the PATH. It refuses to start and names the first missing one.
-4. The browser is on Timing (`/`) at the URL the runner prints, dark theme, 1080p.
+4. The browser is on the Board (`/`) at the URL the runner prints, 1080p.
 5. The laptop stays open and on power. `stint demo --live` holds off idle sleep, but a closed lid still sleeps the machine and drops the network mid-run ([ADR-0008](adr/0008-live-runs-and-sleep.md)).
 
 ## The beats
@@ -33,7 +33,7 @@ The live runner runs these beats in order. Press Enter to move to the next one, 
 | 1:45 | Review offline | checks that the network is off (it asks, and refuses while online unless `--allow-online`), then reviews on Ollama | $0.00; a finding that contradicts a decision goes to the queue |
 | 2:05 | Approve and merge | approves T-0042 through the gate | one merge commit with `Stint-Task: T-0042` |
 | 2:15 | It learned | waits for the learn step, measures the proposed skill on T-0042 with it and without (two short runs on fresh copies; `--no-eval` skips this), approves it, then assigns T-0043, verifies and reviews it, and stops at awaiting approval | the skill card's eval line, "with skill: N findings, without: M"; `skill.applied` on T-0043; the review finds nothing on what was flagged before |
-| 2:35 | Close | prints the per-task cost, the T-0042 packet tokens and hash, the URL, and the repository path to record from | the last panel on Standings (`/factory`): "Any harness, any model, one packet", every configured harness and host |
+| 2:35 | Close | prints the per-task cost, the T-0042 packet tokens and hash, the URL, and the repository path to record from | the last panel on the Factory (`/factory`): "Any harness, any model, one packet", every configured harness and host |
 
 The times above are the script for the 2:35 video. A live run takes longer. The live take on 26 October (`demo/recordings/2026-10-26-1`) measured these, from the plan's start:
 

@@ -4,7 +4,7 @@ This page is for anyone who wants the whole picture: what each screen of the web
 
 ## What you see
 
-- **Timing** (`/`): every task by stage, each card showing the agents that worked on it and who holds it now. Issues pulled from GitHub or Linear wait in an intake panel until you accept them. Run all puts every planned task on autopilot.
+- **Board** (`/`): every task by stage, each card showing the agents that worked on it and who holds it now. Issues pulled from GitHub or Linear wait in an intake panel until you accept them. Run all puts every planned task on autopilot.
 - **Task view** (`/t/<task>`): the task, its acceptance criteria and its spend across the top. The runs are on the left, one agent after another with every hand-off. In the middle:
   - the diff, and the worktree's files with "Open in your editor";
   - a terminal in the worktree;
@@ -13,15 +13,15 @@ This page is for anyone who wants the whole picture: what each screen of the web
   - the daemon's verification: "33 passed, tests unchanged".
 
   The memory panel on the right shows similar tasks, the decisions that constrain this one, and a scrubber that goes back in time. The approval gate opens only on a green verification, and shows the change's risk tier.
-- **Standings** (`/factory`): who carried each task and what they handed on, which Muse model did what and what it cost. Also there:
+- **Factory** (`/factory`): who carried each task and what they handed on, which Muse model did what and what it cost. Also there:
   - a scoreboard per agent and model;
   - outcomes after merge (reverts, follow-ups, failing CI);
   - the auto-approve lane's shadow record;
   - scheduled upkeep;
   - every harness and host this workspace can use.
-- **Setup sheet** (`/skills`): what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
+- **Skills** (`/skills`): what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
 
-<p align="center"><img alt="Standings: the week in figures, the relay of runs across Meta's models with the 412-token packet and the learned skill, and the memory graph of the whole workspace" src="../assets/screenshot-factory.png" width="900"></p>
+<p align="center"><img alt="The Factory: the week in four figures, then verification and outcomes for the last 30 days, each with its sample size" src="../assets/screenshot-factory.png" width="900"></p>
 
 ## The loop around the hand-off
 

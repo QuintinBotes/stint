@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-test('After the replay, the T-0042 memory tab shows D3 and limiter-config-via-env; scrubbing the stint chart to the start removes the skill node, which was not recorded yet', async ({ page }) => {
-  await page.goto('/t/T-0042?tab=memory');
+test('After the replay, T-0042 memory shows D3 and limiter-config-via-env; scrubbing the clock to the start removes the skill node, which was not recorded yet', async ({ page }) => {
+  await page.goto('/t/T-0042');
   const graph = page.getByTestId('memory-graph');
   await expect(graph.locator('[data-node="decision:T-0042/D3"]')).toBeVisible();
   await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toBeVisible();
@@ -10,16 +10,16 @@ test('After the replay, the T-0042 memory tab shows D3 and limiter-config-via-en
   const fileLabels = await graph.locator('[data-node^="file:"] text').allTextContents();
   expect(fileLabels.length).toBeGreaterThan(2);
   for (const label of fileLabels) expect(label).toMatch(/^[^/]+\.[a-z]+$/);
-  const scrubber = page.getByTestId('stint-scrubber');
+  const scrubber = page.getByTestId('scrubber');
   await scrubber.fill(String(await scrubber.getAttribute('min')));
   await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toHaveCount(0);
   await expect(page).toHaveURL(/asOf=/);
-  await page.getByTestId('stint-latest').click();
+  await page.getByTestId('scrub-now').click();
   await expect(graph.locator('[data-node="skill:limiter-config-via-env"]')).toHaveAttribute('data-state', 'on');
 });
 
 test('No two labels in the T-0042 graph overlap and each stays inside the graph; the graph spreads over the panel rather than piling on its edges', async ({ page }) => {
-  await page.goto('/t/T-0042?tab=memory');
+  await page.goto('/t/T-0042');
   const graph = page.getByTestId('memory-graph');
   await expect(graph).toHaveAttribute('data-layout', 'done');
   const { frame, labels, nodes } = await graph.evaluate((svg) => ({
@@ -58,7 +58,7 @@ test('A decision superseded during the window is hidden before it was recorded, 
       },
     }),
   );
-  await page.goto('/t/T-0042?tab=memory');
+  await page.goto('/t/T-0042');
   const graph = page.getByTestId('memory-graph');
   const d1 = graph.locator('[data-node="decision:T-0042/D1"]');
   const d2 = graph.locator('[data-node="decision:T-0042/D2"]');
@@ -66,9 +66,9 @@ test('A decision superseded during the window is hidden before it was recorded, 
   await expect(d1).toHaveAttribute('data-state', 'faded');
   await expect(d1).toHaveAttribute('opacity', '0.35');
   await expect(d2).toHaveAttribute('data-state', 'on');
-  // the moment the task view shows is its asOf, which the stint chart sets; a link can set it too
+  // the moment the task view shows is its asOf, which the clock sets; a link can set it too
   const at = async (iso: string) => {
-    await page.goto(`/t/T-0042?tab=memory&asOf=${encodeURIComponent(iso)}`);
+    await page.goto(`/t/T-0042?asOf=${encodeURIComponent(iso)}`);
     await expect(graph.locator('[data-node="task:T-0042"]')).toBeVisible();
   };
   // minute 4: D1 holds, D2 is not recorded yet
@@ -82,7 +82,7 @@ test('A decision superseded during the window is hidden before it was recorded, 
 });
 
 test('Clicking D3 in the panel selects its timeline row; clicking a run node selects its segment (R-052)', async ({ page }) => {
-  await page.goto('/t/T-0042?tab=memory');
+  await page.goto('/t/T-0042');
   const graph = page.getByTestId('memory-graph');
   await expect(graph).toHaveAttribute('data-layout', 'done');
   const { events } = (await (await page.request.get('/api/tasks/T-0042/events?since=0')).json()) as { events: Array<{ seq: number; type: string; run?: string; payload: Record<string, unknown> }> };
@@ -106,7 +106,7 @@ test('Clicking D3 in the panel selects its timeline row; clicking a run node sel
 });
 
 test('The Constrains tab lists D3 with its text; Similar lists T-0040 and T-0043 with their evidence', async ({ page }) => {
-  await page.goto('/t/T-0042?tab=memory');
+  await page.goto('/t/T-0042');
   await expect(page.getByTestId('memory-rows-similar')).toContainText('T-0040');
   await expect(page.getByTestId('memory-rows-similar')).toContainText('shares src/app.ts');
   await page.getByTestId('memory-tab-constrains').click();

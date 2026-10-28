@@ -97,7 +97,7 @@ function FrameLine({ frame, taskId, changedFiles, first }: { frame: StackFrame; 
   return (
     <li
       data-testid={first ? 'stack-first-frame' : 'stack-frame'}
-      className={cx('font-mono text-[12px] leading-[16px]', first ? 'font-semibold text-ink' : frame.library ? 'text-ink-3' : 'text-ink-2')}
+      className={cx('font-mono text-small', first ? 'font-semibold text-ink' : frame.library ? 'text-ink-3' : 'text-ink-2')}
     >
       {frame.fn ? <span>{frame.fn} </span> : null}
       {changed ? (
@@ -107,7 +107,7 @@ function FrameLine({ frame, taskId, changedFiles, first }: { frame: StackFrame; 
       ) : (
         <span>{place}</span>
       )}
-      {first ? <span className="ml-2 font-sans text-[12px] font-normal text-ink-2">first frame in this project</span> : null}
+      {first ? <span className="ml-2 font-sans text-small font-normal text-ink-2">first frame in this project</span> : null}
     </li>
   );
 }
@@ -122,19 +122,19 @@ export function StackTrace({ taskId, output, changedFiles }: { taskId: string; o
   if (failures.length === 0) return null;
   return (
     <section aria-label="Failing tests" data-testid="stack-trace" className="flex flex-col gap-2">
-      <h3 className="text-[14px] font-semibold">Stack trace</h3>
+      <h3 className="text-body font-semibold">Stack trace</h3>
       {failures.map((failure) => {
         const project = failure.frames.filter((f) => !f.library);
         const library = failure.frames.filter((f) => f.library);
         const first = project[0] ?? null;
         const shown = open[failure.name] ? failure.frames : project;
         return (
-          <article key={failure.name} data-testid="stack-failure" className="rounded-md border border-red/50 bg-panel px-3 py-3">
-            <p className="font-mono text-[12px] font-semibold text-red" data-testid="stack-name">
+          <article key={failure.name} data-testid="stack-failure" className="rounded-[5px] border border-red/50 bg-panel px-3 py-3">
+            <p className="font-mono text-small font-semibold text-red" data-testid="stack-name">
               {failure.name}
             </p>
             {failure.message ? (
-              <p className="mt-1 text-[12px] text-ink" data-testid="stack-message">
+              <p className="mt-1 text-small text-ink" data-testid="stack-message">
                 {failure.message}
               </p>
             ) : null}
@@ -145,7 +145,7 @@ export function StackTrace({ taskId, output, changedFiles }: { taskId: string; o
                 ))}
               </ol>
             ) : (
-              <p className="mt-1 text-[12px] text-ink-3">No stack frames were printed for this failure.</p>
+              <p className="mt-1 text-small text-ink-3">No stack frames were printed for this failure.</p>
             )}
             {library.length ? (
               <Button

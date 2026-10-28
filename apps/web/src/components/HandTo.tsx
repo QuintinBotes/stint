@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { agentOf, modelName } from '../agents';
 import { type AdapterHealth, api, daemonMessage } from '../api';
 import { useHealth } from '../hooks';
-import { Button, StatusChip, VendorMark, cx } from './ui';
+import { Button, StatusChip, Who, cx } from './ui';
 
 const GATE: Record<string, string> = {
   enforced: "Stint checks every tool call it makes",
@@ -62,34 +62,31 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
     return (
       <li key={a.id} data-testid="hand-agent" data-agent={a.id}>
         <label
-          className={cx('grid grid-cols-[20px_minmax(0,1fr)_auto] gap-x-3 items-start py-2 border-b border-rule text-[14px] leading-5', selectable ? 'cursor-pointer' : 'text-ink-2', chosen && 'bg-panel')}
+          className={cx('grid grid-cols-[20px_minmax(0,1fr)] gap-x-2.5 p-3 rounded-[5px] border', selectable ? 'cursor-pointer' : 'text-ink-2', chosen ? 'border-ink bg-panel-2' : 'border-rule')}
           data-testid={disabled ? 'hand-disabled' : undefined}
         >
-          <input type="radio" name="hand-to" value={a.id} checked={chosen} disabled={!selectable} onChange={() => setPicked(a.id)} className="mt-1" />
+          <input type="radio" name="hand-to" value={a.id} checked={chosen} disabled={!selectable} onChange={() => setPicked(a.id)} className="mt-[3px]" />
           <span className="flex min-w-0 flex-col gap-1">
-            <span className="flex flex-wrap items-center gap-x-2">
-              <VendorMark agent={agentOf(a.id)} showName={false} size={14} />
-              <span className="font-bold text-ink">{agentOf(a.id).name}</span>
-              <span className="text-[12px] text-ink-2" data-testid="hand-vendor">
-                {vendorLabel(a.vendor)}
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <Who agent={agentOf(a.id)} className="font-semibold text-ink" />
+              <span className="flex flex-wrap gap-1">
+                {a.id === recommended?.id ? <StatusChip label="recommended" tone="recommend" /> : null}
+                {a.id === leaving ? <StatusChip label="leaving" tone="neutral" /> : null}
+                {disabled ? <StatusChip label="disabled" tone="neutral" /> : null}
+                {!disabled && !selectable ? <StatusChip label="unavailable" tone="neutral" /> : null}
               </span>
-              <span className="text-[12px] text-ink-2" data-testid="hand-roles">
-                {a.roles.join(', ')}
-              </span>
+            </span>
+            <span className="flex flex-wrap gap-x-2 text-small text-ink-2">
+              <span data-testid="hand-vendor">{vendorLabel(a.vendor)}</span>
+              <span data-testid="hand-roles">{a.roles.join(', ')}</span>
             </span>
             {/* the detail of the chosen row only; the others keep it for a screen reader's row name */}
-            <span className={cx('text-[12px] text-ink-2', !chosen && 'sr-only')} data-testid="capability-note">
+            <span className={cx('text-small text-ink-2', !chosen && 'sr-only')} data-testid="capability-note">
               {capabilityNote(a.capabilities)}
             </span>
-            <span className={cx('text-[12px] text-ink-2', !chosen && !disabled && 'sr-only')} data-testid="hand-gate">
+            <span className={cx('text-small text-ink-2', !chosen && !disabled && 'sr-only')} data-testid="hand-gate">
               {disabled ? 'Turned off in config' : `Gate: ${a.gate}. ${GATE[a.gate] ?? a.gate}.`}
             </span>
-          </span>
-          <span className="flex shrink-0 flex-col items-end gap-1">
-            {a.id === recommended?.id ? <StatusChip label="recommended" tone="good" /> : null}
-            {a.id === leaving ? <StatusChip label="leaving" tone="neutral" /> : null}
-            {disabled ? <StatusChip label="disabled" tone="neutral" /> : null}
-            {!disabled && !selectable ? <StatusChip label="unavailable" tone="neutral" /> : null}
           </span>
         </label>
       </li>
@@ -97,51 +94,50 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
   };
   const picker = (
     <>
-      <fieldset className="m-0 p-0 border-0 flex flex-col min-w-0">
-        <legend className="pb-2 text-[14px] font-bold">Who drives next</legend>
+      <fieldset className="relative m-0 p-0 border-0 flex flex-col gap-2 min-w-0">
+        <legend className="pb-1 text-section">Hand to</legend>
+        <p className="text-small text-ink-2">The next agent reads this packet, the plan, the skills list and the diff. Never the transcript.</p>
         {recommended && recommended.id !== leaving && leaving ? (
-          <p className="text-[14px] text-ink-2 pb-2" data-testid="hand-reason">
+          <p className="text-small text-ink-2" data-testid="hand-reason">
             Recommended: {agentOf(recommended.id).name}, a different agent from {agentOf(leaving).name}, which ended {packet.from.endedBy}. It runs on a different harness
             {harnessOf(recommended) !== recommended.id ? ` (${harnessOf(recommended)})` : ''}
             {recommended.model && recommended.model !== packet.from.model ? ` and a different model (${modelName(recommended.model)})` : ''}.
           </p>
         ) : null}
-        <ul className="flex flex-col border-t border-rule-strong" role="radiogroup" aria-label="Next agent">
+        <ul className="flex flex-col gap-2" role="radiogroup" aria-label="Next agent">
           {all.filter((a) => a.enabled !== false).map(row)}
         </ul>
         {off.length ? (
-          <details className="mt-2 text-[12px] text-ink-2">
+          <details className="text-small text-ink-2">
             <summary className="cursor-pointer hover:text-ink">
               {off.length} more {off.length === 1 ? 'is' : 'are'} turned off in config
             </summary>
-            <ul className="flex flex-col">{off.map(row)}</ul>
+            <ul className="mt-2 flex flex-col gap-2">{off.map(row)}</ul>
           </details>
         ) : null}
       </fieldset>
-      <label className="flex flex-col gap-2" htmlFor="hand-ask">
-        <span className="text-[14px] font-bold">
-          Add to the board <span className="font-normal text-ink-2">optional</span>
-        </span>
-        <textarea id="hand-ask" rows={2} value={ask} placeholder="Anything the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[3px] border border-ink-3 bg-panel px-3 py-2 text-[14px] text-ink placeholder:text-ink-3" />
+      <label className="flex flex-col gap-1.5" htmlFor="hand-ask">
+        <span className="text-small text-ink-2">Add to the ask (optional)</span>
+        <textarea id="hand-ask" rows={3} value={ask} placeholder="Anything the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[5px] border border-rule-strong bg-ground px-2.5 py-2 text-body text-ink placeholder:text-ink-3 resize-y" />
       </label>
       <div className="flex flex-col gap-2">
-        <Button tone="primary" className="h-11 w-full justify-between px-4 text-[14px]" onClick={hand} disabled={busy || live || !choice} data-testid="hand-button">
-          {busy ? 'Handing over' : `Send ${choice ? agentOf(choice).name : 'a driver'} out`}
+        <Button tone="primary" className="self-start" onClick={hand} disabled={busy || live || !choice} data-testid="hand-button">
+          {busy ? 'Handing over' : `Hand to ${choice ? agentOf(choice).name : 'an agent'}`}
         </Button>
-        <span className="text-[12px] text-ink-2">The next driver reads this packet, never the last driver's transcript.</span>
-        {live ? <span className="text-[14px] text-ink-2">A run is on track; stop it first.</span> : null}
-        {sent ? <span className="text-[14px] text-green">{sent}</span> : null}
+        {choice ? <p className="font-mono text-small text-ink-3">stint hand {taskId} {choice}</p> : null}
+        {live ? <span className="text-ink-2">A run is going; stop it first.</span> : null}
+        {sent ? <span className="text-ink">{sent}</span> : null}
       </div>
-      {error ? <p className="text-[14px] text-red">The hand-off did not start: {error}</p> : null}
+      {error ? <p className="text-red">The hand-off did not start: {error}</p> : null}
     </>
   );
   return (
-    <section className="flex flex-col gap-3" data-testid="hand-to">
+    <section className="flex flex-col gap-4 max-w-[760px] pt-3 border-t border-rule-strong" data-testid="hand-to">
       {atGate ? (
-        // at the gate the call is approve or not; a new driver is the exception, one click away
+        // at the gate the call is approve or not; a different agent is the exception, one click away
         <details className="flex flex-col gap-3">
-          <summary className="cursor-pointer text-[14px] font-bold hover:underline underline-offset-2">Change driver instead</summary>
-          <div className="mt-3 flex flex-col gap-3">{picker}</div>
+          <summary className="cursor-pointer font-semibold hover:underline">Change who continues instead</summary>
+          <div className="mt-3 flex flex-col gap-4">{picker}</div>
         </details>
       ) : (
         picker

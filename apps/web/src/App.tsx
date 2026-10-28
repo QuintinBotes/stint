@@ -12,15 +12,15 @@ import { Placeholder, TaskView } from './routes/TaskView';
 
 const KEYS: Array<[string, string]> = [
   ['n', 'New task'],
-  ['j / k', 'Move along race control'],
+  ['j / k', 'Move along the runs'],
   ['d', 'Diff'],
   ['t', 'Terminal'],
   ['h', 'Packet (handoff)'],
-  ['m', 'Memory'],
+  ['m', 'Show or hide memory'],
   ['a', 'Approve and merge'],
   ['r', 'Request changes'],
   ['x', 'Reject'],
-  ['⌘.', 'Stop the run on track'],
+  ['⌘.', 'Stop the live run'],
   ['⌘K', 'Commands'],
   ['?', 'This help'],
 ];
@@ -55,11 +55,11 @@ export function App() {
         <ReplayStrip health={health.data} />
         <Notifier />
         <Routes>
-          <Route path="/" element={<Board onNewTask={openNewTask} repo={health.data?.repo} />} />
+          <Route path="/" element={<Board onNewTask={openNewTask} />} />
           <Route path="/t/:id" element={<TaskView />} />
           <Route path="/factory" element={<Factory />} />
           <Route path="/skills" element={<Skills />} />
-          <Route path="*" element={<Placeholder title="Not found">There is nothing at this address. Timing, the board, is at the top left.</Placeholder>} />
+          <Route path="*" element={<Placeholder title="Not found">There is nothing at this address. The board is at the top left.</Placeholder>} />
         </Routes>
         <Palette open={palette} onClose={() => setPalette(false)} actions={actions} health={health.data} />
         <NewTaskDialog open={newTask} onClose={() => setNewTask(false)} />

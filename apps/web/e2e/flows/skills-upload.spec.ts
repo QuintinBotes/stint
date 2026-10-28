@@ -12,7 +12,7 @@ const skillMd = (name: string) => `---\nname: ${name}\ndescription: Run the proj
 // a script is a warn, and there is no secret in the bundle, so it can be approved once the warn is acknowledged
 const script = '#!/bin/sh\nbun test\n';
 
-test('Upload a zip on the Setup sheet: its findings show, the warn is acknowledged, and the approved skill shows with origin import and a Download button', async ({ page, request }) => {
+test('Upload a zip on the Skills page: its findings show, the warn is acknowledged, and the approved skill shows with origin import and a Download button', async ({ page, request }) => {
   const d = daemon(request);
   const zip = zipSync({ 'flow-run-checks/SKILL.md': enc(skillMd('flow-run-checks')), 'flow-run-checks/scripts/run.sh': enc(script) });
 

@@ -35,7 +35,7 @@ const tab = (page: Page, name: string) => page.getByRole('tab', { name, exact: t
 const nav = (page: Page, name: string) => page.getByRole('link', { name, exact: true }).first().click();
 /** Opens a task from the board by its card, as a person would; a direct load if the card cannot be clicked. */
 async function openTask(page: Page, url: string, id: string, title: RegExp) {
-  await nav(page, 'Timing').catch(() => undefined);
+  await nav(page, 'Board').catch(() => undefined);
   await page.getByRole('link', { name: title }).first().click({ timeout: 3000 }).catch(() => page.goto(`${url}/t/${id}`));
   await page.waitForURL(`**/t/${id}**`);
 }
@@ -45,7 +45,7 @@ async function scrollTo(page: Page, testId: string, dwellMs: number) {
 }
 
 const END_CARD = `<!doctype html><meta charset="utf-8"><style>
-html,body{margin:0;height:100%;background:#17191c;color:#f1f1ec;font-family:"Archivo Variable","Archivo",ui-sans-serif,system-ui,sans-serif}
+html,body{margin:0;height:100%;background:#043051;color:#eef3f8;font-family:"Geist Variable","Geist",ui-sans-serif,system-ui,sans-serif}
 body{display:grid;place-content:center;text-align:center;gap:18px}
 h1{font-size:96px;margin:0;letter-spacing:-0.02em}p{margin:0;font-size:34px;color:#a7adb9}code{font-size:26px;color:#6b9dff}
 </style><h1>Stint</h1><p>The task outlives the agent.</p><code>github.com/QuintinBotes/stint</code>`;
@@ -90,7 +90,7 @@ try {
   await tab(page, 'Review');
   // the skill is proposed at 129, measured at 131 and approved at 132; its card shows the eval with it and without
   await at(page, 129);
-  await nav(page, 'Setup sheet');
+  await nav(page, 'Skills');
   const learned = page.locator('[data-list-skill="limiter-config-via-env"]');
   await learned.waitFor({ timeout: 20_000 }).catch(() => undefined);
   await learned.getByRole('button').first().click({ timeout: 3000 }).catch(() => undefined);
@@ -99,7 +99,7 @@ try {
   await at(page, 1e9);
   await page.waitForTimeout(1500);
 
-  await nav(page, 'Standings');
+  await nav(page, 'Factory');
   await page.getByTestId('models-at-work').waitFor();
   await page.waitForTimeout(5000);
   await scrollTo(page, 'models-at-work', 4500);

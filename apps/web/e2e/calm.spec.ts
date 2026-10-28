@@ -7,11 +7,11 @@ const refuse = (page: Page, message: string, onCall?: () => void) =>
     return r.fulfill({ status: 409, json: { error: { code: 'verification_red', message, hint: null } } });
   });
 
-test('Approve is offered only while the car waits at the gate', async ({ page }) => {
+test('Approve is offered only while the task waits at the gate', async ({ page }) => {
   await page.goto('/t/T-0043');
   await expect(page.getByTestId('approve')).toBeEnabled();
 
-  // the same car, green and reviewed, but back on track after a request for changes: the flag stays shut
+  // the same task, green and reviewed, but building again after a request for changes: the gate stays shut
   await page.route('**/api/tasks/T-0043', async (route) => {
     const res = await route.fetch();
     const bundle = (await res.json()) as { task: Record<string, unknown> };
@@ -21,7 +21,7 @@ test('Approve is offered only while the car waits at the gate', async ({ page })
   await page.reload();
   await expect(page.getByTestId('approval-gate')).toHaveAttribute('data-open', 'false');
   await expect(page.getByTestId('approve')).toBeDisabled();
-  await expect(page.getByTestId('approval-gate')).toContainText('A driver is out on this car.');
+  await expect(page.getByTestId('approval-gate')).toContainText('A run is going on this task.');
 });
 
 test('While the request form is open, a does not approve; Escape closes the form and puts focus back on its button', async ({ page }) => {
@@ -33,7 +33,7 @@ test('While the request form is open, a does not approve; Escape closes the form
   const text = page.getByLabel('What should change? This becomes the next ask.');
   await expect(text).toBeFocused();
   // focus out of the textarea, as a click elsewhere on the gate leaves it, then the approve key
-  await page.getByTestId('approval-gate').getByText('The flag', { exact: true }).click();
+  await page.getByTestId('approval-gate').locator('caption').click();
   await page.keyboard.press('a');
   await page.waitForTimeout(300);
   expect(approves).toBe(0);
@@ -74,20 +74,22 @@ for (const [width, height] of [
 test('Single-key shortcuts can be turned off in the palette, stay off after a reload, and come back on', async ({ page }) => {
   const palette = async (query: string) => {
     await page.keyboard.press('Meta+k');
-    await page.getByPlaceholder('Type a command or a task').fill(query);
+    await page.getByPlaceholder('Search or run a command').fill(query);
     await page.keyboard.press('Enter');
   };
   await page.goto('/t/T-0042');
-  await expect(page.getByTestId('tab-diff')).toHaveAttribute('aria-selected', 'true');
+  // m shows or hides memory
+  const memory = page.getByTestId('memory-toggle');
+  await expect(memory).toHaveAttribute('aria-expanded', 'true');
   await palette('single-key shortcuts off');
   await page.keyboard.press('m');
-  await expect(page.getByTestId('tab-diff')).toHaveAttribute('aria-selected', 'true');
+  await expect(memory).toHaveAttribute('aria-expanded', 'true');
   await page.reload();
-  await expect(page.getByTestId('tab-diff')).toHaveAttribute('aria-selected', 'true');
+  await expect(memory).toHaveAttribute('aria-expanded', 'true');
   await page.keyboard.press('m');
-  await expect(page.getByTestId('tab-memory')).toHaveAttribute('aria-selected', 'false');
+  await expect(memory).toHaveAttribute('aria-expanded', 'true');
   // the palette and Cmd+K still work, and they turn the keys back on
   await palette('single-key shortcuts on');
   await page.keyboard.press('m');
-  await expect(page.getByTestId('tab-memory')).toHaveAttribute('aria-selected', 'true');
+  await expect(memory).toHaveAttribute('aria-expanded', 'false');
 });

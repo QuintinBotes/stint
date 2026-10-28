@@ -10,7 +10,7 @@ test('Every panel in an empty task shows its empty-state sentence, and every car
   expect(res.status()).toBe(201);
   const { id } = (await res.json()) as { id: string };
   await page.goto(`/t/${id}`);
-  await page.getByTestId('tab-memory').click();
+  // memory is a column of the task view, beside the work
   await expect(page.getByTestId('memory-panel').getByTestId('empty-memory')).toBeVisible();
   const expected: Record<string, string> = {
     diff: 'The diff appears here once a run commits to the task branch.',
@@ -32,7 +32,7 @@ test('Every panel in an empty task shows its empty-state sentence, and every car
   }
 });
 
-test('The Files tab and the timeline show their empty states in an empty task', async ({ page, request }) => {
+test('The Files tab and the run rail show their empty states in an empty task', async ({ page, request }) => {
   await page.goto('/');
   const token = await page.locator('meta[name="stint-token"]').getAttribute('content');
   const res = await request.post('/api/tasks', {
@@ -46,8 +46,7 @@ test('The Files tab and the timeline show their empty states in an empty task', 
   await expect(page.getByTestId('file-none')).toContainText('Pick a file to read it here.');
   await page.getByLabel('Filter files').fill('no-such-file-zzz');
   await expect(page.getByTestId('files-empty')).toContainText('No file matches.');
-  // the timeline has the creation row and no run segments yet
-  await page.getByTestId('race-control-toggle').click();
+  // the rail has the creation row and no runs yet
   const rail = page.getByTestId('rail-column');
   await expect(rail.getByTestId('run-segment')).toHaveCount(0);
   await expect(rail).toContainText('Task created');

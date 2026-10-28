@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router';
 import { Toaster, toast } from 'sonner';
 import { agentOf } from '../agents';
 import { subscribe } from '../api';
-import { useTheme } from '../theme';
 
 /** What deserves a toast: a person is needed, or an agent stopped in a way worth seeing. Nothing else. */
 export function notice(e: StintEvent): { text: string; tone: 'warn' | 'bad' | 'info' } | null {
@@ -110,7 +109,6 @@ function notifyOutside(e: StintEvent, text: string, open: () => void): void {
 
 export function Notifier() {
   const navigate = useNavigate();
-  const theme = useTheme();
   useEffect(() => {
     const since = Date.now();
     return subscribe('/api/stream', (e) => {
@@ -131,10 +129,10 @@ export function Notifier() {
   return (
     <Toaster
       position="bottom-right"
-      theme={theme === 'pitwall' ? 'dark' : 'light'}
+      theme="dark"
       visibleToasts={3}
       closeButton
-      toastOptions={{ style: { background: 'var(--panel)', color: 'var(--ink)', border: '1px solid var(--rule-strong)', borderRadius: 4, fontFamily: 'var(--sans)', fontSize: 13 } }}
+      toastOptions={{ style: { background: 'var(--panel)', color: 'var(--ink)', border: '1px solid var(--rule-strong)', borderRadius: 5, boxShadow: 'none', fontFamily: 'var(--sans)', fontSize: 13, lineHeight: '18px' } }}
     />
   );
 }

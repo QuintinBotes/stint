@@ -96,7 +96,7 @@ Then turn the preset on, set its `model` to `muse-spark-1.3`, and add `META_API_
 
 The Agent Client Protocol is JSON-RPC 2.0 over stdio, one JSON object per line, spoken by goose, opencode, Gemini CLI and others: https://agentclientprotocol.com. With `harness: "acp"`, Stint is the client. It starts the command in the manifest, opens a session in the run's worktree, and sends `prompt.md` as the prompt; the manifest's `prompt` setting is ignored for ACP. Messages, tool calls and tool results from the agent land on the same timeline as every other run. ACP does not report token usage, so these runs show as unpriced, not as $0.
 
-Because Stint is the client, the agent's file reads and writes, terminal commands and permission questions come to Stint first. File paths must resolve inside the worktree, symlinks included; a path outside is refused and recorded. Terminal commands run in the worktree in the run's sandbox. A permission question waits for you: it appears on the task and in the queue on Standings (`/factory`) with the choices the agent offered (such as allow once, always for this run, or reject), and your answer goes back to the agent. `GET /api/permissions` lists the questions still waiting. Stopping a run cancels any question it is waiting on.
+Because Stint is the client, the agent's file reads and writes, terminal commands and permission questions come to Stint first. File paths must resolve inside the worktree, symlinks included; a path outside is refused and recorded. Terminal commands run in the worktree in the run's sandbox. A permission question waits for you: it appears on the task and in the queue on the Factory (`/factory`) with the choices the agent offered (such as allow once, always for this run, or reject), and your answer goes back to the agent. `GET /api/permissions` lists the questions still waiting. Stopping a run cancels any question it is waiting on.
 
 Three presets use ACP, all turned off: `goose` (`goose acp`, https://block.github.io/goose/docs/guides/acp-clients), `opencode` (`opencode acp`, https://opencode.ai/docs/acp/) and `gemini-acp` (`gemini --experimental-acp`, https://geminicli.com/docs/cli/acp-mode/). No preset carries a flag that bypasses approvals.
 
@@ -129,7 +129,7 @@ Stint's reviewer skips any entry in `routes.reviewer` that runs the model the St
 
 ## Which agent gets the task
 
-The scoreboard on Standings shows how each agent and model has done, overall and per task tag:
+The Agents table on the Factory shows how each agent and model has done, overall and per task tag:
 - **Attempts:** runs the daemon verified.
 - **Passed:** how many of those were green.
 - **Last 3 all passed:** whether all of the last three attempts passed.
@@ -161,7 +161,7 @@ When a task is too big for one run, the plan can split it into up to six subtask
 - holds back the others until what they need is merged;
 - finishes the parent once every subtask is merged.
 
-Each subtask still stops at your approval. Timing (`/`) shows the parent with its subtasks in order, and what each one waits for.
+Each subtask still stops at your approval. The Board (`/`) shows the parent with its subtasks in order, and what each one waits for.
 
 ## Reviews with different jobs
 
@@ -191,7 +191,7 @@ On the schedule (daily or weekly), Stint makes one task per job and puts it on a
 - **Doc gardening:** README, AGENTS.md and docs/ against the code, for stale commands, dead links and flags that no longer exist.
 - **Dead code and dependency drift:** removes what is clearly dead, and proposes upgrades rather than making them.
 
-A job with a task still open is skipped until that task is merged or abandoned. Standings shows each job and when it is next due.
+A job with a task still open is skipped until that task is merged or abandoned. The Factory shows each job and when it is next due.
 
 ## Work from GitHub and Linear
 
@@ -200,7 +200,7 @@ stint intake github --label stint    # through gh, for the repository here or --
 stint intake linear --team ENG       # the Linear key comes from the variable intake.linear.keyEnv names
 ```
 
-Each open issue becomes an intake item on Timing, never a task straight away. Stint triages it on the planner chain:
+Each open issue becomes an intake item on the Board, never a task straight away. Stint triages it on the planner chain:
 - a size: S for one run, M for a few, L for work that must be split;
 - a proposed title, goal and acceptance criteria;
 - the existing tasks it may duplicate, chosen only from tasks with matching words;

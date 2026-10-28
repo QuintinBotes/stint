@@ -9,7 +9,7 @@
 
 Coding agents are good at a task until the session ends: the context fills up, the process dies, a rate limit hits, or you want a different agent for the next step. Stint makes the task, not the chat, the unit of work. The task is a folder in your repository that any agent can pick up. Every run gets its own git worktree, the daemon runs the tests itself, and when a run ends, however it ends, Stint writes a packet of a few hundred tokens that the next agent continues from. A local model reviews, and only you merge. It runs on Meta's Muse models by default, on your own machine.
 
-<p align="center"><img alt="The T-0042 task view: the stint chart with each run as a bar and the kill marked, race control on the left, the diff in the middle, and the merge and a decision waiting for you on the right" src="assets/screenshot-task.png" width="900"></p>
+<p align="center"><img alt="The T-0042 task view: the title block with its state, spend and runs across the top, the run rail with the kill marked and the revision block under it on the left, the diff in the middle, and memory with a decision waiting for you on the right" src="assets/screenshot-task.png" width="900"></p>
 
 ## Three proofs
 
@@ -29,7 +29,7 @@ git clone https://github.com/QuintinBotes/stint && cd stint
 bash scripts/bootstrap.sh
 ```
 
-Bootstrap checks Bun and git, installs the dependencies, unpacks the demo repository, and replays the recorded story through the real daemon. It needs no keys. When Ollama is installed and Muse Glimmer 30B is not, it also starts that 19 GB download in the background. On CI, from a clean clone, these steps take about 10 seconds once the clone is done. It opens the UI in your browser and prints the address. Timing (`/`) shows every task by stage; open T-0042 for its runs, the kill, the hand-off, the offline review and the merge. The strip under the top bar says it is a replay. Press Ctrl-C to stop it.
+Bootstrap checks Bun and git, installs the dependencies, unpacks the demo repository, and replays the recorded story through the real daemon. It needs no keys. When Ollama is installed and Muse Glimmer 30B is not, it also starts that 19 GB download in the background. On CI, from a clean clone, these steps take about 10 seconds once the clone is done. It opens the UI in your browser and prints the address. The Board (`/`) shows every task by stage; open T-0042 for its runs, the kill, the hand-off, the offline review and the merge. The strip under the top bar says it is a replay. Press Ctrl-C to stop it.
 
 ## Install
 

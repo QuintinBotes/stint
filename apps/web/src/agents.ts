@@ -1,7 +1,7 @@
 /**
- * Who drives: each agent is a driver with a three-letter code and a team livery. Stint's defaults run Meta's models;
- * a person can also bring another agent or model, which wears its own vendor's livery. A model served on this
- * machine drives for the local team, whoever made it, because what it costs and where it runs is what the team means.
+ * Who did the work, and whose ink marks it. Stint's defaults run Meta's models; a person can also bring another agent or
+ * model, which carries its own vendor's ink. A model served on this machine is local, whoever made it, because what it
+ * costs and where it runs is what the mark means. An ink is always shown with the name beside it (the `Who` component).
  */
 export type Mark = 'meta' | 'anthropic' | 'openai' | 'local' | 'other';
 
@@ -19,8 +19,7 @@ export function modelName(model: string | null | undefined): string {
   return MODEL_NAMES[short] ?? short;
 }
 
-/** `code` is the driver's three letters on every tag, bar and row; `name` says it in words beside them. */
-export type Agent = { name: string; mark: Mark; code: string };
+export type Agent = { name: string; mark: Mark };
 
 const isMeta = (model: string) => /(^|\/)(muse-|llama)/i.test(model);
 
@@ -32,38 +31,27 @@ function modelMark(model: string | null | undefined): Mark {
   return 'other';
 }
 
-/** Three letters for a model: WON for Muse Wonder, SPK for Muse Spark, SPO for Spark Open, GLI for Glimmer. */
-function modelCode(model: string | null | undefined): string {
-  const short = (model ?? '').split('/').at(-1) ?? '';
-  if (/wonder/i.test(short)) return 'WON';
-  if (/spark-open/i.test(short)) return 'SPO';
-  if (/spark/i.test(short)) return 'SPK';
-  if (/glimmer/i.test(short)) return 'GLI';
-  if (/llama/i.test(short)) return 'LLA';
-  return short.replace(/^muse-/i, '').replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase() || 'MOD';
-}
-
 /** Coding agents are named by their harness; plan and review calls are named by the model that answered. */
 export function agentOf(adapter: string | null | undefined, host?: string | null, model?: string | null): Agent {
-  if (adapter === 'muse-code') return { name: 'Muse Code', mark: 'meta', code: 'MUS' };
+  if (adapter === 'muse-code') return { name: 'Muse Code', mark: 'meta' };
   // the Stint agent runs on Muse Spark unless someone points it at another model
-  if (adapter === 'stint-agent') return { name: 'Stint agent', mark: host === 'ollama' ? 'local' : modelMark(model), code: 'STI' };
-  if (adapter === 'openai-compatible' && host === 'ollama') return { name: model ? `${modelName(model)}, local` : 'Local model', mark: 'local', code: modelCode(model) };
-  if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: modelMark(model), code: modelCode(model) };
-  if (adapter === 'claude-code') return { name: 'Claude Code', mark: 'anthropic', code: 'CLA' };
-  if (adapter === 'codex') return { name: 'Codex', mark: 'openai', code: 'COD' };
-  if (adapter === 'goose') return { name: 'Goose', mark: 'other', code: 'GOO' };
-  if (adapter === 'opencode') return { name: 'OpenCode', mark: 'other', code: 'OPC' };
-  if (adapter === 'gemini-cli') return { name: 'Gemini CLI', mark: 'other', code: 'GEM' };
-  if (adapter === 'gemini-acp') return { name: 'Gemini CLI over ACP', mark: 'other', code: 'GMA' };
-  if (adapter === 'aider') return { name: 'Aider', mark: 'other', code: 'AID' };
-  if (adapter === 'replay') return { name: 'Replay', mark: 'local', code: 'RPL' };
+  if (adapter === 'stint-agent') return { name: 'Stint agent', mark: host === 'ollama' ? 'local' : modelMark(model) };
+  if (adapter === 'openai-compatible' && host === 'ollama') return { name: model ? `${modelName(model)}, local` : 'Local model', mark: 'local' };
+  if (adapter === 'openai-compatible') return { name: model ? modelName(model) : hostName(host), mark: modelMark(model) };
+  if (adapter === 'claude-code') return { name: 'Claude Code', mark: 'anthropic' };
+  if (adapter === 'codex') return { name: 'Codex', mark: 'openai' };
+  if (adapter === 'goose') return { name: 'Goose', mark: 'other' };
+  if (adapter === 'opencode') return { name: 'OpenCode', mark: 'other' };
+  if (adapter === 'gemini-cli') return { name: 'Gemini CLI', mark: 'other' };
+  if (adapter === 'gemini-acp') return { name: 'Gemini CLI over ACP', mark: 'other' };
+  if (adapter === 'aider') return { name: 'Aider', mark: 'other' };
+  if (adapter === 'replay') return { name: 'Replay', mark: 'local' };
   if (!adapter || adapter === 'daemon') return DAEMON;
-  return { name: adapter, mark: 'other', code: adapter.replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase() || 'AGT' };
+  return { name: adapter, mark: 'other' };
 }
 
-export const DAEMON: Agent = { name: 'The daemon', mark: 'local', code: 'DMN' };
-export const YOU: Agent = { name: 'You', mark: 'local', code: 'YOU' };
+export const DAEMON: Agent = { name: 'The daemon', mark: 'local' };
+export const YOU: Agent = { name: 'You', mark: 'local' };
 
 export function hostName(host: string | null | undefined): string {
   switch (host) {
@@ -84,18 +72,18 @@ export function hostName(host: string | null | undefined): string {
   }
 }
 
-/** The team liveries from the design tokens. Colour lives on driver tags, stint bars and per-team chart segments only. */
+/** The vendor inks: Meta sky, Anthropic clay, OpenAI mint, local grey. Any other vendor draws in the quiet ink. */
 export const markColor: Record<Mark, string> = {
   meta: 'var(--meta)',
   anthropic: 'var(--anthropic)',
   openai: 'var(--openai)',
   local: 'var(--local)',
-  other: 'var(--ink-2)',
+  other: 'var(--ink-3)',
 };
 
 export const TEAM_NAMES: Record<Mark, string> = { meta: 'Meta', anthropic: 'Anthropic', openai: 'OpenAI', local: 'Local, on this machine', other: 'Other' };
 
-/** The livery of a host's spend: the local host for the local team, else Meta's models wherever they are served. */
+/** The ink of a host's spend: local for this machine, else Meta's models wherever they are served. */
 export const hostMark = (host: string): Mark => (host === 'ollama' || host === 'local-cli' ? 'local' : 'meta');
 
 export const ROLE_NAMES: Record<string, string> = { planner: 'plans', implementer: 'builds', reviewer: 'reviews' };
@@ -120,6 +108,3 @@ export const ADAPTER_NAMES: Record<string, string> = {
   'gemini-acp': 'Gemini CLI over ACP',
   aider: 'Aider',
 };
-
-/** A task's car number: T-0042 is car 42. */
-export const carNumber = (taskId: string): string => String(Number(/(\d+)$/.exec(taskId)?.[1] ?? '0')) || taskId;

@@ -60,7 +60,7 @@ Every reviewed change gets a risk tier, shown on the approval gate with its reas
 - **Medium:** it touches more than 5 files, or an entry point, typings or schemas.
 - **Low:** everything else.
 
-Shadow mode is always on. Each time you approve, reject or ask for changes, Stint records what an auto-approve policy would have done. Standings (`/factory`) shows the record per tier: how often it agreed with you, how often it didn't, and whether anything it would have approved was reverted later.
+Shadow mode is always on. Each time you approve, reject or ask for changes, Stint records what an auto-approve policy would have done. The Factory (`/factory`) shows the record per tier: how often it agreed with you, how often it didn't, and whether anything it would have approved was reverted later.
 
 The lane that approves by policy is off. To turn it on, edit the config:
 
@@ -73,4 +73,4 @@ Even then it approves a change only when all of these hold:
 - the tests are green and every review approves;
 - that tier's shadow record covers `shadowDays`, with at least three decisions, no disagreement in the window and no revert.
 
-A policy approval goes through the same checks as yours, and is recorded as the policy's, never yours. Standings has a button to turn the lane off. Turning it on is only ever an edit to the config.
+A policy approval goes through the same checks as yours, and is recorded as the policy's, never yours. The Factory has a button to turn the lane off. Turning it on is only ever an edit to the config.

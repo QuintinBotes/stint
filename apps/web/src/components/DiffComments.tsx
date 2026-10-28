@@ -7,8 +7,8 @@ export type CommentAnnotation = { kind: 'comment'; comment: LineComment } | { ki
 
 export function CommentNote({ comment }: { comment: LineComment }) {
   return (
-    <div data-testid="diff-comment" data-line={comment.line} className="border-t border-rule bg-panel px-3 py-2 text-[12px]">
-      <p className="font-mono text-[12px] text-ink-3">
+    <div data-testid="diff-comment" data-line={comment.line} className="border-t border-rule bg-panel px-3 py-2 text-small">
+      <p className="font-mono text-small text-ink-3">
         {comment.file}:{comment.line}
         {comment.handedTo ? <span>{` handed to ${comment.handedTo}`}</span> : null}
       </p>
@@ -47,7 +47,7 @@ export function CommentEditor({
         save();
       }}
     >
-      <label className="text-[12px]" htmlFor={`comment-${line}`}>
+      <label className="text-small" htmlFor={`comment-${line}`}>
         Comment on {file}:{line}
       </label>
       <textarea
@@ -63,18 +63,18 @@ export function CommentEditor({
         onKeyDown={(e) => {
           if (e.key === 'Escape') onCancel();
         }}
-        className="w-full rounded-md border border-rule bg-ground px-2 py-1 text-[14px] outline-none focus-visible:border-ink"
+        className="w-full rounded-[5px] border border-rule bg-ground px-2 py-1 text-body outline-none focus-visible:border-ink"
       />
       {error ? (
-        <p role="alert" className="text-red text-[12px]">
+        <p role="alert" className="text-red text-small">
           {error}
         </p>
       ) : null}
       <div className="flex gap-2">
-        <Button tone="primary" className="h-7" disabled={busy || !text.trim()} onClick={save} data-testid="diff-comment-save">
+        <Button tone="primary" className="h-7 px-2.5 text-small" disabled={busy || !text.trim()} onClick={save} data-testid="diff-comment-save">
           Save comment
         </Button>
-        <Button className="h-7" disabled={busy} onClick={onCancel} data-testid="diff-comment-cancel">
+        <Button className="h-7 px-2.5 text-small" disabled={busy} onClick={onCancel} data-testid="diff-comment-cancel">
           Cancel
         </Button>
       </div>

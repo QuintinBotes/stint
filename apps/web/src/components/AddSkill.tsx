@@ -1,11 +1,11 @@
-// The Setup sheet's "Add skill" dialog (R-060): upload, from git, or write, each with a preview of what the daemon
+// The Skills page's "Add skill" dialog (R-060): upload, from git, or write, each with a preview of what the daemon
 // will check. The browser checks only to show the person; the daemon validates again and is the gate.
 import { type Role, RoleSchema, SKILL_LIMITS, type SkillBundleFile, type SkillFinding, type SkillSource, countTokens, scanSkillBundle, skillPromptLine, validateSkillBundle } from '@stint-dev/core';
 import { unzipSync } from 'fflate';
 import { Fragment, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { DaemonError, api, daemonMessage } from '../api';
 import { Dialog } from './Shell';
-import { Button, Section, cx } from './ui';
+import { Button, Section, cx, tabClass } from './ui';
 
 /** The daemon reads an upload whole and refuses one over 4 MB, so the browser says so before sending. */
 const MAX_UPLOAD = 4 * 1024 * 1024;
@@ -34,7 +34,7 @@ export async function exportedFiles(id: string): Promise<SkillBundleFile[]> {
 }
 
 const RANK = { block: 0, warn: 1, note: 2 } as const;
-const SEVERITY = { block: ['Block', 'text-red'], warn: ['Warn', 'text-yellow'], note: ['Note', 'text-ink-2'] } as const;
+const SEVERITY = { block: ['Block', 'text-red'], warn: ['Warn', 'text-amber'], note: ['Note', 'text-ink-2'] } as const;
 
 /** The scan's findings, worst first, notes folded away. With `onAck`, each warn carries the checkbox Approve waits for. */
 export function Findings({ findings, acked, onAck }: { findings: SkillFinding[]; acked?: ReadonlySet<number>; onAck?: (i: number, on: boolean) => void }) {
@@ -43,7 +43,7 @@ export function Findings({ findings, acked, onAck }: { findings: SkillFinding[];
     const [word, tone] = SEVERITY[f.severity];
     const text = (
       <span>
-        <span className={cx('font-bold', tone)}>{word}</span> <span className="font-mono text-[12px] break-all">{`${f.file}${f.line ? `:${f.line}` : ''}`}</span> {f.text}
+        <span className={cx('font-semibold', tone)}>{word}</span> <span className="font-mono text-small break-all">{`${f.file}${f.line ? `:${f.line}` : ''}`}</span> {f.text}
       </span>
     );
     return (
@@ -61,7 +61,7 @@ export function Findings({ findings, acked, onAck }: { findings: SkillFinding[];
   };
   const notes = rows.filter((r) => r.f.severity === 'note');
   return (
-    <div className="flex flex-col gap-2 text-[14px] leading-5" data-testid="skill-findings">
+    <div className="flex flex-col gap-2 text-body" data-testid="skill-findings">
       {findings.length ? null : <p>The scan found nothing to flag.</p>}
       {onAck && rows.some((r) => r.f.severity === 'warn') ? <p className="text-ink-2">Tick each warning once you have read it and accept it. Approve waits until every one is ticked.</p> : null}
       <ul className="flex flex-col gap-2">{rows.filter((r) => r.f.severity !== 'note').map(item)}</ul>
@@ -73,7 +73,7 @@ export function Findings({ findings, acked, onAck }: { findings: SkillFinding[];
           <ul className="mt-2 flex flex-col gap-2">{notes.map(item)}</ul>
         </details>
       ) : null}
-      <p className="text-[12px] text-ink-2">Scanned by pattern; this is not a security review.</p>
+      <p className="text-small text-ink-2">Scanned by pattern; this is not a security review.</p>
     </div>
   );
 }
@@ -92,7 +92,7 @@ function Preview({ result }: { result: ReturnType<typeof checked> }) {
   return (
     <div className="flex flex-col pt-2 border-t border-rule" data-testid="skill-preview">
       <Section title="Files">
-        <ul className="font-mono text-[12px] leading-5" data-testid="skill-preview-files">
+        <ul className="font-mono text-code" data-testid="skill-preview-files">
           {check.files.map((f) => (
             <li key={f.path} className="flex justify-between gap-3">
               <span className="break-all">{f.path}</span>
@@ -103,16 +103,16 @@ function Preview({ result }: { result: ReturnType<typeof checked> }) {
       </Section>
       <Section title="Frontmatter">
         {fm ? (
-          <dl className="m-0 grid grid-cols-[100px_minmax(0,1fr)] gap-x-4 gap-y-1 text-[14px] leading-5">
+          <dl className="m-0 grid grid-cols-[100px_minmax(0,1fr)] gap-x-4 gap-y-1 text-body">
             {Object.entries(fm).map(([k, v]) => (
               <Fragment key={k}>
-                <dt className="font-mono text-[12px] text-ink-2">{k}</dt>
+                <dt className="font-mono text-small text-ink-2">{k}</dt>
                 <dd className="m-0 break-words">{typeof v === 'string' ? v : JSON.stringify(v)}</dd>
               </Fragment>
             ))}
           </dl>
         ) : (
-          <p className="text-[14px] text-ink-2">The frontmatter does not read yet; the findings say why.</p>
+          <p className="text-body text-ink-2">The frontmatter does not read yet; the findings say why.</p>
         )}
       </Section>
       <Section title="Findings">
@@ -120,13 +120,13 @@ function Preview({ result }: { result: ReturnType<typeof checked> }) {
       </Section>
       <Section title="The line agents see in prompt.md">
         {fm ? (
-          <pre className="font-mono text-[12px] leading-5 whitespace-pre-wrap break-all rounded-[3px] bg-panel p-3" data-testid="skill-prompt-line">
+          <pre className="font-mono text-code whitespace-pre-wrap break-all rounded-[5px] bg-ground p-3" data-testid="skill-prompt-line">
             {skillPromptLine(fm)}
           </pre>
         ) : (
-          <p className="text-[14px] text-ink-2">Agents would see nothing: the frontmatter needs a name and a description first.</p>
+          <p className="text-body text-ink-2">Agents would see nothing: the frontmatter needs a name and a description first.</p>
         )}
-        <p className="mt-2 text-[12px] text-ink-2">Under "Skills mounted for this run", once it is approved and mounts for the task.</p>
+        <p className="mt-2 text-small text-ink-2">Under "Skills mounted for this run", once it is approved and mounts for the task.</p>
       </Section>
     </div>
   );
@@ -158,11 +158,11 @@ function Footer({ ready, blocked, busy, failure, onSubmit, onCancel }: { ready: 
     <div className="flex flex-col gap-3 pt-4">
       {failure ? (
         <div role="alert" className="flex flex-col gap-2">
-          <p className="text-[14px] text-red">The daemon did not take it: {failure.message}.</p>
+          <p className="text-body text-red">The daemon did not take it: {failure.message}.</p>
           {failure.findings.length ? <Findings findings={failure.findings} /> : null}
         </div>
       ) : null}
-      {ready && blocked ? <p className="text-[14px]">A block finding stops this skill. Fix what it names, then add it again.</p> : null}
+      {ready && blocked ? <p className="text-body">A block finding stops this skill. Fix what it names, then add it again.</p> : null}
       <div className="flex flex-wrap justify-end gap-2">
         <Button onClick={onCancel}>Cancel</Button>
         <Button tone="primary" disabled={!ready || blocked || busy} onClick={onSubmit} data-testid="add-skill-submit">
@@ -173,9 +173,9 @@ function Footer({ ready, blocked, busy, failure, onSubmit, onCancel }: { ready: 
   );
 }
 
-const label = 'flex flex-col gap-2 text-[14px] font-bold';
-const field = 'w-full rounded-[3px] border border-ink-3 bg-panel px-3 py-2 text-[14px] font-normal text-ink';
-const fileField = 'text-[12px] font-normal text-ink-2 file:mr-3 file:h-8 file:px-3 file:rounded-[3px] file:border file:border-solid file:border-ink-3 file:bg-transparent file:text-[14px] file:font-semibold file:text-ink hover:file:border-ink';
+const label = 'flex flex-col gap-2 text-body font-semibold';
+const field = 'w-full rounded-[5px] border border-rule-strong bg-ground px-3 py-2 font-normal text-ink placeholder:text-ink-3';
+const fileField = 'text-small font-normal text-ink-2 file:mr-3 file:h-8 file:px-3 file:rounded-[5px] file:border file:border-solid file:border-rule-strong file:bg-transparent file:text-body file:font-semibold file:text-ink hover:file:border-ink-2';
 
 type Picked = { kind: Extract<SkillSource['kind'], 'zip' | 'upload' | 'folder'>; ref: string; send: SkillBundleFile[]; files: SkillBundleFile[]; extra: SkillFinding[] };
 
@@ -223,7 +223,7 @@ function UploadTab({ onAdded, onCancel }: { onAdded: (id: string) => void; onCan
   return (
     <div className="flex flex-col gap-4">
       <div
-        className="flex flex-col gap-4 p-4 rounded-[3px] border border-dashed border-ink-3"
+        className="flex flex-col gap-4 p-4 rounded-[5px] border border-dashed border-rule-strong"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -231,7 +231,7 @@ function UploadTab({ onAdded, onCancel }: { onAdded: (id: string) => void; onCan
         }}
         data-testid="skill-drop"
       >
-        <p className="text-[14px]">Drop a .zip or a SKILL.md here, or choose one below.</p>
+        <p className="text-body">Drop a .zip or a SKILL.md here, or choose one below.</p>
         <label className={label}>
           A .zip or SKILL.md
           <input type="file" accept=".zip,.md" className={fileField} onChange={(e) => void take([...(e.target.files ?? [])], false)} data-testid="skill-file" />
@@ -242,7 +242,7 @@ function UploadTab({ onAdded, onCancel }: { onAdded: (id: string) => void; onCan
         </label>
       </div>
       {problem ? (
-        <p role="alert" className="text-[14px] text-red">
+        <p role="alert" className="text-body text-red">
           {problem}
         </p>
       ) : null}
@@ -273,7 +273,7 @@ function GitTab({ onCancel }: { onCancel: () => void }) {
         Repository URL
         <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/acme/skills" className={cx(field, 'font-mono')} aria-describedby="git-url-hint" />
       </label>
-      <p id="git-url-hint" className={cx('text-[12px] -mt-2', given && !ok ? 'text-red' : 'text-ink-2')}>
+      <p id="git-url-hint" className={cx('text-small -mt-2', given && !ok ? 'text-red' : 'text-ink-2')}>
         {given && !ok ? 'The CLI clones https://, git@ and file:// URLs. Check how the URL starts.' : 'An https://, git@ or file:// URL.'}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -287,16 +287,16 @@ function GitTab({ onCancel }: { onCancel: () => void }) {
         </label>
       </div>
       <Section title="Run this in the repository">
-        <p className="mb-3 text-[14px] text-ink-2">The browser cannot clone a repository, so the CLI does: it clones with --depth 1, records the commit, checks the files and posts them to the daemon. The proposal then shows on this sheet with its findings and preview.</p>
+        <p className="mb-3 text-body text-ink-2">The browser cannot clone a repository, so the CLI does: it clones with --depth 1, records the commit, checks the files and posts them to the daemon. The proposal then shows on the Skills page with its findings and preview.</p>
         <div className="flex items-start gap-2">
-          <pre className="flex-1 min-w-0 font-mono text-[12px] leading-5 whitespace-pre-wrap break-all rounded-[3px] bg-panel p-3" data-testid="git-command">
+          <pre className="flex-1 min-w-0 font-mono text-code whitespace-pre-wrap break-all rounded-[5px] bg-ground p-3" data-testid="git-command">
             {ok ? command : 'stint skills add <url>#<ref>:<path>'}
           </pre>
           <Button disabled={!ok} onClick={() => void copy()} data-testid="copy-git-command">
             Copy
           </Button>
         </div>
-        <p aria-live="polite" className="mt-2 text-[12px] text-ink-2">
+        <p aria-live="polite" className="mt-2 text-small text-ink-2">
           {copied ?? ''}
         </p>
       </Section>
@@ -354,12 +354,12 @@ function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (
   const ready = !loading && !!fm.name && !!fm.description;
   const result = ready ? checked(files) : null;
   const tokens = countTokens(body);
-  const submit = () => send(api.importSkill({ files: files.map((f) => ({ path: f.path, base64: toBase64(f.bytes) })), source: { kind: 'editor', ref: 'setup sheet' }, id: fm.name }));
-  if (loading) return <p className="text-[14px] text-ink-2">Reading {edit}.</p>;
+  const submit = () => send(api.importSkill({ files: files.map((f) => ({ path: f.path, base64: toBase64(f.bytes) })), source: { kind: 'editor', ref: 'the Skills page' }, id: fm.name }));
+  if (loading) return <p className="text-body text-ink-2">Reading {edit}.</p>;
   return (
     <div className="flex flex-col gap-4">
       {loadError ? (
-        <p role="alert" className="text-[14px] text-red">
+        <p role="alert" className="text-body text-red">
           {loadError}
         </p>
       ) : null}
@@ -367,27 +367,27 @@ function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (
         Name
         <input value={name} onChange={(e) => setName(e.target.value)} readOnly={!!edit} required maxLength={64} className={cx(field, 'font-mono')} aria-describedby="skill-name-hint" data-testid="skill-name" />
       </label>
-      <p id="skill-name-hint" className="text-[12px] text-ink-2 -mt-2">
+      <p id="skill-name-hint" className="text-small text-ink-2 -mt-2">
         {edit ? 'The id stays the same; approving the edit replaces the folder and bumps the version.' : 'Lowercase words joined by dashes, at most 64 characters. It is the skill id.'}
       </p>
       <label className={label}>
         Description
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={1024} rows={2} className={field} aria-describedby="skill-description-hint" data-testid="skill-description" />
       </label>
-      <p id="skill-description-hint" className="text-[12px] text-ink-2 -mt-2">
+      <p id="skill-description-hint" className="text-small text-ink-2 -mt-2">
         When an agent should use it. This is the line every agent reads, so name the kind of task.
       </p>
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-[14px] font-bold">Given to</legend>
+        <legend className="mb-2 text-body font-semibold">Given to</legend>
         <div className="flex flex-wrap gap-4">
           {RoleSchema.options.map((r) => (
-            <label key={r} className="inline-flex items-center gap-2 text-[14px]">
+            <label key={r} className="inline-flex items-center gap-2 text-body">
               <input type="checkbox" checked={roles.includes(r)} onChange={(e) => setRoles((now) => (e.target.checked ? [...now, r] : now.filter((x) => x !== r)))} />
               {r}
             </label>
           ))}
         </div>
-        <p className="text-[12px] text-ink-2">With none ticked, every role gets it.</p>
+        <p className="text-small text-ink-2">With none ticked, every role gets it.</p>
       </fieldset>
       <label className={label}>
         Tags, comma separated
@@ -395,12 +395,12 @@ function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (
       </label>
       <label className={label}>
         Body
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className={cx(field, 'font-mono text-[12px] leading-5')} aria-describedby="skill-body-tokens" data-testid="skill-body" />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className={cx(field, 'font-mono text-code')} aria-describedby="skill-body-tokens" data-testid="skill-body" />
       </label>
-      <p id="skill-body-tokens" className={cx('text-[12px] -mt-2 tabular', tokens > SKILL_LIMITS.maxTokens ? 'text-red' : tokens > SKILL_LIMITS.warnTokens ? 'text-yellow' : 'text-ink-2')} data-testid="skill-body-tokens">
+      <p id="skill-body-tokens" className={cx('text-small -mt-2 tabular', tokens > SKILL_LIMITS.maxTokens ? 'text-red' : tokens > SKILL_LIMITS.warnTokens ? 'text-amber' : 'text-ink-2')} data-testid="skill-body-tokens">
         About {tokens.toLocaleString('en')} tokens. Keep it under {SKILL_LIMITS.warnTokens.toLocaleString('en')}; write it from a real failure, and put detail in references/.
       </p>
-      {result ? <Preview result={result} /> : <p className="text-[14px] text-ink-2">The preview shows once the name and the description are filled in.</p>}
+      {result ? <Preview result={result} /> : <p className="text-body text-ink-2">The preview shows once the name and the description are filled in.</p>}
       <Footer ready={ready} blocked={!!result?.blocked} busy={busy} failure={failure} onSubmit={submit} onCancel={onCancel} />
     </div>
   );
@@ -430,8 +430,8 @@ export function AddSkillDialog({ edit, onClose, onAdded }: { edit: string | null
   return (
     <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width="max-w-[720px]">
       <div data-testid="add-skill-dialog">
-        <p className="mb-4 text-[12px] text-ink-2">It waits in the review queue with its findings. Nothing mounts until you approve it.</p>
-        <div role="tablist" aria-label="How to add the skill" className="flex gap-4 mb-4" onKeyDown={arrows}>
+        <p className="mb-4 text-small text-ink-2">It waits in the review queue with its findings. Nothing mounts until you approve it.</p>
+        <div role="tablist" aria-label="How to add the skill" className="flex flex-wrap border-b border-rule mb-4" onKeyDown={arrows}>
           {TABS.map(([k, name]) => (
             <button
               key={k}
@@ -445,7 +445,7 @@ export function AddSkillDialog({ edit, onClose, onAdded }: { edit: string | null
               aria-controls={`add-skill-panel-${k}`}
               tabIndex={tab === k ? 0 : -1}
               onClick={() => setTab(k)}
-              className={cx('pb-1 border-b-[3px] text-[14px] font-bold', tab === k ? 'border-ink text-ink' : 'border-transparent text-ink-2 hover:text-ink')}
+              className={tabClass(tab === k)}
               data-testid={`add-skill-tab-${k}`}
             >
               {name}

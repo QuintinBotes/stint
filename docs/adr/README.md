@@ -10,7 +10,7 @@ This folder is for anyone who wants the reasoning behind Stint's design: one fil
 | [0004](0004-context-files-for-enabled-agents.md) | Other agents' context files are made only when that agent is on | Accepted |
 | [0005](0005-muse-hooks-as-plugin.md) | Muse Code's hooks ship as a user-scope plugin, not per-worktree files | Accepted |
 | [0006](0006-cross-harness-handoffs.md) | Hand-offs and reviews cross harnesses while every model is Meta's | Accepted |
-| [0007](0007-board-never-loads-a-model.md) | A task card on Timing (`/`) never makes a local model load | Accepted |
+| [0007](0007-board-never-loads-a-model.md) | A task card on the Board (`/`) never makes a local model load | Accepted |
 | [0008](0008-live-runs-and-sleep.md) | Live runs hold off idle sleep; caps count awake time | Accepted |
 | [0009](0009-status-menu.md) | One status button holds the daemon, agents and models | Accepted |
 | [0010](0010-muse-login-is-availability.md) | Muse Code is available when its CLI runs, and Muse's own login does the rest | Accepted |

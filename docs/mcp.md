@@ -8,7 +8,7 @@ This page is for anyone connecting a coding agent or another MCP client to Stint
 |---|---|
 | `stint_status` | every task: its status, who holds it, its cost, its autopilot step |
 | `stint_task` | one task in full: goal, acceptance, runs, the daemon's verification, the review, the decisions in force |
-| `stint_new_task` | create a task; it appears on Timing (`/`) as planned |
+| `stint_new_task` | create a task; it appears on the Board (`/`) as planned |
 | `stint_packet` | a task's packet as the next agent reads it |
 | `stint_similar` | earlier tasks like this one, with the evidence (shared files, the same findings, tags) |
 | `stint_constraints` | the decisions and open review findings on the files the task touches, across every task |

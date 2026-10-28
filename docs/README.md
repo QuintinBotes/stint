@@ -44,7 +44,7 @@ One record per decision that shapes several specs or departs from one:
 - [`adr/0004-context-files-for-enabled-agents.md`](adr/0004-context-files-for-enabled-agents.md): other agents' context files are made only when that agent is on.
 - [`adr/0005-muse-hooks-as-plugin.md`](adr/0005-muse-hooks-as-plugin.md): Muse Code's hooks ship as a user-scope plugin.
 - [`adr/0006-cross-harness-handoffs.md`](adr/0006-cross-harness-handoffs.md): hand-offs and reviews cross harnesses while every model is Meta's.
-- [`adr/0007-board-never-loads-a-model.md`](adr/0007-board-never-loads-a-model.md): a task card on Timing (`/`) never makes a local model load.
+- [`adr/0007-board-never-loads-a-model.md`](adr/0007-board-never-loads-a-model.md): a task card on the Board (`/`) never makes a local model load.
 - [`adr/0008-live-runs-and-sleep.md`](adr/0008-live-runs-and-sleep.md): live runs hold off idle sleep, and caps count awake time.
 - [`adr/0009-status-menu.md`](adr/0009-status-menu.md): one status button holds the daemon, agents and models.
 - [`adr/0010-muse-login-is-availability.md`](adr/0010-muse-login-is-availability.md): Muse Code is available when its own CLI runs, and Muse's own login does the rest.

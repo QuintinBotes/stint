@@ -4,8 +4,7 @@ import { type Agent, agentOf } from '../agents';
 import { type DiffBlameFile, type LineComment, type RunSummary, api } from '../api';
 import { type CommentAnnotation, CommentEditor, CommentNote } from './DiffComments';
 import { type DiffFileEntry, DiffFileTree } from './DiffFileTree';
-import { useTheme } from '../theme';
-import { Button, EmptyState } from './ui';
+import { Button, EmptyState, Who } from './ui';
 
 export type DiffLayout = 'split' | 'stacked';
 
@@ -109,9 +108,9 @@ export type DiffViewProps = {
   runs: RunSummary[];
   viewed: Set<string>;
   onToggleViewed: (path: string) => void;
-  /** The files written by the moment the race clock is on; null when the view shows now. */
+  /** The files written by the moment the clock is on; null when the view shows now. */
   writtenBy?: Set<string> | null;
-  /** That moment, as the race clock reads it. */
+  /** That moment, as the clock reads it. */
   asOfLabel?: string | null;
 };
 
@@ -120,7 +119,6 @@ export type DiffViewProps = {
  * left out, who wrote the file, and line comments the next hand carries in its ask.
  */
 export function DiffView({ taskId, version, files, file, onFile, events, runs, viewed, onToggleViewed, writtenBy = null, asOfLabel = null }: DiffViewProps) {
-  const theme = useTheme();
   const [patches, setPatches] = useState<FilePatch[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [layout, setLayout] = useState<DiffLayout>(readLayout);
@@ -216,7 +214,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
     },
     [runs],
   );
-  // the team livery on each changed file: the driver whose run first wrote it
+  // who first wrote each changed file, named with their vendor's ink in the file's head
   const firstWriter = useMemo(() => {
     const m = new Map<string, Agent>();
     for (const [path, list] of writers) {
@@ -310,7 +308,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
   const isViewed = !!selected && viewed.has(selected);
   return (
     <div className="flex flex-col gap-3" data-testid="diff">
-      <div className="flex flex-wrap items-center gap-2 text-[14px]">
+      <div className="flex flex-wrap items-center gap-2 text-body">
         <span className="text-ink-2">
           {treeFiles.length} changed file{treeFiles.length === 1 ? '' : 's'}. Click a line to comment on it.
         </span>
@@ -318,7 +316,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
           {(['split', 'stacked'] as const).map((l) => (
             <Button
               key={l}
-              className="h-7"
+              className="h-8 px-2.5 text-small"
               aria-pressed={layout === l}
               data-testid={`diff-layout-${l}`}
               onClick={() => pickLayout(l)}
@@ -337,18 +335,17 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             narrow={narrow}
             onSelect={onFile}
             onToggleWidth={() => setNarrow((n) => !n)}
-            writers={firstWriter}
             later={writtenBy ? new Set(treeFiles.map((f) => f.path).filter((p) => !writtenBy.has(p))) : undefined}
           />
           {leftOut.length > 0 ? (
             <section
               data-testid="left-out"
               aria-label="Left out"
-              className="rounded-[4px] border border-rule p-2"
+              className="rounded-[5px] border border-rule bg-panel p-2"
               style={{ width: narrow ? 172 : 236 }}
             >
-              <h3 className="px-1 text-[14px] font-bold">Left out</h3>
-              <ul className="mt-1 px-1 flex flex-col gap-1 text-[12px] text-ink-2">
+              <h3 className="px-1 font-semibold">Left out</h3>
+              <ul className="mt-1 px-1 flex flex-col gap-1 text-small text-ink-2">
                 {leftOut.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
@@ -356,16 +353,21 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             </section>
           ) : null}
         </div>
-        <section data-testid="diff-file" className="flex-1 min-w-[260px] rounded-[4px] border border-rule overflow-hidden scroll-mt-4">
+        <section data-testid="diff-file" className="flex-1 min-w-[260px] rounded-[5px] border border-rule overflow-hidden scroll-mt-4">
           <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-panel border-b border-rule">
-            <h3 className="font-mono text-[12px] truncate">{selected}</h3>
+            <h3 className="font-mono text-small truncate">{selected}</h3>
             {selectedEntry ? (
-              <span className="tabular text-[12px]">
-                <span className="text-green">+{selectedEntry.added}</span> <span className="text-ink-2">-{selectedEntry.removed}</span>
+              <span className="tabular text-small text-ink-2">
+                +{selectedEntry.added} -{selectedEntry.removed}
+              </span>
+            ) : null}
+            {selected && firstWriter.get(selected) ? (
+              <span className="inline-flex items-center gap-1.5 text-small text-ink-2">
+                Written by <Who agent={firstWriter.get(selected) as Agent} className="font-medium text-ink" />
               </span>
             ) : null}
             <Button
-              className="h-6 px-2 text-[12px] ml-auto"
+              className="h-7 px-2 text-small ml-auto"
               aria-pressed={isViewed}
               data-testid="mark-viewed"
               disabled={!selected}
@@ -374,7 +376,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
               {isViewed ? 'Viewed' : 'Mark as viewed'}
             </Button>
           </div>
-          <p aria-live="polite" data-testid="diff-attribution" className="px-3 py-1 min-h-6 border-b border-rule text-[12px] text-ink-2">
+          <p aria-live="polite" data-testid="diff-attribution" className="px-3 py-1 min-h-6 border-b border-rule text-small text-ink-2">
             {hover !== null
               ? hoverRun
                 ? `Written by ${runName(hoverRun)}`
@@ -386,7 +388,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
               : cursor !== null
                 ? `Line ${cursor} selected. Press Enter to comment.`
                 : writtenBy && selected && !writtenBy.has(selected)
-                  ? `At ${asOfLabel ?? 'that moment'} on the race clock this file was not written yet. It shows as the task branch has it now.`
+                  ? `At ${asOfLabel ?? 'that moment'} this file was not written yet. It shows as the task branch has it now.`
                   : blameRanges
                   ? 'Hover a line to see which run wrote it.'
                   : 'Hover a line to see which run wrote this file.'}
@@ -417,9 +419,9 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             }}
           >
             {viewerError ? (
-              <p className="p-3 text-red text-[12px]">The diff viewer could not start: {viewerError}</p>
+              <p className="p-3 text-red text-small">The diff viewer could not start: {viewerError}</p>
             ) : !PatchDiff || !selectedPatch ? (
-              <p className="p-3 text-ink-3 text-[12px]">Reading the diff viewer.</p>
+              <p className="p-3 text-ink-3 text-small">Reading the diff viewer.</p>
             ) : (
               <PatchDiff
                 patch={selectedPatch.patch}
@@ -428,7 +430,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
                   diffStyle: layout === 'split' ? 'split' : 'unified',
                   // the high-contrast highlight themes keep every token at 4.5:1 on its line, added and removed lines included
                   theme: { dark: 'github-dark-high-contrast', light: 'github-light-high-contrast' },
-                  themeType: theme === 'pitwall' ? 'dark' : 'light',
+                  themeType: 'dark',
                   // wrapped lines keep the code out of a scrollable region a keyboard cannot reach
                   overflow: 'wrap',
                   disableFileHeader: true,

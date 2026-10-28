@@ -25,7 +25,7 @@ function PermissionButtons({ p, onDecided }: { p: PendingPermission; onDecided?:
   return (
     <div className="flex flex-wrap gap-2">
       {p.options.map((o) => (
-        <Button key={o.optionId} className="h-7" disabled={busy !== null} onClick={() => decide(o.optionId)} data-testid={`permission-${o.kind}`}>
+        <Button key={o.optionId} className="h-8 px-2.5 text-small" disabled={busy !== null} onClick={() => decide(o.optionId)} data-testid={`permission-${o.kind}`}>
           {optionLabel(o)}
         </Button>
       ))}
@@ -41,9 +41,9 @@ export function PermissionBanner({ permissions }: { permissions: PendingPermissi
   return (
     <div className="flex flex-col gap-2" data-testid="permission-banner">
       {waiting.map((p) => (
-        <section key={p.requestId} className="rounded-md border border-yellow/40 bg-yellow-tint p-3" aria-label="Permission needed">
-          <p className="text-[14px] font-medium text-ink">Permission needed</p>
-          <p className="text-[12px] text-ink-2 mt-1" data-testid="permission-title">
+        <section key={p.requestId} className="rounded-[5px] border border-amber bg-amber-wash p-3" aria-label="Permission needed">
+          <p className="text-body font-medium text-ink">Permission needed</p>
+          <p className="text-small text-ink-2 mt-1" data-testid="permission-title">
             <span className="font-mono">{p.tool}</span>: {p.title}
           </p>
           <div className="mt-2">
@@ -61,7 +61,7 @@ export function PermissionRows({ permissions, onDecided }: { permissions: Pendin
   return (
     <>
       {permissions.map((p) => (
-        <li key={`${p.task}-${p.requestId}`} className="rounded-md border border-yellow/40 bg-yellow-tint p-3 text-[12px]" data-testid="permission-row">
+        <li key={`${p.task}-${p.requestId}`} className="rounded-[5px] border border-amber bg-amber-wash p-3 text-small" data-testid="permission-row">
           <p className="text-ink-2 mb-2">
             <Link to={`/t/${p.task}`} className="font-medium text-ink hover:text-ink" data-testid="permission-task-link">
               {p.task}
