@@ -1,4 +1,4 @@
-import { weekOf } from '@stint-dev/core';
+import { type Limits, type TaskLimits, weekOf } from '@stint-dev/core';
 import { Command } from 'cmdk';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
@@ -10,7 +10,7 @@ import { useTasks } from '../hooks';
 import { setSingleKeys, useSingleKeys } from '../shortcuts';
 import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
 import { StatusMenu } from './StatusMenu';
-import { Button, Kbd, cx, trapTab } from './ui';
+import { Button, Explain, Kbd, cx, trapTab } from './ui';
 
 /** This week's spend, Monday 00:00 to Sunday 24:00 local time, from the daemon's week rows (the same weekOf as the daemon); zero when nothing has ended this week. */
 function useWeekCost(): CostRow | null {
@@ -306,9 +306,21 @@ export function Dialog({ title, open, onClose, children, width = 'max-w-[520px]'
   );
 }
 
+/** The limits the new task form offers; review rounds are set from the command line and config only (R-062). */
+const LIMIT_FIELDS: Array<{ k: keyof Limits; label: string; hint: string; min: number; max: number; step: number }> = [
+  { k: 'builds', label: 'Builds', hint: 'Agent runs that build the change.', min: 1, max: 50, step: 1 },
+  { k: 'handoffs', label: 'Hand-offs', hint: 'Times autopilot gives the task to another agent.', min: 0, max: 20, step: 1 },
+  { k: 'usd', label: 'Spend in dollars', hint: 'What its runs and model calls may cost.', min: 0.01, max: 1000, step: 0.01 },
+  { k: 'minutes', label: 'Agent minutes', hint: 'Time agents spend running on it.', min: 1, max: 1440, step: 1 },
+];
+
 export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+  const [defaults, setDefaults] = useState<Limits | null>(null);
+  useEffect(() => {
+    if (open) void api.limitDefaults().then(setDefaults).catch(() => undefined);
+  }, [open]);
   const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 text-ink placeholder:text-ink-3';
   const label = 'flex flex-col gap-1.5 font-medium';
   return (
@@ -322,9 +334,12 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
             .split('\n')
             .map((s) => s.trim())
             .filter(Boolean);
+          // a limit left empty takes the default
+          const limits: TaskLimits = {};
+          for (const { k } of LIMIT_FIELDS) if (f.get(k)) limits[k] = Number(f.get(k));
           setError(null);
           api
-            .createTask({ title: String(f.get('title')), goal: String(f.get('goal')), acceptance, ...(f.get('test') ? { testCommand: String(f.get('test')) } : {}) })
+            .createTask({ title: String(f.get('title')), goal: String(f.get('goal')), acceptance, ...(f.get('test') ? { testCommand: String(f.get('test')) } : {}), ...(Object.keys(limits).length ? { limits } : {}) })
             .then((t) => {
               onClose();
               navigate(`/t/${t.id}`);
@@ -352,6 +367,37 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
             Stint runs it itself to check the work. Leave it empty to use the one in this project's settings.
           </span>
         </label>
+        <details data-testid="new-task-limits" className="rounded-[5px] border border-rule">
+          <summary className="min-h-9 px-3 py-2 rounded-[5px] font-medium cursor-pointer hover:bg-panel-2">Limits</summary>
+          <div className="flex flex-col gap-3 px-3 pb-3">
+            <p className="text-small text-ink-2">Autopilot stops and asks you before the task goes past one. Leave a field empty for the default shown in it.</p>
+            <div className="grid grid-cols-1 min-[440px]:grid-cols-2 gap-3">
+              {LIMIT_FIELDS.map(({ k, label: text, hint, min, max, step }) => {
+                const d = defaults?.[k];
+                return (
+                  <label key={k} className={label}>
+                    {text}
+                    <input
+                      name={k}
+                      type="number"
+                      min={min}
+                      max={max}
+                      step={step}
+                      inputMode={step < 1 ? 'decimal' : 'numeric'}
+                      placeholder={d === undefined ? '' : d === null ? 'No limit' : k === 'usd' ? d.toFixed(2) : String(d)}
+                      aria-describedby={`limit-${k}-hint`}
+                      className={cx(field, 'tabular')}
+                    />
+                    <span id={`limit-${k}-hint`} className="text-small font-normal text-ink-2">
+                      {hint}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <Explain word="limit" />
+          </div>
+        </details>
         {error ? (
           <p role="alert" className="text-red">
             {error}

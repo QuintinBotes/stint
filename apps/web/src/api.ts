@@ -1,5 +1,5 @@
 // Typed client for the daemon. The daemon is the only writer of .stint/; the UI only reads and asks.
-import { type Cost, EVENT_TYPES, type Handoff, type Plan, type Review, type SkillFinding, type SkillSource, type StintEvent, type Task } from '@stint-dev/core';
+import { type Cost, EVENT_TYPES, type Handoff, type Limits, type Plan, type Review, type SkillFinding, type SkillSource, type StintEvent, type Task, type TaskLimits, type TaskUsage } from '@stint-dev/core';
 
 export type CapabilityLevel = { level: 'supported' | 'partial' | 'unsupported' | 'unknown'; reason?: string; note?: string };
 export type AdapterHealth = {
@@ -178,6 +178,8 @@ export type CostRow = Cost & { key: string; runs: number; roles?: string[]; cred
 export type DemoStatus = { playing: boolean; paused: boolean; at: number; total: number; title: string | null; live: boolean | null; recordedAt: string | null; done: boolean };
 /** The board card summary: a local model's line when there is one, else the last agent message. */
 export type TaskSummary = { summary: string; seq: number; source: 'model' | 'agent.message' | 'none'; host?: string; model?: string };
+/** The limits that apply to a task, what it has used, and the ones it sets itself (R-062). */
+export type TaskMeters = { limits: Limits; used: TaskUsage; own: TaskLimits };
 export type ApiError = { code: string; message: string; hint: unknown };
 
 export class DaemonError extends Error {
@@ -261,7 +263,11 @@ export const api = {
   laneOff: () => post<{ enabled: false }>('/api/risk/autoapprove', { enabled: false }),
   scoreboard: () => request<{ rows: ScoreRow[]; routing: { mode: 'chains' | 'learned'; explore: number } }>('/api/scoreboard'),
   demoStatus: () => request<DemoStatus>('/api/demo/status'),
-  createTask: (t: { title: string; goal: string; acceptance: string[]; testCommand?: string }) => post<Task>('/api/tasks', t),
+  createTask: (t: { title: string; goal: string; acceptance: string[]; testCommand?: string; limits?: TaskLimits }) => post<Task>('/api/tasks', t),
+  /** The limits a new task takes when it sets none. */
+  limitDefaults: () => request<{ limits: Limits }>('/api/limits').then((r) => r.limits),
+  limits: (id: string) => request<TaskMeters>(`/api/tasks/${id}/limits`),
+  setLimits: (id: string, limits: TaskLimits) => request<TaskMeters>(`/api/tasks/${id}/limits`, { method: 'PATCH', body: JSON.stringify(limits) }),
   verify: (id: string) => post<Verification>(`/api/tasks/${id}/verify`),
   summary: (id: string) => post<TaskSummary>(`/api/tasks/${id}/summary`),
   files: (id: string) => request<TaskFiles>(`/api/tasks/${id}/files`),

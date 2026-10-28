@@ -64,6 +64,7 @@ function blocks(events: StintEvent[], runs: RunSummary[]): Block[] {
 }
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
+const LIMIT_WORDS: Record<string, string> = { builds: 'build', handoffs: 'hand-off', reviewRounds: 'review round', usd: 'spend', minutes: 'agent time' };
 
 /** One line of plain words for an event. Agent text is evidence, so it is shown as text, never as markdown. */
 export function describe(e: StintEvent): ReactNode {
@@ -196,6 +197,14 @@ export function describe(e: StintEvent): ReactNode {
           {str(p.failures)} failed runs, so {str(p.from)} escalated to {str(p.to)}
         </>
       );
+    case 'limit.reached':
+      return (
+        <>
+          The {LIMIT_WORDS[str(p.limit)] ?? str(p.limit)} limit is reached: {p.limit === 'usd' ? `${money({ usd: Number(p.used) })} of ${money({ usd: Number(p.cap) })}` : `${Number(p.used)} of ${Number(p.cap)}${p.limit === 'minutes' ? ' min' : ''}`}
+        </>
+      );
+    case 'limits.changed':
+      return <>Limits changed by {str(p.by) || 'a person'}</>;
     case 'bestofn.started':
       return <>Building {str(p.n)} candidates at once: {(p.candidates as string[] | undefined)?.join(', ')}</>;
     case 'bestofn.picked':

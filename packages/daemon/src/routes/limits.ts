@@ -10,6 +10,8 @@ export function limitRoutes(app: Hono, ctx: DaemonContext): void {
     return { limits: effectiveLimits(task, ctx.ws.config), used: taskUsage(await ctx.ws.events(id).read()), own: task.limits ?? {} };
   };
 
+  // what a new task takes when it sets none, for the new task form
+  app.get('/api/limits', (c) => c.json({ limits: effectiveLimits({ budgets: ctx.ws.config.budgets }, ctx.ws.config) }));
   app.get('/api/tasks/:id/limits', async (c) => c.json(await meters(c.req.param('id'))));
 
   // the fields given replace the task's own, and null is no limit; raising a reached limit does not restart
