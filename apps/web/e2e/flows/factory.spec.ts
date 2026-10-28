@@ -11,5 +11,5 @@ test('After real runs the Factory shows the relay with the agents that ran, the 
   await page.getByTestId('panel-models').getByText('Meta models at work').click();
   await expect(page.getByTestId('models-at-work')).toBeVisible();
   await expect(page.getByTestId('scoreboard').locator('[data-testid="score-row"][data-agent="muse-code"]')).toBeVisible();
-  await expect(page.getByTestId('kpis')).toContainText('Runs');
+  await expect(page.getByTestId('kpis')).toContainText('Tasks merged');
 });
