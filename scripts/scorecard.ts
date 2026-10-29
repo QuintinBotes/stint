@@ -6,7 +6,7 @@
 // verification: with them first, a review could never meet a patch the hidden tests reject.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join, relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { type Config, type Scorecard, type ScorecardAttempt, ScorecardAttemptSchema, ScorecardSchema, type ScorecardShare } from '../packages/core/src/index';
 import { type VerificationRecord, runsFromEvents } from '../packages/core/src/node';
@@ -135,10 +135,10 @@ export function renderScorecard(card: Scorecard): string {
   const rows: Array<[string, string, string]> = [];
   for (const t of card.tasks) {
     rows.push([`pass^1, ${t.id}`, of(t.pass1), plural(t.pass1.n, 'graded attempt')]);
-    rows.push([`pass^${card.k}, ${t.id}`, t.passK.value === null ? 'not yet' : t.passK.value === 1 ? `yes, all ${card.k} green` : `no, ${t.green} of ${t.pass1.n} green`, plural(t.passK.n, 'graded attempt')]);
+    if (card.k > 1) rows.push([`pass^${card.k}, ${t.id}`, t.passK.value === null ? 'not yet' : t.passK.value === 1 ? `yes, all ${card.k} green` : `no, ${t.green} of ${t.pass1.n} green`, plural(t.passK.n, 'graded attempt')]);
   }
   rows.push(['pass^1, all tasks', of(card.overall.pass1), plural(card.overall.pass1.n, 'graded attempt')]);
-  rows.push([`pass^${card.k}, all tasks`, of(card.overall.passK), `${plural(card.overall.passK.n, 'task')} with ${card.k} graded attempts`]);
+  if (card.k > 1) rows.push([`pass^${card.k}, all tasks`, of(card.overall.passK), `${plural(card.overall.passK.n, 'task')} with ${card.k} graded attempts`]);
   rows.push(['Hand-off success: continued runs that went green', of(card.handoff), `${plural(card.handoff.n, 'continued run')} in ${plural(card.handoff.relays.length, 'relay')}`]);
   rows.push(['Bad patches stopped by the tests alone', of(card.badPatches.byTests), plural(card.badPatches.n, 'attempt') + ' the hidden tests failed']);
   rows.push(['Bad patches stopped by the tests or the review', of(card.badPatches.byTestsAndReview), plural(card.badPatches.n, 'attempt') + ' the hidden tests failed']);
@@ -157,7 +157,7 @@ export function renderScorecard(card: Scorecard): string {
       .map((m) => `${m.adapter} on ${m.host ?? 'an unknown host'}/${m.model ?? 'an unknown model'} as ${m.role} (${plural(m.runs, 'run')})`)
       .join(', ') || 'nobody';
   return [
-    `Scorecard (${card.live ? 'live' : 'dry run, the flows fakes'}): k ${card.k}, ${plural(card.attempts.length, 'attempt')} on ${plural(card.tasks.length, 'seeded task')}, spend $${card.spend.usd.toFixed(4)}${card.spend.estimated ? ' (part unpriced)' : ''}, generated ${card.generatedAt.slice(0, 10)}. From \`bench/scorecard.json\`.`,
+    `Scorecard (${card.live ? 'live' : 'dry run, the flows fakes'}): k ${card.k}, ${plural(card.attempts.length, 'attempt')} on ${plural(card.tasks.length, 'seeded task')}, spend $${card.spend.usd.toFixed(4)}${card.spend.estimated ? ' (part unpriced)' : ''}, generated ${card.generatedAt.slice(0, 10)}.`,
     '',
     '| Figure | Result | Rests on |',
     '|---|---|---|',
@@ -361,7 +361,8 @@ if (import.meta.main) {
       keepAwake();
     }
     const { card, ran, stopped, failed } = await runScorecard(opts);
-    const where = relative(process.cwd(), join(opts.out, 'scorecard.json')) || basename(opts.out);
+    const file = join(opts.out, 'scorecard.json');
+    const where = relative(process.cwd(), file).startsWith('..') ? file : relative(process.cwd(), file);
     process.stdout.write(`${stopped ? `${stopped}\n` : ''}ran ${ran} attempts; ${card.attempts.length} recorded, spend $${card.spend.usd.toFixed(4)}${card.spend.estimated ? ' (part unpriced)' : ''}; wrote ${where}\n`);
     process.exit(failed ? 1 : 0);
   } catch (err) {

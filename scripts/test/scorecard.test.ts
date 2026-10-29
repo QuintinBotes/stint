@@ -213,7 +213,7 @@ test('the aggregate: pass^k as R-046 defines it, hand-off success from the live 
 test('the renderer prints the markdown table the lead pastes into docs/proofs.md', () => {
   expect(renderScorecard(literal)).toBe(
     [
-      'Scorecard (live): k 3, 6 attempts on 2 seeded tasks, spend $1.2500 (part unpriced), generated 2026-10-30. From `bench/scorecard.json`.',
+      'Scorecard (live): k 3, 6 attempts on 2 seeded tasks, spend $1.2500 (part unpriced), generated 2026-10-30.',
       '',
       '| Figure | Result | Rests on |',
       '|---|---|---|',
@@ -237,4 +237,6 @@ test('the renderer prints the markdown table the lead pastes into docs/proofs.md
       '',
     ].join('\n'),
   );
+  // at k 1, pass^k is pass^1, so it is printed once
+  expect(renderScorecard({ ...literal, k: 1 }).match(/\| pass\^1, all tasks \|/g)).toHaveLength(1);
 });
