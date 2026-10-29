@@ -172,3 +172,24 @@ describe('the grep walk and the review findings (R-053)', () => {
     }
   });
 });
+
+test('a shell command that cannot start comes back as a failed tool call the model reads, not an error that ends the daemon', async () => {
+  const { runTool } = await import('../src/tools');
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { tmpdir } = await import('node:os');
+  const wt = mkdtempSync(join(tmpdir(), 'stint-bash-'));
+  const env = { PATH: process.env.PATH ?? '' };
+  try {
+    const gone = await runTool('bash', { command: 'echo finished' }, join(wt, 'removed'), env, new AbortController().signal);
+    expect(gone.ok).toBe(false);
+    expect(gone.output).toStartWith('exit 127\nthe command could not start: ');
+    expect(gone.output).toContain('ENOENT');
+    // a sandbox wrapper that is not installed fails the same way
+    const unwrapped = await runTool('bash', { command: 'echo finished' }, wt, env, new AbortController().signal, (argv) => [join(wt, 'no-such-sandbox'), ...argv]);
+    expect(unwrapped.ok).toBe(false);
+    expect(unwrapped.summary).toStartWith('exit 127: the command could not start: ');
+  } finally {
+    rmSync(wt, { recursive: true, force: true });
+  }
+});

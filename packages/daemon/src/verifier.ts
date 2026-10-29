@@ -116,6 +116,11 @@ export function execInGroup(command: string, cwd: string, env: Record<string, st
         }
       }, ms);
     let timer = arm(capMs);
+    // a command that cannot start (its folder is gone) is a red result, never an uncaught error that ends the daemon
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      resolve({ exitCode: 127, output: `stint: the command could not start: ${err.message}\n`, durationMs: Math.round(now() - t0), timedOut: false });
+    });
     child.on('close', (code) => {
       clearTimeout(timer);
       if (tail.length > TAIL_BYTES) {
