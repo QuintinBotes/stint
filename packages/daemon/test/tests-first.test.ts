@@ -73,3 +73,26 @@ test('A build run that edits a locked test file records verification.tampered an
     models.stop();
   }
 }, 180_000);
+
+test('R-027 Req 2: a specify run whose tests fail to load, or fail without naming a test, stops autopilot with "the new tests do not run"', async () => {
+  const cases = [
+    { command: `printf "error: Cannot find module '../src/lib/limiter' from 'test/acceptance.test.ts'\\n(fail) answers 429\\n 0 pass\\n 1 fail\\n"; exit 1`, reason: "Needs you: the new tests do not run: error: Cannot find module '../src/lib/limiter' from 'test/acceptance.test.ts'." },
+    { command: `printf ' 0 pass\\n 1 fail\\n'; exit 1`, reason: 'Needs you: the new tests do not run, so they cannot fail for the right reason.' },
+  ];
+  const models = fakeModels();
+  try {
+    for (const c of cases) {
+      await withFixtureRepo(async (repo) => {
+        const { app, ws } = await setup(repo, [implementer()], models, settings);
+        const t = await ws.createTask(task(c.command));
+        await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+        const events = await until(ws, t.id, stopped);
+        expect(steps(events)).toEqual(['plan', 'specify']);
+        expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toEqual({ reason: c.reason, needsYou: true });
+        expect(events.filter((e) => e.type === 'acceptance.locked').map((e) => e.payload.scope)).toEqual(['plan']);
+      });
+    }
+  } finally {
+    models.stop();
+  }
+}, 180_000);
