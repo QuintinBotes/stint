@@ -82,7 +82,8 @@ export function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+    // the judge copy lives under /stint/ on GitHub Pages; every other build is served at /
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <div className="h-full flex flex-col">
         <a
           href="#main"

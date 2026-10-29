@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { agentOf } from '../agents';
-import { DaemonError, type RunSummary, type TaskBundle, api } from '../api';
+import { DaemonError, type RunSummary, type TaskBundle, api, readOnly } from '../api';
 import { localDate, localTime } from '../format';
 import { useTasks } from '../hooks';
 import { singleKey } from '../shortcuts';
@@ -27,6 +27,7 @@ const NOT_AT_THE_GATE: Record<string, string> = {
 export function gateState(b: TaskBundle): { open: boolean; reason: string } {
   if (b.task.status === 'done') return { open: false, reason: '' };
   if (b.task.status === 'in_review') return { open: false, reason: '' };
+  if (readOnly) return { open: false, reason: readOnly };
   // a building task whose runs have all ended is waiting, not working: autopilot stopped, or the next run is not started yet
   if (b.task.status === 'building' && b.runs.every((r) => r.endedAt)) return { open: false, reason: 'No run is going. The gate opens after the next green verification.' };
   if (b.task.status !== 'awaiting_approval') return { open: false, reason: NOT_AT_THE_GATE[b.task.status] ?? 'The task is not at the gate.' };
