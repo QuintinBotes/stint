@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { LIMIT_DEFAULTS, type SharpenState, type StintEvent } from '@stint-dev/core';
+import { LIMIT_DEFAULTS, type SharpenState, type StintEvent, type Task } from '@stint-dev/core';
 import { type Workspace, costs } from '@stint-dev/core/node';
 import { nextStep } from '../src/autopilot';
 import { fakeModels, setup, stopped, until } from './autopilot.fixtures';
@@ -146,6 +146,64 @@ test('A goal made, sharpened, answered and split into two tasks: the proposal cr
       expect((await ws.readGoal(g.id)).status).toBe('abandoned');
       expect((await post(app, `/api/goals/${g.id}/plan`, {})).status).toBe(400);
       expect((await post(app, '/api/goals/G-0009/plan', {})).status).toBe(404);
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
+
+/** A verification the daemon ran, red with the names that failed or green when none did, `secs` after a fixed start. */
+async function verified(ws: Workspace, task: string, run: string, secs: number, failing: string[] = []) {
+  const status = failing.length ? 'red' : 'green';
+  const at = new Date(Date.parse('2026-10-29T10:00:00Z') + secs * 1000).toISOString();
+  await ws.verification(task).write({ run, command: 'bun run test', exitCode: failing.length ? 1 : 0, passed: 3, failed: failing.length, durationMs: 100, runBy: 'daemon', status, outputRef: `verification/${run}.out.txt`, at });
+  await ws.events(task).append({ task, run, vendor: 'daemon', type: 'verification.ran', payload: { status, passed: 3, failed: failing.length, failing } });
+}
+
+test("A goal's proofs reach the tasks that cover it: split, each task merged with a green verification, and the goal is done", async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [], models);
+      const g = await ws.createGoal(GOAL);
+      const proofs = [
+        { criterion: 1, kind: 'test', ref: '429 with Retry-After' },
+        { criterion: 2, kind: 'human', ref: 'An operator watches a load test' },
+      ];
+      expect((await post(app, `/api/goals/${g.id}/proofs`, { proofs })).status).toBe(200);
+      const { tasks: proposal } = (await (await post(app, `/api/goals/${g.id}/plan`, {})).json()) as { tasks: unknown[] };
+      const { tasks } = (await (await post(app, `/api/goals/${g.id}/tasks`, { tasks: proposal })).json()) as { tasks: Array<{ id: string }> };
+      const [a, b] = (await Promise.all(tasks.map((t) => ws.readTask(t.id)))) as [Task, Task];
+      // the first task already says criterion 1 in its own words, so the proof goes on that line; the second gets the line added
+      expect([a.acceptance, a.proofs]).toEqual([['429 with Retry-After'], [{ criterion: 1, kind: 'test', ref: '429 with Retry-After' }]]);
+      expect([b.acceptance, b.proofs]).toEqual([['Other tenants get 200', 'Other tenants are served as before'], [{ criterion: 2, kind: 'human', ref: 'An operator watches a load test' }]]);
+      expect((await ws.events(b.id).read()).find((e) => e.type === 'proofs.set')?.payload).toEqual({ proofs: b.proofs, from: [], goal: g.id });
+
+      // the test fails first and passes after; the other task is green once; each is approved by a person and merged
+      await verified(ws, a.id, 'r1', 0, ['webhooks > 429 with Retry-After']);
+      await verified(ws, a.id, 'r2', 1);
+      await verified(ws, b.id, 'r1', 2);
+      for (const t of [a, b]) {
+        await ws.events(t.id).append({ task: t.id, vendor: 'human', type: 'approval.granted', payload: { by: 'human' } });
+        await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'merge.completed', payload: { branch: t.branch, into: 'main', commit: 'abc1234' } });
+        await ws.writeTask(t.id, { status: 'done' });
+      }
+      const view = (await (await app.request(`/api/goals/${g.id}`)).json()) as { goal: { status: string }; outcome: { result: string; met: number; criteria: Array<{ state: string; evidence: string }> } };
+      expect(view.outcome.criteria.map((c) => [c.state, c.evidence])).toEqual([
+        ['proven', `${a.id}: webhooks > 429 with Retry-After failed in r1 and passes in r2.`],
+        ['checked_by_you', `${b.id}: Checked by you at approval.`],
+      ]);
+      expect([view.outcome.result, view.outcome.met, view.goal.status]).toEqual(['done', 2, 'done']);
+
+      // proven criteria that would take a task past 12 acceptance lines refuse the split, and no task is made
+      const six = await ws.createGoal({ ...GOAL, criteria: Array.from({ length: 6 }, (_, i) => `criterion ${i + 1}`) });
+      await post(app, `/api/goals/${six.id}/proofs`, { proofs: Array.from({ length: 6 }, (_, i) => ({ criterion: i + 1, kind: 'check', ref: `c${i + 1}` })) });
+      const crowded = { title: 'Too much', goal: 'Everything at once.', acceptance: Array.from({ length: 8 }, (_, i) => `check ${i + 1}`), covers: [1, 2, 3, 4, 5, 6], dependsOn: [] };
+      const before = (await ws.listTasks()).length;
+      const refused = await post(app, `/api/goals/${six.id}/tasks`, { tasks: [{ ...crowded, covers: [1] }, crowded] });
+      expect(refused.status).toBe(400);
+      expect(((await refused.json()) as { error: { message: string } }).error.message).toBe("task 2 would have 14 criteria once the goal's proven ones are added; a task holds at most 12");
+      expect((await ws.listTasks()).length).toBe(before);
     });
   } finally {
     models.stop();

@@ -25,12 +25,18 @@ const MET = new Set<CriterionState>(['proven', 'checked_by_you']);
 /** A merge counts until it is reverted: its change is in. */
 export const isMerged = (r: OutcomeResult) => r.startsWith('merged') && r !== 'merged_reverted';
 
-/** `covers` names the goal criteria (from 1) each task covers, from its `goalCriteria`. */
+/**
+ * `covers` names the goal criteria (from 1) each task covers, from its `goalCriteria`. A covering task that carries the
+ * goal criterion as an acceptance line of its own is judged on that line; one that does not, on all of its criteria.
+ */
 export function goalOutcome(goal: Pick<Goal, 'id' | 'criteria' | 'limits'>, outcomes: Outcome[], covers: Record<string, number[]>): GoalOutcome {
   const criteria = goal.criteria.map(({ text }, index) => {
     const by = outcomes.filter((o) => covers[o.task]?.includes(index + 1));
     const weakest = by
-      .flatMap((o) => o.criteria.map((c) => ({ task: o.task, c })))
+      .flatMap((o) => {
+        const own = o.criteria.filter((c) => c.text === text);
+        return (own.length ? own : o.criteria).map((c) => ({ task: o.task, c }));
+      })
       .sort((a, b) => WEAKEST.indexOf(a.c.state) - WEAKEST.indexOf(b.c.state))[0];
     const state: CriterionState = weakest?.c.state ?? 'not_checked';
     return { index, text, state, met: MET.has(state), tasks: by.map((o) => o.task), evidence: weakest ? `${weakest.task}: ${weakest.c.evidence}` : 'No task covers it yet.' };
