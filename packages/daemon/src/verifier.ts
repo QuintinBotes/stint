@@ -207,7 +207,8 @@ export class DaemonVerifier implements Verifier {
     const tamper = await this.tamper(task, run, worktree);
     const tamperRed = !!tamper && !tamper.allowedBy && tamperMode(this.ws) === 'fail';
     const scenarios = await this.runScenarios(task, run, worktree);
-    const scenariosRed = scenarios.record !== null && scenarios.record.failed > 0;
+    // scenarios that could not run proved nothing, so they hold the verification red as a failing one would (R-037)
+    const scenariosRed = scenarios.error !== undefined || (scenarios.record !== null && scenarios.record.failed > 0);
     const coverage = await this.coverage(task, run, worktree);
 
     const green = checks.every((c) => c.status === 'green') && !tamperRed && !scenariosRed;
