@@ -2,11 +2,11 @@ import { type Metrics, weekOf } from '@stint-dev/core';
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ADAPTER_NAMES, type Agent, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, hostMark, hostName, markColor, modelName } from '../agents';
-import { type BenchData, type BenchMode, type CostRow, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, type TaskBundle, api, daemonMessage } from '../api';
+import { type BenchData, type BenchMode, type CostRow, DaemonError, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, type TaskBundle, api, daemonMessage } from '../api';
 import { Queue, WorkspaceMemory } from '../components/MemoryPanel';
 import { Measures, MetricsPanel, type WindowName, metricValue, sample } from '../components/MetricsPanel';
 import { Relay } from '../components/Relay';
-import { Button, EmptyState, Explain, StatusChip, Who, cx, rev } from '../components/ui';
+import { Button, EmptyState, Explain, StatusChip, Who, cx } from '../components/ui';
 import { money, tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
 
@@ -17,20 +17,15 @@ const hostColour = (host: string) => markColor[hostMark(host)];
 const MARKS = Object.keys(markColor) as Mark[];
 
 const SMALL = 'h-8 px-2.5 text-small';
-const NOTE = 'text-small text-ink-2';
+const NOTE = 'text-small text-ink-3';
 /** A note's paragraph, kept to a readable measure. */
-const PROSE = 'text-small text-ink-2 max-w-[60ch]';
-const NUM = cx(rev.td, 'text-right');
-const NUM_HEAD = cx(rev.th, 'text-right');
-/** A row's own header cell, on the body's ground: the design sets the row labels of a comparison in ink-2. */
-const ROW_HEAD = 'px-2.5 py-1.5 border border-rule-strong align-top font-medium text-ink-2 bg-ground';
-/** A wide table scrolls inside its panel on a narrow screen; the padding keeps the block's outer line inside the scroller. */
-const SCROLLER = 'overflow-x-auto p-px';
+const PROSE = 'text-small text-ink-3 max-w-[65ch]';
+const NUM = 'stint-table-number';
 
-/** A wide table's frame: on a narrow screen it scrolls sideways, and a keyboard can focus it to scroll. */
+/** A wide table's frame: on a narrow screen it scrolls sideways inside it, and a keyboard can focus it to scroll. */
 function Scroller({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={SCROLLER} role="region" aria-label={label} tabIndex={0}>
+    <div className="stint-table-region" role="region" aria-label={label} tabIndex={0}>
       {children}
     </div>
   );
@@ -49,18 +44,44 @@ function Key({ colour, children }: { colour: string | null; children: ReactNode 
   );
 }
 
-function useLoad<T>(load: () => Promise<T>, deps: unknown[]): T | null {
-  const [v, setV] = useState<T | null>(null);
+/** A read from the daemon: nothing yet, the data, or why it failed. A failed refresh keeps the data read before. */
+type Loaded<T> = { data: T | null; error: string | null };
+
+function useLoad<T>(load: () => Promise<T>, deps: unknown[]): Loaded<T> {
+  const [v, setV] = useState<Loaded<T>>({ data: null, error: null });
   useEffect(() => {
     let live = true;
     load()
-      .then((x) => live && setV(x))
-      .catch(() => live && setV(null));
+      .then((data) => live && setV({ data, error: null }))
+      .catch((e: unknown) => live && setV((now) => ({ data: now.data, error: daemonMessage(e) })));
     return () => {
       live = false;
     };
   }, deps);
   return v;
+}
+
+/** A panel's content once read; before that, that it is reading or why it could not, so a failed read never shows as an empty panel. */
+function WhenRead<T>({ v, what, children }: { v: Loaded<T>; what: string; children: (data: T) => ReactNode }) {
+  if (v.data === null)
+    return v.error ? (
+      <p role="alert" className="stint-field-error" data-testid="panel-error">
+        {what.charAt(0).toUpperCase()}
+        {what.slice(1)} could not be read: {v.error}.
+      </p>
+    ) : (
+      <p className={NOTE}>Reading {what}.</p>
+    );
+  return (
+    <>
+      {v.error ? (
+        <p role="alert" className="stint-field-error" data-testid="panel-stale">
+          Showing {what} as last read. The refresh failed: {v.error}.
+        </p>
+      ) : null}
+      {children(v.data)}
+    </>
+  );
 }
 
 /** Which model did the work, where it ran, what it did and what it cost. Meta's models first. */
@@ -82,16 +103,16 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
         ))}
       </div>
       <Scroller label="Models at work">
-        <table className={cx(rev.table, 'min-w-[640px]')}>
+        <table className="stint-table min-w-[640px]">
           <thead>
             <tr>
               {['Model', 'Ran on', 'Role'].map((h) => (
-                <th key={h} scope="col" className={rev.th}>
+                <th key={h} scope="col">
                   {h}
                 </th>
               ))}
               {['Tokens read', 'From cache', 'Tokens written', 'Runs', 'Cost'].map((h) => (
-                <th key={h} scope="col" className={NUM_HEAD}>
+                <th key={h} scope="col" className={NUM}>
                   {h}
                 </th>
               ))}
@@ -100,16 +121,16 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
           <tbody className="tabular">
             {models.map((m) => (
               <tr key={m.key} data-testid="model-row">
-                <td className={rev.td}>
+                <td className="text-ink">
                   <Who agent={{ ...agentOf('openai-compatible', m.host, m.model), name: modelName(m.model) }} className="font-semibold" />
                 </td>
-                <td className={cx(rev.td, 'text-ink-2')}>{hostName(m.host)}</td>
-                <td className={cx(rev.td, 'text-ink-2')}>{(m.roles ?? []).map((r) => ROLE_NAMES[r] ?? r).join(', ') || 'runs'}</td>
+                <td>{hostName(m.host)}</td>
+                <td>{(m.roles ?? []).map((r) => ROLE_NAMES[r] ?? r).join(', ') || 'runs'}</td>
                 <td className={NUM}>{tokens(m.inputTokens)}</td>
-                <td className={cx(NUM, 'text-ink-2')}>{m.inputTokens ? `${Math.round((m.cachedTokens / m.inputTokens) * 100)}%` : 'none'}</td>
+                <td className={NUM}>{m.inputTokens ? `${Math.round((m.cachedTokens / m.inputTokens) * 100)}%` : 'none'}</td>
                 <td className={NUM}>{tokens(m.outputTokens)}</td>
                 <td className={NUM}>{m.runs}</td>
-                <td className={cx(NUM, 'font-semibold')}>{m.host === 'ollama' ? 'free, local' : money(m)}</td>
+                <td className={cx(NUM, 'font-semibold text-ink')}>{m.host === 'ollama' ? 'free, local' : money(m)}</td>
               </tr>
             ))}
           </tbody>
@@ -137,18 +158,18 @@ function Benchmark({ data }: { data: BenchData }) {
   return (
     <div data-testid="bench" className="flex flex-col gap-3">
       <Scroller label="Packet against full log">
-        <table className={cx(rev.table, 'table-fixed min-w-[640px]')}>
+        <table className="stint-table table-fixed min-w-[640px]">
           <thead>
             <tr>
-              <th scope="col" className={cx(rev.th, 'w-[28%]')}>
+              <th scope="col" className="w-[28%]">
                 Continue from
               </th>
               {BENCH_COLUMNS.map((c) => (
-                <th key={c.name} scope="col" className={NUM_HEAD}>
+                <th key={c.name} scope="col" className={NUM}>
                   {c.name}
                 </th>
               ))}
-              <th scope="col" className={cx(NUM_HEAD, 'w-[13%]')}>
+              <th scope="col" className={cx(NUM, 'w-[13%]')}>
                 Tests passed
               </th>
             </tr>
@@ -156,7 +177,7 @@ function Benchmark({ data }: { data: BenchData }) {
           <tbody className="tabular">
             {lines.map((l) => (
               <tr key={l.label} data-testid="bench-row">
-                <td className={cx(rev.td, 'font-semibold')}>
+                <td className="font-semibold text-ink">
                   <Key colour={colour(l.base)}>{l.label}</Key>
                 </td>
                 {BENCH_COLUMNS.map((c) => {
@@ -164,14 +185,14 @@ function Benchmark({ data }: { data: BenchData }) {
                   const max = Math.max(...lines.map((x) => c.value(x.m) ?? 0));
                   return (
                     <td key={c.name} className={NUM}>
-                      {v === null ? <span className="text-ink-2">not priced</span> : c.show(v)}
+                      {v === null ? <span className="text-ink-3">not priced</span> : c.show(v)}
                       <div className="mt-1 h-1.5 bg-panel-2">
                         <div className="h-full" style={{ width: `${v === null || max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
                       </div>
                     </td>
                   );
                 })}
-                <td className={cx(NUM, 'font-semibold')}>
+                <td className={cx(NUM, 'font-semibold text-ink')}>
                   {Math.round(l.m.passRate * l.m.runs)} of {l.m.runs}
                 </td>
               </tr>
@@ -301,9 +322,9 @@ const runsLine = (b: TaskBundle) => {
 /** Every agent that ran on a task, once each, in the order they first ran. */
 const agentsOf = (b: TaskBundle): Agent[] => [...new Map(b.runs.map((r) => agentOf(r.adapter, r.host, r.model)).map((a) => [a.name, a])).values()];
 
-/** The learn loop's proof: the task a skill was learned from, next to the first task it was applied to, as one revision block. */
+/** The learn loop's proof: the task a skill was learned from, next to the first task it was applied to, side by side. */
 function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<string, CostRow> }) {
-  const [pairs, setPairs] = useState<Pair[]>([]);
+  const [pairs, setPairs] = useState<Loaded<Pair[]>>({ data: null, error: null });
   const { data: cards } = useTasks();
   useEffect(() => {
     if (!cards) return;
@@ -323,12 +344,18 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
         const [b, a] = await Promise.all([api.task(before), api.task(after)]);
         out.push({ skill: h.skill, before: b, after: a });
       }
-      if (live) setPairs(out);
-    })().catch(() => undefined);
+      return out;
+    })()
+      .then((data) => live && setPairs({ data, error: null }))
+      .catch((e: unknown) => live && setPairs((now) => ({ data: now.data, error: daemonMessage(e) })));
     return () => {
       live = false;
     };
   }, [helped, cards]);
+  return <WhenRead v={pairs} what="the skills learned and used">{(list) => <Pairs pairs={list} costByTask={costByTask} />}</WhenRead>;
+}
+
+function Pairs({ pairs, costByTask }: { pairs: Pair[]; costByTask: Map<string, CostRow> }) {
   if (pairs.length === 0) return <EmptyState>When a skill learned from one task is applied to the next, the two appear here side by side.</EmptyState>;
   return (
     <div className="flex flex-col gap-5" data-testid="it-learned">
@@ -372,12 +399,12 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
           <div key={p.skill} className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <span className={NOTE}>Skill</span>
-              <Link to={`/skills?skill=${p.skill}`} className="inline-flex items-center min-h-6 px-2 rounded-[3px] bg-violet-wash font-mono text-small text-violet no-underline hover:underline">
+              <Link to={`/skills?skill=${p.skill}`} className="inline-flex items-center min-h-6 px-2 rounded-[3px] border border-violet bg-violet-wash font-mono text-small text-violet no-underline hover:underline">
                 {p.skill}
               </Link>
             </div>
             <Scroller label={`${p.skill}, before and after`}>
-              <table className={cx(rev.table, 'table-fixed')}>
+              <table className="stint-table table-fixed">
                 <colgroup>
                   <col className="w-[112px] sm:w-[132px]" />
                   <col />
@@ -385,11 +412,13 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
                 </colgroup>
                 <thead>
                   <tr>
-                    <td className={rev.th} />
-                    <th scope="col" className={rev.th}>
+                    <th scope="col">
+                      <span className="sr-only">Measure</span>
+                    </th>
+                    <th scope="col">
                       <span className="font-mono">{p.before.task.id}</span>, before the skill
                     </th>
-                    <th scope="col" className={rev.th}>
+                    <th scope="col">
                       <span className="font-mono">{p.after.task.id}</span>, with the skill
                     </th>
                   </tr>
@@ -397,11 +426,11 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
                 <tbody>
                   {rows.map(([label, cell]) => (
                     <tr key={label}>
-                      <th scope="row" className={ROW_HEAD}>
+                      <th scope="row" className="text-ink-3">
                         {label}
                       </th>
                       {sides.map((b) => (
-                        <td key={b.task.id} className={rev.td}>
+                        <td key={b.task.id} className="text-ink">
                           {cell(b)}
                         </td>
                       ))}
@@ -421,20 +450,17 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
 type OutcomeRow = { adapter: string; merged: number; reverted: number; followup: number; ci: number; incident: number };
 
 /** What happened after merge, per agent that built the task: merged, reverted, followed up. */
-function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
-  if (rows === null) return <EmptyState>Reading what happened after merge.</EmptyState>;
+function Outcomes({ rows }: { rows: OutcomeRow[] }) {
   if (rows.length === 0) return <EmptyState>What happened to each merged change appears here once one has merged.</EmptyState>;
   return (
     <div data-testid="outcomes" className="flex flex-col gap-3">
       <Scroller label="What happened after merge">
-        <table className={cx(rev.table, 'min-w-[480px]')}>
+        <table className="stint-table min-w-[480px]">
           <thead>
             <tr>
-              <th scope="col" className={rev.th}>
-                Agent
-              </th>
+              <th scope="col">Agent</th>
               {['Merged', 'Reverted', 'Followed up', 'Checks failed', 'Incidents'].map((h) => (
-                <th key={h} scope="col" className={NUM_HEAD}>
+                <th key={h} scope="col" className={NUM}>
                   {h}
                 </th>
               ))}
@@ -443,10 +469,10 @@ function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
           <tbody className="tabular">
             {rows.map((r) => (
               <tr key={r.adapter} data-testid="outcome-row" data-agent={r.adapter}>
-                <td className={rev.td}>
+                <td className="text-ink">
                   <Who agent={agentOf(r.adapter)} className="font-semibold" />
                 </td>
-                <td className={cx(NUM, 'font-semibold')}>{r.merged}</td>
+                <td className={cx(NUM, 'font-semibold text-ink')}>{r.merged}</td>
                 <td className={cx(NUM, r.reverted > 0 && 'text-red font-semibold')}>{r.reverted}</td>
                 <td className={NUM}>{r.followup}</td>
                 <td className={NUM}>{r.ci}</td>
@@ -462,9 +488,8 @@ function Outcomes({ rows }: { rows: OutcomeRow[] | null }) {
 }
 
 /** Each agent and model by the attempts Stint tested, per tag, and how autopilot picks from them. */
-function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: string; explore: number } } | null }) {
+function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: string; explore: number } } }) {
   const [tag, setTag] = useState('*');
-  if (data === null) return <EmptyState>Reading how each agent has done.</EmptyState>;
   const tags = [...new Set(data.rows.map((r) => r.tag))].sort((a, b) => (a === '*' ? -1 : b === '*' ? 1 : a.localeCompare(b)));
   const rows = data.rows.filter((r) => r.tag === tag);
   const pct = (v: number | null) => (v === null ? 'none yet' : `${Math.round(v * 100)}%`);
@@ -490,44 +515,40 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
           )}
         </span>
       </div>
-      {rows.length === 0 ? (
-        <EmptyState>Each agent's record appears here once Stint has tested one of its runs.</EmptyState>
+      {data.rows.length === 0 ? (
+        <EmptyState testId="scoreboard-empty">Each agent's record appears here once Stint has tested one of its runs.</EmptyState>
+      ) : rows.length === 0 ? (
+        // the tag chips are a filter: nothing under one tag is not nothing at all
+        <div className="flex flex-wrap items-center gap-x-4">
+          <EmptyState testId="scoreboard-filtered-empty">No agent has a tested run on tasks tagged {tag}.</EmptyState>
+          <Button className={SMALL} onClick={() => setTag('*')}>
+            Show all tasks
+          </Button>
+        </div>
       ) : (
         <Scroller label="Agents, scrolls sideways on a narrow screen">
-          <table className={cx(rev.table, 'min-w-[640px]')}>
+          <table className="stint-table min-w-[640px]">
             <thead>
               <tr>
-                <th scope="col" className={rev.th}>
-                  Agent
-                </th>
-                <th scope="col" className={NUM_HEAD}>
-                  Runs tested
-                </th>
-                <th scope="col" className={NUM_HEAD}>
-                  Passed
-                </th>
-                <th scope="col" className={NUM_HEAD}>
-                  Passed the last 3
-                </th>
-                <th scope="col" className={NUM_HEAD}>
-                  Cost per merged task
-                </th>
-                <th scope="col" className={NUM_HEAD}>
-                  Reverted
-                </th>
+                <th scope="col">Agent</th>
+                {['Runs tested', 'Passed', 'Passed the last 3', 'Cost per merged task', 'Reverted'].map((h) => (
+                  <th key={h} scope="col" className={NUM}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="tabular">
               {rows.map((r) => (
                 <tr key={`${r.agent}/${r.model ?? ''}`} data-testid="score-row" data-agent={r.agent}>
-                  <td className={rev.td}>
+                  <td className="text-ink">
                     <span className="flex flex-wrap items-baseline gap-x-2">
                       <Who agent={agentOf(r.agent)} className="font-semibold" />
                       {r.model ? <span className="text-ink-2">{modelName(r.model)}</span> : null}
                     </span>
                   </td>
                   <td className={NUM}>{r.attempts}</td>
-                  <td className={cx(NUM, 'font-semibold')}>{pct(r.passRate)}</td>
+                  <td className={cx(NUM, 'font-semibold text-ink')}>{pct(r.passRate)}</td>
                   <td className={NUM}>{r.pass3 === null ? 'fewer than 3' : r.pass3 ? 'yes' : 'no'}</td>
                   <td className={NUM}>{r.costPerResolved === null ? (r.resolved ? 'not priced' : 'none merged') : `$${r.costPerResolved.toFixed(2)}`}</td>
                   <td className={cx(NUM, r.reverts > 0 && 'text-red font-semibold')}>{r.reverts}</td>
@@ -544,8 +565,7 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
 const gatePct = (n: number) => `${Math.round(n * 100)}%`;
 
 /** The phase gates: the sample task pass rates first, then whether each phase has opened and why, in the words the daemon gives. */
-function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
-  if (!gates) return <EmptyState>The phase gates appear once Stint can read the sample task results.</EmptyState>;
+function PhaseGatePanel({ gates }: { gates: PhaseGates }) {
   const rows: Array<[string, boolean, string]> = [
     ['Phase 2', gates.phase2.met, gates.phase2.detail],
     ['Phase 3', gates.phase3.met, gates.phase3.detail],
@@ -569,7 +589,7 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
               <p className="font-semibold">{name}</p>
               <p className={PROSE}>{detail}</p>
             </div>
-            <StatusChip label={met ? 'open' : 'not yet'} tone={met ? 'active' : 'neutral'} />
+            <StatusChip label={met ? 'open' : 'not yet'} tone={met ? 'active' : 'neutral'} shape={met ? 'running' : 'waiting'} />
           </li>
         ))}
       </ul>
@@ -577,36 +597,50 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates | null }) {
   );
 }
 
-function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged: () => void }) {
-  if (state === null) return <EmptyState>Reading what the policy would have done.</EmptyState>;
+function AutoApprove({ state, onChanged }: { state: RiskState; onChanged: () => void }) {
   const { lane } = state;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const off = () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    api
+      .laneOff()
+      .then(onChanged)
+      .catch((e: unknown) => setError(daemonMessage(e)))
+      .finally(() => setBusy(false));
+  };
   return (
     <div data-testid="auto-approve" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <StatusChip label={lane.enabled ? 'lane on' : 'lane off'} tone={lane.enabled ? 'active' : 'neutral'} />
+        <StatusChip label={lane.enabled ? 'lane on' : 'lane off'} tone={lane.enabled ? 'active' : 'neutral'} shape={lane.enabled ? 'running' : 'closed'} />
         <span className="text-ink-2">
           {lane.enabled
             ? `The policy may approve ${lane.tiers.join(' and ')} risk changes itself once its choices have matched yours for ${lane.shadowDays} days.`
             : 'Every change waits for you. Below is what the policy would have chosen.'}
         </span>
         {lane.enabled ? (
-          <Button className={cx(SMALL, 'ml-auto')} tone="danger" data-testid="lane-off" onClick={() => void api.laneOff().then(onChanged)}>
-            Turn the lane off
+          <Button className={cx(SMALL, 'ml-auto')} tone="danger" disabled={busy} aria-busy={busy || undefined} data-testid="lane-off" onClick={off}>
+            {busy ? 'Turning it off' : 'Turn the lane off'}
           </Button>
+        ) : null}
+        {error ? (
+          <p role="alert" className="stint-field-error basis-full" data-testid="lane-off-error">
+            The lane is still on: {error}
+          </p>
         ) : null}
       </div>
       {state.records.length === 0 ? (
         <EmptyState>Each approve or reject you make is recorded beside what the policy would have done.</EmptyState>
       ) : (
         <Scroller label="Your decisions and the policy's">
-          <table className={cx(rev.table, 'min-w-[520px]')}>
+          <table className="stint-table min-w-[520px]">
             <thead>
               <tr>
-                <th scope="col" className={rev.th}>
-                  Risk
-                </th>
+                <th scope="col">Risk</th>
                 {['Your decisions', 'Policy agreed', 'Policy disagreed', 'Would approve, then reverted', 'Days on record'].map((h) => (
-                  <th key={h} scope="col" className={NUM_HEAD}>
+                  <th key={h} scope="col" className={NUM}>
                     {h}
                   </th>
                 ))}
@@ -615,7 +649,7 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
             <tbody className="tabular">
               {state.records.map((r) => (
                 <tr key={r.tier} data-testid="shadow-row" data-tier={r.tier}>
-                  <td className={rev.td}>{r.tier}</td>
+                  <td className="text-ink">{r.tier}</td>
                   <td className={NUM}>{r.decisions}</td>
                   <td className={NUM}>{r.agreements}</td>
                   <td className={NUM}>{r.disagreements}</td>
@@ -638,8 +672,7 @@ function AutoApprove({ state, onChanged }: { state: RiskState | null; onChanged:
   );
 }
 
-function Upkeep({ data }: { data: Gardening | null }) {
-  if (data === null) return <EmptyState>Reading the upkeep schedule.</EmptyState>;
+function Upkeep({ data }: { data: Gardening }) {
   if (data.schedule === 'off') {
     return (
       <EmptyState testId="upkeep-off">
@@ -673,28 +706,27 @@ function Upkeep({ data }: { data: Gardening | null }) {
 }
 
 /** The close of the demo: every harness and host this workspace knows, on and off, all fed the same packet (R-049). */
-function AnyHarness({ health }: { health: Health | null }) {
-  if (!health) return null;
+function AnyHarness({ health }: { health: Health }) {
   const agents = health.adapters.filter((a) => a.id !== 'replay');
   const hosts = [...new Set((health.models ?? []).map((m) => m.host))];
   const row = 'grid grid-cols-[minmax(0,1fr)] sm:grid-cols-[80px_minmax(0,1fr)] items-start gap-x-4 gap-y-2';
   return (
     <div data-testid="any-harness" className="flex flex-col gap-3">
       <div className={row}>
-        <span className="text-ink-2 sm:leading-6">Agents</span>
+        <span className="text-ink-3 sm:leading-6">Agents</span>
         <div className="flex flex-wrap gap-2" data-testid="harness-chips">
           {agents.map((a) => {
             const ready = a.capability.level === 'supported';
-            return <StatusChip key={a.id} label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.harness && a.harness !== 'cli' && a.harness !== a.id ? `, ${a.harness}` : ''}${ready ? '' : ', off'}`} tone={ready ? 'active' : 'neutral'} />;
+            return <StatusChip key={a.id} label={`${ADAPTER_NAMES[a.id] ?? a.id}${a.harness && a.harness !== 'cli' && a.harness !== a.id ? `, ${a.harness}` : ''}${ready ? '' : ', off'}`} tone={ready ? 'active' : 'neutral'} shape={ready ? 'running' : 'closed'} />;
           })}
         </div>
       </div>
       <div className={row}>
-        <span className="text-ink-2 sm:leading-6">Model hosts</span>
+        <span className="text-ink-3 sm:leading-6">Model hosts</span>
         <div className="flex flex-wrap gap-2" data-testid="host-chips">
           {hosts.map((h) => {
             const ready = (health.models ?? []).some((m) => m.host === h && m.ready);
-            return <StatusChip key={h} label={`${hostName(h)}${ready ? '' : ', off'}`} tone={ready ? 'active' : 'neutral'} />;
+            return <StatusChip key={h} label={`${hostName(h)}${ready ? '' : ', off'}`} tone={ready ? 'active' : 'neutral'} shape={ready ? 'running' : 'closed'} />;
           })}
         </div>
       </div>
@@ -720,7 +752,7 @@ function Panel({ title, aside, children, className, testId, id: anchor, collapse
   if (collapsed)
     return (
       <details id={anchor} className={cx('group min-w-0 scroll-mt-4 border-t border-rule', className)} data-testid={testId}>
-        <summary className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-h-12 py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-panel">
+        <summary className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-h-12 py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-surface-hover">
           <Chevron />
           <h3 className="font-semibold">{title}</h3>
           {aside ? <span className={cx(NOTE, 'basis-full pl-5 sm:basis-auto sm:pl-0')}>{aside}</span> : null}
@@ -729,9 +761,9 @@ function Panel({ title, aside, children, className, testId, id: anchor, collapse
       </details>
     );
   return (
-    <section className={cx('flex flex-col gap-3 min-w-0', className)} data-testid={testId} aria-labelledby={id}>
+    <section className={cx('stint-section', className)} data-testid={testId} aria-labelledby={id}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h2 id={id} className="text-section">
+        <h2 id={id} className="stint-section-title">
           {title}
         </h2>
         {aside ? <span className="text-small text-ink-3">{aside}</span> : null}
@@ -745,8 +777,8 @@ function Panel({ title, aside, children, className, testId, id: anchor, collapse
 function Group({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
   return (
-    <section className="flex flex-col gap-1 min-w-0" aria-labelledby={id}>
-      <h2 id={id} className="text-section">
+    <section className="stint-section gap-2" aria-labelledby={id}>
+      <h2 id={id} className="stint-section-title">
         {title}
       </h2>
       <div className="flex flex-col border-b border-rule">{children}</div>
@@ -757,8 +789,7 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 type TaskSpend = { task: string; total: number; vendors: Array<[Mark, number]> };
 
 /** Spend by task, split by the vendor of each run's agent; the rest of a task's total is planning and review calls. */
-function SpendByTask({ rows }: { rows: TaskSpend[] | null }) {
-  if (rows === null) return <EmptyState>Reading what each task cost.</EmptyState>;
+function SpendByTask({ rows }: { rows: TaskSpend[] }) {
   if (rows.length === 0) return <EmptyState>Spend by task appears once a run ends.</EmptyState>;
   const max = Math.max(0.0001, ...rows.map((r) => r.total));
   const other = (r: TaskSpend) => Math.max(0, r.total - r.vendors.reduce((s, [, usd]) => s + usd, 0));
@@ -798,9 +829,12 @@ function SpendByTask({ rows }: { rows: TaskSpend[] | null }) {
   );
 }
 
+/** What the Factory works out from every task's log: the stage funnel, spend by task, skills learned, and what happened after merge. */
+type FromLogs = { funnel: Record<string, number>; spend: TaskSpend[]; learned: number; outcomes: OutcomeRow[] };
+
 export function Factory() {
-  const { data: cards } = useTasks();
-  const { data: health } = useHealth();
+  const { data: cards, error: cardsError } = useTasks();
+  const { data: health, error: healthError } = useHealth();
   const byModel = useLoad(() => api.costs('model'), []);
   const byDayHost = useLoad(() => api.costs('day-host'), []);
   const byHost = useLoad(() => api.costs('host'), []);
@@ -812,9 +846,9 @@ export function Factory() {
   const risk = useLoad(() => api.risk(), [riskVersion]);
   const upkeep = useLoad(() => api.gardening(), []);
   const gates = useLoad(() => api.phaseGates(), []);
-  const bench = useLoad(() => api.bench(), []);
-  const [learned, setLearned] = useState(0);
-  const [outcomeRows, setOutcomeRows] = useState<OutcomeRow[] | null>(null);
+  // no results yet is the panel's empty state, not a failure
+  const bench = useLoad(() => api.bench().catch((e: unknown) => (e instanceof DaemonError && e.status === 404 ? false : Promise.reject(e))), []);
+  const [logs, setLogs] = useState<Loaded<FromLogs>>({ data: null, error: null });
   // one response for the figures row and the panel, for the window the panel shows (R-061)
   const [span, setSpan] = useState<WindowName>('30d');
   const [metrics, setMetrics] = useState<{ data: Metrics | null; error: string | null }>({ data: null, error: null });
@@ -835,8 +869,6 @@ export function Factory() {
   const packetTokens = metric('efficiency', 'efficiency.packet_tokens');
   const firstPass = metric('verification', 'verify.first_pass');
   const handoffs = metric('verification', 'verify.handoff_success');
-  const [funnel, setFunnel] = useState<Record<string, number> | null>(null);
-  const [spendByTask, setSpendByTask] = useState<TaskSpend[] | null>(null);
   useEffect(() => {
     if (!cards) return;
     let live = true;
@@ -873,10 +905,6 @@ export function Factory() {
           const total = card.cost.usd ?? [...byVendor.values()].reduce((s, v) => s + v, 0);
           return total > 0 || byVendor.size ? [{ task: card.task.id, total, vendors: [...byVendor.entries()] }] : [];
         });
-        setSpendByTask(spend.sort((a, b) => b.total - a.total));
-        setFunnel(Object.fromEntries([...entered.entries()].map(([state, tasks]) => [state, tasks.size])));
-        // learned means proposed by the learn step and approved by a person, not written by hand
-        setLearned(new Set(all.flat().filter((e) => e.type === 'skill.approved').map((e) => String(e.payload.id ?? e.payload.skill))).size);
         const rows = new Map<string, OutcomeRow>();
         const rowFor = (adapter: string) => {
           let row = rows.get(adapter);
@@ -898,13 +926,24 @@ export function Factory() {
             row.incident += count('outcome.incident');
           }
         }
-        setOutcomeRows([...rows.values()].sort((a, b) => b.merged - a.merged || a.adapter.localeCompare(b.adapter)));
+        setLogs({
+          data: {
+            funnel: Object.fromEntries([...entered.entries()].map(([state, tasks]) => [state, tasks.size])),
+            spend: spend.sort((a, b) => b.total - a.total),
+            // learned means proposed by the learn step and approved by a person, not written by hand
+            learned: new Set(all.flat().filter((e) => e.type === 'skill.approved').map((e) => String(e.payload.id ?? e.payload.skill))).size,
+            outcomes: [...rows.values()].sort((a, b) => b.merged - a.merged || a.adapter.localeCompare(b.adapter)),
+          },
+          error: null,
+        });
       })
-      .catch(() => undefined);
+      .catch((e: unknown) => live && setLogs((now) => ({ data: now.data, error: daemonMessage(e) })));
     return () => {
       live = false;
     };
   }, [cards]);
+  // the task list failing first means the logs were never asked for
+  const fromLogs: Loaded<FromLogs> = { data: logs.data, error: logs.error ?? (cards ? null : cardsError) };
 
   const { hash } = useLocation();
   useEffect(() => {
@@ -916,61 +955,67 @@ export function Factory() {
     target?.scrollIntoView({ block: 'start' });
   }, [hash, cards, health]);
 
-  const counts = funnel ?? {};
-  const costByTask = useMemo(() => new Map((byTask ?? []).map((r) => [r.key, r])), [byTask]);
+  const costByTask = useMemo(() => new Map((byTask.data ?? []).map((r) => [r.key, r])), [byTask.data]);
   // this week's row, Monday 00:00 to Sunday 24:00 local time, the same figure as the top bar
-  const thisWeek = (byWeek ?? []).find((r) => r.key === weekOf(new Date()));
-  const input = (byModel ?? []).reduce((s, r) => s + r.inputTokens, 0);
-  const cached = (byModel ?? []).reduce((s, r) => s + r.cachedTokens, 0);
+  const thisWeek = (byWeek.data ?? []).find((r) => r.key === weekOf(new Date()));
   /** A share's figure and its "1 of 2 tasks" line, or what fills it in when there is nothing to count yet. */
   const share = (m: typeof firstPass, none: string): [string, string] => (m?.value != null ? [metricValue(m), `${Math.round(m.value * m.n)} of ${sample(m)}`] : ['none yet', none]);
   const [firstValue, firstDetail] = share(firstPass, "after a task's first tested run");
   const [handoffValue, handoffDetail] = share(handoffs, 'once a stopped run is handed on');
 
-  const merged = (cards ?? []).filter((c) => c.task.status === 'done').length;
   // the lead says what the agents came to over all time (the figures below count the chosen period): a skill learned first, else merges, else that it has not started
-  const lead = learned ? `It has learned ${learned === 1 ? 'one skill' : `${learned} skills`} so far, approved by you.` : merged ? `It has merged ${merged === 1 ? 'one task' : `${merged} tasks`} so far.` : 'It is ready for its first task.';
+  const merged = (cards ?? []).filter((c) => c.task.status === 'done').length;
+  const learned = logs.data?.learned ?? 0;
+  const lead = logs.data === null ? '' : learned ? `It has learned ${learned === 1 ? 'one skill' : `${learned} skills`} so far, approved by you.` : merged ? `It has merged ${merged === 1 ? 'one task' : `${merged} tasks`} so far.` : 'It is ready for its first task.';
   return (
     <main className="relative flex-1 min-h-0 overflow-y-auto" data-testid="factory">
-      <div className="max-w-[1440px] mx-auto px-4 md:px-6 pt-5 pb-8 md:pt-7 md:pb-10 flex flex-col gap-8">
-        <header className="flex flex-col gap-1.5 max-w-[75ch]">
-          <h1 className="text-title">Factory</h1>
-          <p className="text-ink-2" data-testid="factory-headline">
-            How the agents are doing, and what it costs. {lead}
-          </p>
+      <div className="stint-page">
+        <header className="stint-page-header">
+          <div className="stint-page-heading">
+            <h1 className="stint-page-title">Factory</h1>
+            <p className="stint-page-summary" data-testid="factory-headline">
+              How the agents are doing, and what it costs. {lead}
+            </p>
+          </div>
         </header>
 
         <MetricsPanel data={metrics.data} error={metrics.error} window={span} onWindow={setSpan}>
-          <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule-strong bg-rule" data-testid="kpis">
-            <Figure label="Tasks merged" value={String(merges?.value ?? 0)} detail={hops?.value != null ? `${metricValue(hops)} build runs each` : 'none in this period yet'} />
-            <Figure
-              label="Spend this week"
-              value={money(thisWeek ?? { usd: 0 })}
-              detail={thisWeek?.runs ? `${thisWeek.runs} run${thisWeek.runs === 1 ? '' : 's'}${thisWeek.unpriced ? `, ${thisWeek.unpriced} not priced` : ''}, at list prices` : 'nothing has ended this week'}
-            />
-            <Figure label="Passed the tests first time" value={firstValue} detail={firstDetail} />
-            <Figure label="Hand-offs that passed" value={handoffValue} detail={handoffDetail} />
-          </dl>
-          <p className={NOTE} data-testid="kpi-transcript-share">
-            Each hand-off passes on a packet{packetTokens?.value != null ? ` of about ${metricValue(packetTokens)}` : ''}, not the full session log. Full logs passed on: {transcripts?.value != null ? metricValue(transcripts) : '0%'}.
-          </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <Explain word="verify" />
-            <Explain word="handoff" />
-          </div>
           {metrics.data ? (
-            <Panel title="All measures" aside="Each one in plain words, with a link to its definition" collapsed testId="panel-measures">
-              <Measures data={metrics.data} />
-            </Panel>
+            <>
+              <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule bg-rule" data-testid="kpis">
+                <Figure label="Tasks merged" value={String(merges?.value ?? 0)} detail={hops?.value != null ? `${metricValue(hops)} build runs each` : 'none in this period yet'} />
+                <Figure
+                  label="Spend this week"
+                  value={byWeek.data ? money(thisWeek ?? { usd: 0 }) : 'not read'}
+                  detail={!byWeek.data ? (byWeek.error ?? 'reading') : thisWeek?.runs ? `${thisWeek.runs} run${thisWeek.runs === 1 ? '' : 's'}${thisWeek.unpriced ? `, ${thisWeek.unpriced} not priced` : ''}, at list prices` : 'nothing has ended this week'}
+                />
+                <Figure label="Passed the tests first time" value={firstValue} detail={firstDetail} />
+                <Figure label="Hand-offs that passed" value={handoffValue} detail={handoffDetail} />
+              </dl>
+              <p className={NOTE} data-testid="kpi-transcript-share">
+                Each hand-off passes on a packet{packetTokens?.value != null ? ` of about ${metricValue(packetTokens)}` : ''}, not the full session log. Full logs passed on: {transcripts?.value != null ? metricValue(transcripts) : '0%'}.
+              </p>
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                <Explain word="verify" />
+                <Explain word="handoff" />
+              </div>
+              <Panel title="All measures" aside="Each one in plain words, with a link to its definition" collapsed testId="panel-measures">
+                <Measures data={metrics.data} />
+              </Panel>
+            </>
           ) : null}
         </MetricsPanel>
 
         <Panel title="Agents" testId="panel-scoreboard">
-          <Scoreboard data={scores} />
+          <WhenRead v={scores} what="each agent's record">
+            {(d) => <Scoreboard data={d} />}
+          </WhenRead>
         </Panel>
 
         {/* shown only while something waits; a finding that would reverse a decision links here */}
-        <Queue level={2} />
+        <div className="stint-section empty:hidden">
+          <Queue level={2} />
+        </div>
 
         <Group title="Runs and hand-offs">
           <Panel title="Runs by agent, over time" aside="Each run on its agent's line, and the packets passed between them" collapsed testId="panel-relay">
@@ -978,65 +1023,99 @@ export function Factory() {
             <Relay />
           </Panel>
           <Panel title="Stages reached, last 7 days" aside="A task counts in every stage it reached, so these are not today's counts" collapsed testId="panel-loops">
-            <Loops counts={counts} />
+            <WhenRead v={fromLogs} what="the stages">
+              {(d) => <Loops counts={d.funnel} />}
+            </WhenRead>
           </Panel>
           <Panel title="Packet against full log" aside="What the next agent reads, whether it passes, and what it costs" collapsed testId="panel-bench">
-            {bench ? (
-              <Benchmark data={bench} />
-            ) : (
-              <EmptyState testId="bench-empty">
-                The packet against the full session log appears here once <span className="font-mono">stint bench</span> has run.
-              </EmptyState>
-            )}
+            <WhenRead v={bench} what="the benchmark">
+              {(d) =>
+                d ? (
+                  <Benchmark data={d} />
+                ) : (
+                  <EmptyState testId="bench-empty">
+                    The packet against the full session log appears here once <span className="font-mono">stint bench</span> has run.
+                  </EmptyState>
+                )
+              }
+            </WhenRead>
           </Panel>
           <Panel title="One packet, any agent" collapsed testId="panel-any-harness" id="any-harness">
-            <AnyHarness health={health as Health | null} />
+            <WhenRead v={{ data: health, error: healthError }} what="the agents and hosts">
+              {(h) => <AnyHarness health={h} />}
+            </WhenRead>
           </Panel>
         </Group>
 
         <Group title="Spend">
           <Panel title="Spend by task" aside="Split by model maker, at list prices" collapsed testId="panel-spend">
-            <SpendByTask rows={spendByTask} />
+            <WhenRead v={fromLogs} what="what each task cost">
+              {(d) => <SpendByTask rows={d.spend} />}
+            </WhenRead>
           </Panel>
           <Panel title="Meta models at work" collapsed testId="panel-models">
-            <ModelsAtWork rows={byModel ?? []} />
-            <p className={PROSE}>
-              Read from cache overall: {input ? `${Math.round((cached / input) * 100)}%` : 'none'}, {tokens(cached)} of {tokens(input)} tokens.
-            </p>
+            <WhenRead v={byModel} what="the models at work">
+              {(rows) => {
+                const input = rows.reduce((s, r) => s + r.inputTokens, 0);
+                const cached = rows.reduce((s, r) => s + r.cachedTokens, 0);
+                return (
+                  <>
+                    <ModelsAtWork rows={rows} />
+                    <p className={PROSE}>
+                      Read from cache overall: {input ? `${Math.round((cached / input) * 100)}%` : 'none'}, {tokens(cached)} of {tokens(input)} tokens.
+                    </p>
+                  </>
+                );
+              }}
+            </WhenRead>
           </Panel>
           <Panel title="Cost per day" collapsed testId="panel-cost-day">
-            <CostByDay rows={byDayHost ?? []} />
+            <WhenRead v={byDayHost} what="the cost per day">
+              {(rows) => <CostByDay rows={rows} />}
+            </WhenRead>
           </Panel>
           <Panel title="Credits left" collapsed testId="panel-credits">
-            <CreditsLeft rows={byHost ?? []} />
+            <WhenRead v={byHost} what="the credits left">
+              {(rows) => <CreditsLeft rows={rows} />}
+            </WhenRead>
           </Panel>
         </Group>
 
         <Group title="Learning and upkeep">
           <Panel title="What it learned" aside="A skill learned on one task, and the next task that used it" collapsed testId="panel-it-learned">
-            <ItLearned helped={helped ?? []} costByTask={costByTask} />
+            <WhenRead v={helped} what="the skills that helped">
+              {(h) => <ItLearned helped={h} costByTask={costByTask} />}
+            </WhenRead>
           </Panel>
           <Panel title="Workspace memory" collapsed testId="panel-memory">
             <WorkspaceMemory />
           </Panel>
-          <Panel title={`Upkeep${upkeep && upkeep.schedule !== 'off' ? `, ${upkeep.schedule}` : ''}`} collapsed testId="panel-upkeep">
-            <Upkeep data={upkeep} />
+          <Panel title={`Upkeep${upkeep.data && upkeep.data.schedule !== 'off' ? `, ${upkeep.data.schedule}` : ''}`} collapsed testId="panel-upkeep">
+            <WhenRead v={upkeep} what="the upkeep schedule">
+              {(d) => <Upkeep data={d} />}
+            </WhenRead>
           </Panel>
         </Group>
 
         <Group title="Results and approvals">
           <Panel title="What happened after merge" collapsed testId="panel-outcomes">
-            <Outcomes rows={outcomeRows} />
+            <WhenRead v={fromLogs} what="what happened after merge">
+              {(d) => <Outcomes rows={d.outcomes} />}
+            </WhenRead>
           </Panel>
           <Panel title="Phase gates" collapsed testId="panel-phase-gates">
-            <PhaseGatePanel gates={gates} />
+            <WhenRead v={gates} what="the phase gates">
+              {(d) => <PhaseGatePanel gates={d} />}
+            </WhenRead>
           </Panel>
           <Panel title="Auto-approve" collapsed testId="panel-auto-approve">
-            <AutoApprove state={risk} onChanged={() => setRiskVersion((v) => v + 1)} />
+            <WhenRead v={risk} what="what the policy would have done">
+              {(d) => <AutoApprove state={d} onChanged={() => setRiskVersion((v) => v + 1)} />}
+            </WhenRead>
           </Panel>
         </Group>
 
-        <footer className={cx(NOTE, 'flex flex-wrap justify-between gap-2')}>
+        <footer className={cx(NOTE, 'flex flex-wrap justify-between gap-2 mt-10')}>
           <span className="max-w-[60ch]">Every figure comes from the task logs in .stint/tasks/, priced at the list prices in config.json.</span>
           <span>Built on Meta's Muse models</span>
         </footer>

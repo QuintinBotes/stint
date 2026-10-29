@@ -144,3 +144,14 @@ test('The Factory shows what the agents did: every measure by group behind one d
   // the figures row reads the same response: the transcript share is efficiency.transcript_share
   await expect(page.getByTestId('kpi-transcript-share')).toContainText('Full logs passed on: 0%');
 });
+
+test('A Factory panel whose read fails says so in the daemon\'s words, never that there is nothing to show', async ({ page }) => {
+  await page.route('**/api/scoreboard', (r) => r.fulfill({ status: 500, json: { error: { code: 'internal', message: 'the scoreboard could not be computed' } } }));
+  await page.goto('/factory');
+  const panel = page.getByTestId('panel-scoreboard');
+  await expect(panel.getByTestId('panel-error')).toHaveText("Each agent's record could not be read: the scoreboard could not be computed.");
+  await expect(panel.getByTestId('scoreboard-empty')).toHaveCount(0);
+  await expect(panel.getByTestId('scoreboard')).toHaveCount(0);
+  // the other panels read on their own
+  await expect(page.getByTestId('kpis')).toContainText('Tasks merged');
+});
