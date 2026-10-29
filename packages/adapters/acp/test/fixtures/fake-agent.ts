@@ -1,6 +1,6 @@
 // A fake agent that speaks the Agent Client Protocol on stdio, for the adapter's tests. FAKE_ACP_MODE picks the
 // script: "full" (default) reads, writes, runs a terminal and asks permission; "outside" tries to write outside
-// the worktree; "hang" asks permission and waits until it is cancelled.
+// the worktree; "hang" asks permission and waits until it is cancelled; "kill" starts a long terminal command and kills it.
 import { createInterface } from 'node:readline';
 
 type Msg = { jsonrpc: '2.0'; id?: number | string; method?: string; params?: Record<string, unknown>; result?: unknown; error?: { code: number; message: string } };
@@ -24,6 +24,16 @@ async function prompt(sessionId: string): Promise<string> {
   say(sessionId, 'Reading the package file. ');
   const read = await ask('fs/read_text_file', { sessionId, path: 'package.json', line: 1, limit: 3 });
   say(sessionId, `Read ${String((read.result as { content?: string })?.content ?? '').split('\n').length} lines.`);
+  if (mode === 'kill') {
+    const term = await ask('terminal/create', { sessionId, command: 'sleep', args: ['30'] });
+    const terminalId = (term.result as { terminalId: string }).terminalId;
+    await ask('terminal/kill', { sessionId, terminalId });
+    const exit = (await ask('terminal/wait_for_exit', { sessionId, terminalId })).result as { exitCode: number | null; signal: string | null };
+    const output = (await ask('terminal/output', { sessionId, terminalId })).result as { exitStatus?: { signal: string | null } };
+    await ask('terminal/release', { sessionId, terminalId });
+    say(sessionId, ` The terminal ended by ${exit.signal} with exit code ${exit.exitCode}; its output says ${output.exitStatus?.signal}.`);
+    return 'end_turn';
+  }
   if (mode === 'outside') {
     const out = await ask('fs/write_text_file', { sessionId, path: '../outside.txt', content: 'escaped' });
     say(sessionId, out.error ? ` The write was refused: ${out.error.message}.` : ' The write went through.');
