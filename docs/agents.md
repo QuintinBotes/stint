@@ -78,7 +78,7 @@ Name one in a route (`"reviewer": ["lmstudio/<model id>", ...]`), in a hand-off 
 
 The `codex` preset uses the native harness: `codex exec --json --sandbox workspace-write -`, with the prompt on stdin. Stint maps the thread start, agent messages, command runs, file changes, MCP tool calls and the turn usage onto the timeline, and resumes with `codex exec resume <thread id>`. The gate is observed.
 
-To run Codex on a Meta model, give Codex a provider in your Codex config (`~/.codex/config.toml`). Codex speaks only the Responses API (`wire_api = "chat"` is refused), and the Meta Model API serves it. This one ran on 27 October 2026 with Codex 0.163 and Muse Spark 1.3; its stream is the Codex mapper's test fixture:
+To run Codex on a Meta model, set the Codex agent's `host` to a Stint host such as `meta-api`: Stint then points Codex at that host for each run with `-c` overrides on Codex's command line (`codexArgs` in `packages/adapters/codex`), and your own Codex config is left alone. Without a `host`, Codex uses the provider in your Codex config (`~/.codex/config.toml`), as below. Codex speaks only the Responses API (`wire_api = "chat"` is refused), and the Meta Model API serves it. This one ran on 27 October 2026 with Codex 0.163 and Muse Spark 1.3; its stream is the Codex mapper's test fixture:
 
 ```toml
 model_provider = "meta"

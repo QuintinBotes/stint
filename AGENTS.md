@@ -48,7 +48,7 @@ These hold in every file you write. A spec cannot override them; a `Deviation:` 
 8. **Secrets never enter the repo or a packet.** API keys live in the environment only. The packet reads command excerpts, never tool-output summaries; a test proves a credential in tool output never reaches `handoff.json`.
 9. **Nothing identifies the author** beyond the GitHub handle: no real email, no em dashes in source or docs, no hard-coded reviewer name. `scripts/guard-identity.mjs` fails CI on any of these. No client material and no employer-internal platform names anywhere.
 10. **Pins are law.** Versions in section 6 are the only versions; adding a dependency needs a `Decision:` line in `PROGRESS.md` with the reason.
-11. **Dark is the default theme.** `light` and `stage` are opt-in. The CLI's colours and the demo recording are dark.
+11. **The system setting picks the theme.** Charcoal is the dark theme and light follows the system (R-067); there is no theme control. The CLI's colours, the demo recording and the video capture are dark.
 12. **Words, not decoration.** Sentence case, plain words, present tense, no emoji in UI or CLI output, no gradients, no icons where a word does. Honest copy: "run by Stint", "in-flight step unknown", "Replay, hand-written", "a recording of a live run on 2 Nov".
 
 ## 4. Architecture and repo layout

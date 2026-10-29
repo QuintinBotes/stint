@@ -29,7 +29,12 @@ export function defaultAdapters(config?: Config): Adapter[] {
       const h = def.host ? cfg.hosts[def.host] : undefined;
       const baseURL = h ? (h.baseURL ?? (h.baseURLEnv ? process.env[h.baseURLEnv] : undefined)) : undefined;
       agents.push(claudeCode(name, def, def.host && h ? { id: def.host, ...(baseURL ? { baseURL } : {}), keyless: !h.keyEnv } : undefined));
-    } else if (harness === 'codex') agents.push(codex(name, def));
+    } else if (harness === 'codex') {
+      // a Codex agent set to a Stint host runs on that host for the run, without touching the person's Codex config
+      const h = def.host ? cfg.hosts[def.host] : undefined;
+      const baseURL = h ? (h.baseURL ?? (h.baseURLEnv ? process.env[h.baseURLEnv] : undefined)) : undefined;
+      agents.push(codex(name, def, def.host && baseURL && h?.keyEnv ? { id: def.host, baseURL, keyEnv: h.keyEnv } : undefined));
+    }
     else if (harness === 'acp') agents.push(acpAgent(name, def));
     else agents.push(cliAgent(name, def));
   }

@@ -111,6 +111,13 @@ describe('Codex mapper', () => {
     const args = codexArgs({});
     for (const flag of ['--full-auto', 'danger-full-access', '--yolo']) expect(args.join(' ')).not.toContain(flag);
   });
+
+  test("a Stint host reaches Codex as -c overrides for the run, so the person's own Codex config is never edited", () => {
+    const provider = { id: 'meta-api', baseURL: 'https://api.meta.ai/v1', keyEnv: 'META_API_KEY' };
+    const overrides = ['-c', 'model_provider="stint-meta-api"', '-c', 'model_providers.stint-meta-api={ name = "meta-api", base_url = "https://api.meta.ai/v1", env_key = "META_API_KEY", wire_api = "responses" }'];
+    expect(codexArgs({ model: 'muse-spark-1.3', provider })).toEqual(['codex', ...overrides, 'exec', '--json', '--sandbox', 'workspace-write', '--model', 'muse-spark-1.3', '-']);
+    expect(codexArgs({ threadId: 't-1', provider })).toEqual(['codex', ...overrides, 'exec', 'resume', '--json', '--sandbox', 'workspace-write', 't-1', '-']);
+  });
 });
 
 describe('a real Codex stream (R-057)', () => {

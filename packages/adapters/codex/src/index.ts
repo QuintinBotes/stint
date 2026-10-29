@@ -6,13 +6,22 @@ import { CodexMapper } from './mapper';
 export { CodexMapper } from './mapper';
 export type { CodexRecord } from './mapper';
 
-/** The non-interactive command line (R-034); the sandbox stays at workspace-write. */
-export function codexArgs(o: { model?: string; threadId?: string; bin?: string }): string[] {
+/** A Stint host Codex should use instead of whatever its own config names: an OpenAI-compatible base URL and the variable its key is in. */
+export type CodexProvider = { id: string; baseURL: string; keyEnv: string };
+
+/**
+ * The non-interactive command line (R-034); the sandbox stays at workspace-write. With a provider, Codex is pointed at that
+ * host through `-c` overrides for this run only, so the person's own Codex config is never edited. Codex speaks only the
+ * Responses API, which the Meta Model API serves.
+ */
+export function codexArgs(o: { model?: string; threadId?: string; bin?: string; provider?: CodexProvider }): string[] {
   const bin = o.bin ?? 'codex';
+  const p = o.provider;
+  const config = p ? ['-c', `model_provider="stint-${p.id}"`, '-c', `model_providers.stint-${p.id}={ name = "${p.id}", base_url = "${p.baseURL}", env_key = "${p.keyEnv}", wire_api = "responses" }`] : [];
   if (o.threadId) {
-    return [bin, 'exec', 'resume', '--json', '--sandbox', 'workspace-write', ...(o.model ? ['--model', o.model] : []), o.threadId, '-'];
+    return [bin, ...config, 'exec', 'resume', '--json', '--sandbox', 'workspace-write', ...(o.model ? ['--model', o.model] : []), o.threadId, '-'];
   }
-  return [bin, 'exec', '--json', '--sandbox', 'workspace-write', ...(o.model ? ['--model', o.model] : []), '-'];
+  return [bin, ...config, 'exec', '--json', '--sandbox', 'workspace-write', ...(o.model ? ['--model', o.model] : []), '-'];
 }
 
 export function codexEndedBy(o: { failed: boolean; aborted: boolean; signal: NodeJS.Signals | null; exitCode: number | null }): EndedBy {
@@ -22,12 +31,12 @@ export function codexEndedBy(o: { failed: boolean; aborted: boolean; signal: Nod
 }
 
 /** Codex driven with `codex exec --json` in the worktree, observed by Stint and verified by the daemon after (R-034). */
-export function codex(name: string, def: AgentDef): Adapter {
+export function codex(name: string, def: AgentDef, provider?: CodexProvider): Adapter {
   const bin = (def.command[0] as string) || 'codex';
 
   async function exec(ctx: RunContext, extra: { threadId?: string; prompt?: string } = {}): Promise<RunResult> {
     const model = ctx.model ?? def.model;
-    const argv = codexArgs({ bin, ...(model ? { model } : {}), ...(extra.threadId ? { threadId: extra.threadId } : {}) });
+    const argv = codexArgs({ bin, ...(model ? { model } : {}), ...(extra.threadId ? { threadId: extra.threadId } : {}), ...(provider ? { provider } : {}) });
     const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
     const child = spawn(cmd, args, { cwd: ctx.worktree, env: ctx.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
     if (child.pid) ctx.onSpawn?.(child.pid);
