@@ -36,7 +36,18 @@
               "type": "object",
               "additionalProperties": false,
               "required": ["given", "when", "then"],
-              "properties": { "given": { "$ref": "#/$defs/line" }, "when": { "$ref": "#/$defs/line" }, "then": { "$ref": "#/$defs/line" } }
+              "properties": {
+                "given": { "$ref": "#/$defs/line" },
+                "when": { "$ref": "#/$defs/line" },
+                "then": { "$ref": "#/$defs/line" },
+                "proof": {
+                  "description": "How the scenario is proven once it is a task's acceptance line: a held-out scenario the agent cannot see, which is also what no proof means, or what a page shows, with ref as <path> :: <what should be seen> (R-068). A visual proof whose ref names no page is refused on create.",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind"],
+                  "properties": { "kind": { "type": "string", "enum": ["scenario", "visual"] }, "ref": { "type": "string", "minLength": 1, "maxLength": 200 } }
+                }
+              }
             }
           }
         }

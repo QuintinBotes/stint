@@ -88,7 +88,7 @@ const cases = [
   { name: 'skill', schema: SkillFrontmatterSchema, examples: ['skill'] },
   { name: 'questions', schema: QuestionsSchema, examples: ['questions'] },
   { name: 'goal', schema: GoalSchema, examples: ['goal'] },
-  { name: 'draft', schema: DraftSchema, examples: ['draft'] },
+  { name: 'draft', schema: DraftSchema, examples: ['draft', 'draft-visual'] },
   { name: 'scorecard', schema: ScorecardSchema, examples: ['scorecard'] },
 ] as const;
 

@@ -86,6 +86,25 @@ describe('parseSpecKit', () => {
   });
 });
 
+describe('A page proof in a spec.md (R-068)', () => {
+  const VISUAL = example('draft-visual') as Draft;
+
+  test('is a short note under its scenario, and reads back as the same proof', () => {
+    const lines = toSpecKit(VISUAL).split('\n');
+    const at = lines.indexOf('1. **Given** a tenant over the limit, **When** an operator opens /admin, **Then** a banner says try again in 60 s');
+    expect(lines.slice(at, at + 3)).toEqual(['1. **Given** a tenant over the limit, **When** an operator opens /admin, **Then** a banner says try again in 60 s', '   - **It looks right**: /admin :: a 429 banner saying try again in 60 s', '2. **Given** a tenant over the limit, **When** it sends a webhook, **Then** the reply is 429 with Retry-After 60']);
+    // a held-out scenario is what no note means, so it reads back with no proof
+    expect(draftOf(toSpecKit(VISUAL)).stories[0]?.scenarios.map((x) => x.proof ?? null)).toEqual([{ kind: 'visual', ref: '/admin :: a 429 banner saying try again in 60 s' }, null]);
+  });
+
+  test('a note that names no page, or stands under no scenario, is a problem in words', () => {
+    const story = (body: string) => `# Feature Specification: Banner\n\n## User Scenarios & Testing\n\n### User Story 1 - Banner (Priority: P1)\n\n${body}\n`;
+    const hint = 'write it under its scenario as - **It looks right**: /path :: what should be seen.';
+    expect(problemsOf(story('1. **Given** a, **When** b, **Then** c\n   - **It looks right**: the banner'))).toEqual([`User story 1 has "- **It looks right**: the banner"; ${hint}`]);
+    expect(problemsOf(story('- **It looks right**: /admin :: a banner\n1. **Given** a, **When** b, **Then** c'))).toEqual([`User story 1 has "- **It looks right**: /admin :: a banner"; ${hint}`]);
+  });
+});
+
 describe('toSpecKit', () => {
   test('writes the draft in Spec Kit sections, with its open items as NEEDS CLARIFICATION markers', () => {
     const md = toSpecKit(example('draft') as Draft);

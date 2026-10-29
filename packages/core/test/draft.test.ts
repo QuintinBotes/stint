@@ -130,3 +130,32 @@ describe('What a draft becomes', () => {
     ]);
   });
 });
+
+describe('A visual proof on a scenario (R-068)', () => {
+  const VISUAL = example('draft-visual') as Draft;
+  const looks = (ref: string) => output({ stories: [{ title: 'Banner', priority: 'P1', why: 'Operators look there.', scenarios: [{ given: 'a tenant over the limit', when: 'an operator opens /admin', then: 'a banner says try again in 60 s', proof: { kind: 'visual', ref } }] }] });
+
+  test('the model may propose one that names a page; one that names no page is dropped and the scenario keeps its held-out test', () => {
+    const before = { input: 'Show when to try again', questions: [], assumed: [], answers: [] };
+    expect(draftFromOutput(looks('/admin :: a 429 banner'), before, 5).stories[0]?.scenarios[0]).toEqual({ given: 'a tenant over the limit', when: 'an operator opens /admin', then: 'a banner says try again in 60 s', proof: { kind: 'visual', ref: '/admin :: a 429 banner' } });
+    expect(draftFromOutput(looks('the admin banner'), before, 5).stories[0]?.scenarios[0]).toEqual({ given: 'a tenant over the limit', when: 'an operator opens /admin', then: 'a banner says try again in 60 s' });
+  });
+
+  test('a task proves the scenario by what the page shows, and the rest by their held-out scenarios', () => {
+    expect(taskFromDraft(VISUAL).proofs).toEqual([
+      { criterion: 1, kind: 'visual', ref: '/admin :: a 429 banner saying try again in 60 s' },
+      { criterion: 2, kind: 'scenario', ref: 'the reply is 429 with Retry-After 60' },
+    ]);
+  });
+
+  test('a task whose page proof names no page cannot be created; a goal takes no proofs from its scenarios, so it can', () => {
+    expect(draftProblem(VISUAL)).toBeNull();
+    const unseen = structuredClone(VISUAL);
+    (unseen.stories[0] as Draft['stories'][number]).scenarios[1] = { given: 'a tenant over the limit', when: 'it sends a webhook', then: 'the reply is 429', proof: { kind: 'visual', ref: 'admin :: a banner' } };
+    expect(draftProblem(unseen)).toBe('story 1 scenario 2 is proven by what a page shows but names no page; write it as "<path> :: <what should be seen>", such as "/admin :: a 429 banner saying try again in 60 s"');
+    expect(draftProblem({ ...unseen, kind: 'goal' })).toBeNull();
+    (unseen.stories[0] as Draft['stories'][number]).scenarios[1] = { given: 'a tenant over the limit', when: 'it sends a webhook', then: 'the reply is 429', proof: { kind: 'visual' } };
+    expect(draftProblem(unseen)).toStartWith('story 1 scenario 2 is proven by what a page shows but names no page;');
+    expect(taskFromDraft(unseen).proofs[1]).toEqual({ criterion: 2, kind: 'scenario', ref: 'the reply is 429' });
+  });
+});

@@ -1,0 +1,55 @@
+{
+  "version": "stint.draft/1",
+  "input": "Tell a client over the limit when to try again.",
+  "kind": "task",
+  "kindReason": "One agent can build and verify it in one run.",
+  "title": "Show when to try again",
+  "summary": "A client over the rate limit sees when it may try again, on the admin page and in the reply.",
+  "stories": [
+    {
+      "title": "The banner on the admin page",
+      "priority": "P1",
+      "why": "Operators look at the admin page first.",
+      "scenarios": [
+        {
+          "given": "a tenant over the limit",
+          "when": "an operator opens /admin",
+          "then": "a banner says try again in 60 s",
+          "proof": {
+            "kind": "visual",
+            "ref": "/admin :: a 429 banner saying try again in 60 s"
+          }
+        },
+        {
+          "given": "a tenant over the limit",
+          "when": "it sends a webhook",
+          "then": "the reply is 429 with Retry-After 60",
+          "proof": {
+            "kind": "scenario"
+          }
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "id": "FR-001",
+      "text": "System MUST answer 429 with Retry-After when a tenant is over the limit."
+    }
+  ],
+  "success": [
+    {
+      "id": "SC-001",
+      "text": "An operator can tell when a tenant may send again without reading logs."
+    }
+  ],
+  "edgeCases": [],
+  "assumptions": [],
+  "nonGoals": [
+    "Changing the limit"
+  ],
+  "open": [],
+  "questions": [],
+  "assumed": [],
+  "answers": []
+}

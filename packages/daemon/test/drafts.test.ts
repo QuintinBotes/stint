@@ -35,7 +35,7 @@ const SPEC = {
 };
 
 /** A planner that drafts the spec above with three questions, one the repository can answer, and asks one more on each refine. */
-function fakeDrafter() {
+function fakeDrafter(spec: Record<string, unknown> = SPEC) {
   const prompts: string[] = [];
   const server = Bun.serve({
     port: 0,
@@ -45,8 +45,8 @@ function fakeDrafter() {
       prompts.push(prompt);
       const refine = prompt.includes('You refine a draft spec');
       const out = refine
-        ? { ...SPEC, questions: [question('Should the 503 body name every failing part?', 'implementation', true, ['Yes', 'No'])], assumed: [] }
-        : { ...SPEC, questions: [question('Who may see why the service is down?', 'authority', false), question('Should the check write a log line on each call?', 'implementation', true), question('Which file holds the routes?', 'implementation', true)], assumed: [{ text: 'The check needs no token.', why: 'Load balancers call it.' }] };
+        ? { ...spec, questions: [question('Should the 503 body name every failing part?', 'implementation', true, ['Yes', 'No'])], assumed: [] }
+        : { ...spec, questions: [question('Who may see why the service is down?', 'authority', false), question('Should the check write a log line on each call?', 'implementation', true), question('Which file holds the routes?', 'implementation', true)], assumed: [{ text: 'The check needs no token.', why: 'Load balancers call it.' }] };
       return Response.json({ message: { content: JSON.stringify(out) }, prompt_eval_count: 100, eval_count: 20 });
     },
   });
@@ -154,6 +154,48 @@ test('A draft is one planner call recorded as workspace spend for draft, keeps t
       expect(st.questions.find((q) => q.id === 'Q1')?.answered).toMatchObject({ option: 'Only an admin', decision: 'D1', by: 'you' });
       // so the plan and the first build carry the answers
       expect(await sharpenBrief(ws, task)).toContain('- D1: Who may see why the service is down? Answer: Only an admin');
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
+
+test('A scenario about what a page shows is proposed as a visual proof and becomes one on the task; one that names no page keeps its held-out test, and a page proof the person left without a page is refused before anything is made', async () => {
+  const [up, down] = SPEC.stories as Array<Draft['stories'][number]>;
+  const looks = {
+    ...SPEC,
+    stories: [
+      { ...up, scenarios: [{ given: 'the service is running', when: 'an operator opens /status', then: 'a green banner says the service is up', proof: { kind: 'visual', ref: '/status :: a green banner saying the service is up' } }] },
+      { ...down, scenarios: [{ ...(down?.scenarios[0] as object), proof: { kind: 'visual', ref: 'the 503 body' } }] },
+    ],
+  };
+  const models = fakeDrafter(looks);
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [], models);
+      const draft = (await (await post(app, '/api/drafts', { input: 'Add a status page' })).json()) as Draft;
+      expect(models.prompts[0]).toContain('only when the scenario names a page of the app (a path such as /admin) and what a person sees there');
+      expect(draft.stories.map((s) => s.scenarios.map((x) => x.proof ?? null))).toEqual([[{ kind: 'visual', ref: '/status :: a green banner saying the service is up' }], [null]]);
+
+      // the person switched a scenario to a page proof and left the page out
+      const unseen = structuredClone(draft);
+      (unseen.stories[1] as Draft['stories'][number]).scenarios[0] = { given: 'the database is down', when: 'GET /health is called', then: 'it answers 503 naming the database', proof: { kind: 'visual', ref: ' :: a red banner' } };
+      const refused = await post(app, '/api/drafts/create', { draft: unseen });
+      expect(refused.status).toBe(400);
+      expect(((await refused.json()) as { error: { message: string } }).error.message).toBe('story 2 scenario 1 is proven by what a page shows but names no page; write it as "<path> :: <what should be seen>", such as "/admin :: a 429 banner saying try again in 60 s"');
+      expect(await ws.listTasks()).toEqual([]);
+
+      // the spec.md carries the page proof as a note under its scenario, and reads back with it
+      const md = await (await post(app, '/api/drafts/export', { draft })).text();
+      expect(md).toContain('1. **Given** the service is running, **When** an operator opens /status, **Then** a green banner says the service is up\n   - **It looks right**: /status :: a green banner saying the service is up\n');
+      const back = (await (await post(app, '/api/drafts/import', { spec: md })).json()) as Draft;
+      expect(back.stories[0]?.scenarios[0]?.proof).toEqual({ kind: 'visual', ref: '/status :: a green banner saying the service is up' });
+
+      expect(await (await post(app, '/api/drafts/create', { draft })).json()).toEqual({ kind: 'task', id: 'T-0001' });
+      expect((await ws.readTask('T-0001')).proofs).toEqual([
+        { criterion: 1, kind: 'visual', ref: '/status :: a green banner saying the service is up' },
+        { criterion: 2, kind: 'scenario', ref: 'it answers 503 naming the database' },
+      ]);
     });
   } finally {
     models.stop();
