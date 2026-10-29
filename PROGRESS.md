@@ -86,6 +86,7 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-064 | Sharpen a task before it starts, and goals above tasks | R-010, R-020, R-036, R-062, R-063 | done | author | 1 | 2026-10-28 | Part 1: questions checked in code (repository-answerable and permission questions dropped, material ones always asked, at most 5 a round), answers recorded as decisions later runs keep, proofs per criterion, `sharpen.beforeAutopilot`, `stint sharpen/answer/proofs`, the Sharpen panel with Answer with A/B. Part 2: `stint.goal/1` at `.stint/goals/`, Sharpen for a goal, a split into tasks a person edits before any is created, goal limits across its tasks (`limit.reached` with `scope: goal`), `goalOutcome`, the Goals page, `stint goal`, two-click abandon. Tests: core sharpen, goals store and goalOutcome; daemon sharpen and goals; cli sharpen and goal; e2e flows sharpen.spec.ts and goals.spec.ts. |
 | R-065 | The charcoal redesign: a calm workspace that says what needs you | R-059, R-062, R-063, R-064 | in_progress | author | 1 | 2026-10-29 | Foundation: charcoal tokens and stint-* component classes, StatusChip with a shape on every state, quiet tables, Dialog with Close, footer and draft protection |
 | R-066 | The spec builder: say what you want, Stint drafts the spec (Spec Kit shape) | R-064, R-065 | todo | author | 1 | 2026-10-29 | |
+| R-067 | A light theme that follows the system | R-065 | todo | author | 1 | 2026-10-29 | |
 
 ## Gates
 
