@@ -87,3 +87,38 @@ describe('graph embedding similarity (R-052)', () => {
     });
   }, 60_000);
 });
+
+test('A connection the embeddings host drops is asked once more, so similarity still uses the embeddings', async () => {
+  const { createServer } = await import('node:net');
+  let connections = 0;
+  // the first connection is cut before any answer (ECONNRESET); the second gets a plain HTTP answer
+  const server = createServer((socket) => {
+    connections += 1;
+    if (connections === 1) return void socket.resetAndDestroy();
+    let raw = '';
+    socket.on('data', (chunk) => {
+      raw += chunk.toString();
+      const [head = '', body = ''] = raw.split('\r\n\r\n');
+      const length = Number(/content-length: (\d+)/i.exec(head)?.[1] ?? 0);
+      if (body.length < length) return;
+      const input = (JSON.parse(body) as { input: string[] }).input;
+      const json = JSON.stringify({ data: input.map((t, i) => ({ index: i, embedding: t.toLowerCase().includes('webhook') ? [1, 0, 0] : [0, 0, 1] })) });
+      socket.end(`HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: ${Buffer.byteLength(json)}\r\nconnection: close\r\n\r\n${json}`);
+    });
+  });
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  const port = (server.address() as { port: number }).port;
+  try {
+    await withFixtureRepo(async (repo) => {
+      const ws = await Workspace.open(repo);
+      await threeTasks(ws);
+      ws.config.hosts['fake-embed'] = hostConfig(`http://127.0.0.1:${port}/v1`);
+      ws.config.routes.embed = ['fake-embed/test-embed'];
+      const graph = await project(ws, { cache: false });
+      expect(connections).toBe(2);
+      expect(graph.edges.filter((e) => e.type === 'similar_to')).toHaveLength(1);
+    });
+  } finally {
+    server.close();
+  }
+});

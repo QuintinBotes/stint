@@ -84,7 +84,9 @@ export async function embedTexts(ws: Workspace, texts: string[]): Promise<number
       const key = host.keyEnv ? process.env[host.keyEnv] : undefined;
       if (key) headers.Authorization = `Bearer ${key}`;
       const url = hostId === 'ollama' ? `${originOf(base)}/api/embed` : `${base}/embeddings`;
-      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model, input: missing }), signal: AbortSignal.timeout(10_000) });
+      const ask = () => fetch(url, { method: 'POST', headers, body: JSON.stringify({ model, input: missing }), signal: AbortSignal.timeout(10_000) });
+      // one retry when the connection itself drops (a pooled socket the host had closed); an HTTP error is an answer, not retried
+      const res = await ask().catch((err: unknown) => (err instanceof Error && /ECONNRESET|socket connection was closed/i.test(err.message) ? ask() : Promise.reject(err)));
       if (!res.ok) throw new Error(`${url} answered ${res.status}`);
       const body = (await res.json()) as { embeddings?: unknown; data?: Array<{ embedding?: unknown; index?: number }> };
       const fetched: unknown[] = Array.isArray(body.embeddings)
