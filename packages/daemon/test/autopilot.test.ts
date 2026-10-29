@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { StintEvent } from '@stint-dev/core';
 import type { Adapter, RunResult } from '../src/index';
-import { fakeModels, setup, steps, stopped, task, until } from './autopilot.fixtures';
+import { APPROVE, fakeModels, setup, steps, stopped, task, until } from './autopilot.fixtures';
 import { fakeAdapter, post, withFixtureRepo } from './helpers';
 
 /** An implementer that ends killed straight away, as if someone stopped it. */
@@ -151,3 +151,57 @@ test('With autopilot.onCreate, a task created through the daemon starts on autop
     models.stop();
   }
 }, 180_000);
+
+test('R-025 Req 2: a block verdict stops autopilot at building, with the blockers as the pending ask and no second build', async () => {
+  const models = fakeModels({ ...APPROVE, verdict: 'block', summary: 'It drops traffic.', findings: [{ id: 'F1', severity: 'blocker', file: 'src/lib/limiter.ts', text: 'The limiter drops every request, not only those over the limit.' }], blockers: ['The limiter drops every request.'] });
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }], models);
+      const t = await ws.createTask(task('true'));
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped);
+      expect(steps(events)).toEqual(['plan', 'build', 'verify', 'review']);
+      expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toEqual({ reason: 'Needs you: the review blocked it: The limiter drops every request.', needsYou: true });
+      expect(await ws.readTask(t.id)).toMatchObject({ status: 'building', pendingAsk: 'The limiter drops every request.' });
+      expect(models.asked).toEqual(['plan', 'review']);
+    });
+  } finally {
+    models.stop();
+  }
+}, 120_000);
+
+test('R-025 Req 4: an implementer that is not available is skipped for the next one in the chain', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const missing: Adapter = { ...fakeAdapter('edit'), id: 'muse-code', available: async () => ({ ok: false, reason: 'the muse CLI is not installed' }) };
+      const { app, ws } = await setup(repo, [missing, { ...fakeAdapter('edit'), id: 'stint-agent' }], models);
+      const t = await ws.createTask(task('true'));
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped);
+      expect(steps(events)).toEqual(['plan', 'build', 'verify', 'review']);
+      expect(events.find((e) => e.type === 'autopilot.step' && e.payload.step === 'build')?.payload.adapter).toBe('stint-agent');
+      expect(events.filter((e) => e.type === 'run.started' && e.payload.role === 'implementer').map((e) => e.adapter)).toEqual(['stint-agent']);
+      expect((await ws.readTask(t.id)).status).toBe('awaiting_approval');
+    });
+  } finally {
+    models.stop();
+  }
+}, 120_000);
+
+test('R-025 Req 4: a build that would go over the implementer budget stops autopilot with "Needs you" and starts no run', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }], models);
+      const t = await ws.createTask({ ...task('true'), budgets: { planner: 40_000, implementer: 50, reviewer: 30_000 } });
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped);
+      expect(steps(events)).toEqual(['plan', 'build']);
+      expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toEqual({ reason: `Needs you: budget_exceeded: the implementer budget on ${t.id} would be exceeded`, needsYou: true });
+      expect(events.filter((e) => e.type === 'run.started').map((e) => e.payload.role)).toEqual(['planner']);
+    });
+  } finally {
+    models.stop();
+  }
+}, 120_000);

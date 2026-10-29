@@ -62,8 +62,8 @@ export const SPLIT = {
   ],
 };
 
-/** Plays the planner, the reviewer and sharpen: answers by the schema it is asked for, and keeps each prompt. */
-export function fakeModels() {
+/** Plays the planner, the reviewer (with `verdict`, an approval unless a test says otherwise) and sharpen: answers by the schema it is asked for, and keeps each prompt. */
+export function fakeModels(verdict: object = APPROVE) {
   const asked: string[] = [];
   const prompts: string[] = [];
   const server = Bun.serve({
@@ -80,7 +80,7 @@ export function fakeModels() {
         const review = body.includes('"verdict"');
         asked.push(pick ? 'pick' : questions ? 'sharpen' : split ? 'split' : review ? 'review' : 'plan');
         prompts.push(body);
-        return Response.json({ message: { content: JSON.stringify(pick ?? (questions ? QUESTIONS : split ? SPLIT : review ? APPROVE : PLAN)) }, prompt_eval_count: 100, eval_count: 20 });
+        return Response.json({ message: { content: JSON.stringify(pick ?? (questions ? QUESTIONS : split ? SPLIT : review ? verdict : PLAN)) }, prompt_eval_count: 100, eval_count: 20 });
       }
       return new Response('no', { status: 404 });
     },
