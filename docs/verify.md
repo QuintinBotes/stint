@@ -9,6 +9,8 @@ One verification runs a suite of checks, in order:
 1. The task's `testCommand`, recorded as check `tests`.
 2. The task's own `checks`, or `config.verify.checks` when the task names none. Each check is `{name, command, kind}`, with `kind` one of `test`, `typecheck`, `lint`, `custom`. Eight checks at most.
 
+`stint verify <task>` asks the daemon to run the suite now, prints the result and exits 1 when it is red (`--run` names a run, `--json` prints the record); the palette's Run the tests does the same. After a green run that a person assigned or handed on, `stint up` and the demo send the change to the reviewer chain and on to the gate, the same step autopilot takes (the daemon option `autoReview`).
+
 Each check runs in the worktree with the run environment, in the run's sandbox when one is configured ([`sandbox.md`](sandbox.md#a-sandbox-per-run)), and is recorded as `{name, kind, exitCode, passed?, failed?, durationMs, status}` (counts only for `test` checks). The record is green only when every check is green. A check whose command cannot start, for example because its folder is gone, comes back red with exit code 127 and the reason, instead of an error that stops the daemon. The record's `passed` and `failed` stay the test command's counts, and `verification.ran` carries the same `checks` list. A test run's output is kept as its first 64 KB and its last 512 KB, with a line saying how much was left out between them, so the summary and failing names a runner prints at the end are always kept.
 
 ## The tamper guard
