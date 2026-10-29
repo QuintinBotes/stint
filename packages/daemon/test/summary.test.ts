@@ -45,6 +45,7 @@ test('A card summary comes from the local model and is cached by event seq', asy
       });
       const { app, ws } = await makeApp(repo);
       const t = await ws.createTask(newTask);
+      await ws.events(t.id).append({ task: t.id, run: 'r1', adapter: 'stint-agent', vendor: 'meta', type: 'run.started', payload: { role: 'implementer', host: 'meta-api', model: 'muse-spark-1.3' } });
       await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'agent.message', payload: { text: 'Added the limiter constant.' } });
       const seq = (await ws.events(t.id).read()).at(-1)?.seq;
 
@@ -86,6 +87,7 @@ test('A hosted host is never used for a card summary, even when it would answer'
       });
       const { app, ws } = await makeApp(repo);
       const t = await ws.createTask(newTask);
+      await ws.events(t.id).append({ task: t.id, run: 'r1', adapter: 'stint-agent', vendor: 'meta', type: 'run.started', payload: { role: 'implementer', host: 'meta-api', model: 'muse-spark-1.3' } });
       await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'agent.message', payload: { text: 'Added the limiter constant.' } });
 
       const got = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
@@ -119,6 +121,7 @@ test('With no local model pulled, the summary is the last agent message and no m
       const none = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
       expect(none).toMatchObject({ summary: '', source: 'none' });
 
+      await ws.events(t.id).append({ task: t.id, run: 'r1', adapter: 'stint-agent', vendor: 'meta', type: 'run.started', payload: { role: 'implementer', host: 'meta-api', model: 'muse-spark-1.3' } });
       await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'agent.message', payload: { text: 'Added the limiter constant.' } });
       const got = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
       expect(got).toMatchObject({ summary: 'Added the limiter constant.', source: 'agent.message' });
@@ -139,6 +142,7 @@ test('A pulled model that is not loaded is never loaded for a card: the summary 
         });
         const { app, ws } = await makeApp(repo);
         const t = await ws.createTask(newTask);
+        await ws.events(t.id).append({ task: t.id, run: 'r1', adapter: 'stint-agent', vendor: 'meta', type: 'run.started', payload: { role: 'implementer', host: 'meta-api', model: 'muse-spark-1.3' } });
         await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'agent.message', payload: { text: 'Added the limiter constant.' } });
         const answer = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
         expect(answer.source).toBe(source);
@@ -170,3 +174,22 @@ test("A killed run's diff digest records its cost on the task's log once the mod
     models.stop();
   }
 }, 60_000);
+
+test('A task no agent has run gets no summary and no model is asked, even with a local model loaded', async () => {
+  const models = fakeModels('A guess about work that was never done.', ['fake']);
+  try {
+    await withFixtureRepo(async (repo) => {
+      writeConfig(repo, (config) => {
+        pointOllamaAt(models.url)(config);
+        config.routes.summary = ['ollama/fake'];
+      });
+      const { app, ws } = await makeApp(repo);
+      const t = await ws.createTask(newTask);
+      const answer = (await (await post(app, `/api/tasks/${t.id}/summary`, {})).json()) as SummaryAnswer;
+      expect(answer).toMatchObject({ summary: '', source: 'none' });
+      expect(models.chats()).toBe(0);
+    });
+  } finally {
+    models.stop();
+  }
+});

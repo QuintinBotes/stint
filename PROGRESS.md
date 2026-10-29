@@ -90,6 +90,7 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-068 | Seeing it work: a visual gate judged by Muse Spark, marked by SAM 3.1 | R-029, R-063, R-064 | todo | author | 1 | 2026-10-29 | |
 | R-069 | The judge path: try it in a browser, see the evidence first | R-022, R-028, R-059, R-065 | todo | author | 1 | 2026-10-29 | |
 | R-070 | Live evidence: the relay on unseen repositories, a control, a scorecard, learning over time | R-012, R-021, R-034, R-046, R-057, R-068 | todo | author | 1 | 2026-10-29 | |
+| R-071 | The adversarial UX audit: what needs you, what runs, what is safe to do next | R-065, R-066 | done | author | 1 | 2026-10-29 | `UX_AUDIT.md`: 8 P1 and 6 P2 findings fixed with tests; 4 P3 left with reasons |
 
 ## Gates
 
@@ -178,6 +179,8 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | D-072 | 2026-10-29 | author | The spec builder records a draft's questions as the new task's or goal's Sharpen round 1, so its answers become decisions every later run keeps. "Use the recommended answers" settles non-material questions only; a material one needs its own click (R-064 wins). Drafts carry an optional `split` (from tasks.md), questions carry `round`, a task's goal text carries Requirements and Not in scope (no task field for non-goals), and every proposed proof is a `scenario`. | R-066 |
 | D-073 | 2026-10-29 | author | The judge copy (`bun run build:judge`) serves every read from a snapshot of the finished replay; Approve is disabled with the read-only reason and other writes are refused with it. The workflow publishes only while the repository variable `JUDGE_PAGES` is on, after the owner has looked. Claude Code and Codex are on, on Meta models, in the replay and the judge copy only. | R-069 |
 | D-074 | 2026-10-29 | author | Records the audit asked for: R-001 Req 3 is replaced by R-059 (keys in the user file, bootstrap runs the demo); R-025 Req 1's `--auto` is plain `stint run`; R-017 Acc 3's rejection reason goes under the run's `## Ask`; R-014 Acc 2's live compaction case waits on the owner installing the Stint plugin. | R-001, R-014, R-017, R-025 |
+| D-075 | 2026-10-29 | author | Run all planned asks first: it names the tasks that start now and those that wait, the most builds any may use, how many have no spend limit, and that nothing merges without you; only Start starts work, and the palette opens the same question. A task whose agent waits on a permission question is in Needs you, labelled with the tool. | R-071 |
+| D-076 | 2026-10-29 | author | The card summary route answers `source: 'none'` for a task no agent has run, without asking a model: a summary of work not done would be a guess. `GoalView.titles` stays in the daemon while `stint goal show` reads it; the web reads `tasks`. | R-071, R-064 |
 
 ## Deviations (a spec line not followed, with the reason; the human decides whether the spec changes)
 

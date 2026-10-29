@@ -90,6 +90,8 @@ export function summaryRoutes(app: Hono, ctx: DaemonContext): void {
       const text = lastAgentMessage(events);
       return text ? { summary: text, seq, source: 'agent.message' } : { summary: '', seq, source: 'none' };
     };
+    // a task no agent has run has nothing to sum up; asking a model would only produce a guess about work not done
+    if (!events.some((e) => e.type === 'run.started')) return c.json({ summary: '', seq, source: 'none' } satisfies TaskSummary);
 
     const chain: string[] = [];
     for (const entry of ctx.ws.config.routes.summary ?? []) {
