@@ -133,7 +133,7 @@ Merged T-0001 into main as 3f2a9c1.
 | `stint run <task> --wait` | Plan, build, verify and review, stopping at your approval or a limit you set; `stint limits <task>` shows and changes the limits |
 | `stint hand <task> <agent>` | Hand the task to another agent from its packet |
 | `stint packet <task>` | Show the packet the next agent reads |
-| `stint sharpen <task>`, `stint goal new "<title>" --outcome "<what is true>" --criterion "<check>"` | Answer the few questions that change what gets built, before work starts; make a goal above tasks |
+| `stint draft "<what you want>"`, `stint sharpen <task>`, `stint goal new "<title>" --outcome "<what is true>" --criterion "<check>"` | Draft the spec from a sentence, or open a Spec Kit spec with `--from spec.md`; answer the few questions that change what gets built, before work starts; make a goal above tasks |
 | `stint approve <task>`, `stint reject <task> --reason "<why>"` | Merge the verified change, or send it back with the reason as the next run's ask; `stint outcome <task>` then says how it went |
 | `stint costs --by host` | Spend by task, run, day, week or host |
 | `stint keys list` | Where each key comes from, never its value |
@@ -177,4 +177,4 @@ Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Mu
 
 [`docs/`](docs/README.md) lists every guide. To contribute, see [`CONTRIBUTING.md`](CONTRIBUTING.md); to report a security problem, see [`SECURITY.md`](SECURITY.md). Licensed under [MIT](LICENSE).
 
-Built with Muse Spark Open.
+Built with Muse Spark Open. The spec builder's spec shape is adapted from [GitHub Spec Kit](https://github.com/github/spec-kit) (MIT License, copyright GitHub, Inc.).

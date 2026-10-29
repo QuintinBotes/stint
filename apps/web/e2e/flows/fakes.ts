@@ -1,5 +1,5 @@
 // The fake agents and model server the flow tests run against, shared with the README commands test: a model server
-// standing in for the planner, reviewer, learn step, quiz, digest, sharpen and a goal's split, writer agents that each write one file, and the
+// standing in for the planner, reviewer, learn step, quiz, digest, sharpen, a goal's split and a spec builder draft, writer agents that each write one file, and the
 // config that points a workspace at them. Nothing here calls a hosted model or Ollama.
 import { join } from 'node:path';
 import { type Adapter, type Config, DEFAULT_CONFIG, type RunContext, type RunResult } from '@stint-dev/core';
@@ -71,6 +71,51 @@ const split = (prompt: string) => {
   return { tasks: criteria.map((c, i) => ({ title: `Part ${i + 1}: ${c}`.slice(0, 120), goal: `${c}, as one task of the goal.`, acceptance: [c], covers: [i + 1], dependsOn: i ? [0] : [] })) };
 };
 
+/**
+ * A spec builder draft by the words of the input: a goal when they say goal or the person asked for one, else a task.
+ * It has two stories, one material question (who may decide), one with a safe default and one the repository can
+ * answer. A refine keeps the draft it is shown, settles what was open and asks nothing more.
+ */
+const draft = (prompt: string) => {
+  const shown = /## The draft\n(.+)/.exec(prompt)?.[1];
+  if (shown) return { ...JSON.parse(shown), open: [], questions: [], assumed: [] };
+  const ask = (text: string, changes: string, options: Array<[string, string]>, safe: boolean) => ({
+    text,
+    changes,
+    evidence: 'The words do not say, and nothing in the repository decides it.',
+    options: options.map(([label, consequence]) => ({ label, consequence })),
+    recommendation: { option: options[0]?.[0] ?? '', why: 'It is the smaller change.' },
+    safeDefault: safe ? { exists: true, option: options[0]?.[0], why: 'Cheap to change later.' } : { exists: false },
+    blocks: [1],
+    material: false,
+  });
+  const words = (/## What the person wants\n(.+)/.exec(prompt)?.[1] ?? 'Make the change').trim();
+  const title = words.replace(/[.!?]+$/, '').slice(0, 120);
+  const goal = /\bgoal\b/i.test(words) || prompt.includes('The person asked for a goal.');
+  return {
+    kind: goal ? 'goal' : 'task',
+    kindReason: goal ? 'It has two stories that each ship on their own.' : 'One agent can build and verify it in one run.',
+    title,
+    summary: `${title}, so a person can rely on it.`,
+    stories: [
+      { title: 'The main path', priority: 'P1', why: 'It is what the person asked for.', scenarios: [{ given: 'the service is running', when: 'a person uses the change', then: 'it does what was asked' }] },
+      { title: 'When it fails', priority: 'P2', why: 'A failure must say what went wrong.', scenarios: [{ given: 'the change cannot run', when: 'a person uses it', then: 'they see why it failed' }] },
+    ],
+    requirements: [{ id: 'FR-001', text: `The system MUST do what was asked: ${title}.`.slice(0, 300) }],
+    success: [{ id: 'SC-001', text: 'Both stories pass their scenarios.' }],
+    edgeCases: ['What happens when it runs twice at once?'],
+    assumptions: [],
+    nonGoals: ['A settings page'],
+    open: [{ id: 'O1', text: 'Who may turn it off once it ships?' }],
+    questions: [
+      ask('Who may turn the new behaviour off once it ships?', 'authority', [['Only an admin', 'A person with admin rights changes it.'], ['Anyone on the team', 'Any person can change it.']], false),
+      ask('Should the change write a log line each time it runs?', 'implementation', [['One line per run', 'The log grows a little.'], ['No log line', 'Nothing shows that it ran.']], true),
+      ask('Which file holds the change?', 'implementation', [['src/lib', 'One place.'], ['src/routes', 'Another place.']], true),
+    ],
+    assumed: [{ text: 'The change lives in one new file.', why: 'The task is small.' }],
+  };
+};
+
 /** A model server that answers each structured call by its schema, on a free port. */
 export function startFakeModels(): { port: number; stop: () => void } {
   const server = Bun.serve({
@@ -83,7 +128,8 @@ export function startFakeModels(): { port: number; stop: () => void } {
       const prompt = body.messages.map((m) => m.content).join('\n');
       const schema = JSON.stringify(body.format ?? {});
       let answer: unknown;
-      if (schema.includes('"safeDefault"')) answer = questions(prompt);
+      if (schema.includes('"kindReason"')) answer = draft(prompt);
+      else if (schema.includes('"safeDefault"')) answer = questions(prompt);
       else if (schema.includes('"verdict"')) answer = review(prompt);
       else if (schema.includes('"confidence"')) answer = proposal(prompt);
       else if (schema.includes('"statements"')) answer = { statements: [1, 2, 3].map((n) => ({ id: `S${n}`, text: `Fact ${n} about the run`, truth: n !== 3, blocking: n === 1 })) };

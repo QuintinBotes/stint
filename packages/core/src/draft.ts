@@ -52,15 +52,19 @@ export function mergeAnswers(earlier: DraftAnswer[], later: DraftAnswer[]): Draf
   return [...new Map([...earlier, ...later].map((a) => [a.question, a])).values()];
 }
 
-/** Why a draft cannot be created as it is, or null: every answer names one of its questions and, by label, an option. */
-export function draftProblem(d: Draft): string | null {
+/** Why the answers do not fit the draft, or null: each names one of its questions and, by label, one of its options. */
+export function answerProblem(d: Pick<Draft, 'questions' | 'answers'>): string | null {
   for (const a of d.answers) {
     const q = d.questions.find((x) => x.id === a.question);
     if (!q) return `${a.question} is not a question of this draft`;
     if (a.choice !== undefined && !q.options.some((o) => o.label === a.choice)) return `"${a.choice}" is not an option of ${q.id}; its options are ${q.options.map((o) => o.label).join(', ')}`;
   }
-  if (d.kind === 'goal' && d.success.length === 0) return 'a goal needs at least one success criterion (SC-001)';
   return null;
+}
+
+/** Why a draft cannot be created as it is, or null: its answers fit, and a goal has a success criterion. */
+export function draftProblem(d: Draft): string | null {
+  return answerProblem(d) ?? (d.kind === 'goal' && d.success.length === 0 ? 'a goal needs at least one success criterion (SC-001)' : null);
 }
 
 export const scenarioLine = (s: DraftScenario): string => `Given ${s.given}, when ${s.when}, then ${s.then}`.slice(0, 300);
