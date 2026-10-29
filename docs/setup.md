@@ -78,9 +78,18 @@ The README's [Use it on your repository](../README.md#use-it-on-your-repository)
 
 Muse Code and the Stint agent build, Muse Wonder plans, and Muse Glimmer reviews. Claude Code, Codex, goose, opencode, Gemini CLI, aider and any Agent Client Protocol agent ship turned off. To turn one on, set `enabled` to `true` in its entry under `agents` in `.stint/config.json` and restart `stint up`. [`agents.md`](agents.md) has every preset, the hosts each can run on (including Meta's models through Ollama or the Meta Model API), and how keys reach them.
 
+To work the other way round, with the agent you already use calling Stint's tools over MCP, register Stint's server with it in one line from your repository. Add `--print` to see the command first ([`mcp.md`](mcp.md#connect-an-agent)):
+
+<!-- needs: Claude Code or Codex, whose config this changes -->
+```bash
+cd /path/to/your/repo
+stint mcp install claude
+stint mcp install codex
+```
+
 ## The offline review
 
-The reviewer runs Muse Glimmer 30B on your machine through Ollama, at no cost and with the network off. Pull the model once:
+The reviewer runs Muse Glimmer 30B on your machine through Ollama, at no cost and with the network off. Only this review needs the model, so `scripts/bootstrap.sh` downloads nothing for it unless you pass `--with-glimmer`, which starts the pull in the background. Or pull the model yourself, once:
 
 <!-- needs: muse-glimmer:30b-mlx (a 19 GB download) -->
 ```bash

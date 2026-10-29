@@ -230,11 +230,36 @@ export function setToken(t: string): void {
   }
 }
 
+/**
+ * The judge copy (R-069), built with `--mode judge`: no daemon behind it. Reads come from a snapshot of a finished
+ * replay, live updates are off, and anything that would change something is refused with this reason.
+ */
+const STATIC = import.meta.env.MODE === 'judge';
+export const readOnly: string | null = STATIC ? 'This is a read-only copy of the recorded story. Install Stint to run it.' : null;
+type Snapshot = Record<string, { status: number; type: string; body: string }>;
+let snapshot: Promise<Snapshot> | null = null;
+
+/** What the replay daemon answered to this GET when the snapshot was taken; a refusal in the daemon's shape for anything else. */
+async function fromSnapshot(path: string, method = 'GET'): Promise<Response> {
+  const refuse = (status: number, message: string) => new Response(JSON.stringify({ error: { code: 'read_only', message, hint: null } }), { status, headers: { 'Content-Type': 'application/json' } });
+  if (method !== 'GET') return refuse(403, readOnly as string);
+  snapshot ??= fetch(`${import.meta.env.BASE_URL}snapshot.json`)
+    .then((r) => r.json() as Promise<Snapshot>)
+    .catch((e: unknown) => {
+      snapshot = null; // the next read tries again
+      throw e;
+    });
+  const hit = (await snapshot)[path];
+  if (hit) return new Response(hit.body, { status: hit.status, headers: { 'Content-Type': hit.type } });
+  console.warn(`stint: ${path} is not in the snapshot`);
+  return refuse(404, 'This was not recorded in the read-only copy. Install Stint to see it.');
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   if (init.method && init.method !== 'GET' && token) headers.set('Authorization', `Bearer ${token}`);
-  const res = await fetch(`${base}${path}`, { ...init, headers });
+  const res = STATIC ? await fromSnapshot(path, init.method) : await fetch(`${base}${path}`, { ...init, headers });
   const isJson = res.headers.get('Content-Type')?.includes('application/json');
   if (!res.ok) {
     const body = isJson ? ((await res.json()) as { error: ApiError }) : { error: { code: 'invalid', message: await res.text(), hint: null } };
@@ -363,6 +388,7 @@ const streams = new Map<string, Stream>();
  * with Last-Event-ID on its own; when the stream cannot be opened at all, the subscribers' fallbacks poll once a second.
  */
 export function subscribe(path: string, onEvent: (e: StintEvent) => void, onFallback?: () => void): Unsubscribe {
+  if (STATIC) return () => undefined; // the recorded story has ended: nothing new arrives
   let stream = streams.get(path);
   if (!stream) {
     const es = new EventSource(`${base}${path}`);

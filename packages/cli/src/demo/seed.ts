@@ -228,3 +228,18 @@ export async function seedDemo(root: string): Promise<SeedResult> {
   if ((await ws.readDoc('T-0042', 'context.json')) === null) await ws.writeDoc('T-0042', 'context.json', T0042_CONTEXT);
   return { created, existing, merge };
 }
+
+/**
+ * The replay's agents (R-069): Claude Code on Muse Glimmer through Ollama and Codex on Muse Spark 1.3 through the Meta
+ * Model API, on beside Muse Code and the Stint agent, set up as docs/agents.md says. Only the replay's fixture copy
+ * gets this; a new repository's defaults are unchanged (ADR-0004), and nothing runs in the replay. Idempotent.
+ */
+export async function seedDemoConfig(root: string): Promise<void> {
+  const ws = await Workspace.open(root);
+  await ws.writeConfig((raw) => {
+    const agents = raw.agents as Record<string, Record<string, unknown>>;
+    const codexEnv = (agents.codex?.env as string[] | undefined) ?? [];
+    agents['claude-code'] = { ...agents['claude-code'], enabled: true, model: 'muse-glimmer:30b-mlx', host: 'ollama' };
+    agents.codex = { ...agents.codex, enabled: true, model: 'muse-spark-1.3', host: 'meta-api', env: [...new Set([...codexEnv, 'META_API_KEY'])] };
+  });
+}

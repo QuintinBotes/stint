@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # scripts/bootstrap.sh: take a fresh clone to a running daemon and UI.
-# Usage: scripts/bootstrap.sh [--check-only]
+# Usage: scripts/bootstrap.sh [--check-only] [--with-glimmer]
+# --with-glimmer also starts the Glimmer download for the offline review; nothing else downloads a model.
 # Exit codes: 0 ok, 2 missing Bun or git, 3 install failed.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-CHECK_ONLY=0
-[ "${1:-}" = "--check-only" ] && CHECK_ONLY=1
+CHECK_ONLY=0; WITH_GLIMMER=0
+for arg in "$@"; do
+  case "$arg" in
+    --check-only) CHECK_ONLY=1 ;;
+    --with-glimmer) WITH_GLIMMER=1 ;;
+  esac
+done
 GLIMMER="muse-glimmer:30b-mlx"
 
 say() { printf '%s\n' "$*"; }
@@ -40,10 +46,13 @@ fi
 if [ "$CHECK_ONLY" = 0 ]; then
   if ! bun install --frozen-lockfile; then say "bun install failed"; exit 3; fi
   bash scripts/fixture.sh || { say "could not unpack the demo fixture"; exit 3; }
-  if [ "$ollama_ok" = 1 ] && [ "$glimmer_ok" = 0 ]; then
+  if [ "$ollama_ok" = 1 ] && [ "$glimmer_ok" = 0 ] && [ "$WITH_GLIMMER" = 1 ]; then
     say "ollama: pulling $GLIMMER in the background (about 19 GB)"
     nohup ollama pull "$GLIMMER" >/dev/null 2>&1 &
   fi
+fi
+if [ "$ollama_ok" = 1 ] && [ "$glimmer_ok" = 0 ] && { [ "$WITH_GLIMMER" = 0 ] || [ "$CHECK_ONLY" = 1 ]; }; then
+  say "ollama: $GLIMMER is not pulled. Only the offline review needs it: about 19 GB to download, and 32 GB of memory is comfortable. To get it: bash scripts/bootstrap.sh --with-glimmer"
 fi
 
 # keys live in the user-level file, which works from every repository (docs/setup.md#keys); the replay needs none

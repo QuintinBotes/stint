@@ -1,0 +1,48 @@
+name: judge
+# The judge copy (R-069): a read-only board that plays the recorded story in the browser, published on GitHub Pages.
+# Nothing is published until the owner has looked at a local build (bun run build:judge, then bun run serve:judge)
+# and turned publishing on: Settings, Pages, Source "GitHub Actions"; then Settings, Secrets and variables, Actions,
+# Variables, JUDGE_PAGES = on. Until then every run is skipped.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# one deployment at a time, and a newer push never cancels one that is publishing
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: vars.JUDGE_PAGES == 'on'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: cd apps/web && bunx playwright install --with-deps chromium
+      # builds apps/web/dist-judge, then opens it in a browser: every read is in the snapshot and Approve is off
+      - run: bun run test:judge
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: apps/web/dist-judge
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
