@@ -7,7 +7,8 @@ test('A line comment added in the Diff tab is stored by the daemon and handed to
   const d = daemon(request);
   const t = await d.create('Flow: line comments');
   await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'muse-code', role: 'implementer' });
-  await d.until(t.id, (ev) => ev.some((e) => e.type === 'handoff.created'));
+  // the run by hand is reviewed as r2 and waits at the gate
+  await d.until(t.id, (ev) => ev.some((e) => e.type === 'approval.requested'));
 
   const filePath = `src/lib/${t.id}.ts`;
   await page.goto(`/t/${t.id}`);
@@ -51,5 +52,5 @@ test('A line comment added in the Diff tab is stored by the daemon and handed to
     .at(-1);
   expect(asked).toContain(`Review comments: ${filePath}:2 Name the marker after the task`);
   const handed = await d.get<LineComment[]>(`/api/tasks/${t.id}/comments`);
-  expect(handed[0]?.handedTo).toBe('r2');
+  expect(handed[0]?.handedTo).toBe('r3');
 });

@@ -11,17 +11,19 @@ test('On a task, the palette runs Verify for real and opens Request changes; r a
 
   await page.keyboard.press('Meta+k');
   await page.getByPlaceholder('Search or run a command').fill('Verify');
+  // the command that does the same from a terminal
+  await expect(page.getByRole('option', { name: /^Run the tests/ })).toContainText(`stint verify ${id}`);
   await page.keyboard.press('Enter');
   await expect(page.locator('[data-sonner-toast]').filter({ hasText: `${id}: tests run by Stint` })).toBeVisible({ timeout: 30_000 });
 
   await page.keyboard.press('Meta+k');
   await page.getByPlaceholder('Search or run a command').fill('Request changes');
   await page.keyboard.press('Enter');
-  await expect(page.getByText('What should change? This becomes the next ask.')).toBeVisible();
+  await expect(page.getByText('What should change? This becomes the next ask, and the task goes to Needs you as rejected until an agent takes it.')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.keyboard.press('x');
-  await expect(page.getByText('Why reject it? The reason becomes a decision.')).toBeVisible();
+  await expect(page.getByText('Why reject it? The reason becomes a decision, and the task goes to Needs you as rejected.')).toBeVisible();
 });
 
 test('On a merged task, the palette offers its views and no gate or autopilot actions', async ({ page }) => {

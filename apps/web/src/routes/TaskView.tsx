@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ROLE_NAMES, agentOf } from '../agents';
 import { type PendingContradictionItem, type TaskBundle, api, daemonMessage } from '../api';
-import { ApprovalGate, gateState } from '../components/ApprovalGate';
+import { AT_GATE, ApprovalGate, gateState } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
 import { DiffView, readViewedFiles, writeViewedFiles } from '../components/DiffView';
 import { FilesTab } from '../components/Files';
@@ -306,6 +306,8 @@ export function TaskView() {
   if (error) return <Placeholder title="This task could not be read">{`${error.charAt(0).toUpperCase()}${error.slice(1)}. Check the task id in the address, or go back to the board.`}</Placeholder>;
   if (!bundle) return <p className="p-6 text-ink-2">Reading the task.</p>;
   const t = bundle.task;
+  // a closed task has no autopilot step and no limit stop left to show, as its Board card says (R-072)
+  const closed = ['approved', 'done', 'abandoned'].includes(t.status);
   // the task as it stood at the moment the clock is on; the gate always acts on the task as it is now
   const then = bundleAt(bundle, asOf ? visible : null);
   const live = then.runs.find((r) => !r.endedAt);
@@ -348,7 +350,7 @@ export function TaskView() {
   // autopilot the switch below turns on. Looking back, the notice above has Return to latest instead.
   const startable = !back && !liveNow && t.status === 'planned' && !autopilot.on;
   const next = back ? null : liveNow ? (
-    <Button tone="danger" disabled={stopping === liveNow} aria-busy={stopping === liveNow} title={`Stop ${liveNow}; Stint writes its notes from the log`} onClick={() => stop(liveNow)} data-testid="stop-run">
+    <Button tone="danger" aria-disabled={stopping === liveNow} aria-busy={stopping === liveNow} title={`Stop ${liveNow}; Stint writes its notes from the log`} onClick={() => stop(liveNow)} data-testid="stop-run">
       {stopping === liveNow ? 'Stopping the run' : 'Stop the run'} <Kbd>⌘.</Kbd>
     </Button>
   ) : gate.open ? (
@@ -357,7 +359,7 @@ export function TaskView() {
       Approve and merge
     </Button>
   ) : startable ? (
-    <Button tone="primary" onClick={toggleAutopilot} disabled={autoBusy} aria-busy={autoBusy} title="Plan, build, verify and review on its own; it stops at your approval" data-testid="header-start">
+    <Button tone="primary" onClick={toggleAutopilot} aria-disabled={autoBusy} aria-busy={autoBusy} title="Plan, build, verify and review on its own; it stops at your approval" data-testid="header-start">
       {autoBusy ? 'Starting autopilot' : unmerged.length ? 'Queue on autopilot' : 'Start on autopilot'}
     </Button>
   ) : null;
@@ -402,10 +404,11 @@ export function TaskView() {
           ) : null}
           <p data-testid="state-detail" className="text-small text-ink-2">
             {state.detail}
-            {autopilot.text && !asOf ? (
+            {autopilot.text && !asOf && !closed ? (
               <span data-testid="autopilot-step">
                 {' '}
-                Autopilot: {autopilot.text}
+                {/* at the gate the sentence before says it waits for your approval; autopilot says only what is left */}
+                Autopilot: {t.status === 'awaiting_approval' && autopilot.text.startsWith(AT_GATE) ? autopilot.text.slice(AT_GATE.length).trim() || 'went as far as it goes on its own.' : autopilot.text}
               </span>
             ) : null}
           </p>
@@ -451,7 +454,7 @@ export function TaskView() {
           <Button
             className="h-7 px-2.5 text-small min-[760px]:min-h-7"
             onClick={toggleAutopilot}
-            disabled={autoBusy}
+            aria-disabled={autoBusy}
             aria-busy={autoBusy}
             aria-pressed={autopilot.on}
             data-testid="autopilot-switch"
@@ -461,7 +464,7 @@ export function TaskView() {
             {autoBusy ? (autopilot.on ? 'Stopping autopilot' : 'Starting autopilot') : autopilot.on ? 'Autopilot on' : 'Autopilot'}
           </Button>
         ) : null}
-        <Limits taskId={t.id} events={events} onHand={() => setTab('packet')} />
+        <Limits taskId={t.id} events={events} closed={closed} onHand={() => setTab('packet')} />
       </div>
     </header>
   );

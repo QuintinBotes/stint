@@ -229,3 +229,10 @@ test('A refresh that fails keeps the goals on screen with a stale warning, and a
   await expect(page.getByTestId(`goal-row-${g.id}`)).toBeVisible();
   await expect(page.getByTestId('goals-error')).toHaveCount(0);
 });
+
+test('A goal outcome written on two lines keeps its line break on the goal page', async ({ page, request }) => {
+  const d = daemon(request);
+  const g = await d.post<{ id: string }>('/api/goals', { title: 'Flow: an outcome on two lines', outcome: 'Operators see the service is up.\nNobody reads the logs for it.', criteria: ['It shows'] });
+  await page.goto(`/goals/${g.id}`);
+  expect(await page.getByTestId('goal-outcome').innerText()).toBe('Operators see the service is up.\nNobody reads the logs for it.');
+});

@@ -407,9 +407,9 @@ test("POST /api/goals/:id/run starts every open task in the goal's order; raisin
         [a, 'done', []],
         [b, 'awaiting_approval', [a]],
       ]);
-      // what is merged is not started again
-      expect(((await (await post(app, `/api/goals/${g.id}/run`, {})).json()) as { started: string[] }).started).toEqual([b]);
-      await until(ws, b, (ev) => ev.filter((e) => e.type === 'autopilot.stopped').length >= 3);
+      // what is merged is not started again, nor what waits at the gate
+      expect(((await (await post(app, `/api/goals/${g.id}/run`, {})).json()) as { started: string[] }).started).toEqual([]);
+      expect((await ws.events(b).read()).filter((e) => e.type === 'autopilot.started')).toHaveLength(2);
     });
   } finally {
     models.stop();

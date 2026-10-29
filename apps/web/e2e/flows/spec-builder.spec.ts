@@ -84,6 +84,11 @@ test('A sentence becomes a task: one question answered, the recommendation for t
 
   await expect(dialog.getByRole('radio', { name: 'Task' })).toBeChecked();
   await expect(dialog.getByTestId('builder-kind-why')).toHaveText('One agent can build and verify it in one run.');
+  // the reason follows a switch, and comes back with the draft's own kind
+  await dialog.getByRole('radio', { name: 'Goal' }).check();
+  await expect(dialog.getByTestId('builder-kind-why')).toHaveText('You asked for a goal.');
+  await dialog.getByRole('radio', { name: 'Task' }).check();
+  await expect(dialog.getByTestId('builder-kind-why')).toHaveText('One agent can build and verify it in one run.');
   await expect(dialog.getByLabel('Title', { exact: true }).first()).toHaveValue('Flow: add a health endpoint from the builder');
   await dialog.getByTestId('builder-story-1').getByLabel('Then').fill('it answers 200 with ok');
 

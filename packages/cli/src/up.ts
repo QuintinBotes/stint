@@ -122,7 +122,7 @@ export const up = defineCommand({
     // where each key came from, by name and source only; the daemon reads the values from the environment
     const keys = keyReport(root);
     for (const [name, value] of Object.entries(keys.values)) if (!process.env[name]) process.env[name] = value;
-    const d = await startDaemon({ root, port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check });
+    const d = await startDaemon({ root, port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check, autoReview: !args.check });
     const report = await upReport(await readConfig(root));
     const reportLines = () => {
       if (report.warming) process.stdout.write(`${report.warming}\n`);

@@ -318,6 +318,8 @@ function QuestionCard({ q, answer, onAnswer }: { q: Question; answer?: DraftAnsw
 /** Step 3: the draft as fields, the task or goal switch with the reason for the one preselected, and the stories with their scenarios. */
 function DraftForm({ id, draft: d, edit, onSubmit }: { id: string; draft: Draft; edit: (fn: (d: Draft) => Draft) => void; onSubmit: (e: FormEvent) => void }) {
   const set = (patch: Partial<Draft>) => edit((now) => ({ ...now, ...patch }));
+  // the draft's reason is for the kind it chose; switched to the other kind, the reason says it was your choice
+  const suggested = useRef({ kind: d.kind, why: d.kindReason });
   const setScenario = (i: number, j: number, patch: Partial<DraftScenario>) => edit((now) => ({ ...now, stories: now.stories.map((s, k) => (k === i ? { ...s, scenarios: s.scenarios.map((x, m) => (m === j ? { ...x, ...patch } : x)) } : s)) }));
   return (
     <form id={`${id}-draft`} className="grid gap-6" onSubmit={onSubmit} data-testid="builder-draft">
@@ -333,7 +335,7 @@ function DraftForm({ id, draft: d, edit, onSubmit }: { id: string; draft: Draft;
           <div className="inline-flex gap-0.5 p-0.5 rounded-[5px] border border-rule-strong">
             {(['task', 'goal'] as const).map((k) => (
               <label key={k} className={cx('inline-flex items-center gap-2 min-h-9 px-3 rounded-[3px] font-medium cursor-pointer', d.kind === k ? 'bg-surface-selected text-ink' : 'text-ink-2 hover:text-ink')}>
-                <input type="radio" name={`${id}-kind`} value={k} checked={d.kind === k} onChange={() => set({ kind: k })} aria-describedby={`${id}-kind-why`} />
+                <input type="radio" name={`${id}-kind`} value={k} checked={d.kind === k} onChange={() => set({ kind: k, kindReason: k === suggested.current.kind ? suggested.current.why : `You asked for a ${k}.` })} aria-describedby={`${id}-kind-why`} />
                 {k === 'task' ? 'Task' : 'Goal'}
               </label>
             ))}

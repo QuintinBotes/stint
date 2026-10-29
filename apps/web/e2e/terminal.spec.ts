@@ -56,3 +56,19 @@ test('The terminal fills its pane, with the kill button visible while its run is
   // the page polls the bundle; a poll still in the handler when the test ends would read a disposed response
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
+
+test('Copy the cd command says so when the browser refuses the clipboard', async ({ page, request }) => {
+  await page.goto('/');
+  const token = (await page.locator('meta[name="stint-token"]').getAttribute('content')) as string;
+  const headers = { Authorization: `Bearer ${token}` };
+  const { id } = (await (await request.post('/api/tasks', { headers, data: { title: 'A task whose cd is not copied', goal: 'Refuse the clipboard.', acceptance: ['the refusal is said'] } })).json()) as { id: string };
+  expect((await request.post(`/api/tasks/${id}/assign`, { headers, data: { adapter: 'replay', role: 'implementer' } })).status()).toBe(202);
+  await expect.poll(async () => ((await (await request.get(`/api/tasks/${id}`)).json()) as { runs: Array<{ endedAt: string | null }> }).runs[0]?.endedAt ?? null).not.toBeNull();
+  await page.goto(`/t/${id}?tab=terminal`);
+  await expect(page.getByTestId('terminal-cwd')).toContainText(`.stint/worktrees/${id}-r1`);
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = () => Promise.reject(new Error('denied'));
+  });
+  await page.getByRole('button', { name: 'Copy the cd command' }).click();
+  await expect(page.getByTestId('copy-refused')).toHaveText('The browser did not allow copying. Select the path and copy it by hand.');
+});

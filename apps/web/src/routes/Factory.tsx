@@ -550,7 +550,7 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
                   <td className={NUM}>{r.attempts}</td>
                   <td className={cx(NUM, 'font-semibold text-ink')}>{pct(r.passRate)}</td>
                   <td className={NUM}>{r.pass3 === null ? 'fewer than 3' : r.pass3 ? 'yes' : 'no'}</td>
-                  <td className={NUM}>{r.costPerResolved === null ? (r.resolved ? 'not priced' : 'none merged') : `$${r.costPerResolved.toFixed(2)}`}</td>
+                  <td className={NUM}>{r.costPerResolved === null ? (r.resolved ? 'not priced' : 'none merged') : money({ usd: r.costPerResolved })}</td>
                   <td className={cx(NUM, r.reverts > 0 && 'text-red font-semibold')}>{r.reverts}</td>
                 </tr>
               ))}
@@ -621,7 +621,7 @@ function AutoApprove({ state, onChanged }: { state: RiskState; onChanged: () => 
             : 'Every change waits for you. Below is what the policy would have chosen.'}
         </span>
         {lane.enabled ? (
-          <Button className={cx(SMALL, 'ml-auto')} tone="danger" disabled={busy} aria-busy={busy || undefined} data-testid="lane-off" onClick={off}>
+          <Button className={cx(SMALL, 'ml-auto')} tone="danger" aria-disabled={busy} aria-busy={busy || undefined} data-testid="lane-off" onClick={off}>
             {busy ? 'Turning it off' : 'Turn the lane off'}
           </Button>
         ) : null}
@@ -830,7 +830,7 @@ function SpendByTask({ rows }: { rows: TaskSpend[] }) {
 }
 
 /** What the Factory works out from every task's log: the stage funnel, spend by task, skills learned, and what happened after merge. */
-type FromLogs = { funnel: Record<string, number>; spend: TaskSpend[]; learned: number; outcomes: OutcomeRow[] };
+type FromLogs = { funnel: Record<string, number>; spend: TaskSpend[]; learned: number; merged: number; outcomes: OutcomeRow[] };
 
 export function Factory() {
   const { data: cards, error: cardsError } = useTasks();
@@ -932,6 +932,8 @@ export function Factory() {
             spend: spend.sort((a, b) => b.total - a.total),
             // learned means proposed by the learn step and approved by a person, not written by hand
             learned: new Set(all.flat().filter((e) => e.type === 'skill.approved').map((e) => String(e.payload.id ?? e.payload.skill))).size,
+            // merged as the Tasks merged figure counts it: a task whose log has its merge, over all time
+            merged: all.filter((events) => events.some((e) => e.type === 'merge.completed')).length,
             outcomes: [...rows.values()].sort((a, b) => b.merged - a.merged || a.adapter.localeCompare(b.adapter)),
           },
           error: null,
@@ -964,7 +966,7 @@ export function Factory() {
   const [handoffValue, handoffDetail] = share(handoffs, 'once a stopped run is handed on');
 
   // the lead says what the agents came to over all time (the figures below count the chosen period): a skill learned first, else merges, else that it has not started
-  const merged = (cards ?? []).filter((c) => c.task.status === 'done').length;
+  const merged = logs.data?.merged ?? 0;
   const learned = logs.data?.learned ?? 0;
   const lead = logs.data === null ? '' : learned ? `It has learned ${learned === 1 ? 'one skill' : `${learned} skills`} so far, approved by you.` : merged ? `It has merged ${merged === 1 ? 'one task' : `${merged} tasks`} so far.` : 'It is ready for its first task.';
   return (
@@ -983,7 +985,7 @@ export function Factory() {
           {metrics.data ? (
             <>
               <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule bg-rule" data-testid="kpis">
-                <Figure label="Tasks merged" value={String(merges?.value ?? 0)} detail={hops?.value != null ? `${metricValue(hops)} build runs each` : 'none in this period yet'} />
+                <Figure label="Tasks merged" value={String(merges?.value ?? 0)} detail={hops?.value != null ? `${metricValue(hops)} build ${hops.value === 1 ? 'run' : 'runs'} each` : 'none in this period yet'} />
                 <Figure
                   label="Spend this week"
                   value={byWeek.data ? money(thisWeek ?? { usd: 0 }) : 'not read'}

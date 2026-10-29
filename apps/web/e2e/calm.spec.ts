@@ -35,7 +35,7 @@ test('While the request form is open, a does not approve; Escape closes the form
   await page.goto('/t/T-0043');
   await expect(page.getByTestId('approve')).toBeEnabled();
   await page.keyboard.press('r');
-  const text = page.getByLabel('What should change? This becomes the next ask.');
+  const text = page.getByLabel(/^What should change\?/);
   await expect(text).toBeFocused();
   // focus out of the textarea, as a click elsewhere on the gate leaves it, then the approve key
   await page.getByTestId('approval-gate').locator('caption').click();

@@ -37,3 +37,19 @@ test('The top bar fits at 1440 and 1600 px: one status button, whose panel lists
   await expect(panel).toHaveCount(0);
   await expect(button).toBeFocused();
 });
+
+test('At 390 px the status panel opens inside the screen and a click outside it closes it', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const button = page.getByTestId('status-button');
+  await button.click();
+  const panel = page.getByTestId('status-panel');
+  await expect(panel).toBeVisible();
+  const box = (await panel.boundingBox()) as { x: number; y: number; width: number; height: number };
+  expect(box.x, 'panel starts off the left edge').toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width, 'panel ends off the right edge').toBeLessThanOrEqual(390);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+  // a click on the board below, outside the panel and its button
+  await page.mouse.click(195, 800);
+  await expect(panel).toHaveCount(0);
+});

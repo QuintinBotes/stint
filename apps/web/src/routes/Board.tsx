@@ -198,7 +198,7 @@ function Actions({ cards, health, onNewTask }: { cards: TaskCardData[]; health: 
             <Button ref={confirm} tone="primary" aria-busy={starting} aria-disabled={starting} aria-describedby="run-all-what" onClick={runAll} data-testid="run-all-confirm">
               {starting ? 'Starting autopilot' : `Start ${tasks}`}
             </Button>
-            <Button tone="ghost" disabled={starting} onClick={close} data-testid="run-all-cancel">
+            <Button tone="ghost" aria-disabled={starting} onClick={close} data-testid="run-all-cancel">
               Cancel
             </Button>
           </>

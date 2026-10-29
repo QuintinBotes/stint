@@ -121,6 +121,21 @@ export const assignTask = defineCommand({
   },
 });
 
+export const verifyTask = defineCommand({
+  meta: { name: 'verify', description: "Have Stint run the task's tests in its worktree, or on its branch, and print the result; exits 1 when they fail" },
+  args: {
+    task: { type: 'positional', required: true, description: 'Task id' },
+    run: { type: 'string', description: 'The run whose worktree to test, e.g. r2 (default: the newest)' },
+    json: { type: 'boolean', description: 'Machine-readable output: the verification record' },
+    ...repoArg,
+  },
+  async run({ args }) {
+    const v = await postDaemon<{ run: string; command: string; status: string; passed: number; failed: number; durationMs: number }>(repoRoot(args.repo), `/api/tasks/${args.task}/verify`, args.run ? { run: args.run } : {});
+    process.stdout.write(args.json ? `${JSON.stringify(v)}\n` : `${args.task} ${v.run} ${v.status}: ${v.passed} passed, ${v.failed} failed in ${(v.durationMs / 1000).toFixed(1)} s, run by Stint (${v.command})\n`);
+    if (v.status !== 'green') process.exit(1);
+  },
+});
+
 export const runTask = defineCommand({
   meta: { name: 'run', description: 'Put a task on autopilot: plan, build, verify and review, stopping at your approval' },
   args: {

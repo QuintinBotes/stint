@@ -49,7 +49,7 @@ export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoos
         <p>No other agent is ready to take over from {agentOf(leaving).name}. Turn one on, or hand it back from the packet tab.</p>
       )}
       {next ? (
-        <Button tone="primary" className="self-start" onClick={hand} disabled={state.busy} aria-busy={state.busy} data-testid="who-continues-hand" {...hold}>
+        <Button tone="primary" className="self-start" onClick={hand} aria-disabled={state.busy} aria-busy={state.busy} data-testid="who-continues-hand" {...hold}>
           {state.busy ? 'Handing over' : `Hand to ${agentOf(next.id).name}`}
         </Button>
       ) : null}

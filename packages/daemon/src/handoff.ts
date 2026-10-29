@@ -223,7 +223,7 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
   );
   const risks = list([...(plan?.risks ?? []).map((r) => r.text), ...statedRisks, ...findingRisks]);
   const lastMessage = str(messages.at(-1)?.payload.text);
-  const summary = clip(scrub(lastMessage || `${started.adapter ?? 'The agent'} ${endedBy} after ${toolCalls.length} tool calls.`), 400);
+  const summary = clip(scrub(lastMessage || `${started.adapter ?? 'The agent'} ${endedBy} after ${toolCalls.length} tool call${toolCalls.length === 1 ? '' : 's'}.`), 400);
   const nextStep = open[0] ? (open[0].startsWith('Next: ') ? open[0] : `Next: ${open[0]}.`) : green ? 'Review the change against the plan, the decisions and AGENTS.md.' : 'Run the tests and make them pass.';
   const askOfNext = clip(inFlight ? `Check the unknown step first. ${nextStep}` : nextStep, 400);
   const cost = (finished?.payload.cost as Cost | undefined) ?? { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: null, estimated: true };

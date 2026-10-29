@@ -17,7 +17,7 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { type Adapter, type RunResult, adapterHealth } from './adapter';
 import { checkAcceptanceLock } from './acceptance';
-import { Autopilot, autopilotCard } from './autopilot';
+import { Autopilot, autopilotCard, autopilotTail } from './autopilot';
 import { chainHealth, localModels, modelHealth } from './hosts';
 import { DaemonError, errorResponse } from './errors';
 import { outcomeRoutes } from './outcomes';
@@ -29,7 +29,7 @@ import { outcomeRecordRoutes } from './routes/outcome';
 import { demoRoutes } from './routes/demo';
 import { approveRoutes } from './routes/approve';
 import { graphRoutes } from './routes/graph';
-import { modelRoutes } from './routes/models';
+import { modelRoutes, reviewToGate } from './routes/models';
 import { riskRoutes } from './risk';
 import { gardeningRoutes } from './gardening';
 import { intakeRoutes } from './intake';
@@ -72,6 +72,8 @@ export type AppOptions = {
   snapshotMs?: number;
   /** Ask a model what a killed run's diff does, for its packet (off unless the daemon is started for real work). */
   digest?: boolean;
+  /** Review a green build a person assigned or handed on, as autopilot's would be, so it reaches the gate (off unless the daemon is started for real work). */
+  autoReview?: boolean;
 };
 
 export type DaemonContext = {
@@ -160,6 +162,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     quiet: false,
     heartbeatMs: 15_000,
     digest: false,
+    autoReview: false,
     pollMs: 1_000,
     ...rest,
   };
@@ -183,6 +186,11 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
     await checkAcceptanceLock(ctx, task, run);
     await afterRunPacket(ctx, task, run, result);
     void ctx.otel.run(task, run).catch(() => undefined);
+    // a completed build left reviewing by a person's run is reviewed now; autopilot reviews its own
+    if (ctx.opts.autoReview && result.endedBy === 'completed' && (await ws.readTask(task)).status === 'reviewing') {
+      const events = await ws.events(task).read();
+      if (!autopilotTail(events) && runsFromEvents(events).find((r) => r.run === run)?.role === 'implementer') await reviewToGate(ctx, task);
+    }
     ctx.autopilot.kick(task);
   };
   const app = new Hono();

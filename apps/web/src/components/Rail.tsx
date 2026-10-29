@@ -459,7 +459,7 @@ function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
       </div>
       {open ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-2" role="group" aria-label={`Restore the checkpoint after ${seg.run}`}>
-          <Button className="h-7 px-2 text-small" disabled={busy} aria-busy={busy} onClick={restore} {...hold}>
+          <Button className="h-7 px-2 text-small" aria-disabled={busy} aria-busy={busy} onClick={restore} {...hold}>
             {busy ? 'Restoring' : 'Code'}
           </Button>
           <span className="text-ink-2">{LATER}</span>

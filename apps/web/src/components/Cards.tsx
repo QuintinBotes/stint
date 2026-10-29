@@ -21,7 +21,7 @@ function List({ items, empty }: { items: string[]; empty: string }) {
 const SETTLED = new Set(['awaiting_approval', 'approved', 'done', 'rejected', 'abandoned', 'in_review']);
 
 /** An empty card: the sentence for the task's state, and that state beside it. `settled` is said once the task is past it. */
-function PlannedEmpty({ testId, status = 'planned', children, settled }: { testId: string; status?: string; children: string; settled: string }) {
+export function PlannedEmpty({ testId, status = 'planned', children, settled }: { testId: string; status?: string; children: string; settled: string }) {
   return (
     <div className="flex items-center gap-2">
       <StatusChip status={status} />

@@ -61,7 +61,7 @@ export function QuizPanel({ taskId, name, events }: { taskId: string; name: stri
             </p>
           </>
         ) : null}
-        <Button className="self-start h-8 px-2.5 text-small" onClick={run} disabled={busy} aria-busy={busy} {...hold}>
+        <Button className="self-start h-8 px-2.5 text-small" onClick={run} aria-disabled={busy} aria-busy={busy} {...hold}>
           {busy ? 'Checking' : recorded ? 'Check again' : 'Check this packet'}
         </Button>
         {error ? (

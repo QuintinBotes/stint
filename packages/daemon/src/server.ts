@@ -52,7 +52,7 @@ export type StartOptions = {
   quiet?: boolean;
   /** Install SIGTERM and SIGINT handlers that remove daemon.json and exit. */
   handleSignals?: boolean;
-} & Partial<Pick<AppOptions, 'webDist' | 'heartbeatMs' | 'health' | 'digest'>>;
+} & Partial<Pick<AppOptions, 'webDist' | 'heartbeatMs' | 'health' | 'digest' | 'autoReview'>>;
 
 /** `hostname` is the address the server is bound to, which is always 127.0.0.1 (R-004). */
 export type RunningDaemon = DaemonInfo & { hostname: string; url: string; ws: Workspace; infoPath: string; stop: () => Promise<void> };
@@ -72,6 +72,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     ...(o.heartbeatMs ? { heartbeatMs: o.heartbeatMs } : {}),
     ...(o.health ? { health: o.health } : {}),
     ...(o.digest ? { digest: true } : {}),
+    ...(o.autoReview ? { autoReview: true } : {}),
   });
   const outcomeCtx = daemonContext(app);
   const logScanFailure = (what: string) => (err: unknown) =>

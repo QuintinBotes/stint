@@ -18,7 +18,8 @@ test('Killing a run from the Terminal tab leaves a packet with the step in fligh
   await hand.getByTestId('hand-button').click();
 
   const after = await d.until(t.id, (ev) => ev.filter((e) => e.type === 'verification.ran').length >= 2);
-  const second = after.filter((e) => e.type === 'run.started').at(-1);
+  // the green hand-off is reviewed after it; the second build is the last implementer run
+  const second = after.filter((e) => e.type === 'run.started' && e.payload.role === 'implementer').at(-1);
   expect(second?.adapter).toBe('stint-agent');
   // handing off writes the packet addressed to the next agent, after the one the kill left
   const packets = after.filter((e) => e.type === 'handoff.created');

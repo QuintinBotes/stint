@@ -1,4 +1,4 @@
-import type { Goal, SharpenState, Task, TaskProof } from '@stint-dev/core';
+import { type Goal, ProofKindSchema, type SharpenState, type Task, type TaskProof } from '@stint-dev/core';
 import { defineCommand } from 'citty';
 import { getDaemon, postDaemon } from './client';
 import { repoRoot } from './repo';
@@ -97,9 +97,13 @@ export const answerCommand = defineCommand({
   },
 });
 
+// every kind a proof may be, as the task schema has them
+const KINDS = ProofKindSchema.options;
+const PROOF = new RegExp(`^\\s*(\\d+)\\s*=\\s*(${KINDS.join('|')})\\s*:\\s*(.+?)\\s*$`);
+
 /** `1=test:429 with Retry-After` as a proof; null when it does not read that way. */
 export function parseProof(s: string): TaskProof | null {
-  const m = /^\s*(\d+)\s*=\s*(test|scenario|check|human)\s*:\s*(.+?)\s*$/.exec(s);
+  const m = PROOF.exec(s);
   return m ? { criterion: Number(m[1]), kind: m[2] as TaskProof['kind'], ref: (m[3] as string).replace(/^"(.*)"$/, '$1').slice(0, 200) } : null;
 }
 
@@ -107,7 +111,7 @@ export const proofsCommand = defineCommand({
   meta: { name: 'proofs', description: "Show how each criterion of a task or a goal is proven, or set it" },
   args: {
     task: { type: 'positional', required: true, description: 'Task id, or a goal id such as G-0001' },
-    set: { type: 'string', description: 'A proof as <criterion>=<test|scenario|check|human>:<ref>, e.g. 1=test:"429 with Retry-After"; separate several with ";"' },
+    set: { type: 'string', description: `A proof as <criterion>=<${KINDS.join('|')}>:<ref>, e.g. 1=test:"429 with Retry-After" or 2=visual:"/admin :: the table lists 3 tenants"; separate several with ";"` },
     json: { type: 'boolean', description: 'Machine-readable output' },
     ...repoArg,
   },
@@ -123,7 +127,7 @@ export const proofsCommand = defineCommand({
       const parsed = sets.map((s) => ({ s, p: parseProof(s) }));
       const bad = parsed.find((x) => !x.p);
       if (bad) {
-        process.stderr.write(`"${bad.s}" is not a proof. Write it as 1=test:"429 with Retry-After"; the kind is test, scenario, check or human.\n`);
+        process.stderr.write(`"${bad.s}" is not a proof. Write it as 1=test:"429 with Retry-After"; the kind is ${KINDS.slice(0, -1).join(', ')} or ${KINDS.at(-1)}.\n`);
         process.exit(1);
       }
       // one proof per criterion: what is given replaces what was there, and the last one given wins

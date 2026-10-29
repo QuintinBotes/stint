@@ -13,8 +13,9 @@ test('After a kill the task view recommends a different agent; one click hands t
   await expect(card).toContainText('Recommended:');
   await expect(card).toContainText('was killed');
   await card.getByTestId('who-continues-hand').click();
-  const events = await d.until(t.id, (ev) => ev.filter((e) => e.type === 'run.started').length >= 2);
-  const second = events.filter((e) => e.type === 'run.started').at(-1);
+  const builds = <T extends { type: string; payload: Record<string, unknown> }>(ev: T[]) => ev.filter((e) => e.type === 'run.started' && e.payload.role === 'implementer');
+  const events = await d.until(t.id, (ev) => builds(ev).length >= 2);
+  const second = builds(events).at(-1);
   expect(second?.adapter).not.toBe('sleeper');
   expect(String(second?.payload.handoffFrom)).toMatch(/^h\d+$/);
 });

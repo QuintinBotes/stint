@@ -284,10 +284,10 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
             <span className="font-semibold text-amber">Retire it?</span> This skill hurt more tasks than it helped (helped {s.helped}, hurt {s.hurt}). Retiring stops agents getting it; keeping it clears this question until the record changes.
           </p>
           <div className="stint-actions">
-            <Button className={SMALL} tone="danger" disabled={!!busy} aria-busy={busy === 'retire' || undefined} onClick={() => act('retire', () => api.retireSkill(s.id))} data-testid="retire-skill">
+            <Button className={SMALL} tone="danger" aria-disabled={!!busy} aria-busy={busy === 'retire' || undefined} onClick={() => act('retire', () => api.retireSkill(s.id))} data-testid="retire-skill">
               {label('retire', 'Retire')}
             </Button>
-            <Button className={SMALL} disabled={!!busy} aria-busy={busy === 'keep' || undefined} onClick={() => act('keep', () => api.keepSkill(s.id))} data-testid="keep-skill">
+            <Button className={SMALL} aria-disabled={!!busy} aria-busy={busy === 'keep' || undefined} onClick={() => act('keep', () => api.keepSkill(s.id))} data-testid="keep-skill">
               {label('keep', 'Keep')}
             </Button>
           </div>
@@ -327,19 +327,19 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
                 placeholder="Why not? Stint will not propose it again from the same findings."
                 className="stint-input flex-1 min-w-[200px] w-auto"
               />
-              <Button tone="danger" type="submit" disabled={!!busy} aria-busy={busy === 'reject' || undefined} data-testid="reject-skill">
+              <Button tone="danger" type="submit" aria-disabled={!!busy} aria-busy={busy === 'reject' || undefined} data-testid="reject-skill">
                 {label('reject', 'Reject')}
               </Button>
-              <Button disabled={!!busy} onClick={() => setRejecting(false)}>
+              <Button aria-disabled={!!busy} onClick={() => setRejecting(false)}>
                 Cancel
               </Button>
             </form>
           ) : (
             <div className="stint-actions">
-              <Button tone="primary" disabled={blocked || waiting || !!busy} aria-busy={busy === 'approve' || undefined} aria-describedby={blocked || waiting ? `approve-why-${s.id}` : undefined} onClick={() => act('approve', () => api.approveSkill(s.id, warnIds))} data-testid="approve-skill">
+              <Button tone="primary" aria-disabled={blocked || waiting || !!busy} aria-busy={busy === 'approve' || undefined} aria-describedby={blocked || waiting ? `approve-why-${s.id}` : undefined} onClick={() => act('approve', () => api.approveSkill(s.id, warnIds))} data-testid="approve-skill">
                 {label('approve', 'Approve and commit')}
               </Button>
-              <Button disabled={!!busy} onClick={() => setRejecting(true)}>
+              <Button aria-disabled={!!busy} onClick={() => setRejecting(true)}>
                 Reject
               </Button>
               {blocked || waiting ? (

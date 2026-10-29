@@ -4,7 +4,7 @@ import { agentOf, markColor, modelName } from '../agents';
 import { type GraphData, type GraphEdge, type GraphNode, type PendingItem, type PendingPermission, type SkillRecord, api, daemonMessage } from '../api';
 import { toast } from 'sonner';
 import { PermissionRows } from './Permissions';
-import { useHold } from './Scrubber';
+import { useHold, useHoldField } from './Scrubber';
 import type { LayoutIn, LayoutOut } from '../graph.worker';
 import { useTasks, useWidth } from '../hooks';
 import { Button, EmptyState, StatusChip, cx, tabClass, tabKeys } from './ui';
@@ -401,6 +401,7 @@ function SkillProposal({ s, onDecided }: { s: SkillRecord; onDecided: () => void
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hold = useHold();
+  const holdField = useHoldField();
   const act = (fn: () => Promise<unknown>) => {
     if (busy) return;
     setBusy(true);
@@ -428,8 +429,8 @@ function SkillProposal({ s, onDecided }: { s: SkillRecord; onDecided: () => void
             act(() => api.rejectSkill(s.id, reason));
           }}
         >
-          <input required value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Why reject ${s.id}`} placeholder="Why not?" className="stint-input flex-1 min-h-8 h-8 py-0 px-2.5" />
-          <Button className="h-8 px-2.5 text-small" tone="danger" type="submit" disabled={busy} aria-busy={busy} {...hold}>
+          <input required value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Why reject ${s.id}`} placeholder="Why not?" className="stint-input flex-1 min-h-8 h-8 py-0 px-2.5" {...holdField} />
+          <Button className="h-8 px-2.5 text-small" tone="danger" type="submit" aria-disabled={busy} aria-busy={busy} {...hold}>
             {busy ? 'Rejecting' : 'Reject'}
           </Button>
           <Button className="h-8 px-2.5 text-small" onClick={() => setRejecting(false)}>
@@ -438,10 +439,10 @@ function SkillProposal({ s, onDecided }: { s: SkillRecord; onDecided: () => void
         </form>
       ) : (
         <div className="flex gap-2">
-          <Button className="h-8 px-2.5 text-small" tone="primary" disabled={busy} aria-busy={busy} onClick={() => act(() => api.approveSkill(s.id))} {...hold}>
+          <Button className="h-8 px-2.5 text-small" tone="primary" aria-disabled={busy} aria-busy={busy} onClick={() => act(() => api.approveSkill(s.id))} {...hold}>
             {busy ? 'Committing' : 'Approve and commit'}
           </Button>
-          <Button className="h-8 px-2.5 text-small" disabled={busy} onClick={() => setRejecting(true)} {...hold}>
+          <Button className="h-8 px-2.5 text-small" aria-disabled={busy} onClick={() => setRejecting(true)} {...hold}>
             Reject
           </Button>
         </div>
@@ -539,10 +540,10 @@ export function Queue({ only, decisionsOf, exceptDecisionsOf, onSettled, empty, 
             </div>
             <p className="text-ink-2">A finding never overrules a decision. {p.decision?.id ?? 'The decision'} stands until you choose.</p>
             <div className="flex flex-wrap gap-2">
-              <Button className="h-8 px-2.5 text-small" disabled={busy !== null} aria-busy={busy === p.id} onClick={() => settle(p.id, 'keep')} {...hold}>
+              <Button className="h-8 px-2.5 text-small" aria-disabled={busy !== null} aria-busy={busy === p.id} onClick={() => settle(p.id, 'keep')} {...hold}>
                 Keep {p.decision?.id ?? 'it'}
               </Button>
-              <Button className="h-8 px-2.5 text-small" disabled={busy !== null || !p.decision} aria-busy={busy === p.id} onClick={() => settle(p.id, 'supersede')} {...hold}>
+              <Button className="h-8 px-2.5 text-small" aria-disabled={busy !== null || !p.decision} aria-busy={busy === p.id} onClick={() => settle(p.id, 'supersede')} {...hold}>
                 Supersede {p.decision?.id ?? ''}
               </Button>
             </div>
@@ -554,7 +555,7 @@ export function Queue({ only, decisionsOf, exceptDecisionsOf, onSettled, empty, 
             <p className="font-mono text-ink break-words">
               {p.from} is now {p.to}
             </p>
-            <Button className="self-start h-8 px-2.5 text-small" disabled={busy !== null} aria-busy={busy === p.id} onClick={() => settle(p.id, 'keep')} {...hold}>
+            <Button className="self-start h-8 px-2.5 text-small" aria-disabled={busy !== null} aria-busy={busy === p.id} onClick={() => settle(p.id, 'keep')} {...hold}>
               Note it as the same file
             </Button>
           </li>

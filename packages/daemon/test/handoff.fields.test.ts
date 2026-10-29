@@ -79,3 +79,22 @@ test('Req 8: POST handoff with enrich true asks the leaving session before build
     expect(body.handoff.summary).toBe(`Enriched summary ${afterRun + 1}.`);
   });
 }, 120_000);
+
+test('A packet after a run that said nothing sums it up by its tool calls, one tool call in the singular', async () => {
+  await withFixtureRepo(async (repo) => {
+    const quiet: Adapter = {
+      ...fakeAdapter('edit'),
+      id: 'quiet',
+      async run(ctx): Promise<RunResult> {
+        await ctx.emit({ type: 'agent.tool_call', payload: { tool: 'write_file', args: { path: 'notes.md' }, callId: 'c1' } });
+        await Bun.write(`${ctx.worktree}/notes.md`, 'one\n');
+        return { endedBy: 'completed', cost: { inputTokens: 5, cachedTokens: 0, outputTokens: 5, usd: 0 } };
+      },
+    };
+    const { app, ws } = await makeApp(repo, [quiet]);
+    const t = await ws.createTask(newTask);
+    await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'quiet', role: 'implementer' });
+    await waitPackets(ws, t.id, 1);
+    expect((await ws.handoffs(t.id).read('h1'))?.summary).toBe('quiet completed after 1 tool call.');
+  });
+}, 60_000);

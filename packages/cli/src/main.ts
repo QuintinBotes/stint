@@ -22,7 +22,7 @@ import { skills } from './skills';
 import { doctor } from './doctor';
 import { draftCommand } from './draft';
 import { applyStartupKeys, keys } from './keys';
-import { assignTask, listTasks, newTask, runTask } from './tasks';
+import { assignTask, listTasks, newTask, runTask, verifyTask } from './tasks';
 import { up } from './up';
 
 // `stint demo --json | head` closes the pipe early; that is not an error.
@@ -33,7 +33,7 @@ process.stdout.on('error', (err: NodeJS.ErrnoException) => {
 
 export const main = defineCommand({
   meta: { name: 'stint', version: '0.1.0', description: 'The task outlives the agent.' },
-  subCommands: { up, init: initCommand, new: newTask, list: listTasks, assign: assignTask, run: runTask, demo, costs, metrics: metricsCommand, packet, hand, approve, reject, changes, show, export: exportTask, graph, skills, scenario, mcp, hook, bench, otel, report: reportCommand, outcome: outcomeCommand, eval: evalCommand, intake, doctor, keys, limits, sharpen: sharpenCommand, answer: answerCommand, proofs: proofsCommand, goal: goalCommand, draft: draftCommand },
+  subCommands: { up, init: initCommand, new: newTask, list: listTasks, assign: assignTask, run: runTask, verify: verifyTask, demo, costs, metrics: metricsCommand, packet, hand, approve, reject, changes, show, export: exportTask, graph, skills, scenario, mcp, hook, bench, otel, report: reportCommand, outcome: outcomeCommand, eval: evalCommand, intake, doctor, keys, limits, sharpen: sharpenCommand, answer: answerCommand, proofs: proofsCommand, goal: goalCommand, draft: draftCommand },
 });
 
 if (import.meta.main) {

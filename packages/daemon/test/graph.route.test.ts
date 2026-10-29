@@ -32,6 +32,17 @@ describe('graph route', () => {
 
       const rows = (await (await app.request('/api/graph/query?q=similar&task=T-0042')).json()) as Array<{ task: string }>;
       expect(rows.map((row) => row.task)).toContain('T-0043');
+
+      // the review's findings on T-0042 stay open, each with its file and the decision it would reverse
+      const open = (await (await app.request('/api/graph/query?q=open-findings&task=T-0042')).json()) as Array<Record<string, unknown>>;
+      expect(open.map(({ id, node, run, file, severity, contradictsDecision, linksTo }) => ({ id, node, run, file, severity, contradictsDecision, linksTo }))).toEqual([
+        { id: 'F1', node: 'finding:T-0042/r4#F1', run: 'r4', file: 'src/lib/limiter.ts', severity: 'minor', contradictsDecision: null, linksTo: 'R2' },
+        { id: 'F2', node: 'finding:T-0042/r4#F2', run: 'r4', file: 'src/lib/limiter.ts', severity: 'note', contradictsDecision: 'D3', linksTo: null },
+      ]);
+      expect(await (await app.request('/api/graph/query?q=open-findings&task=T-0043')).json()).toEqual([]);
+      const none = await app.request('/api/graph/query?q=open-findings');
+      expect(none.status).toBe(400);
+      expect(((await none.json()) as { error: { message: string } }).error.message).toBe('q=open-findings needs a task');
     });
   }, 60_000);
 });

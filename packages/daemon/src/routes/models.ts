@@ -33,7 +33,7 @@ const hosts = (ctx: DaemonContext): Record<string, Host> => hostsFromConfig(ctx.
 function chainFor(ctx: DaemonContext, role: 'planner' | 'reviewer', host?: string, task?: Task): string[] {
   const chain = effectiveChain(role, ctx.ws.config.routes, task?.routes);
   const picked = host ? chain.filter((e) => e.startsWith(`${host}/`)) : chain;
-  if (picked.length === 0) throw new DaemonError('adapter_unavailable', `no ${role} entry on ${host}`, chain.join(', '));
+  if (picked.length === 0) throw new DaemonError('adapter_unavailable', host ? `no ${role} entry on ${host}` : `routes.${role} names no model`, chain.join(', '));
   return picked;
 }
 
@@ -341,6 +341,23 @@ export async function reviewTask(ctx: DaemonContext, id: string, host?: string):
     await afterReview(ctx, id).catch((err: unknown) => process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `risk for ${id} was NOT assessed: ${err instanceof Error ? err.message : String(err)}` })}\n`));
   }
   return review;
+}
+
+/**
+ * The review a green build gets, from autopilot or after a run assigned by hand: the reviewer chain, or with no
+ * reviewer to answer, the gate anyway with the reason on the approval request. Returns that reason, or null.
+ */
+export async function reviewToGate(ctx: DaemonContext, id: string): Promise<string | null> {
+  try {
+    await reviewTask(ctx, id);
+    return null;
+  } catch (err) {
+    const reason = `No reviewer could answer (${err instanceof Error ? err.message : String(err)}).`;
+    const v = await ctx.ws.verification(id).latest();
+    await ctx.ws.writeTask(id, { status: 'awaiting_approval' });
+    await ctx.ws.events(id).append({ task: id, vendor: 'daemon', type: 'approval.requested', payload: { verification: v ? { passed: v.passed, failed: v.failed, status: v.status } : null, review: null, reason } });
+    return reason;
+  }
 }
 
 export type PendingContradiction = {

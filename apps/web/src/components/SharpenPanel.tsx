@@ -3,7 +3,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useSearchParams } from 'react-router';
 import { type TaskBundle, api, daemonMessage } from '../api';
 import { useHealth } from '../hooks';
-import { useHold } from './Scrubber';
+import { useHold, useHoldField } from './Scrubber';
 import { Button, Explain, StatusChip, cx } from './ui';
 
 type Question = SharpenState['questions'][number];
@@ -110,7 +110,7 @@ export function Sharpen({ subject, st, onChange }: { subject: SharpenSubject; st
     return (
       <section className="flex flex-col gap-2" data-testid="sharpen-panel" aria-label="Sharpen">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Button onClick={start} disabled={!!busy} aria-busy={!!busy} data-testid="sharpen-start" {...hold}>
+          <Button onClick={start} aria-disabled={!!busy} aria-busy={!!busy} data-testid="sharpen-start" {...hold}>
             Sharpen this {subject.noun}
           </Button>
           <Explain word="sharpen" />
@@ -157,7 +157,7 @@ export function Sharpen({ subject, st, onChange }: { subject: SharpenSubject; st
         <QuestionCard key={q.id} q={q} busy={!!busy} onAnswer={(a) => answer({ question: q.id }, a)} />
       ))}
       {rest ? (
-        <Button className="self-start" disabled={!!busy} data-testid="sharpen-recommended" onClick={() => void act('Taking the recommendations.', api.takeRecommendations(subject.id))} {...hold}>
+        <Button className="self-start" aria-disabled={!!busy} data-testid="sharpen-recommended" onClick={() => void act('Taking the recommendations.', api.takeRecommendations(subject.id))} {...hold}>
           Use the recommendations for the rest
         </Button>
       ) : null}
@@ -186,6 +186,7 @@ function QuestionCard({ q, busy, onAnswer }: { q: Question; busy: boolean; onAns
     onAnswer(other.trim() ? { text: other.trim() } : { option: choice });
   };
   const hold = useHold();
+  const holdField = useHoldField();
   const chosen = LETTERS[q.options.findIndex((o) => o.label === choice)];
   const letter = LETTERS[q.options.findIndex((o) => o.label === q.safeDefault.option)];
   const safe = q.safeDefault.exists ? `Safe default: ${q.safeDefault.option ? `${letter}, ${q.safeDefault.option}` : 'yes'}.${q.safeDefault.why ? ` ${q.safeDefault.why}` : ''}` : 'No safe default: a wrong answer is costly to undo.';
@@ -218,16 +219,16 @@ function QuestionCard({ q, busy, onAnswer }: { q: Question; busy: boolean; onAns
         {safe} {q.blocks.length ? `Blocks criteri${q.blocks.length === 1 ? 'on' : 'a'} ${q.blocks.join(', ')}.` : 'Blocks no criterion.'}
       </p>
       <div>
-        <Button type="button" disabled={busy} onClick={() => onAnswer({ option: choice })} data-testid={`sharpen-answer-${q.id}`} {...hold}>
+        <Button type="button" aria-disabled={busy} onClick={() => onAnswer({ option: choice })} data-testid={`sharpen-answer-${q.id}`} {...hold}>
           Answer with {chosen}
         </Button>
       </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-0 flex-1 basis-56 flex-col gap-1.5 text-small font-medium">
           Something else
-          <input value={other} onChange={(e) => setOther(e.target.value)} maxLength={1000} className={cx(field, 'font-normal text-body')} />
+          <input value={other} onChange={(e) => setOther(e.target.value)} maxLength={1000} className={cx(field, 'font-normal text-body')} {...holdField} />
         </label>
-        <Button type="submit" disabled={busy || !other.trim()} data-testid={`sharpen-answer-text-${q.id}`} {...hold}>
+        <Button type="submit" aria-disabled={busy || !other.trim()} data-testid={`sharpen-answer-text-${q.id}`} {...hold}>
           Answer with this
         </Button>
       </div>
@@ -240,6 +241,7 @@ function Assumed({ st, busy, onChange }: { st: SharpenState; busy: boolean; onCh
   const [editing, setEditing] = useState<string | null>(null);
   const [text, setText] = useState('');
   const hold = useHold();
+  const holdField = useHoldField();
   return (
     <div data-testid="sharpen-assumed">
       <h3 className="font-semibold">Assumed</h3>
@@ -268,9 +270,9 @@ function Assumed({ st, busy, onChange }: { st: SharpenState; busy: boolean; onCh
               >
                 <label className="flex min-w-0 flex-1 basis-56 flex-col gap-1.5 font-medium">
                   Something else
-                  <input value={text} onChange={(e) => setText(e.target.value)} required maxLength={1000} className={cx(field, 'font-normal text-body')} />
+                  <input value={text} onChange={(e) => setText(e.target.value)} required maxLength={1000} className={cx(field, 'font-normal text-body')} {...holdField} />
                 </label>
-                <Button type="submit" disabled={busy} {...hold}>
+                <Button type="submit" aria-disabled={busy} {...hold}>
                   Answer
                 </Button>
               </form>
@@ -292,11 +294,14 @@ function Proofs({ st, acceptance, busy, onUse }: { st: SharpenState; acceptance:
   );
   const set = (i: number, patch: Partial<(typeof rows)[number]>) => setRows((now) => now.map((r, k) => (k === i ? { ...r, ...patch } : r)));
   const hold = useHold();
+  const holdField = useHoldField();
+  const none = rows.every((r) => !r.ref.trim());
   return (
     <form
       data-testid="sharpen-proofs"
       onSubmit={(e) => {
         e.preventDefault();
+        if (busy || none || hold['aria-disabled']) return;
         onUse(rows.flatMap((r, i) => (r.ref.trim() ? [{ criterion: i + 1, kind: r.kind, ref: r.ref.trim().slice(0, 200) }] : [])));
       }}
     >
@@ -321,16 +326,21 @@ function Proofs({ st, acceptance, busy, onUse }: { st: SharpenState; acceptance:
                     </option>
                   ))}
                 </select>
-                <input aria-label={`What proves criterion ${n}`} value={row.ref} placeholder={KINDS.find((k) => k.kind === row.kind)?.hint} onChange={(e) => set(i, { ref: e.target.value })} maxLength={200} className={cx(field, 'min-w-0 flex-1 basis-56')} />
+                <input aria-label={`What proves criterion ${n}`} value={row.ref} placeholder={KINDS.find((k) => k.kind === row.kind)?.hint} onChange={(e) => set(i, { ref: e.target.value })} maxLength={200} className={cx(field, 'min-w-0 flex-1 basis-56')} {...holdField} />
               </span>
               <span className="text-small text-ink-2">{accepted ? 'Accepted.' : suggested ? `Suggested: ${suggested.why}` : 'No proof yet.'}</span>
             </li>
           );
         })}
       </ol>
-      <Button type="submit" className="mt-3" disabled={busy || rows.every((r) => !r.ref.trim())} data-testid="sharpen-use-proofs" {...hold}>
+      <Button type="submit" className="mt-3 self-start" aria-disabled={busy || none} aria-busy={busy || undefined} aria-describedby={none ? 'sharpen-proofs-why' : undefined} data-testid="sharpen-use-proofs" {...hold}>
         Use these proofs
       </Button>
+      {none ? (
+        <p id="sharpen-proofs-why" className="mt-1 text-small text-ink-2" data-testid="sharpen-proofs-why">
+          Say what proves at least one criterion first.
+        </p>
+      ) : null}
     </form>
   );
 }

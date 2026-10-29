@@ -71,9 +71,10 @@ test('stint sharpen --recommended --json prints the round; stint answer, interac
   }
 }, 120_000);
 
-test('A proof reads as <criterion>=<kind>:<ref>, quoted or not', () => {
+test('A proof reads as <criterion>=<kind>:<ref>, quoted or not, a visual one included', () => {
   expect(parseProof('1=test:"429 with Retry-After"')).toEqual({ criterion: 1, kind: 'test', ref: '429 with Retry-After' });
   expect(parseProof(' 2 = human : Ops checks the dashboard ')).toEqual({ criterion: 2, kind: 'human', ref: 'Ops checks the dashboard' });
+  expect(parseProof('3=visual:"/admin :: the table lists 3 tenants"')).toEqual({ criterion: 3, kind: 'visual', ref: '/admin :: the table lists 3 tenants' });
   expect(parseProof('1=guess:x')).toBeNull();
   expect(parseProof('test:x')).toBeNull();
 });

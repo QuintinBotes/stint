@@ -50,6 +50,9 @@ test("A goal's tasks name it and link to it, a task waiting on an unmerged one s
 
   // a reaches the gate on autopilot and is merged; its sign-off links to the goal and offers b, the goal's next open task
   await d.until(a.id, stopped);
+  // at the gate, a is not open work: Run the goal's tasks counts b alone
+  await page.goto(`/goals/${g.id}`);
+  await expect(page.getByTestId('run-goal-button')).toHaveText("Run the goal's 1 task");
   await d.post(`/api/tasks/${a.id}/approve`);
   await page.goto(`/t/${a.id}`);
   await expect(page.getByTestId('signoff-goal').getByRole('link')).toHaveAttribute('href', `/goals/${g.id}`);

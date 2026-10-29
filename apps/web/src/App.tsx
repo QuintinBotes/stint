@@ -1,7 +1,7 @@
 import type { DraftKind } from '@stint-dev/core';
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Link, Route, Routes } from 'react-router';
-import { Dialog, NewGoalDialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions } from './components/Shell';
+import { Dialog, NewGoalDialog, NewTaskDialog, Palette, ReplayStrip, TopBar, focusMain, useFocusRescue, usePaletteActions } from './components/Shell';
 import { Notifier } from './components/Notifier';
 import { SpecBuilder } from './components/SpecBuilder';
 import { Kbd } from './components/ui';
@@ -69,6 +69,7 @@ export function App() {
   const openNewTask = useCallback(() => setBuilder({}), []);
   const openNewGoal = useCallback(() => setBuilder({ kind: 'goal' }), []);
   const actions = usePaletteActions({ newTask: openNewTask, newGoal: openNewGoal });
+  useFocusRescue();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,10 +97,7 @@ export function App() {
           href="#main"
           onClick={(e) => {
             e.preventDefault();
-            const main = document.querySelector<HTMLElement>('main');
-            if (!main) return;
-            main.tabIndex = -1;
-            main.focus();
+            focusMain();
           }}
           className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-[5px] focus:bg-ink focus:text-on-ink focus:font-semibold"
         >
