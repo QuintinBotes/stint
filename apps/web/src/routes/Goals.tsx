@@ -1,5 +1,5 @@
 import { CRITERION_STATE_LABELS, type GoalOutcome, type OutcomeResult, type ProposedTask } from '@stint-dev/core';
-import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { type GoalView, api, daemonMessage, readOnly } from '../api';
 import { CRITERION } from '../components/HowItWent';
@@ -434,6 +434,10 @@ const CLOSED_TASK = ['done', 'approved', 'abandoned'];
  */
 function RunGoal({ v, replay }: { v: GoalView; replay: boolean }) {
   const [busy, setBusy] = useState(false);
+  // the first press asks, like the Board's Run all: it says what starts and under which limits, and only Start starts it
+  const [asking, setAsking] = useState(false);
+  const confirm = useRef<HTMLButtonElement>(null);
+  const opener = useRef<HTMLButtonElement>(null);
   // the same reasons the Board's Run all is off: nothing runs in the replay or the read-only copy
   const off = readOnly ?? (replay ? 'Not in the replay: nothing runs here.' : null);
   const [error, setError] = useState<string | null>(null);
@@ -442,30 +446,67 @@ function RunGoal({ v, replay }: { v: GoalView; replay: boolean }) {
   const open = v.tasks.filter((t) => !CLOSED_TASK.includes(t.status) && t.status !== 'awaiting_approval');
   if (!open.length) return null;
   const waiting = open.filter((t) => t.dependsOn.some((d) => v.tasks.find((x) => x.id === d)?.status !== 'done')).map((t) => t.id);
+  const now = open.filter((t) => !waiting.includes(t.id)).map((t) => t.id);
   const { spend, builds } = v.outcome;
   const caps = [spend.limit === null ? 'no spend limit' : `a spend limit of ${money({ usd: spend.limit })} (${money({ usd: spend.usd })} spent)`, builds.limit === null ? 'no build limit' : `a build limit of ${builds.limit} (${builds.used} used)`];
+  const close = () => {
+    setAsking(false);
+    requestAnimationFrame(() => opener.current?.focus());
+  };
+  const ask = () => {
+    if (busy || off) return;
+    setError(null);
+    setAsking(true);
+    requestAnimationFrame(() => confirm.current?.focus());
+  };
   const run = () => {
     if (busy || off) return;
     setBusy(true);
     setError(null);
     api
       .runGoal(v.goal.id)
-      .then((r) => setStarted(r.started))
+      .then((r) => {
+        setStarted(r.started);
+        close();
+      })
       .catch((e: unknown) => setError(daemonMessage(e)))
       .finally(() => setBusy(false));
   };
   return (
-    <div className="flex flex-col gap-2 lg:items-end lg:max-w-[46ch]" data-testid="run-goal">
+    <div
+      className="flex flex-col gap-2 lg:items-end lg:max-w-[46ch]"
+      data-testid="run-goal"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && asking && !busy) close();
+      }}
+    >
       <div className="stint-actions lg:justify-end">
-        <Button tone="primary" aria-disabled={busy || off !== null} aria-busy={busy || undefined} aria-describedby="run-goal-what" onClick={run} data-testid="run-goal-button">
-          {busy ? 'Starting autopilot' : `Run the goal's ${plural(open.length, 'task')}`}
-        </Button>
+        {asking ? (
+          <>
+            <Button ref={confirm} tone="primary" aria-disabled={busy} aria-busy={busy || undefined} aria-describedby="run-goal-what" onClick={run} data-testid="run-goal-confirm">
+              {busy ? 'Starting autopilot' : `Start ${plural(open.length, 'task')}`}
+            </Button>
+            <Button tone="ghost" aria-disabled={busy} onClick={close} data-testid="run-goal-cancel">
+              Cancel
+            </Button>
+          </>
+        ) : (
+          <Button ref={opener} tone="primary" aria-disabled={off !== null} aria-describedby="run-goal-what" onClick={ask} data-testid="run-goal-button">
+            {`Run the goal's ${plural(open.length, 'task')}`}
+          </Button>
+        )}
       </div>
-      <p className="stint-field-help max-w-[60ch] lg:text-right" id="run-goal-what">
-        Puts the goal's {plural(open.length, 'open task')} on autopilot, in order: each is planned, built, tested and reviewed, then stops for your approval.
-        {waiting.length ? ` ${waiting.join(', ')} ${waiting.length === 1 ? 'starts' : 'start'} only once the tasks ${waiting.length === 1 ? 'it waits' : 'they wait'} on are merged.` : ''} The goal has {caps.join(' and ')}.
-        {off ? <span className="block mt-1 text-ink-2">{off}</span> : null}
-      </p>
+      {asking ? (
+        <p className="stint-field-help max-w-[60ch] text-ink lg:text-right" id="run-goal-what" role="status" data-testid="run-goal-ask">
+          Autopilot plans, builds, tests and reviews {waiting.length ? `${now.join(', ') || 'none'} now, and ${waiting.join(', ')} once the tasks ${waiting.length === 1 ? 'it waits' : 'they wait'} on are merged` : now.length === 1 ? now[0] : `${now.join(', ')}`}, then stops for your approval. Nothing is merged without you. The goal has {caps.join(' and ')}.
+        </p>
+      ) : (
+        <p className="stint-field-help max-w-[60ch] lg:text-right" id="run-goal-what">
+          Puts the goal's {plural(open.length, 'open task')} on autopilot, in order: each is planned, built, tested and reviewed, then stops for your approval.
+          {waiting.length ? ` ${waiting.join(', ')} ${waiting.length === 1 ? 'starts' : 'start'} only once the tasks ${waiting.length === 1 ? 'it waits' : 'they wait'} on are merged.` : ''} The goal has {caps.join(' and ')}.
+          {off ? <span className="block mt-1 text-ink-2">{off}</span> : null}
+        </p>
+      )}
       {started ? (
         <p role="status" className="text-small text-ink-2" data-testid="run-goal-started">
           {started.length ? `On autopilot: ${started.join(', ')}.` : 'No open task to start.'}

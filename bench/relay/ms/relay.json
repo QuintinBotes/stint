@@ -94,5 +94,8 @@
   ],
   "chainVerifiedBeforeScrub": true,
   "startedAt": "2026-10-29T14:37:53.300Z",
-  "finishedAt": "2026-10-29T14:59:28.006Z"
+  "finishedAt": "2026-10-29T14:59:28.006Z",
+  "notes": [
+    "The offline review hit its 120 s limit while the same Mac was also running Stint's full browser test suite; ms-2 is the same relay rerun on an otherwise idle machine (29 Oct)."
+  ]
 }

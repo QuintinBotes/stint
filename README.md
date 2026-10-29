@@ -13,7 +13,7 @@ Coding agents are good at a task until the session ends: the context fills up, t
 
 ## For judges
 
-Try it in a browser with nothing to install: [the judge page](https://quintinbotes.github.io/stint/) (publishing soon) shows the recorded story, read-only. Or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys.
+Try it in a browser with nothing to install: [the judge page](https://quintinbotes.github.io/stint/) shows the recorded story, read-only. Or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys.
 
 | Criterion | Evidence |
 |---|---|

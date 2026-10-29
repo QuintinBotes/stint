@@ -41,9 +41,20 @@ test("A goal's tasks name it and link to it, a task waiting on an unmerged one s
     `Puts the goal's 2 open tasks on autopilot, in order: each is planned, built, tested and reviewed, then stops for your approval. ${b.id} starts only once the tasks it waits on are merged. The goal has a spend limit of $3.00 ($0.00 spent) and no build limit.`,
   );
   expect(await axe()).toEqual([]);
+  // the first press only asks: it names what starts now and what waits, the goal's limits, and that nothing merges without you
   const held = await holdRequests(page, `**/api/goals/${g.id}/run`);
-  await page.getByTestId('run-goal-button').dblclick();
-  await expect(page.getByTestId('run-goal-button')).toHaveText('Starting autopilot');
+  await page.getByTestId('run-goal-button').click();
+  await expect(page.getByTestId('run-goal-ask')).toHaveText(
+    `Autopilot plans, builds, tests and reviews ${a.id} now, and ${b.id} once the tasks it waits on are merged, then stops for your approval. Nothing is merged without you. The goal has a spend limit of $3.00 ($0.00 spent) and no build limit.`,
+  );
+  await expect(page.getByTestId('run-goal-confirm')).toBeFocused();
+  expect(held.count()).toBe(0);
+  // Escape cancels and puts focus back on the button that asked
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('run-goal-button')).toBeFocused();
+  await page.getByTestId('run-goal-button').click();
+  await page.getByTestId('run-goal-confirm').dblclick();
+  await expect(page.getByTestId('run-goal-confirm')).toHaveText('Starting autopilot');
   held.release();
   await expect(page.getByTestId('run-goal-started')).toHaveText(`On autopilot: ${a.id}, ${b.id}.`);
   expect(held.count()).toBe(1);
