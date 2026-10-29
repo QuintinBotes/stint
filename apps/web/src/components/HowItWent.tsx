@@ -2,10 +2,13 @@ import { CRITERION_STATE_LABELS, type CriterionState, type Outcome, outcomeLine 
 import { useEffect, useState } from 'react';
 import { type TaskBundle, api } from '../api';
 import { localDate } from '../format';
-import { Explain, cx, rev } from './ui';
+import { Explain, type Shape, StateMark, cx, rev } from './ui';
 
-// green only for proven, amber only for failing, ink for the rest; the words carry the meaning
+// green and a tick only for proven, amber and a triangle only for failing, ink for the rest; the words carry the meaning
 const INK: Partial<Record<CriterionState, string>> = { proven: 'text-green', failing: 'text-amber' };
+const MARK: Partial<Record<CriterionState, Shape>> = { proven: 'verified', failing: 'attention' };
+// an ordinary table's caption: a heading above it, not the revision block's boxed one
+const caption = 'caption-top pb-2 text-left font-semibold';
 const label = (s: CriterionState) => (s === 'passing' ? 'Passes, but no test showed it failing first' : CRITERION_STATE_LABELS[s]);
 
 /** "1 of 3 criteria proven, 1 failing, 1 for you to check" */
@@ -38,7 +41,7 @@ export function HowItWent({ bundle, after = false }: { bundle: TaskBundle; after
   if (!o) return null;
   const criteria = (
     <table className={cx(rev.table, 'table-fixed')} aria-label={after ? undefined : 'Criteria'}>
-      {after ? <caption className={rev.caption}>Criteria</caption> : null}
+      {after ? <caption className={caption}>Criteria</caption> : null}
       <colgroup>
         <col />
         <col className="w-[42%]" />
@@ -51,7 +54,12 @@ export function HowItWent({ bundle, after = false }: { bundle: TaskBundle; after
               {/* the passing label already says what its evidence would */}
               {c.state === 'passing' ? null : <span className="block mt-0.5 text-ink-2">{c.evidence}</span>}
             </th>
-            <td className={cx(rev.td, 'font-medium', INK[c.state] ?? 'text-ink')}>{label(c.state)}</td>
+            <td className={cx(rev.td, 'font-medium', INK[c.state] ?? 'text-ink')}>
+              <span className="flex items-baseline gap-1.5">
+                {MARK[c.state] ? <StateMark shape={MARK[c.state] as Shape} className="translate-y-px" /> : null}
+                {label(c.state)}
+              </span>
+            </td>
           </tr>
         ))}
       </tbody>
@@ -104,7 +112,7 @@ export function HowItWent({ bundle, after = false }: { bundle: TaskBundle; after
         {m ? (
           <div className="min-w-0" data-testid="outcome-after-merge">
             <table className={rev.table}>
-              <caption className={rev.caption}>
+              <caption className={caption}>
                 After merge, within {m.window.days} day{m.window.days === 1 ? '' : 's'}
               </caption>
               <tbody>

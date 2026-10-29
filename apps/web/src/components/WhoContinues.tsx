@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { agentOf } from '../agents';
 import { DaemonError, type TaskBundle, api } from '../api';
 import { useHealth } from '../hooks';
+import { useHold } from './Scrubber';
 import { Button, Kbd, StatusChip, Who } from './ui';
 
 /**
@@ -11,6 +12,7 @@ import { Button, Kbd, StatusChip, Who } from './ui';
 export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoose: () => void }) {
   const { data: health } = useHealth();
   const [state, setState] = useState<{ busy: boolean; said: string | null }>({ busy: false, said: null });
+  const hold = useHold();
   const last = bundle.runs.filter((r) => r.role === 'implementer').at(-1);
   const live = bundle.runs.some((r) => !r.endedAt);
   if (!last || live || bundle.task.status === 'done' || !bundle.handoff || (last.endedBy !== 'killed' && last.endedBy !== 'failed')) return null;
@@ -18,7 +20,7 @@ export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoos
   const ready = (health?.adapters ?? []).filter((a) => a.id !== 'replay' && a.roles.includes('implementer') && a.enabled !== false && a.capability.level === 'supported');
   const next = ready.find((a) => a.id !== leaving) ?? null;
   const hand = () => {
-    if (!next) return;
+    if (!next || state.busy) return;
     setState({ busy: true, said: null });
     api
       .hand(bundle.task.id, next.id)
@@ -34,7 +36,7 @@ export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoos
         <p className="mt-1 text-small text-ink-2">The next agent reads the packet {last.run} left, the plan, the skills list and the diff. Never the transcript.</p>
       </div>
       {next ? (
-        <div className="flex flex-col gap-1 p-3 rounded-[5px] border border-ink bg-panel-2">
+        <div className="flex flex-col gap-1 p-3 rounded-[5px] border border-rule-strong bg-panel">
           <span className="flex flex-wrap items-center justify-between gap-2">
             <Who agent={agentOf(next.id)} className="font-semibold" />
             <StatusChip label="recommended" tone="recommend" />
@@ -47,8 +49,8 @@ export function WhoContinues({ bundle, onChoose }: { bundle: TaskBundle; onChoos
         <p>No other agent is ready to take over from {agentOf(leaving).name}. Turn one on, or hand it back from the packet tab.</p>
       )}
       {next ? (
-        <Button tone="primary" className="self-start" onClick={hand} disabled={state.busy} data-testid="who-continues-hand">
-          Hand to {agentOf(next.id).name}
+        <Button tone="primary" className="self-start" onClick={hand} disabled={state.busy} aria-busy={state.busy} data-testid="who-continues-hand" {...hold}>
+          {state.busy ? 'Handing over' : `Hand to ${agentOf(next.id).name}`}
         </Button>
       ) : null}
       <button type="button" className="self-start text-small text-ink-2 underline decoration-rule-strong hover:text-ink hover:decoration-ink" onClick={onChoose}>

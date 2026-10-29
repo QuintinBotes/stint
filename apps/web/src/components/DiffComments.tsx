@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { LineComment } from '../api';
+import { useHold } from './Scrubber';
 import { Button } from './ui';
 
 /** What an annotation under a diff line carries: a stored comment, or the editor for a new one. */
@@ -34,9 +35,10 @@ export function CommentEditor({
   onCancel: () => void;
 }) {
   const [text, setText] = useState('');
+  const hold = useHold();
   const save = () => {
     const trimmed = text.trim();
-    if (trimmed) onSave(trimmed);
+    if (trimmed && !busy && !hold['aria-disabled']) onSave(trimmed);
   };
   return (
     <form
@@ -63,7 +65,7 @@ export function CommentEditor({
         onKeyDown={(e) => {
           if (e.key === 'Escape') onCancel();
         }}
-        className="w-full rounded-[5px] border border-field bg-ground px-2 py-1 text-body outline-none focus-visible:border-ink"
+        className="stint-input min-h-0 px-2 py-1"
       />
       {error ? (
         <p role="alert" className="text-red text-small">
@@ -71,8 +73,8 @@ export function CommentEditor({
         </p>
       ) : null}
       <div className="flex gap-2">
-        <Button tone="primary" className="h-7 px-2.5 text-small" disabled={busy || !text.trim()} onClick={save} data-testid="diff-comment-save">
-          Save comment
+        <Button tone="primary" className="h-7 px-2.5 text-small" disabled={busy || !text.trim()} aria-busy={busy} onClick={save} data-testid="diff-comment-save" {...hold}>
+          {busy ? 'Saving' : 'Save comment'}
         </Button>
         <Button className="h-7 px-2.5 text-small" disabled={busy} onClick={onCancel} data-testid="diff-comment-cancel">
           Cancel

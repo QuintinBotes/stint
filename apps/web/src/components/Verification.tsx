@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { DaemonError, type Verification, api, daemonMessage } from '../api';
 import { localTime } from '../format';
+import { useHold } from './Scrubber';
 import { StackTrace } from './StackTrace';
-import { Button, EmptyState, Explain, StatusChip, cx, tabKeys } from './ui';
+import { Button, EmptyState, Explain, StateMark, StatusChip, cx, tabKeys } from './ui';
 
 type TestLine = { name: string; ok: boolean };
 
@@ -61,6 +62,7 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
   const [outputNote, setOutputNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hold = useHold();
   const id = useId();
 
   const load = useCallback(() => {
@@ -109,6 +111,7 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
   const failing = (v as (Verification & { failing?: string[] }) | null)?.failing ?? tests.filter((t) => !t.ok).map((t) => t.name);
 
   const rerun = () => {
+    if (busy) return;
     setBusy(true);
     setError(null);
     api
@@ -146,10 +149,11 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
               tabIndex={r.run === v.run ? 0 : -1}
               onClick={() => setPicked(r.run)}
               data-testid={`verification-run-${r.run}`}
-              className={cx('inline-flex items-center gap-2 h-8 px-3 rounded-[5px] border text-small', r.run === v.run ? 'border-ink text-ink bg-panel-2' : 'border-rule text-ink-2 hover:text-ink')}
+              className={cx('stint-button min-h-8 h-8 px-3 font-normal', r.run !== v.run && 'border-rule text-ink-2 hover:text-ink')}
             >
               <span className="font-mono">{r.run}</span>
-              <span className={cx('tabular', r.status === 'green' ? 'text-green' : 'text-red')}>
+              <span className={cx('inline-flex items-center gap-1.5 tabular', r.status === 'green' ? 'text-green' : 'text-red')}>
+                <StateMark shape={r.status === 'green' ? 'verified' : 'failed'} />
                 {r.passed} of {r.passed + r.failed} passed
               </span>
             </button>
@@ -157,7 +161,7 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
         </div>
         <span className="ml-auto flex items-center gap-2">
           {live ? <span className="text-small text-ink-3">A run is going; Stint tests it when it ends.</span> : null}
-          <Button onClick={rerun} disabled={busy || live} data-testid="rerun">
+          <Button onClick={rerun} disabled={busy || live} aria-busy={busy} data-testid="rerun" {...hold}>
             {busy ? 'Running the tests' : 'Re-run the tests'}
           </Button>
         </span>
@@ -169,7 +173,7 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
       ) : null}
 
       <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${v.run}`} className="flex flex-col gap-4 min-w-0">
-        <article data-testid="verification-card" className={cx('rounded-[5px] border p-4', v.status === 'green' ? 'border-green/50' : 'border-red/50')}>
+        <article data-testid="verification-card" className={cx('rounded-[5px] border bg-panel p-4', v.status === 'green' ? 'border-green/50' : 'border-red/50')}>
           <div className="flex items-center justify-between gap-3">
             <p className="text-body font-semibold tabular" data-testid="verification-summary">
               {v.passed} passed{v.tamper === null ? ', tests unchanged' : ''}
@@ -229,7 +233,8 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
               <p className="text-small text-ink-2 mb-1">Failing</p>
               <ul className="flex flex-col gap-1" data-testid="failing-tests">
                 {failing.map((name) => (
-                  <li key={name} className="font-mono text-small text-red">
+                  <li key={name} className="flex items-baseline gap-1.5 font-mono text-small text-red">
+                    <StateMark shape="failed" className="translate-y-px" />
                     {name}
                   </li>
                 ))}
@@ -298,7 +303,8 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
                   {c.tests.length ? (
                     <ul className="mt-1">
                       {c.tests.slice(0, 4).map((t) => (
-                        <li key={t.name} className={cx('font-mono text-small', t.ok ? 'text-ink-2' : 'text-red')}>
+                        <li key={t.name} className={cx('flex items-baseline gap-1.5 font-mono text-small', t.ok ? 'text-ink-2' : 'text-red')}>
+                          <StateMark shape={t.ok ? 'verified' : 'failed'} className="translate-y-px" />
                           {t.ok ? 'pass' : 'fail'} {t.name}
                         </li>
                       ))}

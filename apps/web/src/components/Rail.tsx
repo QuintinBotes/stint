@@ -6,7 +6,8 @@ import { ROLE_NAMES, agentOf, hostName, markColor, modelName, storyClock } from 
 import { type RunSummary, api } from '../api';
 import { duration, localTime, money } from '../format';
 import { useHealth } from '../hooks';
-import { Button, type ChipTone, CostMeter, EmptyState, StatusChip, Who, cx } from './ui';
+import { useHold } from './Scrubber';
+import { Button, type ChipTone, CostMeter, EmptyState, StateMark, StatusChip, Who, cx } from './ui';
 
 /** What raises attention on the rail when collapsed: what the agent did, what changed, what was decided or refused. */
 const NOTABLE = new Set([
@@ -317,12 +318,13 @@ function EventRow({ e, selected, expanded, tabStop, onActivate }: { e: StintEven
         // a click made by Enter or Space has detail 0
         onClick={(ev) => onActivate(e.seq, ev.detail === 0)}
         className={cx(
-          'w-full text-left grid grid-cols-[64px_minmax(0,1fr)] gap-2 px-1.5 py-1 rounded-[3px] text-small',
+          // the clock column fits its reading: a story's 0:12 and a live task's time of day both stay on one line
+          'w-full text-left grid grid-cols-[auto_minmax(0,1fr)] gap-2 px-1.5 py-1 rounded-[3px] text-small',
           selected ? 'bg-panel-2 shadow-[inset_0_0_0_1px_var(--rule-strong)] forced-colors:outline' : (tint ?? 'hover:bg-panel-2'),
           marked && 'font-medium',
         )}
       >
-        <time className="font-mono text-small text-ink-3 tabular" dateTime={e.ts}>
+        <time className="min-w-14 font-mono text-small text-ink-3 tabular whitespace-nowrap" dateTime={e.ts}>
           {storyClock(e.payload) ?? localTime(e.ts)}
         </time>
         <span className="min-w-0 break-words">
@@ -426,7 +428,9 @@ function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ path: string } | { error: string } | null>(null);
+  const hold = useHold();
   const restore = () => {
+    if (busy) return;
     setBusy(true);
     api
       .restoreCheckpoint(id, seg.run)
@@ -447,8 +451,8 @@ function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
       </div>
       {open ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-2" role="group" aria-label={`Restore the checkpoint after ${seg.run}`}>
-          <Button className="h-7 px-2 text-small" disabled={busy} onClick={restore}>
-            Code
+          <Button className="h-7 px-2 text-small" disabled={busy} aria-busy={busy} onClick={restore} {...hold}>
+            {busy ? 'Restoring' : 'Code'}
           </Button>
           <span className="text-ink-2">{LATER}</span>
         </div>
@@ -458,7 +462,11 @@ function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
           {seg.run}'s code at <code className="font-mono">{commit.slice(0, 7)}</code> is in <code className="font-mono text-ink break-all">{result.path}</code>
         </p>
       ) : null}
-      {result && 'error' in result ? <p className="mt-1 text-red">The checkpoint was not restored: {result.error}</p> : null}
+      {result && 'error' in result ? (
+        <p role="alert" className="mt-1 text-red">
+          The checkpoint was not restored: {result.error}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -625,7 +633,11 @@ export function Rail({
           <Spine seg={it.seg} live={it.live}>
             {it.warn ? (
               <p className="my-1 rounded-[3px] bg-red-wash px-2.5 py-2 text-small">
-                <b className="font-semibold text-red">Killed.</b> {it.text}
+                <b className="inline-flex items-center gap-1.5 font-semibold text-red">
+                  <StateMark shape="failed" />
+                  Killed.
+                </b>{' '}
+                {it.text}
               </p>
             ) : (
               <p className="px-1.5 py-1 text-small text-ink-3">{it.text}</p>

@@ -1,6 +1,21 @@
 import type { StintEvent } from '@stint-dev/core';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, EmptyState } from './ui';
+
+/**
+ * True while the task view looks back: its clock is not at now. Every control that would change the task holds then, since
+ * it would act on a task the page is not showing. Off the task view nothing looks back.
+ */
+export const LookingBack = createContext(false);
+
+/** The notice at the top of the task view that says why a held control is off. */
+export const LOOKING_BACK_ID = 'looking-back';
+export const HELD = { 'aria-disabled': true, 'aria-describedby': LOOKING_BACK_ID, title: 'Return to latest first: this shows an earlier moment' } as const;
+
+/** Props for a control that changes the task: off while the view looks back, pointing at the notice; nothing otherwise. */
+export function useHold(): Partial<typeof HELD> {
+  return useContext(LookingBack) ? HELD : {};
+}
 
 /**
  * The task's own clock, one reading per event, in event order. A replayed event carries its place in the story
@@ -126,7 +141,7 @@ export function Scrubber({ events, live, asOf, atSeq, reading, onAsOf }: Scrubbe
           className="flex-1 min-w-0"
         />
         <Button
-          className="h-8 px-2.5 text-small"
+          className="h-8 px-2.5 text-small min-[760px]:min-h-8"
           disabled={!rewound}
           data-testid="scrub-now"
           onClick={() => {

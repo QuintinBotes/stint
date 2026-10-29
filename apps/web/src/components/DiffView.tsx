@@ -327,7 +327,7 @@ export function DiffView({ taskId, version, files, file, onFile, events, runs, v
             </section>
           ) : null}
         </div>
-        <section data-testid="diff-file" className="flex-1 min-w-[260px] rounded-[5px] border border-rule-strong overflow-hidden scroll-mt-4">
+        <section data-testid="diff-file" className="flex-1 min-w-[260px] rounded-[5px] border border-rule overflow-hidden scroll-mt-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 bg-panel border-b border-rule">
             <h3 className="font-mono text-small truncate">{selected}</h3>
             {selectedEntry ? (

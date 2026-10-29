@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ROLE_NAMES, agentOf, modelName } from '../agents';
 import { type AdapterHealth, api, daemonMessage } from '../api';
 import { useHealth } from '../hooks';
+import { useHold } from './Scrubber';
 import { Button, Explain, StatusChip, Who, cx } from './ui';
 
 /** How closely Stint watches the agent's actions, by its gate strength. */
@@ -51,10 +52,11 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
+  const hold = useHold();
   const choice = picked && ready.some((a) => a.id === picked) ? picked : (recommended?.id ?? null);
   if (!packet || all.length === 0) return null;
   const hand = () => {
-    if (!choice) return;
+    if (!choice || busy) return;
     setBusy(true);
     setError(null);
     api
@@ -71,7 +73,7 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
     return (
       <li key={a.id} data-testid="hand-agent" data-agent={a.id}>
         <label
-          className={cx('grid grid-cols-[20px_minmax(0,1fr)] gap-x-2.5 p-3 rounded-[5px] border', selectable ? 'cursor-pointer' : 'text-ink-2', chosen ? 'border-ink bg-panel-2' : 'border-rule')}
+          className={cx('grid grid-cols-[20px_minmax(0,1fr)] gap-x-2.5 p-3 rounded-[5px] border', selectable ? 'cursor-pointer' : 'text-ink-2', chosen ? 'border-ink bg-surface-selected' : 'border-rule')}
           data-testid={disabled ? 'hand-disabled' : undefined}
         >
           <input type="radio" name="hand-to" value={a.id} checked={chosen} disabled={!selectable} onChange={() => setPicked(a.id)} className="mt-[3px]" />
@@ -129,10 +131,10 @@ export function HandTo({ taskId, packet, live, atGate = false }: { taskId: strin
       </fieldset>
       <label className="flex flex-col gap-1.5" htmlFor="hand-ask">
         <span className="text-small text-ink-2">Anything to add for the next agent (optional)</span>
-        <textarea id="hand-ask" rows={3} value={ask} placeholder="What the packet does not say" onChange={(e) => setAsk(e.target.value)} className="w-full rounded-[5px] border border-field bg-ground px-2.5 py-2 text-body text-ink placeholder:text-ink-3 resize-y" />
+        <textarea id="hand-ask" rows={3} value={ask} placeholder="What the packet does not say" onChange={(e) => setAsk(e.target.value)} className="stint-input min-h-0 px-2.5 py-2" />
       </label>
       <div className="flex flex-col gap-2">
-        <Button tone="primary" className="self-start" onClick={hand} disabled={busy || live || !choice} data-testid="hand-button">
+        <Button tone="primary" className="self-start" onClick={hand} disabled={busy || live || !choice} aria-busy={busy} data-testid="hand-button" {...hold}>
           {busy ? 'Handing over' : `Hand to ${choice ? agentOf(choice).name : 'an agent'}`}
         </Button>
         {live ? <span className="text-ink-2">A run is going; stop it first.</span> : null}

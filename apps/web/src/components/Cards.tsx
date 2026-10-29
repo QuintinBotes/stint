@@ -4,7 +4,7 @@ import { JsonView, darkStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
 import { Link } from 'react-router';
 import { agentOf, hostName, modelName } from '../agents';
-import { type ChipTone, CostMeter, EmptyState, Explain, Section, StatusChip, Who, cx, rev, tabClass, tabKeys } from './ui';
+import { type ChipTone, CostMeter, EmptyState, Explain, Section, StateMark, StatusChip, Who, cx, rev, tabClass, tabKeys } from './ui';
 
 function List({ items, empty }: { items: string[]; empty: string }) {
   if (items.length === 0) return <p className="text-ink-3">{empty}</p>;
@@ -182,7 +182,7 @@ export function HandoffCard({ handoff, status, name }: { handoff: Handoff | null
             <Field title="Risks">
               <List items={handoff.risks} empty="No risks named." />
             </Field>
-            <section className="my-3 rounded-[5px] border border-rule-strong bg-panel px-3.5 py-3">
+            <section className="my-3 rounded-[5px] border border-rule bg-panel px-4 py-3">
               <h3 className="font-semibold mb-1">Ask of the next agent</h3>
               <p data-testid="ask-of-next">{handoff.askOfNext}</p>
             </section>
@@ -267,16 +267,16 @@ const JSON_STYLE = {
   punctuation: 'text-ink-3',
 };
 
-/** A verdict is the reviewer's recommendation, not a state: approve is an ink outline, block is red, request changes is ink. */
+/** A verdict is the reviewer's recommendation, not a state: approve and request changes are an ink outline with no shape, block is red with a cross. */
 const VERDICT: Record<string, { label: string; tone: ChipTone }> = {
   approve: { label: 'approve', tone: 'recommend' },
-  request_changes: { label: 'request changes', tone: 'active' },
+  request_changes: { label: 'request changes', tone: 'recommend' },
   block: { label: 'block', tone: 'bad' },
 };
-const Verdict = ({ verdict }: { verdict: string }) => <StatusChip label={VERDICT[verdict]?.label ?? verdict.replace('_', ' ')} tone={VERDICT[verdict]?.tone ?? 'active'} />;
+const Verdict = ({ verdict }: { verdict: string }) => <StatusChip label={VERDICT[verdict]?.label ?? verdict.replace('_', ' ')} tone={VERDICT[verdict]?.tone ?? 'recommend'} />;
 
-/** How serious a finding is, in words; only a blocker takes red. */
-const SEVERITY_TONE: Record<string, ChipTone> = { blocker: 'bad', major: 'active' };
+/** How serious a finding is, in words; only a blocker takes red and a shape, a major one an ink outline. */
+const SEVERITY_TONE: Record<string, ChipTone> = { blocker: 'bad', major: 'recommend' };
 
 /** `decisions` are the task's recorded decisions, so a finding that would reverse one shows what it would reverse. */
 export function ReviewCard({ review, decisions = [], status }: { review: Review | null; decisions?: Array<{ id: string; text: string }>; status?: string }) {
@@ -322,7 +322,8 @@ export function ReviewCard({ review, decisions = [], status }: { review: Review 
       ) : null}
       {review.blockers.length ? (
         <section data-testid="review-blockers" aria-label="Blockers">
-          <h3 className="font-semibold text-red">
+          <h3 className="inline-flex items-center gap-1.5 font-semibold text-red">
+            <StateMark shape="failed" />
             {review.blockers.length} blocker{review.blockers.length === 1 ? '' : 's'}
           </h3>
           <ul className="mt-1 flex flex-col gap-1 list-disc pl-4 marker:text-red">
@@ -356,7 +357,7 @@ export function ReviewCard({ review, decisions = [], status }: { review: Review 
                 </div>
                 <p className="mt-1">{f.text}</p>
                 {f.contradictsDecision ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[5px] border border-rule-strong bg-panel px-3 py-2 text-small" data-testid="contradicted-decision">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[5px] border border-rule bg-panel px-3 py-2 text-small" data-testid="contradicted-decision">
                     <p className="min-w-0 flex-1 basis-[32ch]">
                       Would reverse decision {f.contradictsDecision}: {decision?.text ?? "not found in this task's decisions"}. The decision stands until you settle it.
                     </p>
@@ -443,7 +444,7 @@ export function PlanCard({ plan, handoff, status }: { plan: Plan | null; handoff
                 <p>{s.text}</p>
                 <p className="font-mono text-small text-ink-2 break-words">{[...new Set([...s.files, ...(s.test ? [s.test] : [])])].join(', ')}</p>
               </div>
-              <StatusChip label={stepState === 'done' ? 'done' : 'to do'} tone={stepState === 'done' ? 'active' : 'neutral'} />
+              <StatusChip label={stepState === 'done' ? 'done' : 'to do'} tone={stepState === 'done' ? 'active' : 'neutral'} shape={stepState === 'done' ? 'closed' : 'waiting'} />
             </li>
           );
         })}

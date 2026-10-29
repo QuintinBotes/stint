@@ -1,5 +1,5 @@
 import type { StintEvent } from '@stint-dev/core';
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { agentOf } from '../agents';
@@ -8,7 +8,8 @@ import { localDate, localTime } from '../format';
 import { useTasks } from '../hooks';
 import { singleKey } from '../shortcuts';
 import { HowItWent } from './HowItWent';
-import { Button, Explain, Kbd, StatusChip, Who, cx } from './ui';
+import { LookingBack, useHold } from './Scrubber';
+import { Button, Explain, Kbd, type Shape, StateMark, StatusChip, Who, cx } from './ui';
 
 const NOT_AT_THE_GATE: Record<string, string> = {
   planned: 'Nothing has been built yet.',
@@ -44,24 +45,27 @@ export const shortName = (name: string) => {
   return (words[0] === 'Muse' && words[1] && words[1] !== 'Code' ? words[1] : words[0]) ?? name;
 };
 
-/** One revision: what a run changed and what the daemon's check said, in words, with the state's ink. */
-function revision(r: RunSummary, events: StintEvent[], b: TaskBundle): { change: string; check: string; ink: string } {
+type Revision = { change: string; more: number; check: string; ink: string; shape?: Shape };
+
+/** One revision: what a run changed (its first file and how many more) and what the daemon's check said, in words, with the state's ink and shape. */
+function revision(r: RunSummary, events: StintEvent[], b: TaskBundle): Revision {
   const mine = events.filter((e) => e.run === r.run);
   const files = [...new Set(mine.filter((e) => e.type === 'file.changed' && typeof e.payload.path === 'string').map((e) => e.payload.path as string))];
-  const change = r.role === 'planner' ? 'Plan' : r.role === 'reviewer' ? 'Review' : files.length === 0 ? 'No files' : `${base(files[0] as string)}${files.length > 1 ? ` +${files.length - 1}` : ''}`;
-  if (!r.endedAt) return { change, check: 'Running', ink: 'text-ink-2' };
-  if (r.endedBy === 'killed' || r.endedBy === 'failed') return { change, check: r.endedBy === 'killed' ? 'Killed' : 'Failed', ink: 'text-red' };
-  if (r.role === 'planner') return { change, check: 'None', ink: 'text-ink-3' };
+  const change = r.role === 'planner' ? 'Plan' : r.role === 'reviewer' ? 'Review' : files.length === 0 ? 'No files' : base(files[0] as string);
+  const it = { change, more: r.role === 'implementer' ? Math.max(0, files.length - 1) : 0 };
+  if (!r.endedAt) return { ...it, check: 'Running', ink: 'text-ink-2', shape: 'running' };
+  if (r.endedBy === 'killed' || r.endedBy === 'failed') return { ...it, check: r.endedBy === 'killed' ? 'Killed' : 'Failed', ink: 'text-red', shape: 'failed' };
+  if (r.role === 'planner') return { ...it, check: 'None', ink: 'text-ink-3' };
   if (r.role === 'reviewer') {
     const rev = mine.find((e) => e.type === 'review.recorded');
     const verdict = String(rev?.payload.verdict ?? '').replace('_', ' ');
-    if (!verdict) return { change, check: 'Not recorded', ink: 'text-ink-3' };
-    // a verdict is not a verification, so it is never green
-    return { change, check: `${verdict.charAt(0).toUpperCase()}${verdict.slice(1)}`, ink: verdict === 'block' ? 'text-red' : 'text-ink' };
+    if (!verdict) return { ...it, check: 'Not recorded', ink: 'text-ink-3' };
+    // a verdict is not a verification, so it is never green and never ticked
+    return { ...it, check: `${verdict.charAt(0).toUpperCase()}${verdict.slice(1)}`, ...(verdict === 'block' ? { ink: 'text-red', shape: 'failed' as const } : { ink: 'text-ink' }) };
   }
   const v = mine.filter((e) => e.type === 'verification.ran').at(-1);
-  if (!v) return { change, check: 'Not run', ink: 'text-ink-3' };
-  return v.payload.status === 'green' ? { change, check: `${Number(v.payload.passed)} passed`, ink: 'text-green' } : { change, check: `${Number(v.payload.failed)} failed`, ink: 'text-red' };
+  if (!v) return { ...it, check: 'Not run', ink: 'text-ink-3' };
+  return v.payload.status === 'green' ? { ...it, check: `${Number(v.payload.passed)} passed`, ink: 'text-green', shape: 'verified' } : { ...it, check: `${Number(v.payload.failed)} failed`, ink: 'text-red', shape: 'failed' };
 }
 
 /** How many revisions the block lists; the rail above holds them all. */
@@ -70,15 +74,21 @@ const SHOWN = 6;
 /**
  * The revision block: the run history set as a drawing's revision table (run, change, by, the daemon's check), closed by
  * the approval row with Approve and merge as its last cell. Rewound (`seen` is the events by then), the rows show the task
- * as it was and Approve waits until the view is back at the latest; the gate acts only on the task as it is now.
+ * as it was and every action holds until Return to latest, keys and the palette's requests included: the gate acts only on
+ * the task as it is now.
  * Above the buttons, the evidence for the decision: the change's size, how much of it you have viewed, and the review.
  */
 export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { bundle: TaskBundle; events: StintEvent[]; seen: StintEvent[] | null; files: Array<{ path: string; added: number; removed: number }>; viewed: Set<string>; onDone: () => void }) {
   const gate = gateState(bundle);
+  const back = useContext(LookingBack);
+  const hold = useHold();
   // a rewound view shows the past; approving from it would act on a task the page is not showing
   const open = gate.open && !seen;
-  const reason = gate.open && seen ? 'Go back to the latest to approve.' : gate.reason;
+  const reason = gate.open && seen ? 'Return to latest to approve.' : gate.reason;
   const [error, setError] = useState<string | null>(null);
+  // the action whose request is out, so its button says so and a second press sends nothing
+  const [busy, setBusy] = useState<'approve' | 'send' | 'refresh' | null>(null);
+  const pending = useRef(false);
   // the first a gets Approve ready and says what it will do; a second a, or Enter, merges. A click is one step.
   const [armed, setArmed] = useState(false);
   const approveButton = useRef<HTMLButtonElement>(null);
@@ -99,12 +109,15 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
   // nothing built yet: there is no change to send back or reject
   const built = bundle.runs.some((r) => r.role === 'implementer' && r.endedAt);
   useEffect(() => {
+    if (back) setArmed(false);
+  }, [back]);
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (asking) {
         if (e.key === 'Escape') close();
         return;
       }
-      if (!singleKey(e) || bundle.task.status === 'done') return;
+      if (back || !singleKey(e) || bundle.task.status === 'done') return;
       if (e.key === 'a' && open) {
         if (armed) void approve();
         else arm();
@@ -113,6 +126,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
       else if (e.key === 'x' && built) setAsking('reject');
     };
     const onAsk = (e: Event) => {
+      if (back) return;
       const want = (e as CustomEvent<'changes' | 'reject' | 'approve'>).detail;
       if (want === 'approve') {
         if (open) arm();
@@ -125,7 +139,10 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
       window.removeEventListener('stint:gate', onAsk);
     };
   });
-  const call = async (fn: () => Promise<unknown>): Promise<boolean> => {
+  const call = async (kind: NonNullable<typeof busy>, fn: () => Promise<unknown>): Promise<boolean> => {
+    if (pending.current || back) return false;
+    pending.current = true;
+    setBusy(kind);
     setError(null);
     try {
       await fn();
@@ -134,8 +151,12 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
       onDone();
       return true;
     } catch (e) {
+      // what was typed stays in the form; the daemon's words go beside the actions
       setError(e instanceof DaemonError ? `${e.error.message}${e.error.hint ? `: ${typeof e.error.hint === 'string' ? e.error.hint : JSON.stringify(e.error.hint)}` : ''}` : String(e));
       return false;
+    } finally {
+      pending.current = false;
+      setBusy(null);
     }
   };
   const arm = () => {
@@ -144,7 +165,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
   };
   const approve = async () => {
     setArmed(false);
-    if (await call(() => api.approve(id))) toast.success(`${id} merged.`);
+    if (await call('approve', () => api.approve(id))) toast.success(`${id} merged.`);
   };
   const done = bundle.task.status === 'done';
   const started = seen ? new Set(seen.filter((e) => e.type === 'run.started').map((e) => e.run)) : null;
@@ -154,7 +175,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
   const nextTask = done ? (tasks ?? []).map((x) => x.task).find((x) => x.status === 'awaiting_approval' && x.id !== id) : undefined;
   const runs = bundle.runs.slice(-SHOWN);
   const earlier = bundle.runs.length - runs.length;
-  const cell = 'px-[7px] py-[5px] border border-rule-strong text-left align-top';
+  const cell = 'px-1.5 py-[5px] border border-rule-strong text-left align-top';
   const small = 'h-8 px-2.5 text-small';
   return (
     <section data-testid="approval-gate" data-open={open} aria-label="Approval gate" className="outline outline-ink-3">
@@ -162,10 +183,10 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
         <caption className="caption-top px-2.5 py-2 text-left font-semibold border border-b-0 border-rule-strong bg-panel">Revisions of {id}</caption>
         {/* fixed columns, so the block keeps to the rail's width; a long file name wraps in its own cell */}
         <colgroup>
-          <col className="w-10" />
+          <col className="w-9" />
           <col />
+          <col className="w-[84px]" />
           <col className="w-[92px]" />
-          <col className="w-[78px]" />
         </colgroup>
         <thead>
           <tr className="bg-panel text-ink-2">
@@ -199,11 +220,26 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
               // a run not started at the moment the clock is on goes quiet, in ink-3 so it stays legible, and has no check yet
               <tr key={r.run} data-testid="revision" data-run={r.run} data-later={later} className={cx('bg-ground transition-colors duration-[220ms] ease-out motion-reduce:transition-none', later && 'text-ink-3')}>
                 <td className={cx(cell, 'font-mono whitespace-nowrap')}>{r.run}</td>
-                <td className={cx(cell, '[overflow-wrap:anywhere]')}>{rev.change}</td>
+                {/* one line per run: a long file name ends in an ellipsis, with the whole name in its title */}
+                <td className={cell} title={rev.more ? `${rev.change} and ${rev.more} more` : rev.change}>
+                  <span className="flex min-w-0">
+                    <span className="truncate">{rev.change}</span>
+                    {rev.more ? <span className="shrink-0 tabular">&nbsp;+{rev.more}</span> : null}
+                  </span>
+                </td>
                 <td className={cx(cell, 'whitespace-nowrap overflow-hidden')} title={agent.name}>
                   <Who agent={{ ...agent, name: shortName(agent.name) }} className={cx('max-w-full', later ? 'font-medium' : 'font-semibold')} />
                 </td>
-                <td className={cx(cell, later ? 'text-ink-3' : rev.ink)}>{later ? 'Not yet' : rev.check}</td>
+                <td className={cx(cell, 'whitespace-nowrap', later ? 'text-ink-3' : rev.ink)}>
+                  {later ? (
+                    'Not yet'
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5">
+                      {rev.shape ? <StateMark shape={rev.shape} /> : null}
+                      {rev.check}
+                    </span>
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -251,8 +287,8 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                       ) : null}
                       . The task finishes when it merges.
                     </p>
-                    <Button className={small} onClick={() => void call(() => api.releaseRefresh(id))} data-testid="release-refresh">
-                      Check now
+                    <Button className={small} disabled={busy !== null} aria-busy={busy === 'refresh'} onClick={() => void call('refresh', () => api.releaseRefresh(id))} data-testid="release-refresh" {...hold}>
+                      {busy === 'refresh' ? 'Checking' : 'Check now'}
                     </Button>
                   </div>
                 ) : null}
@@ -337,16 +373,16 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                     className="flex flex-col gap-2"
                     onSubmit={(e) => {
                       e.preventDefault();
-                      void call(() => (asking === 'reject' ? api.reject(id, text) : api.requestChanges(id, text)));
+                      void call('send', () => (asking === 'reject' ? api.reject(id, text) : api.requestChanges(id, text)));
                     }}
                   >
                     <label className="font-semibold" htmlFor="gate-text">
                       {asking === 'reject' ? 'Why reject it? The reason becomes a decision.' : 'What should change? This becomes the next ask.'}
                     </label>
-                    <textarea id="gate-text" required autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} className="w-full rounded-[5px] border border-field bg-ground px-2.5 py-2 text-body text-ink resize-y" />
+                    <textarea id="gate-text" required autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} className="stint-input min-h-0 px-2.5 py-2" />
                     <div className="grid grid-cols-2 gap-2">
-                      <Button tone={asking === 'reject' ? 'danger' : 'primary'} type="submit" className={small}>
-                        {asking === 'reject' ? 'Reject' : 'Request changes'}
+                      <Button tone={asking === 'reject' ? 'danger' : 'primary'} type="submit" className={small} disabled={busy !== null} aria-busy={busy === 'send'} {...hold}>
+                        {busy === 'send' ? 'Sending' : asking === 'reject' ? 'Reject' : 'Request changes'}
                       </Button>
                       <Button className={small} onClick={close}>
                         Cancel
@@ -355,11 +391,14 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                   </form>
                 ) : (
                   <>
-                    {bundle.task.status === 'rejected' || bundle.task.status === 'abandoned' ? null : <HowItWent bundle={bundle} />}
+                    {/* nothing to tell before a run, and no decorative $0.00 */}
+                    {bundle.task.status === 'rejected' || bundle.task.status === 'abandoned' || bundle.runs.length === 0 ? null : <HowItWent bundle={bundle} />}
                     <Button
                       ref={approveButton}
                       tone="primary"
-                      disabled={!open}
+                      // shut at a closed gate; looking back at an open one it holds, focusable, with the notice as its reason
+                      disabled={!gate.open || busy !== null}
+                      aria-busy={busy === 'approve'}
                       data-testid="approve"
                       data-armed={armed}
                       aria-keyshortcuts="a"
@@ -367,8 +406,9 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                       className="w-full"
                       onBlur={() => setArmed(false)}
                       onClick={() => void approve()}
+                      {...hold}
                     >
-                      Approve and merge <Kbd>a</Kbd>
+                      {busy === 'approve' ? 'Merging' : 'Approve and merge'} <Kbd>a</Kbd>
                     </Button>
                     {armed ? (
                       <p id="approve-armed" role="status" className="text-ink" data-testid="approve-armed">
@@ -376,10 +416,10 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                       </p>
                     ) : null}
                     <div className="grid grid-cols-2 gap-2">
-                      <Button ref={askChanges} className={small} aria-keyshortcuts="r" disabled={!built} onClick={() => setAsking('changes')}>
+                      <Button ref={askChanges} className={small} aria-keyshortcuts="r" disabled={!built || busy !== null} onClick={() => setAsking('changes')} data-testid="ask-changes" {...hold}>
                         Request changes
                       </Button>
-                      <Button ref={askReject} className={small} aria-keyshortcuts="x" disabled={!built} onClick={() => setAsking('reject')}>
+                      <Button ref={askReject} className={small} aria-keyshortcuts="x" disabled={!built || busy !== null} onClick={() => setAsking('reject')} data-testid="ask-reject" {...hold}>
                         Reject
                       </Button>
                     </div>

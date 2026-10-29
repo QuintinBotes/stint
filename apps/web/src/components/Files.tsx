@@ -74,7 +74,7 @@ export function FilesTab({ taskId }: { taskId: string }) {
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter files"
               aria-label="Filter files"
-              className="flex-1 min-w-0 h-8 rounded-[5px] border border-field bg-ground px-2 text-body placeholder:text-ink-3"
+              className="stint-input flex-1 min-h-8 h-8 py-0 px-2"
             />
             <Button aria-pressed={onlyChanged} onClick={() => setOnlyChanged((v) => !v)} className="h-8" disabled={data.changed.length === 0}>
               Changed ({data.changed.length})

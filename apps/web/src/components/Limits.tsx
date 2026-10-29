@@ -3,7 +3,8 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { api, daemonMessage } from '../api';
 import { money, moneyOf } from '../format';
-import { Button, Explain, cx } from './ui';
+import { useHold } from './Scrubber';
+import { Button, Explain, StateMark, cx } from './ui';
 
 const METERS: Array<{ k: LimitName; word: string }> = [
   { k: 'builds', word: 'Builds' },
@@ -25,6 +26,7 @@ export function Meter({ id, word, value, used, cap, reached = false, note = '', 
           ·
         </span>
       ) : null}
+      {reached ? <StateMark shape="attention" /> : null}
       <span>
         {word} <span className={cx('tabular font-semibold', reached ? 'text-amber' : 'text-ink')}>{value}</span>
         {note}
@@ -48,6 +50,7 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
   const [caps, setCaps] = useState<Caps | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hold = useHold();
   // the caps change only when a person changes them; what is used comes from the log as it arrives
   const changes = useMemo(() => events.filter((e) => e.type === 'limits.changed').length, [events]);
   useEffect(() => {
@@ -80,7 +83,7 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
   const suggest = reached ? Math.min(MAX[reached], Math.max(min, reached === 'minutes' ? (cap ?? 0) + 30 : isUsd ? Math.ceil(floor) + 1 : min)) : 0;
   const raise = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!reached) return;
+    if (!reached || busy || hold['aria-disabled']) return;
     const value = Number(new FormData(e.currentTarget).get('cap'));
     setBusy(true);
     setError(null);
@@ -105,10 +108,11 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
   };
 
   return (
-    <div data-testid="limits" className="min-[760px]:col-span-2 flex flex-col gap-3 min-w-0">
-      {/* one meter per line on a phone; one row from 760 px */}
-      <ul aria-label="Limits" className="grid grid-cols-1 gap-y-1.5 min-[760px]:flex min-[760px]:flex-wrap min-[760px]:items-center gap-x-3 text-small text-ink-2">
-        {METERS.map(({ k, word }, i) => {
+    <div data-testid="limits" className="flex flex-col gap-3 min-w-0 basis-full min-[760px]:basis-auto">
+      {/* two meters a line on a phone; one row from 760 px */}
+      <ul aria-label="Limits" className="grid grid-cols-2 gap-y-1.5 min-[760px]:flex min-[760px]:flex-wrap min-[760px]:items-center gap-x-3 text-small text-ink-2">
+        {/* spend with no cap and nothing unpriced is the title block's Spent already */}
+        {METERS.filter(({ k }) => k !== 'usd' || caps.usd !== null || used.unpriced > 0).map(({ k, word }, i) => {
           const c = caps[k];
           return (
             <Meter
@@ -126,12 +130,16 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
         })}
       </ul>
       {stop?.scope === 'goal' ? (
-        <section data-testid="limit-stop" aria-labelledby="limit-stop-title" className="flex flex-col gap-3 max-w-[80ch] p-3 rounded-[5px] border border-amber bg-amber-wash text-body text-ink">
+        <section data-testid="limit-stop" aria-labelledby="limit-stop-title" className="stint-notice stint-notice--attention flex-col items-start mb-0 max-w-[80ch] text-body">
           <p id="limit-stop-title">
-            <b className="font-semibold text-amber">Needs you:</b> {stop.reason.replace(/^Needs you: /, '')} Autopilot stopped before it would go past it.
+            <b className="inline-flex items-center gap-1.5 font-semibold text-amber">
+              <StateMark shape="attention" />
+              Needs you:
+            </b>{' '}
+            {stop.reason.replace(/^Needs you: /, '')} Autopilot stopped before it would go past it.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Link to={`/goals/${stop.goal}`} className="inline-flex items-center h-9 px-3.5 rounded-[5px] border border-ink bg-ink text-on-ink font-semibold no-underline hover:bg-ink-2" data-testid="limit-goal">
+            <Link to={`/goals/${stop.goal}`} className="stint-button stint-button--primary" data-testid="limit-goal">
               Raise the goal's limits on {stop.goal}
             </Link>
             <Button onClick={hand} data-testid="limit-hand">
@@ -141,9 +149,13 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
           <Explain word="goal" />
         </section>
       ) : reached && stop ? (
-        <section data-testid="limit-stop" aria-labelledby="limit-stop-title" className="flex flex-col gap-3 max-w-[80ch] p-3 rounded-[5px] border border-amber bg-amber-wash text-body text-ink">
+        <section data-testid="limit-stop" aria-labelledby="limit-stop-title" className="stint-notice stint-notice--attention flex-col items-start mb-0 max-w-[80ch] text-body">
           <p id="limit-stop-title">
-            <b className="font-semibold text-amber">Needs you:</b> {stop.reason.replace(/^Needs you: /, '')} Autopilot stopped before it would go past it.
+            <b className="inline-flex items-center gap-1.5 font-semibold text-amber">
+              <StateMark shape="attention" />
+              Needs you:
+            </b>{' '}
+            {stop.reason.replace(/^Needs you: /, '')} Autopilot stopped before it would go past it.
           </p>
           <div className="flex flex-wrap items-end gap-2">
             <form className="flex flex-wrap items-end gap-2" onSubmit={raise}>
@@ -157,11 +169,11 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
                   max={MAX[reached]}
                   step={isUsd ? 0.01 : 1}
                   defaultValue={suggest}
-                  className="h-9 w-28 rounded-[5px] border border-field bg-ground px-2.5 text-body text-ink tabular"
+                  className="stint-input min-h-9 h-9 w-28 py-0 px-2.5 tabular"
                 />
               </label>
-              <Button tone="primary" type="submit" disabled={busy} data-testid="raise-limit">
-                Raise the limit
+              <Button tone="primary" type="submit" disabled={busy} aria-busy={busy} data-testid="raise-limit" {...hold}>
+                {busy ? 'Raising the limit' : 'Raise the limit'}
               </Button>
             </form>
             <Button onClick={hand} data-testid="limit-hand">

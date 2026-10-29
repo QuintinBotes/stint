@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Button, cx } from './ui';
+import { Button, StateMark, cx } from './ui';
 
 export type StackFrame = { fn: string | null; file: string; line: number; col: number; library: boolean };
 export type Failure = { name: string; message: string; frames: StackFrame[] };
@@ -130,7 +130,8 @@ export function StackTrace({ taskId, output, changedFiles }: { taskId: string; o
         const shown = open[failure.name] ? failure.frames : project;
         return (
           <article key={failure.name} data-testid="stack-failure" className="rounded-[5px] border border-red/50 bg-panel px-3 py-3">
-            <p className="font-mono text-small font-semibold text-red" data-testid="stack-name">
+            <p className="flex items-baseline gap-1.5 font-mono text-small font-semibold text-red" data-testid="stack-name">
+              <StateMark shape="failed" className="translate-y-px" />
               {failure.name}
             </p>
             {failure.message ? (

@@ -3,14 +3,17 @@ import { modelName } from '../agents';
 import type { StintEvent } from '@stint-dev/core';
 import { DaemonError, type QuizResult, api } from '../api';
 import { money } from '../format';
-import { Button, StatusChip } from './ui';
+import { useHold } from './Scrubber';
+import { Button, StateMark, StatusChip } from './ui';
 
 /** Is the packet enough? One model writes facts from the full record, another answers them from the packet alone. */
 export function QuizPanel({ taskId, name, events }: { taskId: string; name: string; events: StintEvent[] }) {
   const recorded = events.filter((e) => e.type === 'handoff.quizzed' && e.payload.name === name).at(-1)?.payload as QuizResult | undefined;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hold = useHold();
   const run = () => {
+    if (busy) return;
     setBusy(true);
     setError(null);
     api
@@ -42,7 +45,10 @@ export function QuizPanel({ taskId, name, events }: { taskId: string; name: stri
               <ul className="flex flex-col gap-1">
                 {misses.map((m) => (
                   <li key={m.id} className="text-small">
-                    <span className={m.blocking ? 'text-red font-medium' : 'text-ink-2'}>{m.blocking ? 'Blocking' : 'Missed'}</span> <span className="text-ink">{m.text}</span>{' '}
+                    <span className={m.blocking ? 'inline-flex items-center gap-1 text-red font-medium' : 'text-ink-2'}>
+                      {m.blocking ? <StateMark shape="failed" /> : null}
+                      {m.blocking ? 'Blocking' : 'Missed'}
+                    </span> <span className="text-ink">{m.text}</span>{' '}
                     <span className="text-ink-3">
                       (it is {String(m.truth)}; the packet gave: {m.answer})
                     </span>
@@ -55,7 +61,7 @@ export function QuizPanel({ taskId, name, events }: { taskId: string; name: stri
             </p>
           </>
         ) : null}
-        <Button className="self-start h-8 px-2.5 text-small" onClick={run} disabled={busy}>
+        <Button className="self-start h-8 px-2.5 text-small" onClick={run} disabled={busy} aria-busy={busy} {...hold}>
           {busy ? 'Checking' : recorded ? 'Check again' : 'Check this packet'}
         </Button>
         {error ? (
