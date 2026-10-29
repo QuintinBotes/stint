@@ -29,7 +29,9 @@ test.skipIf(!live)('With STINT_LIVE=1: after a killed Muse Code run, stint hand 
     await Bun.sleep(4000);
     const stopped = await post(app, `/api/tasks/${t.id}/runs/r1/stop`, {});
     expect(stopped.status).toBe(202);
-    const packet = ((await stopped.json()) as { packet: { from: { endedBy: string }; done: string[]; askOfNext: string } | null }).packet;
+    // the stop answers at run.finished; the packet follows the verification, as handoff.created
+    for (let i = 0; i < 1200 && !(await ws.events(t.id).read()).some((e) => e.type === 'handoff.created' && e.run === 'r1'); i++) await Bun.sleep(250);
+    const packet = await ws.handoffs(t.id).latest();
     expect(packet?.from.endedBy).toBe('killed');
 
     const r1Created = new Set((await ws.events(t.id).read()).filter((e) => e.run === 'r1' && e.type === 'agent.tool_result' && e.payload.tool === 'write_file').map((e) => String((e.payload.args as { path?: string }).path)));

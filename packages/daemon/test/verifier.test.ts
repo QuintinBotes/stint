@@ -43,3 +43,13 @@ test('The test cap counts awake time: a timer that fires after a sleep is set ag
   expect(over.timedOut).toBe(true);
   expect(over.output).not.toContain('finished');
 });
+
+test('a test command whose folder is gone comes back red with the reason, and the daemon keeps running', async () => {
+  const gone = join(process.cwd(), 'no-such-worktree-for-stint');
+  const r = await execInGroup('echo finished', gone, { PATH: process.env.PATH ?? '' }, 5_000);
+  expect(r.exitCode).toBe(127);
+  expect(r.timedOut).toBe(false);
+  expect(r.output).toStartWith('stint: the command could not start: ');
+  expect(r.output).toContain('ENOENT');
+  expect(r.output).not.toContain('finished');
+});

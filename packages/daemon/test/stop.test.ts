@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitOk } from '../src/index';
-import { fakeAdapter, makeApp, newTask, post, withFixtureRepo } from './helpers';
+import { fakeAdapter, makeApp, newTask, post, readSSE, withFixtureRepo } from './helpers';
 
 test('stop during a run produces run.finished { endedBy: killed } within 6 s and the worktree has a wip( commit', async () => {
   await withFixtureRepo(async (repo) => {
@@ -25,6 +26,51 @@ test('stop during a run produces run.finished { endedBy: killed } within 6 s and
     expect(again.status).toBe(404);
   });
 }, 30_000);
+
+test('stop answers once run.finished is recorded, before a slow verification, and the packet arrives on the task stream', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { app, ws } = await makeApp(repo, [fakeAdapter('sleep')]);
+    // a verification that takes longer than the stop's own 5 s wait
+    const t = await ws.createTask({ ...newTask, testCommand: "sleep 7; printf ' 1 pass\\n 0 fail\\n'" });
+    const { run } = (await (await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'fake', role: 'implementer' })).json()) as { run: string };
+    for (let i = 0; i < 100 && !(await ws.events(t.id).read()).some((e) => e.type === 'agent.tool_call'); i++) await Bun.sleep(20);
+    const stream = await app.request(`/api/tasks/${t.id}/stream`);
+    const t0 = Date.now();
+    const res = await post(app, `/api/tasks/${t.id}/runs/${run}/stop`, {});
+    expect(Date.now() - t0).toBeLessThan(4_000);
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ run, stopped: true });
+    const events = await ws.events(t.id).read();
+    expect(events.find((e) => e.type === 'run.finished')?.payload.endedBy).toBe('killed');
+    expect(events.some((e) => e.type === 'handoff.created')).toBe(false);
+    expect((await ws.readTask(t.id)).assignee).toBeNull();
+    const frames = await readSSE(stream, (f) => f.some((x) => x.event === 'handoff.created'), 30_000);
+    const created = JSON.parse(frames.find((f) => f.event === 'handoff.created')?.data ?? '{}') as { run?: string; payload?: { reason?: string } };
+    expect(created).toMatchObject({ run, payload: { reason: 'killed' } });
+    expect(frames.findIndex((f) => f.event === 'verification.ran')).toBeLessThan(frames.findIndex((f) => f.event === 'handoff.created'));
+    expect((await ws.handoffs(t.id).latest())?.from).toMatchObject({ run, endedBy: 'killed' });
+  });
+}, 60_000);
+
+test('.stint/active names a live run while one is live: a run that ends leaves another run\'s pointer alone, hands it to the run still going, and clears it when none is', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { app, ws } = await makeApp(repo, [fakeAdapter('sleep')]);
+    const [a, b, c] = [await ws.createTask({ ...newTask, testCommand: 'true' }), await ws.createTask({ ...newTask, title: 'Second task', testCommand: 'true' }), await ws.createTask({ ...newTask, title: 'Third task', testCommand: 'true' })] as const;
+    const active = () => (existsSync(join(repo, '.stint', 'active')) ? (JSON.parse(readFileSync(join(repo, '.stint', 'active'), 'utf8')) as Record<string, string>) : null);
+    const assign = async (id: string) => expect((await post(app, `/api/tasks/${id}/assign`, { adapter: 'fake', role: 'implementer' })).status).toBe(202);
+    const stop = async (id: string) => expect((await post(app, `/api/tasks/${id}/runs/r1/stop`, {})).status).toBe(202);
+    await assign(a.id);
+    await assign(b.id);
+    expect(active()).toEqual({ task: b.id, run: 'r1', worktree: `.stint/worktrees/${b.id}-r1`, adapter: 'fake' });
+    await stop(a.id);
+    expect(active()).toEqual({ task: b.id, run: 'r1', worktree: `.stint/worktrees/${b.id}-r1`, adapter: 'fake' });
+    await assign(c.id);
+    await stop(c.id);
+    expect(active()).toEqual({ task: b.id, run: 'r1', worktree: `.stint/worktrees/${b.id}-r1`, adapter: 'fake' });
+    await stop(b.id);
+    expect(active()).toBeNull();
+  });
+}, 60_000);
 
 const live = process.env.STINT_LIVE === '1';
 const hasMuse = Bun.which('muse') !== null;

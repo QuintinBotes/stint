@@ -116,6 +116,11 @@ export function execInGroup(command: string, cwd: string, env: Record<string, st
         }
       }, ms);
     let timer = arm(capMs);
+    // a command that cannot start (its folder is gone) is a red result, never an uncaught error that ends the daemon
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      resolve({ exitCode: 127, output: `stint: the command could not start: ${err.message}\n`, durationMs: Math.round(now() - t0), timedOut: false });
+    });
     child.on('close', (code) => {
       clearTimeout(timer);
       if (tail.length > TAIL_BYTES) {
@@ -202,7 +207,8 @@ export class DaemonVerifier implements Verifier {
     const tamper = await this.tamper(task, run, worktree);
     const tamperRed = !!tamper && !tamper.allowedBy && tamperMode(this.ws) === 'fail';
     const scenarios = await this.runScenarios(task, run, worktree);
-    const scenariosRed = scenarios.record !== null && scenarios.record.failed > 0;
+    // scenarios that could not run proved nothing, so they hold the verification red as a failing one would (R-037)
+    const scenariosRed = scenarios.error !== undefined || (scenarios.record !== null && scenarios.record.failed > 0);
     const coverage = await this.coverage(task, run, worktree);
 
     const green = checks.every((c) => c.status === 'green') && !tamperRed && !scenariosRed;

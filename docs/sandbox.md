@@ -39,9 +39,13 @@ On its own the proxy only covers tools that honour the proxy variables, which mo
   - its worktree;
   - the repository's `.git` (its commits land there), except its hooks and its config;
   - temp folders;
-  - the usual agent state and cache folders in your home: `~/.config`, `~/.cache`, `~/.bun`, `~/.npm`, `~/Library/Application Support` and `~/Library/Caches`;
+  - Muse Code's state and the usual cache folders in your home: `~/.config/muse`, `~/.cache`, `~/.bun/install`, `~/.npm` and `~/Library/Caches`;
   - any paths in `sandbox.writable`.
-- It cannot read `.stint/cache`, which holds the daemon's token.
+- It cannot write the rest of `~/.config` (git's global config lives there), `~/Library/Application Support` or `~/.bun/bin`. A line or a program written there would run outside the sandbox the next time you or the daemon started it. An agent that keeps its state elsewhere needs that folder in `sandbox.writable`.
+- It cannot read:
+  - `.stint/cache`, which holds the daemon's token;
+  - the held-out scenarios (`config.scenarios.dir`, `.stint/scenarios` by default);
+  - the files Stint loads keys from: the repository's `.env`, `~/.config/stint/env` and the Stint checkout's `.env`.
 - It can open network connections only to the egress proxy and the daemon.
 
 **`docker`** runs the agent in a container.

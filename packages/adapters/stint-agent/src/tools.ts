@@ -97,6 +97,12 @@ function bash(command: string, cwd: string, env: Record<string, string>, signal:
     };
     const timer = setTimeout(kill, BASH_CAP_MS);
     signal.addEventListener('abort', kill, { once: true });
+    // a command that cannot start is a failed tool call the model reads, never an uncaught error that ends the daemon
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', kill);
+      done({ code: 127, output: `the command could not start: ${err.message}` });
+    });
     child.on('close', (code) => {
       clearTimeout(timer);
       signal.removeEventListener('abort', kill);

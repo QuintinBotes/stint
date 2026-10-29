@@ -25,3 +25,21 @@ test('daemon.json is written with mode 0600 and removed on SIGTERM', async () =>
     tmp.cleanup();
   }
 });
+
+test('the daemon listens on 127.0.0.1 only: its bound address is the loopback, and another address of this machine is refused', async () => {
+  const { networkInterfaces } = await import('node:os');
+  const { startDaemon } = await import('../src/index');
+  const tmp = tempDir();
+  const d = await startDaemon({ root: tmp.dir, quiet: true, adapters: [] });
+  try {
+    expect(d.hostname).toBe('127.0.0.1');
+    expect(d.url).toBe(`http://127.0.0.1:${d.port}`);
+    expect((await fetch(`${d.url}/api/health`)).ok).toBe(true);
+    // with a wildcard bind this machine's own network address would answer too
+    const lan = Object.values(networkInterfaces()).flat().find((a) => a && a.family === 'IPv4' && !a.internal)?.address;
+    if (lan) expect(await fetch(`http://${lan}:${d.port}/api/health`, { signal: AbortSignal.timeout(3_000) }).then(() => 'answered', () => 'refused')).toBe('refused');
+  } finally {
+    await d.stop();
+    tmp.cleanup();
+  }
+}, 30_000);

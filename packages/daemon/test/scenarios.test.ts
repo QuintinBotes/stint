@@ -77,6 +77,32 @@ test('a scenario that passes on the branch keeps the verification as the checks 
   });
 }, 240_000);
 
+test('scenarios that cannot run turn the verification red with the reason, never a quiet green', async () => {
+  await withFixtureRepo(async (repo) => {
+    writeConfig(repo, (c) => {
+      c.scenarios = { dir: '.stint/scenarios', command: 'bun test {files}' };
+    });
+    const { app, ws } = await makeApp(repo, [fakeAdapter('edit')]);
+    const t = await ws.createTask({ title: 'Rate-limit incoming webhooks', goal: 'Answer 429.', acceptance: ['429'], testCommand: GREEN });
+    // package.json is a file in the checkout, so the scenario cannot be copied in under it
+    expect((await post(app, `/api/tasks/${t.id}/scenarios`, { name: 'package.json/holdout.test.ts', content: HOLDOUT_SOURCE })).status).toBe(201);
+    await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'fake', role: 'implementer' });
+    const events = await untilHandoff(ws, t.id);
+    const v = await ws.verification(t.id).latest();
+    expect(v?.status).toBe('red');
+    expect(v?.reason).toBe('scenarios');
+    expect(v?.passed).toBe(1);
+    expect(v?.failed).toBe(0);
+    expect(v?.scenarios).toBeNull();
+    const ran = events.find((e) => e.type === 'verification.ran');
+    expect(ran?.payload).toMatchObject({ status: 'red', reason: 'scenarios' });
+    expect(String(ran?.payload.scenariosError)).toContain('package.json');
+    const output = await (await app.request(`/api/tasks/${t.id}/verification/r1/output`)).text();
+    expect(output).toContain('=== held-out scenarios were NOT run: ');
+    expect(output).not.toContain('toBe(200)');
+  });
+}, 240_000);
+
 test('a coverage delta is recorded when config.verify.coverage is on: base and branch line percentages', async () => {
   await withFixtureRepo(async (repo) => {
     const covSh = [

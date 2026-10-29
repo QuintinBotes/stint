@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { type Cost, type PermissionRequest, type Role, type StintEvent, type Task, countTokens, priceUsage } from '@stint-dev/core';
 import { runsFromEvents, writeJsonAtomic } from '@stint-dev/core/node';
 import { lockPlanTests } from './acceptance';
 import type { Adapter, RunResult } from './adapter';
+import type { ActiveRun } from './runs';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
 import { daemonPort, drainDockerBlocked, prepareRun } from './sandbox';
@@ -79,11 +80,22 @@ export async function captureDecisions(ctx: DaemonContext, taskId: string, run: 
   }
 }
 
+/** Each live run's run.finished, which a stop waits for, while `done` goes on through the verification and the packet. */
+const finishedOf = new WeakMap<ActiveRun, Promise<void>>();
+
 /** \`.stint/active\`: the live run, for agents started outside Stint (AGENTS.md points at it). */
 async function writeActive(ctx: DaemonContext, value: Record<string, string> | null): Promise<void> {
   const path = join(ctx.ws.stintDir, 'active');
   if (value) await writeJsonAtomic(path, value);
   else await rm(path, { force: true });
+}
+
+/** A run ended: `.stint/active` is left alone when it names another run, else it names a run still live, else it goes. */
+async function clearActive(ctx: DaemonContext, task: string, run: string): Promise<void> {
+  const now = await readFile(join(ctx.ws.stintDir, 'active'), 'utf8').then((t) => JSON.parse(t) as { task?: unknown; run?: unknown }, () => null);
+  if (now && (now.task !== task || now.run !== run)) return;
+  const live = ctx.runs.list()[0];
+  await writeActive(ctx, live ? { task: live.task, run: live.run, worktree: relative(ctx.ws.root, live.worktree), adapter: live.adapter } : null);
 }
 
 /** Starts a run: worktree, skills, prompt, run.started, then the adapter in the background. */
@@ -186,6 +198,10 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
 
   await writeActive(ctx, { task: taskId, run, worktree: relative(ws.root, wt.path), adapter: adapter.id });
   const abort = new AbortController();
+  let ended: () => void = () => undefined;
+  const finished = new Promise<void>((r) => {
+    ended = r;
+  });
   const live = {
     task: taskId,
     run,
@@ -198,6 +214,7 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
     permissions: new Map<string, { requestId: string; tool: string; title: string; options: PermissionRequest['options']; resolve: (answer: { optionId: string } | 'cancelled') => void }>(),
     done: Promise.resolve() as Promise<unknown>,
   };
+  finishedOf.set(live, finished);
   const askPermission = async (req: PermissionRequest): Promise<{ optionId: string } | 'cancelled'> => {
     if (abort.signal.aborted) return 'cancelled';
     let resolveAnswer: (answer: { optionId: string } | 'cancelled') => void = () => undefined;
@@ -266,7 +283,7 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
     // Muse names the open tool without arguments; its PreToolUse hook adds them when it names the same tool
     const own = result.endedBy === 'killed' ? (result.inFlight ?? null) : null;
     const hooked = live.inFlight;
-    await closeRun(ctx, task, base, wt.path, result, model, own && hooked?.startsWith(`${own} `) ? hooked : own);
+    await closeRun(ctx, task, base, wt.path, result, model, own && hooked?.startsWith(`${own} `) ? hooked : own, ended);
   })().catch(async (err: unknown) => {
     ctx.runs.remove(taskId, run);
     process.stderr.write(`${JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: `run ${taskId} ${run} failed to close: ${err instanceof Error ? err.message : String(err)}` })}\n`);
@@ -280,8 +297,11 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
 
 type RunBase = { task: string; run: string; adapter: string; vendor: StintEvent['vendor'] };
 
-/** Closes a run that ended, one a restart cut off included: commit, run.finished, the daemon's verification, then the packet. */
-async function closeRun(ctx: DaemonContext, task: Task, base: RunBase, worktree: string, result: RunResult, model: string | undefined, inFlight: string | null): Promise<void> {
+/**
+ * Closes a run that ended, one a restart cut off included: commit, run.finished, the daemon's verification, then the
+ * packet. `ended` is called once run.finished is recorded and the task no longer names the run.
+ */
+async function closeRun(ctx: DaemonContext, task: Task, base: RunBase, worktree: string, result: RunResult, model: string | undefined, inFlight: string | null, ended?: () => void): Promise<void> {
   const { ws } = ctx;
   const { task: taskId, run, adapter } = base;
   const events = ws.events(taskId);
@@ -294,9 +314,10 @@ async function closeRun(ctx: DaemonContext, task: Task, base: RunBase, worktree:
     type: 'run.finished',
     payload: { endedBy: result.endedBy, cost, host: result.host ?? 'local-cli', model: result.model ?? model ?? null, inFlight, commit, ...(result.sessionId ? { sessionId: result.sessionId } : {}) },
   });
-  await writeActive(ctx, null);
   ctx.runs.remove(taskId, run);
+  await clearActive(ctx, taskId, run);
   await ws.writeTask(taskId, { status: 'verifying', assignee: null });
+  ended?.();
   const v = existsSync(worktree) ? await ctx.verifier.verify(await ws.readTask(taskId), run, worktree) : null;
   await ws.writeTask(taskId, { status: v?.status === 'green' ? 'reviewing' : 'building' });
   await ctx.afterRun?.(taskId, run, result);
@@ -336,7 +357,10 @@ export async function recoverRuns(ctx: DaemonContext): Promise<void> {
   }
 }
 
-/** Stops a live run: SIGKILL to the agent's process group, then waits up to 5 s for the run to close. */
+/**
+ * Stops a live run: SIGKILL to the agent's process group, then waits up to 5 s for run.finished. The verification and
+ * the packet come after it, on the task's stream as verification.ran and handoff.created (R-012).
+ */
 export async function stop(ctx: DaemonContext, taskId: string, run: string): Promise<{ run: string; stopped: boolean }> {
   const live = ctx.runs.get(taskId);
   if (!live || live.run !== run) throw new DaemonError('not_found', `${taskId} ${run} is not running`);
@@ -350,7 +374,7 @@ export async function stop(ctx: DaemonContext, taskId: string, run: string): Pro
       .append({ task: taskId, run, vendor: 'daemon', type: 'permission.decided', payload: { requestId: p.requestId, optionId: null, cancelled: true, by: 'stop' } })
       .catch(() => undefined);
   }
-  const closed = await Promise.race([live.done.then(() => true), Bun.sleep(5_000).then(() => false)]);
+  const closed = await Promise.race([Promise.race([live.done, finishedOf.get(live) ?? live.done]).then(() => true), Bun.sleep(5_000).then(() => false)]);
   return { run, stopped: closed };
 }
 

@@ -3,11 +3,15 @@ import { dirname, join, resolve } from 'node:path';
 import { type Workspace, writeFileAtomic } from '@stint-dev/core/node';
 import { DaemonError } from './errors';
 
+/** The folder that holds every task's held-out scenarios, or this task's own when `config.scenarios.dir` names `<task>`. */
+export function scenariosRoot(ws: Workspace, taskId: string): string {
+  return resolve(ws.root, (ws.config.scenarios?.dir ?? '.stint/scenarios').replaceAll('<task>', taskId));
+}
+
 /** Where a task's held-out scenarios live: `config.scenarios.dir/<task>/`, under `.stint/scenarios` by default (R-037). */
 export function scenariosDir(ws: Workspace, taskId: string): string {
-  const base = ws.config.scenarios?.dir ?? '.stint/scenarios';
-  if (base.includes('<task>')) return resolve(ws.root, base.replaceAll('<task>', taskId));
-  return resolve(ws.root, base, taskId);
+  const root = scenariosRoot(ws, taskId);
+  return ws.config.scenarios?.dir?.includes('<task>') ? root : join(root, taskId);
 }
 
 /** The scenario files of a task, as paths relative to its scenario folder (the layout they are copied in with). */

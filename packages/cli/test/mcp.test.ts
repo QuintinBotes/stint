@@ -101,3 +101,31 @@ test('inside a Stint run the task defaults to the run\'s task, and with no daemo
     }
   });
 }, 60_000);
+
+test('inside a Stint run the server lists only the tools the run token can call, and those work', async () => {
+  await withFixtureRepo(async (repo) => {
+    const agent = fakeAdapter('sleep');
+    const d = await startDaemon({ root: repo, quiet: true, adapters: [agent] });
+    const headers = { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' };
+    try {
+      const t = await d.ws.createTask({ title: 'Rate-limit incoming webhooks', goal: 'Answer 429.', acceptance: ['429'], testCommand: 'true' });
+      await fetch(`${d.url}/api/tasks/${t.id}/assign`, { method: 'POST', headers, body: JSON.stringify({ adapter: 'fake', role: 'implementer' }) });
+      for (let i = 0; i < 200 && !agent.seen[0]; i++) await Bun.sleep(25);
+      const env = agent.seen[0]?.env as Record<string, string>;
+      expect(env.STINT_RUN_TOKEN).toMatch(/^[0-9a-f]{32,}$/);
+      const c = client(repo, { STINT_RUN_TOKEN: env.STINT_RUN_TOKEN as string, STINT_DAEMON_PORT: env.STINT_DAEMON_PORT as string, STINT_TASK: t.id, STINT_RUN: 'r1' });
+      try {
+        await c.request('initialize', {});
+        const list = (await c.request('tools/list')) as { result: { tools: Array<{ name: string }> } };
+        expect(list.result.tools.map((x) => x.name)).toEqual(['stint_status', 'stint_task', 'stint_packet', 'stint_similar', 'stint_constraints', 'stint_files_together', 'stint_decide', 'stint_autopilot']);
+        expect(await c.tool('stint_decide', { text: 'Keep the limiter in memory' })).toEqual({ isError: false, text: `Recorded D1 on ${t.id}: Keep the limiter in memory` });
+        expect(await c.tool('stint_autopilot', { on: false })).toEqual({ isError: false, text: `${t.id} is off autopilot; a live run keeps going.` });
+        expect((await c.tool('stint_verify')).isError).toBe(true);
+      } finally {
+        c.close();
+      }
+    } finally {
+      await d.stop();
+    }
+  });
+}, 120_000);

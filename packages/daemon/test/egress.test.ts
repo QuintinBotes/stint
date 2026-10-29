@@ -90,6 +90,7 @@ test("A process in a run's environment can reach an allowed host through the pro
       const run = events.find((e) => e.type === 'run.started');
       expect(run?.payload.role).toBe('implementer');
       const health = (await (await app.request('/api/health')).json()) as { sandbox: { kind: string; egress: { mode: string; enforced: boolean; allow: string[] } } };
+      expect(health.sandbox.kind).toBe('none');
       expect(health.sandbox.egress).toMatchObject({ mode: 'proxy', enforced: false });
       expect(health.sandbox.egress.allow).toContain('localhost');
     });

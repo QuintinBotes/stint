@@ -1,12 +1,13 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_CONFIG } from '@stint-dev/core';
 import { Workspace } from '@stint-dev/core/node';
 import { daemonContext } from '../src/app';
 import { type Adapter, type RunContext, type RunResult, DaemonVerifier, RunRegistry, Worktrees, startDaemon } from '../src/index';
 import { runEnv } from '../src/env';
-import { sandboxArgv, sandboxProfile } from '../src/sandbox';
+import { prepareRun, sandboxArgv, sandboxProfile } from '../src/sandbox';
 import { auth, fakeAdapter, makeApp, newTask, post, withFixtureRepo } from './helpers';
 
 const stint = join(import.meta.dir, '..', '..', 'cli', 'bin', 'stint');
@@ -24,6 +25,78 @@ test('the macOS profile denies reading the daemon cache and writing git hooks an
   const inCache = sandboxProfile({ kind: 'sandbox-exec', worktree: '/repo/.stint/cache/verify/T-0001-1', root: '/repo', ports: [] }).split('\n');
   expect(inCache.indexOf('(allow file-read* (subpath "/repo/.stint/cache/verify/T-0001-1"))')).toBeGreaterThan(inCache.findIndex((l) => l.startsWith('(deny file-read*')));
 });
+
+test('the macOS profile writes Muse Code state and caches in home, never the rest of ~/.config, Application Support or ~/.bun/bin, and hides what it is told to', () => {
+  const real = (p: string) => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return p;
+    }
+  };
+  const home = homedir();
+  const lines = sandboxProfile({ kind: 'sandbox-exec', worktree: '/repo/.stint/worktrees/T-0001-r1', root: '/repo', ports: [], hidden: ['/repo/.stint/scenarios', '/repo/.env'] }).split('\n');
+  const write = lines.find((l) => l.startsWith('(allow file-write*')) as string;
+  for (const p of [join(home, '.config', 'muse'), join(home, '.cache'), join(home, '.bun', 'install'), join(home, '.npm'), join(home, 'Library', 'Caches')]) expect(write).toContain(`(subpath ${JSON.stringify(real(p))})`);
+  // git's global config is under ~/.config, and a program in ~/.bun/bin runs outside the sandbox next time
+  for (const p of [join(home, '.config'), join(home, 'Library', 'Application Support'), join(home, '.bun')]) expect(write).not.toContain(`(subpath ${JSON.stringify(real(p))})`);
+  const hide = lines.indexOf('(deny file-read* (subpath "/repo/.stint/scenarios") (subpath "/repo/.env"))');
+  expect(hide).toBeGreaterThan(lines.indexOf('(allow default)'));
+});
+
+test.skipIf(process.platform !== 'darwin')('under sandbox-exec a run cannot read the held-out scenarios or a key file, nor write ~/.config, Application Support or ~/.bun', async () => {
+  await withFixtureRepo(async (repo) => {
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.sandbox = { kind: 'sandbox-exec', egress: { mode: 'off', allow: [] } };
+    mkdirSync(join(repo, '.stint', 'scenarios', 'T-0001'), { recursive: true });
+    writeFileSync(join(repo, '.stint', 'config.json'), JSON.stringify(config));
+    writeFileSync(join(repo, '.stint', 'scenarios', 'T-0001', 'holdout.test.ts'), 'holdout-source-marker\n');
+    writeFileSync(join(repo, '.env'), 'META_API_KEY=repo-key-marker\n');
+    const xdg = join(repo, 'xdg');
+    mkdirSync(join(xdg, 'stint'), { recursive: true });
+    writeFileSync(join(xdg, 'stint', 'env'), 'META_API_KEY=user-key-marker\n');
+    const wt = join(repo, '.stint', 'worktrees', 'T-0001-r1');
+    mkdirSync(wt, { recursive: true });
+    const tag = `stint-sandbox-probe-${process.pid}-${Date.now()}`;
+    const probes = [join(homedir(), '.config', tag), join(homedir(), 'Library', 'Application Support', tag), join(homedir(), '.bun', tag)];
+    const prevXdg = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = xdg;
+    try {
+      const { app } = await makeApp(repo, []);
+      const { wrap } = await prepareRun(daemonContext(app), 'T-0001', 'r1', wt, {}, {}, false);
+      const script = [
+        `cat ${repo}/.stint/scenarios/T-0001/holdout.test.ts; echo s=$?`,
+        `cat ${xdg}/stint/env; echo k=$?`,
+        `cat ${repo}/.env; echo e=$?`,
+        ...probes.map((p, i) => `echo x > '${p}'; echo p${i}=$?`),
+        `echo x > ${wt}/a.txt; echo w=$?`,
+      ].join('; ');
+      const p = Bun.spawn((wrap as (argv: string[]) => string[])(['/bin/sh', '-c', script]), { stdout: 'pipe', stderr: 'pipe' });
+      const out = await new Response(p.stdout).text();
+      await p.exited;
+      for (const marker of ['holdout-source-marker', 'repo-key-marker', 'user-key-marker']) expect(out).not.toContain(marker);
+      for (const code of ['s', 'k', 'e', 'p0', 'p1', 'p2']) expect(out).toMatch(new RegExp(`${code}=[1-9]`));
+      expect(out).toContain('w=0');
+      for (const probe of probes) expect(existsSync(probe)).toBe(false);
+    } finally {
+      if (prevXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = prevXdg;
+      for (const probe of probes) rmSync(probe, { force: true });
+    }
+  });
+}, 60_000);
+
+test('health says which sandbox is configured and whether it can run here', async () => {
+  await withFixtureRepo(async (repo) => {
+    const config = structuredClone(DEFAULT_CONFIG);
+    config.sandbox = { kind: 'sandbox-exec', egress: { mode: 'off', allow: [] } };
+    mkdirSync(join(repo, '.stint'), { recursive: true });
+    writeFileSync(join(repo, '.stint', 'config.json'), JSON.stringify(config));
+    const { app } = await makeApp(repo, []);
+    const health = (await (await app.request('/api/health')).json()) as { sandbox: unknown };
+    expect(health.sandbox).toEqual(process.platform === 'darwin' ? { kind: 'sandbox-exec', ok: true, egress: { mode: 'off' } } : { kind: 'sandbox-exec', ok: false, reason: 'sandbox-exec is macOS only', egress: { mode: 'off' } });
+  });
+}, 60_000);
 
 test('the docker sandbox mounts git hooks and config read-only and never the cache', () => {
   const argv = sandboxArgv(['sh'], { kind: 'docker', worktree: '/repo/.stint/worktrees/T-0001-r1', root: '/repo', ports: [] });
@@ -129,6 +202,10 @@ test('a run token reaches only its own run\'s agent routes, answers 403 elsewher
     expect(await code(await post(app, `/api/tasks/${t.id}/decisions`, { text: 'Keep the limiter in memory', by: 'agent r1' }, as))).toEqual([201, 'ok']);
     expect(await code(await post(app, `/api/tasks/${t.id}/runs/r2/inflight`, { tool: 'bash' }, as))).toEqual([403, 'forbidden']);
     expect(await code(await post(app, `/api/tasks/${t.id}/handoff`, { run: 'r2' }, as))).toEqual([403, 'forbidden']);
+    // hand and verify wait for the live run to end, and the caller's own run is that live run
+    expect(await code(await post(app, `/api/tasks/${t.id}/verify`, {}, as))).toEqual([403, 'forbidden']);
+    expect(await code(await post(app, `/api/tasks/${t.id}/hand`, { adapter: 'fake' }, as))).toEqual([403, 'forbidden']);
+    expect(await code(await post(app, `/api/tasks/${t.id}/autopilot`, { on: false }, as))).toEqual([200, 'ok']);
     expect(await code(await post(app, `/api/tasks/${other.id}/decisions`, { text: 'x' }, as))).toEqual([403, 'forbidden']);
     expect(await code(await post(app, `/api/tasks/${t.id}/approve`, {}, as))).toEqual([403, 'forbidden']);
     expect(await code(await post(app, '/api/skills/import', {}, as))).toEqual([403, 'forbidden']);

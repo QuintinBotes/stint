@@ -49,7 +49,8 @@ export type StartOptions = {
   handleSignals?: boolean;
 } & Partial<Pick<AppOptions, 'webDist' | 'heartbeatMs' | 'health' | 'digest'>>;
 
-export type RunningDaemon = DaemonInfo & { url: string; ws: Workspace; infoPath: string; stop: () => Promise<void> };
+/** `hostname` is the address the server is bound to, which is always 127.0.0.1 (R-004). */
+export type RunningDaemon = DaemonInfo & { hostname: string; url: string; ws: Workspace; infoPath: string; stop: () => Promise<void> };
 
 /** Starts the daemon on 127.0.0.1 only and writes `.stint/cache/daemon.json` (mode 0600). */
 export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
@@ -129,7 +130,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
     process.once('SIGTERM', onSignal);
     process.once('SIGINT', onSignal);
   }
-  return { ...info, url: `http://127.0.0.1:${port}`, ws, infoPath, stop };
+  return { ...info, hostname: server.hostname as string, url: `http://127.0.0.1:${port}`, ws, infoPath, stop };
 }
 
 if (import.meta.main) {

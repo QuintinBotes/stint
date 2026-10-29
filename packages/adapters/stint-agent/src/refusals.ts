@@ -13,12 +13,15 @@ export function isCredentialPath(rel: string): boolean {
   return CREDENTIAL_PATH.test(rel) && !CREDENTIAL_TEMPLATE.test(rel);
 }
 
+const BRANCH_REASON = 'the run stays on its task branch; to restore a file, use git checkout -- <file>';
+
 /** Shell commands Stint refuses, each with the reason the agent is told. Each is matched against one part of a chain. */
 const COMMAND_RULES: Array<[RegExp, string]> = [
   [/\bgit\s+push\b/, 'pushing is the human\'s call; Stint merges on approve'],
   [/\bgit\s+reset\s+--hard\b/, 'a hard reset can destroy work; Stint commits the worktree when the run ends'],
-  [/\bgit\s+(checkout|switch)\s+(?!--\s)(-[bBc]\s+)?[\w./-]+\s*$/, 'the run stays on its task branch; to restore a file, use git checkout -- <file>'],
-  [/\bgit\s+(rebase|filter-branch|filter-repo|update-ref)\b/, 'history rewrites are not part of a task run'],
+  [/\bgh\s+pr\s+checkout\b/, BRANCH_REASON],
+  [/\bgit\s+(rebase|filter-branch|filter-repo|update-ref|symbolic-ref)\b/, 'history rewrites are not part of a task run'],
+  [/\bgit\b.*\balias\./, 'a git alias can hide what a command does; run the git command itself'],
   [/\bgit\s+remote\s+(add|set-url|remove|rm|rename)\b/, 'remotes are the person\'s to change'],
   [/\bgit\s+branch\s+(-[dDmM]|--delete|--move)\b/, 'other branches are not part of a task run'],
   [/\brm\s+-[a-zA-Z]*r[a-zA-Z]*\s+(\/|~|\$HOME|\.\.)/, 'deleting outside the worktree'],
@@ -84,29 +87,51 @@ export function commandParts(command: string): string[] {
     .filter(Boolean);
 }
 
+/** A part as the shell joins its words, quotes and backslashes taken out: `git 'checkout' "main"` and `sh -c 'git push'` read plainly. */
+const unquoted = (part: string): string => part.replace(/['"\\]/g, '');
+
+type GitCall = { sub: string; args: string[]; dirs: string[] };
+
 /**
- * `git` with its global options taken out, so `git -C . push` reads as `git push` wherever git appears in the part
- * (after `env`, `command`, an assignment or a backslash); the options are returned to be checked.
+ * Every git call in a part with its global options taken out, so `git -C . push` reads as `git push` wherever git
+ * appears (after `env`, `command`, `sh -c`, an assignment or a path such as /usr/bin/git); the folders it names are
+ * returned to be checked.
  */
-function gitParts(part: string): { command: string; dirs: string[] } {
-  const m = /(?:^|[\s\\])git\s+(.*)$/.exec(part);
-  if (!m) return { command: part, dirs: [] };
-  const words = (m[1] ?? '').split(/\s+/);
-  const dirs: string[] = [];
-  let i = 0;
-  while (i < words.length) {
-    const w = words[i] as string;
-    if (w === '-C' || w === '--git-dir' || w === '--work-tree') {
-      dirs.push(words[i + 1] ?? '');
-      i += 2;
-    } else if (w.startsWith('--git-dir=') || w.startsWith('--work-tree=')) {
-      dirs.push(w.slice(w.indexOf('=') + 1));
-      i += 1;
-    } else if (w === '-c' || w === '--namespace' || w === '--exec-path') i += 2;
-    else if (w.startsWith('-')) i += 1;
-    else break;
-  }
-  return { command: `git ${words.slice(i).join(' ')}`, dirs };
+function gitCalls(part: string): GitCall[] {
+  const words = unquoted(part).split(/\s+/).filter(Boolean);
+  const calls: GitCall[] = [];
+  words.forEach((word, at) => {
+    if (word !== 'git' && !word.endsWith('/git')) return;
+    const dirs: string[] = [];
+    let i = at + 1;
+    while (i < words.length) {
+      const w = words[i] as string;
+      if (w === '-C' || w === '--git-dir' || w === '--work-tree') {
+        dirs.push(words[i + 1] ?? '');
+        i += 2;
+      } else if (w.startsWith('--git-dir=') || w.startsWith('--work-tree=')) {
+        dirs.push(w.slice(w.indexOf('=') + 1));
+        i += 1;
+      } else if (w === '-c' || w === '--namespace' || w === '--exec-path') i += 2;
+      else if (w.startsWith('-')) i += 1;
+      else break;
+    }
+    calls.push({ sub: words[i] ?? '', args: words.slice(i + 1), dirs });
+  });
+  return calls;
+}
+
+/**
+ * Whether a git call can move the worktree off its task branch: every `switch`, and every `checkout` except the file
+ * form `git checkout [<commit>] -- <path>...`, which writes files and leaves HEAD where it is.
+ */
+function leavesBranch(call: GitCall): boolean {
+  if (call.sub === 'switch') return true;
+  if (call.sub !== 'checkout') return false;
+  const at = call.args.indexOf('--');
+  if (at < 0 || at === call.args.length - 1) return true;
+  const before = call.args.slice(0, at);
+  return before.some((w) => /^-[a-zA-Z]*[bB]|^--(orphan|detach)/.test(w)) || before.filter((w) => !w.startsWith('-')).length > 1;
 }
 
 /** The unquoted words of a part; quoted ones are patterns and messages far more often than paths. */
@@ -119,10 +144,11 @@ function pathWords(part: string): string[] {
 
 /**
  * True when `word`, taken as a path from the worktree with links followed, lands outside it on something that exists
- * or on a new file in an existing folder other than `/`. Words that are not paths resolve inside and pass.
+ * or on a new file in an existing folder other than `/`. Words that are not paths resolve inside and pass. With
+ * `mustExist` only an existing path below a top-level folder counts, since a route such as "/users" names one on macOS.
  */
-function leaves(worktree: string, word: string, tmp: string | undefined): boolean {
-  const expanded = word.replace(/^(~|\$HOME)(?=\/|$)/, process.env.HOME ?? '/home');
+function leaves(worktree: string, word: string, tmp: string | undefined, mustExist = false): boolean {
+  const expanded = word.replace(/^(~|\$HOME|\$\{HOME\})(?=\/|$)/, process.env.HOME ?? '/home');
   const full = resolve(worktree, expanded);
   if (SYSTEM_PATH.test(full)) return false;
   const home = process.env.HOME;
@@ -130,27 +156,40 @@ function leaves(worktree: string, word: string, tmp: string | undefined): boolea
   if (tmp && inside(resolveLinks(tmp), resolveLinks(full))) return false;
   if (inside(resolveLinks(worktree), resolveLinks(full))) return false;
   const parent = dirname(full);
+  if (mustExist) return parent !== '/' && existsSync(full);
   return existsSync(full) || (parent !== '/' && existsSync(parent));
 }
 
 /**
- * A refusal for a shell command, or null. Every part of a chain is checked; git's global options cannot hide a
- * subcommand; and with the worktree given, a part may not name a path outside it (devices, system programs,
- * toolchains and the run's temp folder excepted).
- * shortcut: a text match, not a shell parser: what the shell builds at run time (variables, quoting, eval) is not
- * seen. The sandbox (R-040) is what enforces paths and the network; this catches careless and common commands.
+ * A refusal for a shell command, or null. Every part of a chain is checked, as written and with its quotes taken
+ * out; git's global options cannot hide a subcommand; and with the worktree given, a part may not name a path
+ * outside it (devices, system programs, toolchains and the run's temp folder excepted). A quoted word is held to
+ * less: it is refused only when it names a path outside the worktree that exists, so a grep pattern such as
+ * "/api/webhooks" still runs while `cat "/etc/hosts"` does not; a redirect's target is held to the full rule.
+ * shortcut: a text match, not a shell parser: what the shell builds at run time (variables, globs, eval) and git
+ * aliases set in the person's own config are not seen. The sandbox (R-040) is what enforces paths and the network;
+ * this catches careless and common commands.
  */
 export function checkCommand(command: unknown, worktree?: string, tmp?: string): Refusal | null {
   if (typeof command !== 'string' || command.trim() === '') return { reason: 'a command is required' };
   for (const part of commandParts(command)) {
-    const git = gitParts(part);
-    for (const [rule, reason] of COMMAND_RULES) if (rule.test(part) || rule.test(git.command)) return { reason };
+    const plain = unquoted(part);
+    const calls = gitCalls(part);
+    const forms = [part, plain, ...calls.map((c) => ['git', c.sub, ...c.args].join(' '))];
+    for (const [rule, reason] of COMMAND_RULES) if (forms.some((f) => rule.test(f))) return { reason };
+    if (calls.some(leavesBranch)) return { reason: BRANCH_REASON };
     if (!worktree) continue;
-    for (const dir of git.dirs) {
+    for (const dir of calls.flatMap((c) => c.dirs)) {
       if (!inside(resolveLinks(worktree), resolveLinks(resolve(worktree, dir)))) return { reason: `git runs in the worktree only, not ${dir}` };
     }
     for (const word of pathWords(part)) {
       if (leaves(worktree, word, tmp)) return { reason: `${word} is outside the worktree` };
+    }
+    for (const [, word] of plain.matchAll(/>\s*([^\s<>]+)/g)) {
+      if (leaves(worktree, word as string, tmp)) return { reason: `${word} is outside the worktree` };
+    }
+    for (const word of plain.split(/[\s<>=(),]+/).filter(Boolean)) {
+      if (leaves(worktree, word, tmp, true)) return { reason: `${word} is outside the worktree` };
     }
   }
   return null;
