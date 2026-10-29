@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/draft/1",
+  "title": "stint.draft/1",
+  "description": "A spec drafted with the person before a task or a goal exists, in the shape of GitHub Spec Kit's spec template (MIT, copyright GitHub, Inc.): prioritised user stories with Given/When/Then scenarios, functional requirements, measurable success criteria and the items marked NEEDS CLARIFICATION, with the Sharpen questions over those items and the person's answers. The daemon writes nothing for a draft until the person creates the task or the goal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "input", "kind", "kindReason", "title", "summary", "stories", "requirements", "success", "edgeCases", "assumptions", "nonGoals", "open", "questions", "assumed", "answers"],
+  "$defs": {
+    "line": { "type": "string", "minLength": 1, "maxLength": 300 }
+  },
+  "properties": {
+    "version": { "const": "stint.draft/1" },
+    "input": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "The person's own words." },
+    "kind": { "type": "string", "enum": ["task", "goal"], "description": "A goal when the work has more than one independently shippable story or would take more than one task's limits." },
+    "kindReason": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 1000, "description": "What and why, in two or three sentences." },
+    "stories": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "priority", "why", "scenarios"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "priority": { "type": "string", "enum": ["P1", "P2", "P3"] },
+          "why": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "scenarios": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["given", "when", "then"],
+              "properties": { "given": { "$ref": "#/$defs/line" }, "when": { "$ref": "#/$defs/line" }, "then": { "$ref": "#/$defs/line" } }
+            }
+          }
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text"],
+        "properties": { "id": { "type": "string", "pattern": "^FR-[0-9]{3}$" }, "text": { "$ref": "#/$defs/line" } }
+      }
+    },
+    "success": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text"],
+        "properties": { "id": { "type": "string", "pattern": "^SC-[0-9]{3}$" }, "text": { "$ref": "#/$defs/line" } }
+      }
+    },
+    "edgeCases": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/line" } },
+    "assumptions": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/line" } },
+    "nonGoals": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/line" } },
+    "open": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "The items marked [NEEDS CLARIFICATION: ...].",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text"],
+        "properties": { "id": { "type": "string", "pattern": "^O[0-9]+$" }, "text": { "$ref": "#/$defs/line" } }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "The Sharpen questions over the open items that passed the rules in docs/sharpen.md, numbered across at most two rounds.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "round", "text", "changes", "evidence", "options", "recommendation", "safeDefault", "blocks", "material"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^Q[0-9]+$" },
+          "round": { "type": "integer", "minimum": 1, "maximum": 2 },
+          "text": { "type": "string", "maxLength": 300 },
+          "changes": { "type": "string", "enum": ["implementation", "proof", "scope", "authority"] },
+          "evidence": { "type": "string", "maxLength": 400 },
+          "options": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["label", "consequence"],
+              "properties": { "label": { "type": "string", "maxLength": 120 }, "consequence": { "type": "string", "maxLength": 300 } }
+            }
+          },
+          "recommendation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["option", "why"],
+            "properties": { "option": { "type": "string", "maxLength": 120 }, "why": { "type": "string", "maxLength": 300 } }
+          },
+          "safeDefault": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["exists"],
+            "properties": { "exists": { "type": "boolean" }, "option": { "type": "string", "maxLength": 120 }, "why": { "type": "string", "maxLength": 300 } }
+          },
+          "blocks": { "type": "array", "maxItems": 12, "description": "The success criteria the answer affects, counting from 1.", "items": { "type": "integer", "minimum": 1 } },
+          "material": { "type": "boolean" }
+        }
+      }
+    },
+    "assumed": {
+      "type": "array",
+      "maxItems": 40,
+      "description": "The reversible details settled with a default, and what was still open after two rounds.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "why"],
+        "properties": { "id": { "type": "string", "pattern": "^A[0-9]+$" }, "text": { "$ref": "#/$defs/line" }, "why": { "type": "string", "maxLength": 300 } }
+      }
+    },
+    "answers": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["question"],
+        "anyOf": [{ "required": ["choice"] }, { "required": ["text"] }],
+        "properties": {
+          "question": { "type": "string", "pattern": "^Q[0-9]+$" },
+          "choice": { "type": "string", "minLength": 1, "maxLength": 120, "description": "The label of the option chosen." },
+          "text": { "type": "string", "minLength": 1, "maxLength": 1000, "description": "The person's own words." }
+        }
+      }
+    },
+    "split": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "description": "A goal's split as an imported tasks.md gives it, one task per phase. Without it a goal is split one task per story, P1 first.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "goal", "acceptance", "covers", "dependsOn"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "goal": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "acceptance": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/line" } },
+          "covers": { "type": "array", "maxItems": 12, "items": { "type": "integer", "minimum": 1, "maximum": 12 } },
+          "dependsOn": { "type": "array", "maxItems": 5, "items": { "type": "integer", "minimum": 0, "maximum": 5 } }
+        }
+      }
+    }
+  }
+}

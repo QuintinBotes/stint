@@ -8,12 +8,12 @@ const LETTERS = 'ABCD';
 type Question = SharpenState['questions'][number];
 
 /** The option a letter names (A to D, either case), or null when the words are an answer of their own. */
-function optionFor(q: Question, said: string): string | null {
+export function optionFor(q: Question, said: string): string | null {
   const i = /^[a-d]$/i.test(said) ? LETTERS.indexOf(said.toUpperCase()) : -1;
   return q.options[i]?.label ?? null;
 }
 
-function questionText(q: Question): string {
+export function questionText(q: Question): string {
   return [
     `${q.id}${q.material ? ': needs your answer' : ''}`,
     q.text,

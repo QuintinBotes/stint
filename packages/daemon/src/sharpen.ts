@@ -190,10 +190,10 @@ export type SharpenAnswerInput = { question?: string; assumption?: string; optio
 
 /**
  * Answers a question or changes an assumption: `sharpen.answered`, and a decision that pairs the question with the
- * answer, with `sharpen:<id>` as its evidence. On a task, answering again supersedes the earlier decision; on a goal,
+ * answer, with `sharpen:<id>` as its evidence unless another is given. On a task, answering again supersedes the earlier decision; on a goal,
  * the latest answer is the one that stands. Returns the decision id.
  */
-export async function answerSharpen(ctx: DaemonContext, id: string, input: SharpenAnswerInput, by: 'you' | 'autopilot', recommended = false): Promise<string> {
+export async function answerSharpen(ctx: DaemonContext, id: string, input: SharpenAnswerInput, by: 'you' | 'autopilot', recommended = false, evidence?: string): Promise<string> {
   const s = await subjectOf(ctx, id);
   const st = await stateOf(s);
   const text = input.text?.trim() || undefined;
@@ -216,9 +216,14 @@ export async function answerSharpen(ctx: DaemonContext, id: string, input: Sharp
     ref = a.id;
     previous = a.changed?.decision;
   }
-  const decision = await s.decide({ text: said, by, evidence: `sharpen:${ref}`, ...(previous ? { supersedes: previous } : {}) });
+  const decision = await s.decide({ text: said, by, evidence: evidence ?? `sharpen:${ref}`, ...(previous ? { supersedes: previous } : {}) });
   await s.append({ vendor: by === 'you' ? 'human' : 'daemon', type: 'sharpen.answered', payload: { [input.question ? 'question' : 'assumption']: ref, ...(input.option !== undefined ? { option: input.option } : {}), ...(text ? { text } : {}), decision, by, ...(recommended ? { recommended } : {}) } });
   return decision;
+}
+
+/** Records a round asked before the task or goal existed, the spec builder's, as its own, so its answers stand like any other. */
+export async function recordRound(ctx: DaemonContext, id: string, payload: Record<string, unknown>): Promise<void> {
+  await (await subjectOf(ctx, id)).append({ vendor: 'daemon', type: 'sharpen.asked', payload });
 }
 
 /** Takes the recommendation for every open question that is not material; material ones wait for a person. */
@@ -256,7 +261,7 @@ export async function setProofs(ctx: DaemonContext, id: string, proofs: TaskProo
 export async function sharpenBrief(ws: Workspace, task: Task): Promise<string> {
   const st = sharpenState(await ws.events(task.id).read(), task);
   const settled = [
-    ...(await ws.decisions(task.id).validAt()).filter((d) => d.evidence.some((e) => e.startsWith('sharpen:') || e.startsWith('goal:'))).map((d) => `- ${d.id}: ${d.text}`),
+    ...(await ws.decisions(task.id).validAt()).filter((d) => d.evidence.some((e) => e.startsWith('sharpen:') || e.startsWith('goal:') || e === 'spec builder')).map((d) => `- ${d.id}: ${d.text}`),
     ...st.assumed.filter((a) => !a.changed).map((a) => `- Assumed ${a.id}: ${a.text}`),
   ];
   const proofs = (task.proofs ?? []).map((p) => `- Criterion ${p.criterion} (${task.acceptance[p.criterion - 1] ?? 'not in the task'}): ${p.kind} "${p.ref}"`);

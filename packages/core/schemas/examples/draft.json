@@ -1,0 +1,60 @@
+{
+  "version": "stint.draft/1",
+  "input": "Let people export a report as CSV, and send it to them by email every Monday.",
+  "kind": "goal",
+  "kindReason": "It has two stories that each ship on their own: the export, and the weekly email.",
+  "title": "Export reports as CSV",
+  "summary": "A person can download any report as a CSV file, and can ask for it by email every Monday. Today reports can only be read on screen.",
+  "stories": [
+    {
+      "title": "Download a report as CSV",
+      "priority": "P1",
+      "why": "Most people only need the file, and the email builds on it.",
+      "scenarios": [
+        { "given": "a report with 3 rows", "when": "the person chooses Download CSV", "then": "a file with a header line and 3 rows is saved" },
+        { "given": "an empty report", "when": "the person chooses Download CSV", "then": "a file with only the header line is saved" }
+      ]
+    },
+    {
+      "title": "Get the report by email every Monday",
+      "priority": "P2",
+      "why": "People who check the numbers weekly stop opening the app for them.",
+      "scenarios": [{ "given": "a person subscribed to a report", "when": "Monday 08:00 in their time zone passes", "then": "one email with the CSV attached is sent to them" }]
+    }
+  ],
+  "requirements": [
+    { "id": "FR-001", "text": "System MUST write CSV with a header line and one line per row." },
+    { "id": "FR-002", "text": "System MUST send the weekly email at most once per person per report." }
+  ],
+  "success": [
+    { "id": "SC-001", "text": "A report of 10,000 rows downloads in under 5 seconds." },
+    { "id": "SC-002", "text": "Every subscribed person gets exactly one email each Monday." }
+  ],
+  "edgeCases": ["What happens when a cell holds a comma or a line break?"],
+  "assumptions": ["People read the file in a spreadsheet program."],
+  "nonGoals": ["Excel files", "Daily or monthly emails"],
+  "open": [{ "id": "O1", "text": "Who may subscribe other people to a report?" }],
+  "questions": [
+    {
+      "id": "Q1",
+      "round": 1,
+      "text": "Who may subscribe other people to a report?",
+      "changes": "authority",
+      "evidence": "The input says send it to them, but not whether a person may add someone else.",
+      "options": [
+        { "label": "Only themselves", "consequence": "Each person subscribes on their own." },
+        { "label": "Anyone who can see the report", "consequence": "People can add colleagues, who may not want the email." }
+      ],
+      "recommendation": { "option": "Only themselves", "why": "No one gets an email they did not ask for." },
+      "safeDefault": { "exists": false },
+      "blocks": [2],
+      "material": true
+    }
+  ],
+  "assumed": [{ "id": "A1", "text": "The CSV uses commas and UTF-8.", "why": "It is what spreadsheet programs open without asking." }],
+  "answers": [{ "question": "Q1", "choice": "Only themselves" }],
+  "split": [
+    { "title": "Download a report as CSV", "goal": "A person can download any report as a CSV file.", "acceptance": ["Given a report with 3 rows, when the person chooses Download CSV, then a file with a header line and 3 rows is saved"], "covers": [1], "dependsOn": [] },
+    { "title": "Get the report by email every Monday", "goal": "A subscribed person gets the CSV by email every Monday.", "acceptance": ["Given a person subscribed to a report, when Monday 08:00 passes, then one email with the CSV attached is sent"], "covers": [2], "dependsOn": [0] }
+  ]
+}
