@@ -22,6 +22,12 @@ const NOT_AT_THE_GATE: Record<string, string> = {
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
+/** Autopilot stopped at the gate, so sending the task back starts it again; the daemon's sendBack reads the log the same way (D-069). */
+function rebuildsOnSendBack(events: StintEvent[]): boolean {
+  const last = events.findLast((e) => e.type === 'autopilot.started' || e.type === 'autopilot.stopped');
+  return last?.type === 'autopilot.stopped' && String(last.payload.reason ?? '').startsWith('Waiting for your approval.');
+}
+
 /** What made a verification red, in words: tampered tests, held-out scenarios that failed or could not run, the tests, or another check. */
 export function redReason(v: Pick<Verification, 'passed' | 'failed' | 'reason' | 'checks' | 'tamper' | 'scenarios'>): string {
   if (v.reason === 'tampered') return `An agent changed the locked acceptance tests${v.tamper?.files.length ? ` (${v.tamper.files.join(', ')})` : ''}.`;
@@ -41,12 +47,14 @@ export function redReason(v: Pick<Verification, 'passed' | 'failed' | 'reason' |
  * finding waiting to reverse a decision. The daemon enforces the same on /approve, and refuses while changes asked for
  * are newer than the last green verification.
  */
-export function gateState(b: TaskBundle, contradictions: PendingContradictionItem[] = []): { open: boolean; reason: string } {
+export function gateState(b: TaskBundle, contradictions: PendingContradictionItem[] = [], events: StintEvent[] = []): { open: boolean; reason: string } {
   if (b.task.status === 'done') return { open: false, reason: '' };
   if (b.task.status === 'in_review') return { open: false, reason: '' };
   if (readOnly) return { open: false, reason: readOnly };
   // a building task whose runs have all ended is waiting, not working: autopilot stopped, or the next run is not started yet
   if (b.task.status === 'building' && b.runs.every((r) => r.endedAt)) return { open: false, reason: 'No run is going. The gate opens after the next green verification.' };
+  // a review is said to run only while a reviewer's run is live
+  if (b.task.status === 'reviewing' && !b.runs.some((r) => r.role === 'reviewer' && !r.endedAt)) return { open: false, reason: 'The tests passed, but no review is running.' };
   if (b.task.status !== 'awaiting_approval') return { open: false, reason: NOT_AT_THE_GATE[b.task.status] ?? 'The task is not at the gate.' };
   if (!b.verification) return { open: false, reason: 'Waiting for Stint to run the tests.' };
   if (b.verification.status !== 'green') return { open: false, reason: `Stint's check is red. ${redReason(b.verification)}` };
@@ -57,7 +65,9 @@ export function gateState(b: TaskBundle, contradictions: PendingContradictionIte
     return { open: false, reason: `${plural(contradictions.length, 'review finding')} would reverse a decision. Keep ${d} or supersede it, above the tabs, before you approve.` };
   }
   if (b.runs.some((r) => !r.endedAt)) return { open: false, reason: 'A run is still going.' };
-  return { open: true, reason: `${b.verification.passed} tests passed, run by Stint${b.review ? `; review: ${b.review.verdict.replace('_', ' ')}` : ''}.` };
+  // at the gate with no review: the daemon said why on the approval request
+  const unreviewed = b.review ? '' : String(events.findLast((e) => e.type === 'approval.requested')?.payload.reason ?? '');
+  return { open: true, reason: `${plural(b.verification.passed, 'test')} passed, run by Stint${b.review ? `; review: ${b.review.verdict.replace('_', ' ')}` : ''}.${unreviewed ? ` ${unreviewed}` : ''}` };
 }
 
 /** The goal a merged task belongs to, read once, so the sign-off can offer the goal's next open task. */
@@ -118,7 +128,7 @@ const SHOWN = 6;
  * Above the buttons, the evidence for the decision: the change's size, how much of it you have viewed, and the review.
  */
 export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contradictions = [], onDone }: { bundle: TaskBundle; events: StintEvent[]; seen: StintEvent[] | null; files: Array<{ path: string; added: number; removed: number }>; viewed: Set<string>; tasks: TaskCardData[] | null; contradictions?: PendingContradictionItem[]; onDone: () => void }) {
-  const gate = gateState(bundle, contradictions);
+  const gate = gateState(bundle, contradictions, events);
   const back = useContext(LookingBack);
   const hold = useHold();
   // a rewound view shows the past; approving from it would act on a task the page is not showing
@@ -136,16 +146,18 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
   const id = bundle.task.id;
   const askChanges = useRef<HTMLButtonElement>(null);
   const askReject = useRef<HTMLButtonElement>(null);
-  // closing the form puts focus back on the button that opened it
+  // closing the form drops what was typed and puts focus back on the button that opened it
   const close = () => {
     const opener = asking === 'reject' ? askReject : askChanges;
     setAsking(null);
+    setText('');
     requestAnimationFrame(() => opener.current?.focus());
   };
   // a approves, r asks for changes, x rejects: the keys the help lists, and the palette's request. While the form is
   // open no key acts but Escape, which closes it.
   // nothing built yet: there is no change to send back or reject
   const built = bundle.runs.some((r) => r.role === 'implementer' && r.endedAt);
+  const rebuilds = rebuildsOnSendBack(events);
   useEffect(() => {
     if (back) setArmed(false);
   }, [back]);
@@ -160,8 +172,11 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
         if (armed) void approve();
         else arm();
       } else if (e.key === 'Escape' && armed) setArmed(false);
-      else if (e.key === 'r' && built) setAsking('changes');
-      else if (e.key === 'x' && built) setAsking('reject');
+      else if ((e.key === 'r' || e.key === 'x') && built) {
+        // the field the key opens takes focus before the key's letter lands, so the letter must not land
+        e.preventDefault();
+        setAsking(e.key === 'r' ? 'changes' : 'reject');
+      }
     };
     const onAsk = (e: Event) => {
       if (back) return;
@@ -448,7 +463,9 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
                     }}
                   >
                     <label className="font-semibold" htmlFor="gate-text">
-                      {asking === 'reject' ? 'Why reject it? The reason becomes a decision.' : 'What should change? This becomes the next ask.'}
+                      {asking === 'reject'
+                        ? `Why reject it? The reason becomes a decision${rebuilds ? ', and autopilot builds the task again from it.' : ', and the task goes to Needs you as rejected.'}`
+                        : `What should change? ${rebuilds ? 'Autopilot builds the task again with this as the ask.' : 'This becomes the next ask, and the task goes to Needs you as rejected until an agent takes it.'}`}
                     </label>
                     <textarea id="gate-text" required autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} className="stint-input min-h-0 px-2.5 py-2" />
                     <div className="grid grid-cols-2 gap-2">

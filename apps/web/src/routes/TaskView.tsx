@@ -306,6 +306,8 @@ export function TaskView() {
   if (error) return <Placeholder title="This task could not be read">{`${error.charAt(0).toUpperCase()}${error.slice(1)}. Check the task id in the address, or go back to the board.`}</Placeholder>;
   if (!bundle) return <p className="p-6 text-ink-2">Reading the task.</p>;
   const t = bundle.task;
+  // a closed task has no autopilot step and no limit stop left to show, as its Board card says (R-072)
+  const closed = ['approved', 'done', 'abandoned'].includes(t.status);
   // the task as it stood at the moment the clock is on; the gate always acts on the task as it is now
   const then = bundleAt(bundle, asOf ? visible : null);
   const live = then.runs.find((r) => !r.endedAt);
@@ -402,7 +404,7 @@ export function TaskView() {
           ) : null}
           <p data-testid="state-detail" className="text-small text-ink-2">
             {state.detail}
-            {autopilot.text && !asOf ? (
+            {autopilot.text && !asOf && !closed ? (
               <span data-testid="autopilot-step">
                 {' '}
                 Autopilot: {autopilot.text}
@@ -461,7 +463,7 @@ export function TaskView() {
             {autoBusy ? (autopilot.on ? 'Stopping autopilot' : 'Starting autopilot') : autopilot.on ? 'Autopilot on' : 'Autopilot'}
           </Button>
         ) : null}
-        <Limits taskId={t.id} events={events} onHand={() => setTab('packet')} />
+        <Limits taskId={t.id} events={events} closed={closed} onHand={() => setTab('packet')} />
       </div>
     </header>
   );

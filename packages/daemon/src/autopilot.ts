@@ -10,7 +10,7 @@ import { goalTasks, inherited } from './goals';
 import { assign } from './lifecycle';
 import { walkChain } from './route';
 import { chooseLearned, recordsFor, workspaceRecords } from './routing';
-import { planTask, reviewTask } from './routes/models';
+import { planTask, reviewToGate } from './routes/models';
 import { sharpen, takeRecommendations } from './sharpen';
 import { verifyBranch } from './routes/work';
 
@@ -219,6 +219,27 @@ function limitStop(events: StintEvent[], limits: Limits, next: 'work' | 'build' 
   return null;
 }
 
+/** A command written as sh -c '...' reads as what it runs. */
+const plainCommand = (c: string) => /^(?:ba|z)?sh -c (?:'([^']*)'|"([^"]*)")$/s.exec(c.trim())?.slice(1).find((x) => x !== undefined) ?? c;
+
+/** How the verify step says a green verification: the command as written, and how many tests passed. */
+const verifiedText = (v: { command?: unknown; passed?: unknown; failed?: unknown }) => {
+  const passed = Number(v.passed ?? 0);
+  return `Stint ran ${typeof v.command === 'string' ? plainCommand(v.command) : 'the tests'}, and ${passed} of ${passed + Number(v.failed ?? 0)} passed.`;
+};
+
+/**
+ * The verification of a build that is ready for review: the latest verification is green and of the last
+ * implementer run, which completed, and nobody sent the task back since. Null otherwise.
+ */
+function greenBuild(events: StintEvent[], task: Task): string | null {
+  const last = runsFromEvents(events).filter((r) => r.role === 'implementer').at(-1);
+  const v = events.findLast((e) => e.type === 'verification.ran');
+  if (!last || last.endedBy !== 'completed' || task.pendingAsk || !v || v.run !== last.run || v.payload.status !== 'green') return null;
+  if (events.slice(events.indexOf(v)).some((e) => e.type === 'approval.rejected')) return null;
+  return verifiedText(v.payload);
+}
+
 /**
  * The next thing autopilot does, as a pure function of the task's log: a daemon restart resumes from the
  * same place. It never approves; the furthest it goes on its own is the approval gate, and it stops before any
@@ -230,6 +251,13 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   if (live) return { kind: 'wait', reason: 'a run is live' };
   if (task.status === 'done') return { kind: 'stop', reason: 'The task is merged.', needsYou: false };
   const capped = (next: Parameters<typeof limitStop>[2], step: Step, handReason?: string): Step => limitStop(events, limits, next, handReason, o.goal) ?? step;
+  // switched on for work built before it (R-072): a task at the gate stays there, and a green build nobody sent back
+  // goes to review, rather than either being built again from scratch
+  if (!runsFromEvents(tail).some((r) => r.role === 'implementer')) {
+    if (task.status === 'awaiting_approval') return { kind: 'stop', reason: AT_GATE, needsYou: false };
+    const built = greenBuild(events, task);
+    if (built) return capped('work', { kind: 'review', verified: built });
+  }
   // a best-of-n candidate builds from its parent's plan, and stops once its tests are green for the pick
   const candidate = !!task.parent && (task.tags ?? []).includes('candidate');
   const planned = candidate || events.some((e) => e.type === 'run.started' && e.payload.role === 'planner') || tail.some((e) => e.type === 'autopilot.step' && e.payload.step === 'plan');
@@ -307,8 +335,7 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   if (!review) {
     const failed = after.some((e) => e.type === 'run.finished' && e.payload.endedBy === 'failed' && tail.some((s2) => s2.type === 'run.started' && s2.run === e.run && s2.payload.role === 'reviewer'));
     if (failed) return { kind: 'stop', reason: `${AT_GATE} No reviewer could answer, so read the diff yourself.`, needsYou: false };
-    const v = verification?.payload as { command?: string; passed?: number; failed?: number };
-    return capped('work', { kind: 'review', verified: `${v.command ?? 'tests'} ${v.passed ?? 0}/${(v.passed ?? 0) + (v.failed ?? 0)} green` });
+    return capped('work', { kind: 'review', verified: verifiedText(verification?.payload ?? {}) });
   }
   const r = review.payload.review as { verdict: string; findings?: Array<{ text: string }>; blockers?: string[] } | undefined;
   const verdict = (review.payload.verdict as string | undefined) ?? r?.verdict;
@@ -563,10 +590,8 @@ export class Autopilot {
         if (s.kind === 'review') {
           await this.step(id, 'verify', s.verified);
           await this.step(id, 'review', 'Asking the reviewer chain.');
-          await reviewTask(this.ctx, id).catch(async (err: unknown) => {
-            await ws.writeTask(id, { status: 'awaiting_approval' });
-            await this.stop(id, `${AT_GATE} No reviewer could answer (${err instanceof Error ? err.message : String(err)}).`);
-          });
+          const unreviewed = await reviewToGate(this.ctx, id);
+          if (unreviewed) await this.stop(id, `${AT_GATE} ${unreviewed}`);
           continue;
         }
         if (s.kind === 'build') {

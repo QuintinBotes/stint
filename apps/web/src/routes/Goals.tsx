@@ -438,7 +438,8 @@ function RunGoal({ v, replay }: { v: GoalView; replay: boolean }) {
   const off = readOnly ?? (replay ? 'Not in the replay: nothing runs here.' : null);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState<string[] | null>(null);
-  const open = v.tasks.filter((t) => !CLOSED_TASK.includes(t.status));
+  // a task at the gate is not open work: it waits for your approval, and the daemon does not start it
+  const open = v.tasks.filter((t) => !CLOSED_TASK.includes(t.status) && t.status !== 'awaiting_approval');
   if (!open.length) return null;
   const waiting = open.filter((t) => t.dependsOn.some((d) => v.tasks.find((x) => x.id === d)?.status !== 'done')).map((t) => t.id);
   const { spend, builds } = v.outcome;

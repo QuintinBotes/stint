@@ -111,7 +111,7 @@ export const demo = defineCommand({
 
     const root = freshFixture();
     await seedDemoConfig(root);
-    const d = await startDaemon({ root, quiet: true, handleSignals: Boolean(args.keep) });
+    const d = await startDaemon({ root, quiet: true, handleSignals: Boolean(args.keep), autoReview: true });
     if (!args.json) out(`Watch it at ${d.url}`);
     if (args.open) {
       const opener = process.platform === 'darwin' ? 'open' : Bun.which('xdg-open') ? 'xdg-open' : null;

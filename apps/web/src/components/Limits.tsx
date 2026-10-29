@@ -46,7 +46,7 @@ export function Meter({ id, word, value, used, cap, reached = false, note = '', 
  * The task's limits in the title block (R-062): one row of meters, used of cap, and when autopilot stopped at a limit,
  * the stop with two ways on: raise the limit and carry on, or hand the task to another agent from its packet.
  */
-export function Limits({ taskId, events, onHand }: { taskId: string; events: StintEvent[]; onHand: () => void }) {
+export function Limits({ taskId, events, closed = false, onHand }: { taskId: string; events: StintEvent[]; closed?: boolean; onHand: () => void }) {
   const [caps, setCaps] = useState<Caps | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,13 +66,15 @@ export function Limits({ taskId, events, onHand }: { taskId: string; events: Sti
   const used = useMemo(() => taskUsage(events), [events]);
   // the stop stands until autopilot is switched on again or a run starts some other way, such as a hand-off
   const stop = useMemo(() => {
+    // nothing is left to raise or hand on once the task is closed
+    if (closed) return null;
     const last = events.findLast((e) => e.type.startsWith('autopilot.') || e.type === 'run.started');
     if (last?.type !== 'autopilot.stopped' || typeof last.payload.limit !== 'string') return null;
     // a goal's limit (R-064) is raised on the goal's page, not here
     const at = events.findLast((e) => e.type === 'limit.reached');
     const goal = at?.payload.scope === 'goal' ? String(at.payload.goal ?? '') : null;
     return { limit: last.payload.limit as LimitName, reason: String(last.payload.reason ?? ''), ...(goal ? { scope: 'goal' as const, goal } : {}) };
-  }, [events]);
+  }, [events, closed]);
   if (!caps) return null;
 
   const reached = stop?.limit ?? null;

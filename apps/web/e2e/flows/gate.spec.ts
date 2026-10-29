@@ -18,18 +18,17 @@ test('The approval gate stays shut while the verification is absent or red', asy
   await expect(page.getByTestId('approve')).toBeDisabled();
 });
 
-test('After a green verification the gate stays shut until the review puts the task at the gate; then it opens and pressing a calls approve', async ({ page, request }) => {
+test('A run assigned by hand that goes green is reviewed by the reviewer chain and reaches the gate with autopilot off; then it opens and pressing a calls approve', async ({ page, request }) => {
   const d = daemon(request);
   const t = await d.create('Flow: gate opens on green');
   await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'muse-code', role: 'implementer' });
-  await d.until(t.id, (ev) => ev.some((e) => e.type === 'verification.ran' && e.payload.status === 'green'));
-  // green but not at the gate yet: Approve is shown, not offered
-  await page.goto(`/t/${t.id}`);
-  await expect(page.getByTestId('approve')).toBeDisabled();
-  await d.post(`/api/tasks/${t.id}/review`, {});
-  await d.until(t.id, (ev) => ev.some((e) => e.type === 'approval.requested'));
+  const events = await d.until(t.id, (ev) => ev.some((e) => e.type === 'approval.requested'));
+  expect(events.filter((e) => e.type === 'run.started').map((e) => e.payload.role)).toEqual(['implementer', 'reviewer']);
+  expect(events.some((e) => e.type.startsWith('autopilot.'))).toBe(false);
+  expect((await d.task(t.id)).status).toBe('awaiting_approval');
   await page.goto(`/t/${t.id}`);
   await expect(page.getByTestId('approval-gate')).toHaveAttribute('data-open', 'true');
+  await expect(page.getByTestId('gate-evidence')).toContainText('1 test passed, run by Stint; review: approve.');
   await expect(page.getByTestId('approve')).toBeEnabled();
 
   await page.getByTestId('approval-gate').locator('caption').click();

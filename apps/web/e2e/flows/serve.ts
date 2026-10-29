@@ -25,7 +25,7 @@ mkdirSync(join(root, '.stint'), { recursive: true });
 writeFileSync(join(root, '.stint', 'config.json'), JSON.stringify(config, null, 2));
 await seedDemo(root);
 
-const d = await startDaemon({ root, port: Number(process.env.STINT_E2E_FLOWS_PORT ?? 4320), quiet: true, adapters: [replayAdapter, writer('muse-code'), writer('stint-agent'), sleeper, fakeAcp()] });
+const d = await startDaemon({ root, port: Number(process.env.STINT_E2E_FLOWS_PORT ?? 4320), quiet: true, autoReview: true, adapters: [replayAdapter, writer('muse-code'), writer('stint-agent'), sleeper, fakeAcp()] });
 process.stdout.write(`ready ${d.url} ${root}\n`);
 const stop = () => {
   void d.stop().then(() => {

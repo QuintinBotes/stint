@@ -324,7 +324,7 @@ export async function runLiveDemo(o: LiveDemoOptions = {}): Promise<{ root: stri
   const root = freshFixture();
   await seedDemo(root);
   out('Seeded T-0040 (done), T-0042 and T-0043 (planned).');
-  const d = await startDaemon({ root, quiet: true, digest: true });
+  const d = await startDaemon({ root, quiet: true, digest: true, autoReview: true });
   out(`Watch it at ${d.url}`);
   try {
     const summary = await runLiveBeats({

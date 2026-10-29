@@ -236,7 +236,8 @@ export async function runGoal(ctx: DaemonContext, id: string): Promise<string[]>
   const started: string[] = [];
   for (const t of goal.tasks) {
     const task = await ctx.ws.readTask(t).catch(() => null);
-    if (!task || CLOSED.includes(task.status)) continue;
+    // a task at the gate has no work left for autopilot: it waits for your approval
+    if (!task || CLOSED.includes(task.status) || task.status === 'awaiting_approval') continue;
     await ctx.autopilot.start(t);
     started.push(t);
   }
