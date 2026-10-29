@@ -183,3 +183,27 @@ test('The Factory lead counts merges as the Tasks merged figure does, one build 
   await expect(page.getByTestId('kpis')).toContainText('1 build run each');
   await expect(page.getByTestId('score-row').locator('td').nth(4)).toHaveText('$0.0042');
 });
+
+test('The Factory charts review findings per task from the replay, marks where limiter-config-via-env was approved, and says it in words (R-070)', async ({ page }) => {
+  await page.goto('/factory');
+  await page.getByTestId('panel-learning').getByText('Review findings per task').click();
+  const chart = page.getByTestId('learning-chart');
+  await expect(chart.getByRole('img', { name: /^Review findings per task, in the order reviewed: T-0040, 2 findings; T-0042, 2 findings; limiter-config-via-env approved; T-0043, 0 findings/ })).toBeVisible();
+  const point = (task: string) => chart.locator(`[data-testid="learning-point"][data-task="${task}"]`);
+  await expect(point('T-0040')).toHaveAttribute('data-findings', '2');
+  await expect(point('T-0042')).toHaveAttribute('data-findings', '2');
+  await expect(point('T-0043')).toHaveAttribute('data-findings', '0');
+  const mark = chart.locator('[data-testid="learning-approval"][data-skill="limiter-config-via-env"]');
+  await expect(mark).toContainText('limiter-config-via-env approved');
+  // drawn in review order, with the approval between the review before it and the one after
+  const at = async (l: import('@playwright/test').Locator) => {
+    const box = await l.boundingBox();
+    if (!box) throw new Error('not drawn');
+    return box.x + box.width / 2;
+  };
+  const [t40, t42, t43, line] = [await at(point('T-0040').locator('circle')), await at(point('T-0042').locator('circle')), await at(point('T-0043').locator('circle')), await at(mark.locator('line'))];
+  expect(t40).toBeLessThan(t42);
+  expect(t42).toBeLessThan(line);
+  expect(line).toBeLessThan(t43);
+  await expect(page.getByTestId('learning-summary')).toContainText('Findings fell from 2 on T-0042 to 0 on T-0043 after limiter-config-via-env was approved.');
+});
