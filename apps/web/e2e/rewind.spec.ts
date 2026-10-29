@@ -41,7 +41,8 @@ test('Dragging the clock back to the kill rewinds the rail, the task, the revisi
 
   // the rail shows the task up to that moment: the review had not happened yet
   await expect(page.locator(`[data-testid="event-row"][data-seq="${review.seq}"]`)).toHaveCount(0);
-  await expect(page.getByTestId('rewound')).toContainText('As it stood at');
+  // the notice at the top of the task says which task and which moment the page shows
+  await expect(page.getByTestId('rewound')).toContainText('You are looking at T-0042 as it was at');
   // the task as it stood: stopped, with the notice of the kill and the packet it left
   await expect(page.getByTestId('kill-notice')).toContainText('Killed');
   await expect(page.getByTestId('kill-notice')).toContainText('Muse Code r2 was stopped');

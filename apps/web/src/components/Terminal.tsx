@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ptyUrl } from '../api';
+import { useHold } from './Scrubber';
 import { Button, EmptyState, Kbd } from './ui';
 
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -12,6 +13,7 @@ const CLIENT = crypto.randomUUID();
 
 /** `onStop` stops the live run; the task view owns it, so Cmd+. works on the whole view, not only in this tab. */
 export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun: string | null; onStop?: () => void }) {
+  const hold = useHold();
   const host = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<State>({ kind: 'connecting' });
   const [copied, setCopied] = useState(false);
@@ -125,7 +127,7 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
             </Button>
           ) : null}
           {liveRun && onStop ? (
-            <Button tone="danger" className="h-8 px-2.5 text-small" title={`Kill ${liveRun}`} aria-keyshortcuts="Meta+Period" onClick={onStop} data-testid="kill-run">
+            <Button tone="danger" className="h-8 px-2.5 text-small" title={`Kill ${liveRun}`} aria-keyshortcuts="Meta+Period" onClick={onStop} data-testid="kill-run" {...hold}>
               Kill run <Kbd>⌘.</Kbd>
             </Button>
           ) : null}
