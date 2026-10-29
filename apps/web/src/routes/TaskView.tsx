@@ -1,9 +1,9 @@
 import type { Handoff, StintEvent } from '@stint-dev/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ROLE_NAMES, agentOf } from '../agents';
-import { type TaskBundle, api, daemonMessage } from '../api';
+import { type PendingContradictionItem, type TaskBundle, api, daemonMessage } from '../api';
 import { ApprovalGate, gateState } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
 import { DiffView, readViewedFiles, writeViewedFiles } from '../components/DiffView';
@@ -18,12 +18,13 @@ import { QuizPanel } from '../components/Quiz';
 import { Rail } from '../components/Rail';
 import { HELD, LOOKING_BACK_ID, LookingBack, Scrubber, clockLabel, taskClock } from '../components/Scrubber';
 import { SharpenPanel } from '../components/SharpenPanel';
+import { GoalOf, waitsFor } from '../components/TaskCard';
 import { Terminal } from '../components/Terminal';
 import { VerificationTab } from '../components/Verification';
 import { WhoContinues } from '../components/WhoContinues';
 import { Button, type ChipTone, CostMeter, EmptyState, Explain, Kbd, type Shape, StateMark, StatusChip, cx, tabClass, tabKeys } from '../components/ui';
 import { money } from '../format';
-import { useEvents, useTask } from '../hooks';
+import { useDecisions, useEvents, useTask, useTasks } from '../hooks';
 import { singleKey } from '../shortcuts';
 
 const GRAPH_EVENTS = new Set(['run.finished', 'decision.recorded', 'review.recorded', 'skill.applied', 'skill.approved', 'approval.granted', 'approval.rejected', 'merge.completed', 'human.command']);
@@ -52,6 +53,10 @@ export function TaskView() {
   const [params, setParams] = useSearchParams();
   const { data: bundle, error, reload } = useTask(id);
   const { events } = useEvents(id);
+  const { data: cards } = useTasks();
+  // a review finding that would reverse a decision on this task holds the gate until you keep or supersede it
+  const queue = useDecisions();
+  const contradictions = (queue.data ?? []).filter((d): d is PendingContradictionItem => d.kind === 'contradiction' && d.task === id);
   const [showAll, setShowAll] = useState(false);
   const tab = (TABS as readonly string[]).includes(params.get('tab') ?? '') ? (params.get('tab') as Tab) : 'diff';
   const selected = params.get('ev') ? Number(params.get('ev')) : null;
@@ -333,11 +338,15 @@ export function TaskView() {
     verification: bundle.verification ? String(bundle.verification.passed) : undefined,
   };
 
-  const gate = gateState(bundle);
+  const gate = gateState(bundle, contradictions);
+  const all = new Map((cards ?? []).map((c) => [c.task.id, c.task]));
+  // the tasks this one waits on that are not merged yet, by the board's reading of their status
+  const unmerged = cards ? waitsFor(t, all) : [];
   // TaskView provides LookingBack, so it reads its own value rather than the context
   const hold = back ? HELD : {};
-  // the one next action beside the state: stop a live run, or approve at an open gate. Looking back, the notice above has
-  // Return to latest instead.
+  // the one next action beside the state: stop a live run, approve at an open gate, or start a planned task with the same
+  // autopilot the switch below turns on. Looking back, the notice above has Return to latest instead.
+  const startable = !back && !liveNow && t.status === 'planned' && !autopilot.on;
   const next = back ? null : liveNow ? (
     <Button tone="danger" disabled={stopping === liveNow} aria-busy={stopping === liveNow} title={`Stop ${liveNow}; Stint writes its notes from the log`} onClick={() => stop(liveNow)} data-testid="stop-run">
       {stopping === liveNow ? 'Stopping the run' : 'Stop the run'} <Kbd>⌘.</Kbd>
@@ -346,6 +355,10 @@ export function TaskView() {
     // gets the gate's own Approve ready, beside the evidence, as the a key does: Enter or a second a merges
     <Button tone="primary" onClick={() => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'approve' }))} data-testid="header-approve">
       Approve and merge
+    </Button>
+  ) : startable ? (
+    <Button tone="primary" onClick={toggleAutopilot} disabled={autoBusy} aria-busy={autoBusy} title="Plan, build, verify and review on its own; it stops at your approval" data-testid="header-start">
+      {autoBusy ? 'Starting autopilot' : unmerged.length ? 'Queue on autopilot' : 'Start on autopilot'}
     </Button>
   ) : null;
   const fact = 'flex items-baseline gap-1.5';
@@ -368,6 +381,25 @@ export function TaskView() {
             {t.title}
           </h1>
           <p className="text-ink-2">{t.goal}</p>
+          {t.goalId || t.dependsOn?.length ? (
+            <p className="flex flex-wrap gap-x-4 gap-y-1 text-small text-ink-2" data-testid="task-links">
+              <GoalOf task={t} />
+              {t.dependsOn?.length ? (
+                <span data-testid="task-depends">
+                  After{' '}
+                  {t.dependsOn.map((d, i) => (
+                    <span key={d}>
+                      {i ? ', ' : ''}
+                      <Link to={`/t/${d}`} className="font-mono text-ink underline decoration-rule-strong underline-offset-2 hover:decoration-ink">
+                        {d}
+                      </Link>
+                      {all.get(d)?.status === 'done' ? ' (merged)' : cards ? ' (not merged)' : ''}
+                    </span>
+                  ))}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
           <p data-testid="state-detail" className="text-small text-ink-2">
             {state.detail}
             {autopilot.text && !asOf ? (
@@ -481,14 +513,25 @@ export function TaskView() {
   );
   const gateBox = (
     <div data-testid="gate-column" className="min-w-0 px-3 pt-3 pb-4 bg-panel border-b border-rule min-[760px]:[grid-area:2/1/3/2] min-[760px]:border-b-0 min-[760px]:border-r min-[760px]:border-t min-[760px]:border-t-rule-strong min-[1180px]:overflow-y-auto">
-      <ApprovalGate bundle={bundle} events={events} seen={asOf ? visible : null} files={diffFiles} viewed={viewed} onDone={reload} />
+      <ApprovalGate bundle={bundle} events={events} seen={asOf ? visible : null} files={diffFiles} viewed={viewed} tasks={cards} contradictions={contradictions} onDone={reload} />
     </div>
   );
   const work = (
     <section aria-label="Work" className="relative min-w-0 flex flex-col gap-4 px-4 min-[760px]:px-6 pt-3 pb-8 min-[760px]:[grid-area:1/2/3/3] min-[1180px]:overflow-y-auto">
       {/* what needs doing next comes before the tabs, and only when it applies: who continues a stopped run, a decision on this task */}
+      {unmerged.length && !['done', 'approved', 'abandoned'].includes(t.status) ? (
+        <div className="stint-notice stint-notice--attention mb-0" data-testid="depends-warning">
+          <p className="flex items-start gap-2">
+            <StateMark shape="attention" className="mt-1 text-amber" />
+            <span>
+              Waits for <span className="font-mono">{unmerged.join(', ')}</span>, which {unmerged.length === 1 ? 'is' : 'are'} not merged yet.{' '}
+              {t.status === 'planned' ? `Autopilot starts this task only once ${unmerged.length === 1 ? 'it is' : 'they are'}.` : `This task was meant to start after ${unmerged.length === 1 ? 'it' : 'them'}.`}
+            </span>
+          </p>
+        </div>
+      ) : null}
       <WhoContinues bundle={bundle} onChoose={() => setTab('packet')} />
-      <Queue decisionsOf={t.id} level={2} />
+      <Queue decisionsOf={t.id} level={2} onSettled={queue.reload} />
       <PermissionBanner permissions={pendingPermissions.filter((p) => p.run === (bundle.runs.find((r) => !r.endedAt)?.run ?? p.run))} />
       <SharpenPanel bundle={bundle} events={events} />
       <div className="flex items-end gap-3 border-b border-rule">

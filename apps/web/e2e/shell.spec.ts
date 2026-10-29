@@ -18,7 +18,8 @@ test('The top bar fits at 1440 and 1600 px: one status button, whose panel lists
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
     const button = page.getByTestId('status-button');
-    await expect(button).toContainText(/Replay, \d agents?, \d models?/);
+    // the replay starts nothing, so the bar never says an agent is ready there
+    await expect(button).toHaveText('Replay, agents are off');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, `page scrolls sideways at ${width} px`).toBe(0);
     const box = await button.boundingBox();

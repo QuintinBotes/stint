@@ -6,6 +6,11 @@ test('An ACP agent asking permission shows a banner on its task; Allow once answ
   const t = await d.create('Flow: an agent asks permission');
   await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'fake-acp', role: 'implementer' });
   await d.until(t.id, (ev) => ev.some((e) => e.type === 'permission.requested'));
+  // the run is blocked on you, so the board puts the task in Needs you and says why, not in progress as if it worked
+  await page.goto('/');
+  const card = page.getByTestId('lane-needs-you').locator(`[data-task="${t.id}"]`);
+  await expect(card.getByTestId('card-blocker')).toHaveText(/^An agent waits for your permission to use .+: Run the test suite\. Open the task to answer\.$/);
+  await expect(card.locator('.stint-status')).toHaveText('asks permission');
   await page.goto(`/t/${t.id}`);
   const banner = page.getByTestId('permission-banner');
   await expect(banner).toContainText('Run the test suite');

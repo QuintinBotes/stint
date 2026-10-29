@@ -117,7 +117,7 @@ export function App() {
               path={path}
               element={
                 <Suspense fallback={<Opening what="Goals" />}>
-                  <Goals onNewGoal={openNewGoal} />
+                  <Goals onNewGoal={openNewGoal} replay={health.data?.mode === 'replay'} />
                 </Suspense>
               }
             />

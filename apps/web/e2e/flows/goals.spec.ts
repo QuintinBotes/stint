@@ -63,7 +63,8 @@ test('A goal made from the Goals page is sharpened, split into tasks a person ed
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText('Flow: answer GET /health');
   await expect(rows.nth(1)).toContainText('Part 2: The body says ok');
-  await expect(page.getByTestId('goal-task-result')).toHaveText(['In progress', 'In progress']);
+  // each row says the task's own status: planned, not the rollup's in progress
+  await expect(page.getByTestId('goal-task-result').locator('.stint-status')).toHaveText(['planned', 'planned']);
   await expect(page.getByTestId('goal-criterion').first()).toContainText('Not checked');
   const goal = (await d.get<{ goal: Goal }>(`/api/goals/${id}`)).goal;
   expect(goal.status).toBe('running');

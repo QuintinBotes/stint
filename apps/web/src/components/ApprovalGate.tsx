@@ -3,9 +3,8 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { agentOf } from '../agents';
-import { DaemonError, type RunSummary, type TaskBundle, api, readOnly } from '../api';
+import { DaemonError, type GoalView, type PendingContradictionItem, type RunSummary, type TaskBundle, type TaskCardData, type Verification, api, readOnly } from '../api';
 import { localDate, localTime } from '../format';
-import { useTasks } from '../hooks';
 import { singleKey } from '../shortcuts';
 import { HowItWent } from './HowItWent';
 import { LookingBack, useHold } from './Scrubber';
@@ -21,11 +20,28 @@ const NOT_AT_THE_GATE: Record<string, string> = {
   abandoned: 'This task was abandoned.',
 };
 
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+
+/** What made a verification red, in words: tampered tests, held-out scenarios that failed or could not run, the tests, or another check. */
+export function redReason(v: Pick<Verification, 'passed' | 'failed' | 'reason' | 'checks' | 'tamper' | 'scenarios'>): string {
+  if (v.reason === 'tampered') return `An agent changed the locked acceptance tests${v.tamper?.files.length ? ` (${v.tamper.files.join(', ')})` : ''}.`;
+  if (v.reason === 'scenarios') return v.scenarios?.failed ? `${plural(v.scenarios.failed, 'held-out scenario')} failed.` : 'The held-out scenarios could not run, so they proved nothing.';
+  const red = (v.checks ?? []).filter((c) => c.status === 'red');
+  const tests = !v.checks || red.some((c) => c.kind === 'test');
+  const parts = [
+    ...(tests ? [v.failed ? `${v.failed} of ${plural(v.passed + v.failed, 'test')} failed` : 'the test command failed before any test was counted'] : []),
+    ...red.filter((c) => c.kind !== 'test').map((c) => `the ${c.name} check failed`),
+  ];
+  const said = parts.join(', and ');
+  return `${said.charAt(0).toUpperCase()}${said.slice(1)}.`;
+}
+
 /**
- * Opens only while the task waits at the gate, on a green verification and a review that is not a block. The daemon
- * enforces the same on /approve, and refuses while changes asked for are newer than the last green verification.
+ * Opens only while the task waits at the gate, on a green verification, a review that is not a block, and no review
+ * finding waiting to reverse a decision. The daemon enforces the same on /approve, and refuses while changes asked for
+ * are newer than the last green verification.
  */
-export function gateState(b: TaskBundle): { open: boolean; reason: string } {
+export function gateState(b: TaskBundle, contradictions: PendingContradictionItem[] = []): { open: boolean; reason: string } {
   if (b.task.status === 'done') return { open: false, reason: '' };
   if (b.task.status === 'in_review') return { open: false, reason: '' };
   if (readOnly) return { open: false, reason: readOnly };
@@ -33,10 +49,32 @@ export function gateState(b: TaskBundle): { open: boolean; reason: string } {
   if (b.task.status === 'building' && b.runs.every((r) => r.endedAt)) return { open: false, reason: 'No run is going. The gate opens after the next green verification.' };
   if (b.task.status !== 'awaiting_approval') return { open: false, reason: NOT_AT_THE_GATE[b.task.status] ?? 'The task is not at the gate.' };
   if (!b.verification) return { open: false, reason: 'Waiting for Stint to run the tests.' };
-  if (b.verification.status !== 'green') return { open: false, reason: `The tests are red: ${b.verification.failed} failed.` };
+  if (b.verification.status !== 'green') return { open: false, reason: `Stint's check is red. ${redReason(b.verification)}` };
   if (b.review?.verdict === 'block') return { open: false, reason: 'The review blocks this change.' };
+  const first = contradictions[0];
+  if (first) {
+    const d = first.decision?.id ?? 'a decision';
+    return { open: false, reason: `${plural(contradictions.length, 'review finding')} would reverse a decision. Keep ${d} or supersede it, above the tabs, before you approve.` };
+  }
   if (b.runs.some((r) => !r.endedAt)) return { open: false, reason: 'A run is still going.' };
   return { open: true, reason: `${b.verification.passed} tests passed, run by Stint${b.review ? `; review: ${b.review.verdict.replace('_', ' ')}` : ''}.` };
+}
+
+/** The goal a merged task belongs to, read once, so the sign-off can offer the goal's next open task. */
+function useGoalAfterMerge(goalId: string | undefined): GoalView | null {
+  const [goal, setGoal] = useState<GoalView | null>(null);
+  useEffect(() => {
+    if (!goalId) return;
+    let live = true;
+    api
+      .goal(goalId)
+      .then((g) => live && setGoal(g))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [goalId]);
+  return goalId ? goal : null;
 }
 
 const base = (path: string) => path.split('/').at(-1) ?? path;
@@ -79,8 +117,8 @@ const SHOWN = 6;
  * the task as it is now.
  * Above the buttons, the evidence for the decision: the change's size, how much of it you have viewed, and the review.
  */
-export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { bundle: TaskBundle; events: StintEvent[]; seen: StintEvent[] | null; files: Array<{ path: string; added: number; removed: number }>; viewed: Set<string>; onDone: () => void }) {
-  const gate = gateState(bundle);
+export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contradictions = [], onDone }: { bundle: TaskBundle; events: StintEvent[]; seen: StintEvent[] | null; files: Array<{ path: string; added: number; removed: number }>; viewed: Set<string>; tasks: TaskCardData[] | null; contradictions?: PendingContradictionItem[]; onDone: () => void }) {
+  const gate = gateState(bundle, contradictions);
   const back = useContext(LookingBack);
   const hold = useHold();
   // a rewound view shows the past; approving from it would act on a task the page is not showing
@@ -93,7 +131,6 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
   // the first a gets Approve ready and says what it will do; a second a, or Enter, merges. A click is one step.
   const [armed, setArmed] = useState(false);
   const approveButton = useRef<HTMLButtonElement>(null);
-  const { data: tasks } = useTasks();
   const [asking, setAsking] = useState<'changes' | 'reject' | null>(null);
   const [text, setText] = useState('');
   const id = bundle.task.id;
@@ -173,7 +210,11 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
   const added = files.reduce((n, f) => n + f.added, 0);
   const removed = files.reduce((n, f) => n + f.removed, 0);
   const seenFiles = files.filter((f) => viewed.has(f.path)).length;
-  const nextTask = done ? (tasks ?? []).map((x) => x.task).find((x) => x.status === 'awaiting_approval' && x.id !== id) : undefined;
+  const goalId = bundle.task.goalId;
+  const goal = useGoalAfterMerge(done ? goalId : undefined);
+  // after a merge, the goal's next open task in its order comes first, else whichever task waits for approval
+  const goalNext = goal?.tasks.find((x) => x.id !== id && !['done', 'approved', 'abandoned'].includes(x.status));
+  const waiting = done ? (tasks ?? []).map((x) => x.task).find((x) => x.status === 'awaiting_approval' && x.id !== id) : undefined;
   const runs = bundle.runs.slice(-SHOWN);
   const earlier = bundle.runs.length - runs.length;
   const cell = 'px-1.5 py-[5px] border border-rule-strong text-left align-top';
@@ -267,6 +308,19 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                     ) : null}
                   </p>
                 ) : null}
+                {contradictions.length && !done ? (
+                  <ul className="flex flex-col gap-1.5" data-testid="gate-contradictions" aria-label="Decisions waiting">
+                    {contradictions.map((c) => (
+                      <li key={c.id} className="flex items-start gap-1.5">
+                        <StateMark shape="attention" className="mt-1 text-amber" />
+                        <span>
+                          <span className="font-mono">{c.finding.id}</span> would reverse <span className="font-mono">{c.decision?.id ?? 'a decision'}</span>
+                          {c.decision ? `, "${c.decision.text}"` : ''}: {c.finding.text}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {bundle.risk ? (
                   <p className="flex flex-wrap items-baseline gap-2" data-testid="risk-line">
                     <StatusChip label={`${bundle.risk.tier} risk`} tone={bundle.risk.tier === 'high' ? 'bad' : bundle.risk.tier === 'medium' ? 'warn' : 'neutral'} />
@@ -344,11 +398,27 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, onDone }: { 
                           ) : null}
                           .
                         </p>
-                        {nextTask ? (
+                        {goalId ? (
+                          <p className="mt-2" data-testid="signoff-goal">
+                            Part of{' '}
+                            <Link to={`/goals/${goalId}`} className="font-mono underline decoration-rule-strong hover:decoration-ink">
+                              {goalId}
+                            </Link>
+                            : see how the goal stands.
+                          </p>
+                        ) : null}
+                        {goalNext ? (
+                          <p className="mt-2">
+                            Next in {goalId}:{' '}
+                            <Link to={`/t/${goalNext.id}`} className="font-medium underline decoration-rule-strong hover:decoration-ink" data-testid="next-task">
+                              {goalNext.id} {goalNext.title}
+                            </Link>
+                          </p>
+                        ) : waiting ? (
                           <p className="mt-2">
                             Next:{' '}
-                            <Link to={`/t/${nextTask.id}`} className="font-medium underline decoration-rule-strong hover:decoration-ink" data-testid="next-task">
-                              {nextTask.id} needs you
+                            <Link to={`/t/${waiting.id}`} className="font-medium underline decoration-rule-strong hover:decoration-ink" data-testid="next-task">
+                              {waiting.id} needs you
                             </Link>
                           </p>
                         ) : null}

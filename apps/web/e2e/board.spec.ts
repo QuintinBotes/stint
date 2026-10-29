@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
 
 type Card = { task: Record<string, unknown>; lastRun: unknown; autopilot: unknown; summary: unknown; cost: Record<string, unknown>; lastEventAt: string; verification: unknown; agents: unknown };
@@ -65,12 +66,16 @@ test('The board gathers the statuses into four groups in order, and the summary 
   await expect(count('decisions')).toHaveText('2');
   await expect(page.getByTestId('board-summary').locator('[data-count="decisions"]').getByRole('link', { name: 'T-0101' })).toBeVisible();
 
+  // what needs you, in words, before the counts: each task with its reason, the first three by name
+  await expect(page.getByTestId('board-attention')).toHaveText('T-0101 waits for your approval; T-0102 waits for your approval; T-0103 was rejected and waits for you to hand it on or leave it; and 1 more.');
+
   // the next action reviews the task that has waited longest
   await expect(page.getByTestId('review-next')).toHaveText('Review T-0102');
   await expect(page.getByTestId('review-next')).toHaveAttribute('href', '/t/T-0102');
 
   // each card says its exact state, with a shape beside the word
   const chip = (id: string) => page.locator(`[data-task="${id}"] .stint-status`);
+  await expect(chip('T-0101')).toHaveText('awaiting approval');
   await expect(chip('T-0104')).toHaveText('needs you');
   await expect(page.locator('[data-task="T-0104"]').getByTestId('card-blocker')).toHaveText('Autopilot stopped: the build limit is reached (1 of 1)');
   await expect(chip('T-0107')).toHaveText('building');
@@ -100,7 +105,10 @@ test('An empty board says so, and each empty group says what will appear in it',
   await board(page, () => []);
   await page.goto('/');
   await expect(page.getByTestId('empty')).toContainText('No tasks yet.');
-  await expect(lane(page, 'needs-you')).toContainText('A task waits here for your approval');
+  await expect(page.getByTestId('board-attention')).toHaveText('Nothing needs you right now.');
+  // an empty group says it is empty before it says what will appear in it
+  await expect(lane(page, 'needs-you').locator('.stint-lane-empty')).toHaveText(/^Nothing needs you\.A task waits here for your approval/);
+  await expect(lane(page, 'planned')).toContainText('Nothing planned.');
   await expect(lane(page, 'planned')).toContainText('A new task waits here until an agent takes it or autopilot starts it.');
   await expect(lane(page, 'in-progress')).toContainText('its pull request waits');
   await expect(lane(page, 'closed')).toContainText('once it is merged, approved or abandoned');
@@ -135,4 +143,78 @@ test('A failed first read says so with Try again; a failed refresh keeps the boa
   await stale.getByRole('button', { name: 'Try again' }).click();
   await expect(stale).toHaveCount(0);
   await expect(page.getByTestId('board')).toContainText('A task that arrives while the board cannot read');
+});
+
+test('Run all planned says what it would start and under which limits, starts nothing until Start, and sends one request however often Start is pressed', async ({ page }) => {
+  // a live daemon for this page only; the request that would start work is caught here and never reaches it
+  await page.route('**/api/health', async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, json: { ...(await res.json()), mode: 'live', replay: undefined } });
+  });
+  await board(page, (card) => [card('T-0105', 'planned'), card('T-0106', 'planned', { task: { dependsOn: ['T-0105'] } }), card('T-0107', 'planned')]);
+  const own: Record<string, { builds: number | null; usd: number | null }> = { 'T-0105': { builds: 8, usd: null }, 'T-0106': { builds: 3, usd: 2 }, 'T-0107': { builds: 8, usd: null } };
+  await page.route('**/api/tasks/*/limits', (route) => {
+    const id = /tasks\/(T-\d+)\/limits/.exec(route.request().url())?.[1] as string;
+    return route.fulfill({ json: { limits: { handoffs: 2, reviewRounds: 1, minutes: null, ...own[id] }, used: {}, own: {} } });
+  });
+  let starts = 0;
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => {
+    release = r;
+  });
+  await page.route('**/api/autopilot', async (route) => {
+    starts++;
+    await held;
+    await route.fulfill({ json: { on: true, tasks: ['T-0105', 'T-0106', 'T-0107'], running: ['T-0105'], queued: ['T-0106', 'T-0107'], step: 'plan' } });
+  });
+  await page.goto('/');
+
+  const runAll = page.getByTestId('run-all');
+  await expect(runAll).toHaveText('Run all 3 planned');
+  await runAll.click();
+  const ask = page.getByTestId('run-all-ask');
+  await expect(ask).toHaveText(
+    'Autopilot plans, builds, tests and reviews T-0105 and T-0107 now, and T-0106 once the tasks it waits on are merged, then stops for your approval. Nothing is merged without you. Each stops after at most 8 builds. 2 of 3 have no spend limit, so their model calls are not capped.',
+  );
+  const start = page.getByTestId('run-all-confirm');
+  await expect(start).toHaveText('Start 3 tasks');
+  await expect(start).toBeFocused();
+  expect(starts).toBe(0);
+  const results = await new AxeBuilder({ page }).include('header').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+  // Escape puts it back, still with nothing started
+  await page.keyboard.press('Escape');
+  await expect(runAll).toBeFocused();
+  expect(starts).toBe(0);
+
+  await runAll.click();
+  await start.dblclick();
+  await expect(start).toHaveText('Starting autopilot');
+  await expect(start).toHaveAttribute('aria-busy', 'true');
+  release();
+  await expect(page.getByText('3 tasks on autopilot')).toBeVisible();
+  expect(starts).toBe(1);
+
+  // the palette's Run all opens the same question here, and starts nothing by itself
+  await page.keyboard.press('Meta+k');
+  await page.getByPlaceholder('Search or run a command').fill('Run all planned');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('run-all-ask')).toBeVisible();
+  expect(starts).toBe(1);
+});
+
+test('A task no run has started asks for no summary and shows its goal; a task that ran asks for one', async ({ page }) => {
+  const asked: string[] = [];
+  await page.route('**/api/tasks/*/summary', (route) => {
+    asked.push(/tasks\/(T-\d+)\/summary/.exec(route.request().url())?.[1] as string);
+    return route.fulfill({ json: { summary: 'The run wrote one file for its task.', seq: 3, source: 'model' } });
+  });
+  await board(page, (card) => [card('T-0105', 'planned', { task: { goal: 'Answer 429 over the limit.' } }), card('T-0108', 'building', { lastRun: run('2026-10-29T10:02:00.000Z') })]);
+  await page.goto('/');
+  await expect(page.locator('[data-task="T-0108"]').getByTestId('card-summary')).toHaveText('Summary: The run wrote one file for its task.');
+  const planned = page.locator('[data-task="T-0105"]');
+  await expect(planned).toContainText('Answer 429 over the limit.');
+  await expect(planned).toContainText('No run yet');
+  await expect(planned.getByTestId('card-summary')).toHaveCount(0);
+  expect(asked).toEqual(['T-0108']);
 });

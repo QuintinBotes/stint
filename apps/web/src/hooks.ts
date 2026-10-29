@@ -1,6 +1,6 @@
 import type { StintEvent } from '@stint-dev/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type GoalListItem, type GoalView, type Health, type PendingItem, type TaskBundle, type TaskCardData, api, subscribe } from './api';
+import { type GoalListItem, type GoalView, type Health, type PendingItem, type PendingPermission, type TaskBundle, type TaskCardData, api, subscribe } from './api';
 
 export type Loadable<T> = { data: T | null; error: string | null; loading: boolean; reload: () => void };
 
@@ -81,6 +81,17 @@ export function useDecisions(): Loadable<PendingItem[]> {
   const { reload } = d;
   useEffect(() => {
     const t = setInterval(reload, 5000);
+    return () => clearInterval(t);
+  }, [reload]);
+  return d;
+}
+
+/** Agents' permission questions that wait for a person, read every 3 s: a run is blocked until one is answered. */
+export function usePermissions(): Loadable<PendingPermission[]> {
+  const d = useLoad(api.permissions, []);
+  const { reload } = d;
+  useEffect(() => {
+    const t = setInterval(reload, 3000);
     return () => clearInterval(t);
   }, [reload]);
   return d;
