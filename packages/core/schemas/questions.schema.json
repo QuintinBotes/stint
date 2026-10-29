@@ -86,7 +86,7 @@
         "required": ["criterion", "kind", "ref", "why"],
         "properties": {
           "criterion": { "type": "integer", "minimum": 1, "description": "The criterion, counting from 1." },
-          "kind": { "type": "string", "enum": ["test", "scenario", "check", "human"] },
+          "kind": { "type": "string", "enum": ["test", "scenario", "check", "human", "visual"] },
           "ref": { "type": "string", "minLength": 1, "maxLength": 200, "description": "A test name or part of one, a scenario name, a check name, or what a person checks." },
           "why": { "type": "string", "maxLength": 300 }
         }

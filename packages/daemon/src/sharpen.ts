@@ -2,7 +2,7 @@
 // which are worth a person's time, and every answer becomes a decision that the plan and the first build carry.
 import { join } from 'node:path';
 import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
-import { GOAL_ID, type NewEvent, type Questions, QuestionsSchema, type SharpenState, type StintEvent, type Task, type TaskProof, sharpenRound, sharpenState } from '@stint-dev/core';
+import { GOAL_ID, type NewEvent, type Questions, QuestionsSchema, type SharpenState, type StintEvent, type Task, type TaskProof, sharpenRound, sharpenState, visualRef } from '@stint-dev/core';
 import type { Workspace } from '@stint-dev/core/node';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
@@ -116,7 +116,7 @@ Ask only the few questions whose answers change what gets built (implementation)
 - say whether a safe default exists, an answer that is cheap to reverse later, and give its label;
 - list in blocks the numbers of the criteria the answer affects;
 - set material to true when a wrong answer is costly or hard to undo.
-Never ask what the repository can answer (which file, what version, where something is, what framework), and never ask for permission or an opinion. Settle reversible details yourself and list them under assumed, each with why. Suggest one proof per criterion: a test (a test name or part of one), a scenario, a check (a check name) or human (what a person checks), with ref and why.
+Never ask what the repository can answer (which file, what version, where something is, what framework), and never ask for permission or an opinion. Settle reversible details yourself and list them under assumed, each with why. Suggest one proof per criterion: a test (a test name or part of one), a scenario, a check (a check name), visual for what a person sees on a page (ref as "<path> :: <what should be seen>", such as "/admin :: a 429 banner saying try again in 60 s"), or human (what a person checks), with ref and why.
 
 ## Similar tasks
 ${list(i.similar)}
@@ -181,7 +181,8 @@ export async function sharpen(ctx: DaemonContext, id: string): Promise<SharpenSt
     throw new DaemonError('adapter_unavailable', `no model could sharpen this ${s.noun}`, err instanceof Error ? err.message : String(err));
   });
   const value = ((r.value as { value?: Questions }).value ?? r.value) as Questions;
-  const round = sharpenRound(value, { criteria: s.criteria.length, maxQuestions: max, firstQuestion: before.questions.length + 1, firstAssumed: before.assumed.length + 1 });
+  // a visual suggestion that names no page cannot be accepted, so it is not offered
+  const round = sharpenRound({ ...value, proofs: value.proofs.filter((p) => p.kind !== 'visual' || visualRef(p.ref)) }, { criteria: s.criteria.length, maxQuestions: max, firstQuestion: before.questions.length + 1, firstAssumed: before.assumed.length + 1 });
   await s.append({ vendor: 'daemon', type: 'sharpen.asked', payload: { round: before.round + 1, ...round, host: r.host, model: r.model, cost: r.cost } });
   return stateOf(s);
 }
@@ -240,6 +241,8 @@ export async function setProofs(ctx: DaemonContext, id: string, proofs: TaskProo
   const outside = proofs.find((p) => p.criterion > s.criteria.length);
   if (outside) throw new DaemonError('invalid', `${id} has no criterion ${outside.criterion}`, `it has ${s.criteria.length}`);
   if (new Set(proofs.map((p) => p.criterion)).size !== proofs.length) throw new DaemonError('invalid', 'one proof per criterion');
+  const unseen = proofs.find((p) => p.kind === 'visual' && !visualRef(p.ref));
+  if (unseen) throw new DaemonError('invalid', `the visual proof of criterion ${unseen.criterion} names no page`, 'write it as "<path> :: <what should be seen>", such as "/admin :: a 429 banner saying try again in 60 s"');
   const sorted = [...proofs].sort((a, b) => a.criterion - b.criterion);
   if (s.noun === 'goal') {
     const criteria = (g: { criteria: Array<{ text: string }> }) =>

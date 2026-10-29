@@ -1,5 +1,5 @@
 // The fake agents and model server the flow tests run against, shared with the README commands test: a model server
-// standing in for the planner, reviewer, learn step, quiz, digest, sharpen, a goal's split and a spec builder draft, writer agents that each write one file, and the
+// standing in for the planner, reviewer, learn step, quiz, digest, sharpen, a goal's split, a spec builder draft, and Muse Spark and SAM 3.1 for visual checks, writer agents that each write one file, and the
 // config that points a workspace at them. Nothing here calls a hosted model or Ollama.
 import { join } from 'node:path';
 import { type Adapter, type Config, DEFAULT_CONFIG, type RunContext, type RunResult } from '@stint-dev/core';
@@ -116,6 +116,15 @@ const draft = (prompt: string) => {
   };
 };
 
+/** Muse Spark's verdict on a visual check: it does not hold when the criterion says [looks wrong]. */
+const verdict = (prompt: string) =>
+  /\[looks wrong\]/.test(prompt)
+    ? { holds: false, seen: 'A yellow banner says to try again in NaN s.', problem: 'The banner says NaN s where it should say 60 s.', element: 'yellow banner' }
+    : { holds: true, seen: 'A yellow banner says to try again in 60 s.', problem: '', element: '' };
+
+/** SAM 3.1's answer for the fixture's admin page: the yellow banner's box, in the Responses API's special tokens. */
+const SAM_BANNER = '<0f>0<|box;x1=32;y1=88;x2=931;y2=145;w=1280;h=800;c=0.61|><|mask;x=0;y=0;c=0.61;data=58,900,~0|>\n';
+
 /** A model server that answers each structured call by its schema, on a free port. */
 export function startFakeModels(): { port: number; stop: () => void } {
   const server = Bun.serve({
@@ -123,6 +132,12 @@ export function startFakeModels(): { port: number; stop: () => void } {
     async fetch(req) {
       const url = new URL(req.url);
       if (url.pathname === '/api/tags') return Response.json({ models: [{ name: 'fake', model: 'fake' }] });
+      if (url.pathname === '/v1/chat/completions') {
+        const body = (await req.json()) as { messages: Array<{ content: Array<{ type: string; text?: string }> }> };
+        const prompt = body.messages[0]?.content.find((p) => p.type === 'text')?.text ?? '';
+        return Response.json({ choices: [{ message: { content: JSON.stringify(verdict(prompt)) } }], usage: { prompt_tokens: 1400, completion_tokens: 500, prompt_tokens_details: { cached_tokens: 0 } } });
+      }
+      if (url.pathname === '/v1/responses') return Response.json({ output: [{ type: 'message', content: [{ type: 'output_text', text: SAM_BANNER }] }], usage: { images_processed: 1 } });
       if (url.pathname !== '/api/chat') return new Response('not found', { status: 404 });
       const body = (await req.json()) as { messages: Array<{ content: string }>; format?: unknown };
       const prompt = body.messages.map((m) => m.content).join('\n');
@@ -187,10 +202,23 @@ export function fakeAcp(): Adapter {
   return acpAgent('fake-acp', { command: ['bun', join(import.meta.dir, '..', '..', '..', '..', 'packages', 'adapters', 'acp', 'test', 'fixtures', 'fake-agent.ts')], prompt: 'stdin', roles: ['implementer'], vendor: 'other', enabled: true, harness: 'acp' });
 }
 
+/** A port nothing listens on now. */
+function freePort(): number {
+  const s = Bun.serve({ port: 0, fetch: () => new Response() });
+  const port = s.port as number;
+  s.stop(true);
+  return port;
+}
+
 /** A workspace config that sends every model call to the fake server and verifies by the task's own file. */
 export function flowConfig(modelsPort: number): Config {
   const config: Config = structuredClone(DEFAULT_CONFIG);
   config.hosts.ollama = { ...(config.hosts.ollama as NonNullable<Config['hosts']['ollama']>), baseURL: `http://127.0.0.1:${modelsPort}/v1`, models: { fake: 'fake' } };
+  // visual checks: Muse Spark and SAM 3.1 are the fake server, and the app is the bench fixture's admin page
+  config.hosts['meta-api'] = { ...(config.hosts['meta-api'] as NonNullable<Config['hosts']['meta-api']>), baseURL: `http://127.0.0.1:${modelsPort}/v1`, keyEnv: undefined };
+  const appPort = freePort();
+  const fixture = join(import.meta.dir, '..', '..', '..', '..', 'bench', 'visual', 'fixture');
+  config.visual = { serve: `bun ${join(fixture, 'serve.ts')} ${appPort} ${join(fixture, 'site')}`, url: `http://127.0.0.1:${appPort}` };
   for (const route of ['planner', 'reviewer', 'learn', 'summary', 'quiz', 'recall'] as const) config.routes[route] = ['ollama/fake'];
   config.prices['ollama/fake'] = { input: 0.1, cached: 0.05, output: 0.4 };
   config.prices['muse-code/muse-spark-1.3'] = { input: 0.6, cached: 0.15, output: 2.4 };

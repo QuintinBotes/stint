@@ -314,6 +314,8 @@ export const api = {
   openInEditor: (id: string, path?: string, line?: number) => post<{ opened: string; with: string }>(`/api/tasks/${id}/open`, { ...(path ? { path } : {}), ...(line ? { line } : {}) }),
   verifications: (id: string) => request<Verification[]>(`/api/tasks/${id}/verification`),
   verificationOutput: (id: string, run: string) => request<string>(`/api/tasks/${id}/verification/${run}/output`),
+  /** A visual check's screenshot, marked copy or clip, by the path its `visual.checked` event names (R-068). */
+  visualFile: (id: string, run: string, path: string) => `${base}/api/tasks/${id}/verification/${run}/visual/${path.split('/').at(-1) ?? ''}`,
   approve: (id: string) => post<unknown>(`/api/tasks/${id}/approve`),
   releaseRefresh: (id: string) => post<unknown>(`/api/tasks/${id}/release/refresh`),
   scanOutcomes: () => post<{ reverted: number; followup: number; ci: number }>('/api/outcomes/scan'),

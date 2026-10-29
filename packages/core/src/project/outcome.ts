@@ -2,7 +2,8 @@ import { ciFailing } from '../metrics/defs/outcome';
 import type { StintEvent } from '../schemas/event';
 import type { CriterionState, Outcome, OutcomeResult } from '../schemas/outcome';
 import { type Limits, type TaskUsage, taskUsage } from '../limits';
-import type { Task, TaskProof } from '../schemas/task';
+import type { Cost } from '../schemas/handoff';
+import { type Task, type TaskProof, visualRef } from '../schemas/task';
 import type { VerificationRecord } from '../store/runs';
 
 /**
@@ -72,6 +73,25 @@ export function outcomeLine(o: Outcome): string {
 
 type Judged = { state: CriterionState; evidence: string };
 
+/** One model call of a visual check, as the cost meter counts it. */
+export type VisualCall = { host: string; model: string; cost: Cost };
+
+/**
+ * One visual proof as a verification checked it (R-068): Muse Spark's verdict on the screenshot, SAM 3.1's mark when it
+ * did not hold, and the files under the task folder; or why the page was not looked at, with any call already made.
+ */
+export type VisualCheck = { criterion: number; ref: string; judge?: VisualCall; mark?: VisualCall } & (
+  | { holds: boolean; seen: string; problem?: string; element?: string; screenshot: string; marked?: string; clip?: string; cost: Cost }
+  | { notChecked: string }
+);
+
+/** The visual checks of a run's latest verification: they are written just before its `verification.ran`. */
+export function visualChecks(events: StintEvent[], run: string): VisualCheck[] {
+  const at = events.findLastIndex((e) => e.type === 'verification.ran' && e.run === run);
+  const from = events.slice(0, Math.max(0, at)).findLastIndex((e) => e.type === 'verification.ran');
+  return at < 0 ? [] : events.slice(from + 1, at).flatMap((e) => (e.type === 'visual.checked' && e.run === run ? [e.payload as unknown as VisualCheck] : []));
+}
+
 export function outcome(input: OutcomeInput): Outcome {
   const { task, events, now } = input;
   const usage = input.usage ?? taskUsage(events, Date.parse(input.now));
@@ -88,8 +108,9 @@ export function outcome(input: OutcomeInput): Outcome {
   const run = latest?.run ?? '';
   const granted = events.findLast((e) => e.type === 'approval.granted');
   const scenario = events.findLast((e) => e.type === 'scenario.ran' && e.run === run);
+  const looked = latest ? visualChecks(events, run) : [];
 
-  const judge = (proof: { kind: string; ref: string } | undefined): Judged => {
+  const judge = (proof: { kind: string; ref: string } | undefined, criterion: number): Judged => {
     if (proof?.kind === 'human') {
       if (!granted) return { state: 'you_check', evidence: 'You check this before you approve.' };
       const by = str(granted.payload.by);
@@ -109,6 +130,13 @@ export function outcome(input: OutcomeInput): Outcome {
       const c = latest.checks?.find((x) => x.name === ref);
       if (!c) return { state: 'not_checked', evidence: `The check ${ref} did not run in ${run}.` };
       return c.status === 'green' ? { state: 'proven', evidence: `The check ${ref} passes in ${run}.` } : { state: 'failing', evidence: `The check ${ref} fails in ${run}.` };
+    }
+    if (kind === 'visual') {
+      const page = visualRef(ref)?.path ?? ref;
+      const v = looked.findLast((c) => c.criterion === criterion);
+      if (!v) return { state: 'not_checked', evidence: green ? `Stint did not look at ${page} in ${run}.` : `The tests are red in ${run}, so Stint did not look at ${page}.` };
+      if ('notChecked' in v) return { state: 'not_checked', evidence: `Stint did not look at ${page} in ${run}: ${v.notChecked}` };
+      return v.holds ? { state: 'proven', evidence: `Muse Spark saw it on ${page} in ${run}: ${v.seen}` } : { state: 'failing', evidence: `Muse Spark saw a problem on ${page} in ${run}: ${v.problem ?? v.seen}` };
     }
     if (kind === 'scenario') {
       const ran = names(scenario?.payload.names).find((n) => n.includes(ref));
@@ -133,7 +161,7 @@ export function outcome(input: OutcomeInput): Outcome {
   const criteria = task.acceptance.map((text, index) => {
     const p = input.proofs?.find((x) => x.criterion === index + 1);
     const proof = p ? { kind: p.kind, ref: p.ref } : undefined;
-    return { index, text, ...judge(proof), ...(proof ? { proof } : {}) };
+    return { index, text, ...judge(proof, index + 1), ...(proof ? { proof } : {}) };
   });
 
   // after merge: what happened within the outcome window

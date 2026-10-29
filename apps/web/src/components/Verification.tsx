@@ -3,6 +3,7 @@ import { DaemonError, type Verification, api, daemonMessage } from '../api';
 import { localTime } from '../format';
 import { useHold } from './Scrubber';
 import { StackTrace } from './StackTrace';
+import { VisualChecks } from './VisualChecks';
 import { Button, EmptyState, Explain, StateMark, StatusChip, cx, tabKeys } from './ui';
 
 type TestLine = { name: string; ok: boolean };
@@ -279,6 +280,7 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
         </article>
 
         {output && v.failed > 0 ? <StackTrace taskId={taskId} output={output} changedFiles={changedFiles} /> : null}
+        <VisualChecks taskId={taskId} run={v.run} at={v.at} />
 
         <section aria-labelledby={`${id}-criteria`} data-testid="acceptance">
           <h3 id={`${id}-criteria`} className="text-body font-semibold">

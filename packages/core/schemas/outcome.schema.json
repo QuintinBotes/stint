@@ -42,7 +42,7 @@
             "additionalProperties": false,
             "required": ["kind", "ref"],
             "properties": {
-              "kind": { "type": "string", "enum": ["test", "scenario", "check", "human"] },
+              "kind": { "type": "string", "enum": ["test", "scenario", "check", "human", "visual"] },
               "ref": { "type": "string", "maxLength": 200 }
             }
           },

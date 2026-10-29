@@ -1,0 +1,49 @@
+{
+  "version": "stint.visual-bench/1",
+  "at": "2026-10-29T11:38:24.741Z",
+  "live": true,
+  "page": "/admin :: a 429 banner saying try again in 60 s",
+  "criterion": "The admin page tells an over-limit tenant when to try again",
+  "seeded": "The banner says \"Try again in NaN s.\" where it should say 60 s.",
+  "verification": {
+    "status": "red",
+    "reason": "The admin page tells an over-limit tenant when to try again: The banner displays NaN s instead of the expected 60 s retry time."
+  },
+  "check": {
+    "criterion": 1,
+    "ref": "/admin :: a 429 banner saying try again in 60 s",
+    "holds": false,
+    "seen": "The page shows a yellow 429 banner above the Deliveries table that says try again in NaN s.",
+    "problem": "The banner displays NaN s instead of the expected 60 s retry time.",
+    "element": "yellow banner",
+    "screenshot": "bench/visual/visual-1.png",
+    "clip": "bench/visual/visual-1.webm",
+    "marked": "bench/visual/visual-1-marked.png",
+    "cost": {
+      "inputTokens": 1439,
+      "cachedTokens": 0,
+      "outputTokens": 391,
+      "usd": 0.0063
+    },
+    "judge": {
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "cost": {
+        "inputTokens": 1439,
+        "cachedTokens": 0,
+        "outputTokens": 391,
+        "usd": 0.0038
+      }
+    },
+    "mark": {
+      "host": "meta-api",
+      "model": "sam-3.1",
+      "cost": {
+        "inputTokens": 0,
+        "cachedTokens": 0,
+        "outputTokens": 0,
+        "usd": 0.0025
+      }
+    }
+  }
+}

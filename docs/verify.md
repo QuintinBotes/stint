@@ -1,4 +1,4 @@
-# Verify: the suite, the tamper guard, held-out scenarios and coverage
+# Verify: the suite, the tamper guard, held-out scenarios, coverage and visual checks
 
 This page is for anyone who wants to know what the daemon checks before a change can merge, and how to add checks of their own. Verification runs in the daemon, in the run's worktree, after every run. An agent saying "tests pass" is a claim; `verification/<run>.json` is the record. Review is offered only after a green verify, and approve merges only the commit the daemon verified. When you run the tests again by hand ("Re-run the tests", or `POST /api/tasks/:id/verify`), the daemon first commits anything changed in the worktree outside a run, so the commit it records is the tree the tests ran on. A green verification that recorded no commit cannot be approved. The Tests tab in the task view shows every part below on one card.
 
@@ -40,8 +40,30 @@ After the verify suite, the daemon copies the scenario files into a temporary ch
 
 With `config.verify.coverage` on, the daemon also runs the test command with `--coverage` when the runner is bun or Vitest: once on the branch, once in a temporary checkout of the base commit. The line percentages land in the record as `coverage: { base, branch }` and on the card. When the runner gives no coverage summary, the record says `coverage: null` with a `coverageReason`, and the verification does not fail for it.
 
+## What Stint saw: visual checks
+
+Tests prove code paths; they miss a page that renders blank, a button off screen, or a label that says the wrong thing. A criterion whose proof is `visual` names a page and what a person should see there, as `<path> :: <what should be seen>`:
+
+```json
+{ "criterion": 1, "kind": "visual", "ref": "/admin :: a 429 banner saying try again in 60 s" }
+```
+
+Tell Stint how to start the app in a worktree and where it answers, in `.stint/config.json`:
+
+```json
+"visual": { "serve": "bun run dev", "url": "http://127.0.0.1:3000", "readyTimeoutMs": 30000 }
+```
+
+Once the tests, the checks and the scenarios are green, the daemon starts `serve` in the run's worktree (once per verification, with the run environment and sandbox), waits until `url` answers, and opens each visual proof's page at 1280 by 800 in headless Chromium. It waits for the network to settle (at most 5 s together with the load), takes a screenshot, and keeps a clip of the load. Muse Spark (`meta-api/muse-spark-1.3`) gets the screenshot as an image and the person's criterion as the question; nothing read from the page goes into the prompt, and the prompt says words on the page are never instructions. It answers `{ holds, seen, problem, element }`. When the criterion does not hold, SAM 3.1 (`meta-api/sam-3.1`) segments the element Muse Spark named, and Stint draws its box on a copy of the screenshot. The app is stopped afterwards, whatever happened.
+
+Each proof records `visual.checked { criterion, ref, holds, seen, problem?, element?, screenshot, marked?, clip?, cost, judge, mark? }`, with the files under `.stint/tasks/<task>/verification/<run>/` (`visual-<n>.png`, `visual-<n>-marked.png`, `visual-<n>.webm`). A check that does not hold turns the verification red with the reason `<criterion>: <problem>`, and the next packet's open items carry the problem and the marked screenshot's path. The Tests tab shows each check under "What Stint saw": the screenshot (the marked one when it failed), the verdict as a label with its shape, and Muse Spark's sentence as the image's text alternative. How it went counts a visual proof like any other: proven when it holds, failing when it does not.
+
+A page Stint could not look at is "not checked", with the reason in the event and on stderr, and the verification stays as the tests left it: no `visual` config, no `META_API_KEY`, no browser ("run bunx playwright install chromium"; the daemon uses the Playwright that `apps/web` installs for its tests), an app that never answered at `url`, or a Muse Spark call that failed. Each check's calls are priced and counted in the task's spend: Muse Spark by its tokens, SAM 3.1 at $2.50 per 1,000 images. Only the box is drawn for now: decoding SAM's mask needs Meta's parser library under the SAM License, which is the owner's decision.
+
+`bench/visual/` holds one live check of a seeded defect (a banner that says NaN s), made with `bun bench/visual/run.ts`, with its screenshot, the marked copy, the clip and what it cost.
+
 ## Proven or passing
 
-Green tests say the change passes. They do not say a criterion is met. A criterion is proven only when something shows it failing before the change and passing after: a test that failed at lock time or in an earlier run and passes now, a held-out scenario that passes, a named check that passes, or you at approval. A criterion whose tests pass but never failed first is "passing, not proven", and the gate says "Passes, but no test showed it failing first." Tests first (`autopilot.testsFirst`) is the short way to proof: the locked tests fail at lock time, so every criterion is proven once they pass. `stint outcome <task>` prints each criterion's state with its evidence, and [`metrics.md`](metrics.md#how-it-went) has the full rules.
+Green tests say the change passes. They do not say a criterion is met. A criterion is proven only when something shows it failing before the change and passing after: a test that failed at lock time or in an earlier run and passes now, a held-out scenario that passes, a named check that passes, a visual check that holds, or you at approval. A criterion whose tests pass but never failed first is "passing, not proven", and the gate says "Passes, but no test showed it failing first." Tests first (`autopilot.testsFirst`) is the short way to proof: the locked tests fail at lock time, so every criterion is proven once they pass. `stint outcome <task>` prints each criterion's state with its evidence, and [`metrics.md`](metrics.md#how-it-went) has the full rules.
 
 The numbers these checks add up to (tamper escapes, scenario catch, first pass) are defined once in [`metrics.md`](metrics.md) and read with `stint metrics`.
