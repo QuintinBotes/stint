@@ -2,7 +2,7 @@ import { GoalSplitSchema, TaskLimitsSchema } from '@stint-dev/core';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
-import { createGoalTasks, goalView, planGoal, setGoalStatus } from '../goals';
+import { createGoalTasks, goalView, planGoal, resumeAtGoalLimit, runGoal, setGoalStatus } from '../goals';
 
 const NewGoalBody = z.strictObject({
   title: z.string().min(1).max(120),
@@ -42,15 +42,19 @@ export function goalRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json({ tasks: await createGoalTasks(ctx, c.req.param('id'), tasks) }, 201);
   });
 
+  // every open task on autopilot; what it does with each is what `stint run` does with one
+  app.post('/api/goals/:id/run', async (c) => c.json({ started: await runGoal(ctx, c.req.param('id')), ...(await ctx.autopilot.status()) }));
+
   app.post('/api/goals/:id/abandon', async (c) => c.json(await setGoalStatus(ctx, c.req.param('id'), 'abandoned', 'you')));
 
-  // the fields given replace the goal's own, and null is no limit
+  // the fields given replace the goal's own, and null is no limit; a task autopilot stopped at a limit raised here goes on
   app.patch('/api/goals/:id/limits', async (c) => {
     const id = c.req.param('id');
     const patch = TaskLimitsSchema.parse(await c.req.json());
     const from = (await ctx.ws.readGoal(id)).limits ?? {};
     const goal = await ctx.ws.updateGoal(id, (g) => ({ limits: { ...g.limits, ...patch } }));
     await log().append({ task: 'workspace', vendor: 'human', type: 'limits.changed', payload: { goal: id, from, to: goal.limits ?? {}, by: 'you' } });
-    return c.json(goal);
+    const raised = (['usd', 'builds'] as const).filter((k) => patch[k] === null || (typeof patch[k] === 'number' && typeof from[k] === 'number' && patch[k] > from[k]));
+    return c.json({ ...goal, resumed: await resumeAtGoalLimit(ctx, goal, raised) });
   });
 }

@@ -331,6 +331,8 @@ export const api = {
   planGoal: (id: string) => post<{ tasks: ProposedTask[] }>(`/api/goals/${id}/plan`),
   createGoalTasks: (id: string, tasks: ProposedTask[]) => post<{ tasks: Task[] }>(`/api/goals/${id}/tasks`, { tasks }),
   abandonGoal: (id: string) => post<Goal>(`/api/goals/${id}/abandon`),
+  /** Every open task of the goal on autopilot, in the goal's order; a task waits for the ones it depends on. */
+  runGoal: (id: string) => post<{ started: string[]; running: string[]; queued: string[] }>(`/api/goals/${id}/run`),
   setGoalLimits: (id: string, limits: TaskLimits) => request<Goal>(`/api/goals/${id}/limits`, { method: 'PATCH', body: JSON.stringify(limits) }),
 };
 
@@ -338,7 +340,7 @@ export const api = {
 const subjectPath = (id: string) => (/^G-/.test(id) ? `/api/goals/${id}` : `/api/tasks/${id}`);
 
 export type GoalListItem = { goal: Goal; outcome: GoalOutcome };
-export type GoalView = GoalListItem & { titles: Record<string, string>; sharpen: SharpenState; proposal: ProposedTask[] | null };
+export type GoalView = GoalListItem & { titles: Record<string, string>; tasks: Array<{ id: string; title: string; status: Task['status']; dependsOn: string[] }>; sharpen: SharpenState; proposal: ProposedTask[] | null };
 
 export type Unsubscribe = () => void;
 

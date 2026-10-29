@@ -368,3 +368,50 @@ test("The best-of candidates of a goal task keep the goal, its criteria and a sh
     models.stop();
   }
 }, 180_000);
+
+test("POST /api/goals/:id/run starts every open task in the goal's order; raising the goal limit a task stopped at resumes it; the view's task rows carry status and dependsOn", async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }], models, { implementers: ['muse-code'], maxHops: 0, parallel: 2 });
+      const g = (await (await post(app, '/api/goals', { ...GOAL, limits: { builds: 1 } })).json()) as { id: string };
+      expect((await post(app, `/api/goals/${g.id}/run`, {})).status).toBe(400);
+      const { tasks: proposal } = (await (await post(app, `/api/goals/${g.id}/plan`, {})).json()) as { tasks: unknown[] };
+      const { tasks } = (await (await post(app, `/api/goals/${g.id}/tasks`, { tasks: proposal })).json()) as { tasks: Array<{ id: string; title: string }> };
+      const [a, b] = tasks.map((t) => t.id) as [string, string];
+      type View = { tasks: Array<{ id: string; title: string; status: string; dependsOn: string[] }> };
+      const rows = async () => ((await (await app.request(`/api/goals/${g.id}`)).json()) as View).tasks.map((t) => [t.id, t.status, t.dependsOn]);
+      expect(await rows()).toEqual([
+        [a, 'planned', []],
+        [b, 'planned', [a]],
+      ]);
+
+      const run = (await (await post(app, `/api/goals/${g.id}/run`, {})).json()) as { started: string[] };
+      expect(run.started).toEqual([a, b]);
+      // the first reaches the gate; the second waits on autopilot for the first to be merged
+      expect((await until(ws, a, stopped)).find((e) => e.type === 'autopilot.stopped')?.payload.reason).toBe('Waiting for your approval.');
+      expect((await ws.events(b).read()).filter((e) => e.type === 'autopilot.step').at(-1)?.payload).toMatchObject({ step: 'wait', queued: true, blocked: [a] });
+
+      // merged, the second goes on and stops at the goal's one build
+      expect((await post(app, `/api/tasks/${a}/approve`, {})).status).toBe(200);
+      const atLimit = await until(ws, b, stopped);
+      expect(atLimit.find((e) => e.type === 'limit.reached')?.payload).toEqual({ limit: 'builds', used: 1, cap: 1, scope: 'goal', goal: g.id });
+
+      const patch = async (body: unknown) => (await (await app.request(`/api/goals/${g.id}/limits`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify(body) })).json()) as { resumed: string[] };
+      // a limit it did not stop at resumes nothing; raising the one it stopped at does
+      expect((await patch({ usd: 5 })).resumed).toEqual([]);
+      expect((await patch({ builds: 3 })).resumed).toEqual([b]);
+      const resumed = await until(ws, b, (ev) => ev.filter((e) => e.type === 'autopilot.stopped').length >= 2);
+      expect(resumed.filter((e) => e.type === 'autopilot.stopped').at(-1)?.payload.reason).toBe('Waiting for your approval.');
+      expect(await rows()).toEqual([
+        [a, 'done', []],
+        [b, 'awaiting_approval', [a]],
+      ]);
+      // what is merged is not started again
+      expect(((await (await post(app, `/api/goals/${g.id}/run`, {})).json()) as { started: string[] }).started).toEqual([b]);
+      await until(ws, b, (ev) => ev.filter((e) => e.type === 'autopilot.stopped').length >= 3);
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);

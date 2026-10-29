@@ -190,6 +190,8 @@ export type GoalView = {
   outcome: GoalOutcome;
   /** Each task's title, for the goal page and `stint goal show`. */
   titles: Record<string, string>;
+  /** The goal's tasks in its order, each with its status and the tasks it waits for. */
+  tasks: Array<{ id: string; title: string; status: Task['status']; dependsOn: string[] }>;
   sharpen: SharpenState;
   /** The latest split no tasks were made from yet, or null. */
   proposal: ProposedTask[] | null;
@@ -211,5 +213,48 @@ export async function goalView(ctx: DaemonContext, id: string): Promise<GoalView
   const events = await goalEvents(ctx.ws, id);
   const planned = events.findLastIndex((e) => e.type === 'goal.planned');
   const proposal = planned > events.findLastIndex((e) => e.type === 'goal.tasks_created') ? ((events[planned]?.payload.tasks as ProposedTask[] | undefined) ?? null) : null;
-  return { goal, outcome, titles: Object.fromEntries(tasks.map((t) => [t.id, t.title])), sharpen: await sharpenStateOf(ctx, id), proposal };
+  return {
+    goal,
+    outcome,
+    titles: Object.fromEntries(tasks.map((t) => [t.id, t.title])),
+    tasks: tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, dependsOn: t.dependsOn ?? [] })),
+    sharpen: await sharpenStateOf(ctx, id),
+    proposal,
+  };
+}
+
+const CLOSED: Array<Task['status']> = ['done', 'approved', 'abandoned'];
+
+/**
+ * Puts every open task of the goal on autopilot, in the goal's order, which puts each task after the tasks it waits
+ * for; a task whose dependencies are not merged waits on autopilot until they are. Returns the tasks it started.
+ */
+export async function runGoal(ctx: DaemonContext, id: string): Promise<string[]> {
+  const goal = await ctx.ws.readGoal(id);
+  if (goal.status === 'abandoned') throw new DaemonError('invalid', `${id} is abandoned`);
+  if (!goal.tasks.length) throw new DaemonError('invalid', `${id} has no tasks yet`, `split it into tasks first: stint goal plan ${id}`);
+  const started: string[] = [];
+  for (const t of goal.tasks) {
+    const task = await ctx.ws.readTask(t).catch(() => null);
+    if (!task || CLOSED.includes(task.status)) continue;
+    await ctx.autopilot.start(t);
+    started.push(t);
+  }
+  return started;
+}
+
+/** Switches autopilot on again on each of the goal's tasks that it stopped at one of the goal's `raised` limits. */
+export async function resumeAtGoalLimit(ctx: DaemonContext, goal: Goal, raised: string[]): Promise<string[]> {
+  const resumed: string[] = [];
+  for (const t of await goalTasks(ctx, goal)) {
+    const events = await ctx.ws.events(t.id).read();
+    const stop = events.findLastIndex((e) => e.type === 'autopilot.started' || e.type === 'autopilot.stopped');
+    if (events[stop]?.type !== 'autopilot.stopped') continue;
+    const start = events.findLastIndex((e) => e.type === 'autopilot.started');
+    const hit = events.slice(start + 1, stop).findLast((e) => e.type === 'limit.reached' && e.payload.scope === 'goal');
+    if (!hit || !raised.includes(String(hit.payload.limit))) continue;
+    await ctx.autopilot.start(t.id);
+    resumed.push(t.id);
+  }
+  return resumed;
 }
