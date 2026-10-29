@@ -31,11 +31,12 @@
 
   --amber: #ffd369;
   --green: #93e5c0;
-  --red: #ffaaa2;
+  /* the owner's #ffaaa2, deepened to a coral so it stays apart from green without red or green cones (DESIGN.md, Colour vision) */
+  --red: #f2786f;
   --violet: #d2c2ff;
   --amber-wash: rgb(255 211 105 / 9%);
   --green-wash: rgb(147 229 192 / 9%);
-  --red-wash: rgb(255 170 162 / 10%);
+  --red-wash: rgb(242 120 111 / 10%);
   --violet-wash: rgb(210 194 255 / 10%);
 
   --term: #080c11;

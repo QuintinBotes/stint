@@ -1,27 +1,30 @@
 ---
 name: Stint
-description: A drawing office for coding agents. Blueprint ground, linework ink, and one signature move, the revision block.
+description: A calm engineering workspace for coding agents. Near-black charcoal, near-white ink, a shape beside every state, and one signature move, the revision block.
 colors:
-  shell: "#002745"
-  ground: "#043051"
-  panel: "#0b3a5f"
-  panel-2: "#1b486d"
-  rule: "#30597d"
-  rule-strong: "#6e95ba"
-  field: "#7798ba"
+  shell: "#090c10"
+  ground: "#0b0f14"
+  panel: "#141b24"
+  panel-2: "#1b2633"
+  surface-hover: "#192330"
+  surface-selected: "#202e3e"
+  rule: "#283647"
+  rule-strong: "#66788c"
+  field: "#74869a"
   ink: "#eef3f8"
-  ink-2: "#cddff0"
-  ink-3: "#b4cbe2"
-  vendor-meta: "#4499ff"
-  vendor-anthropic: "#e89f72"
-  vendor-openai: "#5fd8b2"
-  vendor-local: "#d3dce5"
-  state-amber: "#ffe040"
-  state-green: "#93ffe0"
-  state-red: "#fe9890"
-  state-violet: "#d5c5ff"
-  terminal: "#001d36"
-  focus: "#ffcb62"
+  ink-2: "#c6d1df"
+  ink-3: "#abb9ca"
+  vendor-meta: "#70b5ff"
+  vendor-anthropic: "#e8ad88"
+  vendor-openai: "#78d9b3"
+  vendor-local: "#c9d4e2"
+  state-amber: "#ffd369"
+  state-green: "#93e5c0"
+  state-red: "#f2786f"
+  state-violet: "#d2c2ff"
+  terminal: "#080c11"
+  focus: "#a5caff"
+  selection: "#27466a"
 typography:
   title:
     fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif"
@@ -76,7 +79,7 @@ components:
     textColor: "{colors.ink-3}"
     rounded: "{rounded.control}"
   chip-needs-you:
-    backgroundColor: "rgba(255,224,64,.13)"
+    backgroundColor: "rgb(255 211 105 / 9%)"
     textColor: "{colors.state-amber}"
     rounded: "{rounded.tag}"
     height: "24px"
@@ -100,33 +103,35 @@ Copy is the product's own: task, run, packet, decision, finding, skill, verify, 
 
 ## Colors
 
-Blueprint is the only look: Prussian blue ground (oklch 0.30 0.075 247) with surfaces stepped up in lightness on the same hue, and near-white linework ink.
+Charcoal is the only look: near-black surfaces with a cool blue undertone, stepped up in lightness from shell to panel-2, near-white ink, and borders that carry a little blue. The palette is the owner's (29 Oct brief), with one change: red.
 
-- **Vendor inks** mark who did the work, on rail segments, run blocks, revision cells, and spend bars. They are marks, never text, and always paired with a name, never alone. Meta is a mid blue, darker than every state ink, so a Meta run never reads as a learned skill.
-- **State inks** carry meaning only: amber means it needs you, green means verified, red means stopped or killed, and violet means learned.
-- A recommendation is not a state. It uses an ink-outline chip, not green.
+- **Vendor inks** mark who did the work, on rail segments, run blocks, revision cells, and spend bars. They are small marks, never text, and always paired with a name.
+- **State inks** carry meaning only: amber means it needs you or waits for approval, mint green means verified evidence and nothing else, red means failed or stopped, violet means a skill was learned. Merged, approved and other closed outcomes are neutral ink.
+- A recommendation is not a state. It uses an ink-outline label, not green.
+- **Red** is the owner's `#ffaaa2` deepened to the coral `#f2786f`. At the supplied value red and green were 9.3 apart under protanopia and 8.2 under deuteranopia (CIEDE2000); the coral takes them to 21.5 and 17.1, and red text still reads at 5.05:1 or better on every surface.
 
 ### Contrast
 
-- Every text ink (ink, ink-2, ink-3, each state ink, term-ink) passes 4.5:1 on every surface it sits on: shell, ground, panel, panel-2, the terminal, and a state ink on its own wash.
-- ink-3 carries most 13px text, so it passes 7:1 on shell, ground, panel and the terminal. On panel-2 and the tinted rail rows it passes 4.9:1 or better; 7:1 there would make it as light as ink-2.
-- Every mark passes 3:1 on the surface it sits on: rule-strong (block edges, a selected row's outline), field (an input's edge), focus, a meter's fill, a chip's outline, and each vendor ink. On-ink labels set on a vendor bar pass 4.5:1.
-- `prefers-contrast: more` raises ink-2, ink-3, rule, rule-strong and field; ink-3 then passes 7:1 on panel-2 too.
-- In Windows High Contrast (`forced-colors: active`), focus is a system-coloured outline, chips keep a border, meters keep their bar, the selected tab and page keep an underline, and a selected diff line keeps an outline.
+Measured from tokens.css with `prefers-contrast` off:
+- Every text ink passes 4.5:1 on every surface it sits on. ink is 12.4:1 or better, ink-2 8.9:1, ink-3 6.9:1 (7:1 or better everywhere but the selected row), amber, green and violet 8.5:1, and red 5.05:1 at its lowest, on the selected row. term-ink is 15.8:1 on the terminal.
+- Every mark passes 3:1: rule-strong 3.04:1 at its lowest (selected row) and 3.38:1 on panel-2, field 3.69:1, focus 8.2:1, and each vendor ink 6.4:1 or better. rule is decoration only, never the edge a person must find.
+- On-ink is 12.4:1 or better on ink, ink-2 and every vendor ink, so a primary button and a label on a spend bar read.
+- `prefers-contrast: more` raises ink-2, ink-3, rule, rule-strong, field and focus.
+- In Windows High Contrast (`forced-colors: active`), focus is a system-coloured outline, cards, tables, dialogs, inputs, status labels, buttons and notices keep a CanvasText border, the current page keeps a Highlight underline, and an attention edge becomes Highlight.
 
 ### Colour vision
 
-The state inks differ in lightness as well as hue: green (L* 93) and amber (89) are the lightest, violet (83) sits in the middle, and red (73) is the darkest, a coral red that stays apart from green for people without red or green cones (a more orange red measured closer to amber). Measured with CIEDE2000 on Machado 2009 simulations at full severity:
-
-- every pair of state inks is at least 17.5 apart under protanopia, deuteranopia and tritanopia (it was 4.8), and green and red are 13 apart with no colour at all;
-- 20 for every pair is out of reach while every state ink also reads at 4.5:1 on panel-2: that floor keeps all four between L* 73 and 93, too narrow for four steps that differ by lightness alone;
-- the vendor inks are at least 12 apart under protanopia, deuteranopia and tritanopia (the closest pair, openai and local under deuteranopia, is 12.3; the closest was 7.1), and Meta is at least 14.9 from violet (it was 0.6 under deuteranopia). With no colour at all the vendor inks are close, which is why each carries a name.
+Measured with CIEDE2000 on Machado 2009 simulations at full severity. The state inks sit close in lightness (amber L* 86, green 85, violet 82, red 64), so colour alone cannot carry them for everyone:
+- red is at least 15 from every other state ink under protanopia, deuteranopia and tritanopia, and green and red are 15 apart with no colour at all;
+- amber and green are 16.7 apart under protanopia and less than 1 apart with no colour; amber and violet are 19.8 apart under tritanopia;
+- this is why no state rests on colour: every status label draws a shape beside its word (next section).
 
 ### Never by colour alone
 
 Colour repeats what words or shapes already say (WCAG 1.4.1), so the screen reads the same in greys:
 
-- a state is a word on its chip ("needs you", "killed", "36 passed"), and a reached limit says ", reached" beside its amber bar;
+- every status label draws a 10 px shape before its word: a triangle needs you, a tick verified, a cross failed, a filled dot runs, a ring waits (planned, in PR review), a square is closed (merged, approved, finished), a bar was abandoned, a diamond was learned (`StateMark` in `ui.tsx`);
+- a reached limit says ", reached" beside its bar;
 - the diff marks each changed line with + or -, not only its wash;
 - in the memory graph a decision is a square, a finding a diamond, a file a ring, a skill a named pill, and the rest are dots, with the same marks in the legend; a contradiction is a dashed line;
 - a spend bar draws its parts in the legend's order with a gap between them, planning and review calls are a hollow box, and the cost legend says each host's spend in words;
