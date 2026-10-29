@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  DraftSchema,
   GoalSchema,
   HandoffSchema,
   MetricsSchema,
@@ -86,6 +87,7 @@ const cases = [
   { name: 'skill', schema: SkillFrontmatterSchema, examples: ['skill'] },
   { name: 'questions', schema: QuestionsSchema, examples: ['questions'] },
   { name: 'goal', schema: GoalSchema, examples: ['goal'] },
+  { name: 'draft', schema: DraftSchema, examples: ['draft'] },
 ] as const;
 
 describe('zod schemas agree with the kit JSON Schemas on every example and every field mutation', () => {
