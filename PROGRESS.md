@@ -87,6 +87,9 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-065 | The charcoal redesign: a calm workspace that says what needs you | R-059, R-062, R-063, R-064 | in_progress | author | 1 | 2026-10-29 | Foundation: charcoal tokens and stint-* component classes, StatusChip with a shape on every state, quiet tables, Dialog with Close, footer and draft protection |
 | R-066 | The spec builder: say what you want, Stint drafts the spec (Spec Kit shape) | R-064, R-065 | todo | author | 1 | 2026-10-29 | |
 | R-067 | A light theme that follows the system | R-065 | todo | author | 1 | 2026-10-29 | |
+| R-068 | Seeing it work: a visual gate judged by Muse Spark, marked by SAM 3.1 | R-029, R-063, R-064 | todo | author | 1 | 2026-10-29 | |
+| R-069 | The judge path: try it in a browser, see the evidence first | R-022, R-028, R-059, R-065 | todo | author | 1 | 2026-10-29 | |
+| R-070 | Live evidence: the relay on unseen repositories, a control, a scorecard, learning over time | R-012, R-021, R-034, R-046, R-057, R-068 | todo | author | 1 | 2026-10-29 | |
 
 ## Gates
 
