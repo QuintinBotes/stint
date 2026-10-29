@@ -1,0 +1,116 @@
+diff --git a/README.md b/README.md
+index ceba2b5..145318f 100644
+--- a/README.md
++++ b/README.md
+@@ -170,6 +170,17 @@ toSeconds('2m'); // 120
+ toSeconds(1500); // 1
+ ```
+ 
++### Add Durations
++
++Use `add` to get the sum in milliseconds of two durations, each a duration string or a number of milliseconds.
++
++```ts
++import { add } from 'ms';
++
++add('1h', '30m'); // 5400000
++add(1000, '1s'); // 2000
++```
++
+ ### Enhanced Type Safety
+ 
+ If you want strict type checking for the input value, you can use `parseStrict`.
+diff --git a/src/add.test.ts b/src/add.test.ts
+new file mode 100644
+index 0000000..f466037
+--- /dev/null
++++ b/src/add.test.ts
+@@ -0,0 +1,41 @@
++import { describe, expect, it } from '@jest/globals';
++import { add } from './index';
++
++describe('add', () => {
++  it('should add two duration strings', () => {
++    expect(add('1h', '30m')).toBe(5400000);
++  });
++
++  it('should add a number and a duration string', () => {
++    expect(add(1000, '1s')).toBe(2000);
++  });
++
++  it('should add two numbers', () => {
++    expect(add(1000, 2000)).toBe(3000);
++  });
++
++  it('should add a duration string and a number', () => {
++    expect(add('1s', 1000)).toBe(2000);
++  });
++
++  it('should work with negative durations', () => {
++    expect(add('-1h', '30m')).toBe(-1800000);
++    expect(add('1h', -1800000)).toBe(1800000);
++  });
++
++  it('should throw for non-finite numbers', () => {
++    expect(() => add(NaN, '1s')).toThrow();
++    expect(() => add('1s', NaN)).toThrow();
++    expect(() => add(Infinity, 1000)).toThrow();
++    expect(() => add(1000, -Infinity)).toThrow();
++  });
++
++  it('should throw for invalid types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => add(undefined, '1s')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => add('1s', null)).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => add({}, [])).toThrow();
++  });
++});
+diff --git a/src/index.ts b/src/index.ts
+index 1c5b996..0431114 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -255,6 +255,42 @@ export function toSeconds(value: StringValue | number): number {
+   );
+ }
+ 
++/**
++ * Return the sum in milliseconds of two durations, each a duration string or
++ * a number of milliseconds.
++ *
++ * @param a - A duration string (e.g. `'1h'`) or a number of milliseconds
++ * @param b - A duration string (e.g. `'30m'`) or a number of milliseconds
++ * @returns The sum in milliseconds
++ * @throws Error if either argument is not a string or a finite number
++ */
++export function add(
++  a: StringValue | number,
++  b: StringValue | number,
++): number {
++  return toMilliseconds(a) + toMilliseconds(b);
++}
++
++/**
++ * Convert a duration string or a number of milliseconds to milliseconds.
++ */
++function toMilliseconds(value: StringValue | number): number {
++  if (typeof value === 'string') {
++    return parse(value);
++  }
++  if (typeof value === 'number') {
++    if (!Number.isFinite(value)) {
++      throw new Error(
++        `Value provided to add() must be a finite number. value=${JSON.stringify(value)}`,
++      );
++    }
++    return value;
++  }
++  throw new Error(
++    `Value provided to add() must be a string or number. value=${JSON.stringify(value)}`,
++  );
++}
++
+ /**
+  * Pluralization helper.
+  */

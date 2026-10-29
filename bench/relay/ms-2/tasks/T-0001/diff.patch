@@ -1,0 +1,349 @@
+diff --git a/README.md b/README.md
+index d752132..b2bd88b 100644
+--- a/README.md
++++ b/README.md
+@@ -43,6 +43,27 @@ ms(-3 * 60000, { long: true })        // "-3 minutes"
+ ms(ms('10 hours'), { long: true })    // "10 hours"
+ ```
+ 
++### Using a Specific Unit
++
++Pass `unit` to express a number in that unit, or to read a unitless string in
++that unit. The unit accepts any spelling and case the parser accepts (such as
++`'m'`, `'Minutes'`, `'MINS'` or `'hrs'`). An unknown unit throws an `Error`
++that names the unit.
++
++```ts
++import { format, ms, parse } from 'ms';
++
++format(5400000, { unit: 'm' })                    // "90m"
++format(5400000, { unit: 'minutes', long: true })  // "90 minutes"
++ms(5400000, { unit: 'm' })                        // "90m"
++
++parse('90', { unit: 's' })   // 90000
++ms('90', { unit: 's' })      // 90000
++
++// A unit in the string wins over the option.
++parse('2m', { unit: 's' })   // 120000
++```
++
+ ### Input Formats (Units)
+ 
+ ```ts
+diff --git a/src/index.ts b/src/index.ts
+index d50e3c7..be1413b 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -14,7 +14,7 @@ type Hours = 'hours' | 'hour' | 'hrs' | 'hr' | 'h';
+ type Minutes = 'minutes' | 'minute' | 'mins' | 'min' | 'm';
+ type Seconds = 'seconds' | 'second' | 'secs' | 'sec' | 's';
+ type Milliseconds = 'milliseconds' | 'millisecond' | 'msecs' | 'msec' | 'ms';
+-type Unit =
++export type Unit =
+   | Years
+   | Months
+   | Weeks
+@@ -24,18 +24,74 @@ type Unit =
+   | Seconds
+   | Milliseconds;
+ 
+-type UnitAnyCase = Capitalize<Unit> | Uppercase<Unit> | Unit;
++export type UnitAnyCase = Capitalize<Unit> | Uppercase<Unit> | Unit;
+ 
+ export type StringValue =
+   | `${number}`
+   | `${number}${UnitAnyCase}`
+   | `${number} ${UnitAnyCase}`;
+ 
+-interface Options {
++export interface Options {
+   /**
+    * Set to `true` to use verbose formatting. Defaults to `false`.
+    */
+   long?: boolean;
++  /**
++   * Express the value in this unit (format) or read a unitless number in
++   * this unit (parse). Accepts any spelling and case the parser accepts.
++   */
++  unit?: UnitAnyCase;
++}
++
++interface UnitInfo {
++  factor: number;
++  short: string;
++  long: string;
++}
++
++const unitMap: Record<Lowercase<Unit>, UnitInfo> = {
++  years: { factor: y, short: 'y', long: 'year' },
++  year: { factor: y, short: 'y', long: 'year' },
++  yrs: { factor: y, short: 'y', long: 'year' },
++  yr: { factor: y, short: 'y', long: 'year' },
++  y: { factor: y, short: 'y', long: 'year' },
++  months: { factor: mo, short: 'mo', long: 'month' },
++  month: { factor: mo, short: 'mo', long: 'month' },
++  mo: { factor: mo, short: 'mo', long: 'month' },
++  weeks: { factor: w, short: 'w', long: 'week' },
++  week: { factor: w, short: 'w', long: 'week' },
++  w: { factor: w, short: 'w', long: 'week' },
++  days: { factor: d, short: 'd', long: 'day' },
++  day: { factor: d, short: 'd', long: 'day' },
++  d: { factor: d, short: 'd', long: 'day' },
++  hours: { factor: h, short: 'h', long: 'hour' },
++  hour: { factor: h, short: 'h', long: 'hour' },
++  hrs: { factor: h, short: 'h', long: 'hour' },
++  hr: { factor: h, short: 'h', long: 'hour' },
++  h: { factor: h, short: 'h', long: 'hour' },
++  minutes: { factor: m, short: 'm', long: 'minute' },
++  minute: { factor: m, short: 'm', long: 'minute' },
++  mins: { factor: m, short: 'm', long: 'minute' },
++  min: { factor: m, short: 'm', long: 'minute' },
++  m: { factor: m, short: 'm', long: 'minute' },
++  seconds: { factor: s, short: 's', long: 'second' },
++  second: { factor: s, short: 's', long: 'second' },
++  secs: { factor: s, short: 's', long: 'second' },
++  sec: { factor: s, short: 's', long: 'second' },
++  s: { factor: s, short: 's', long: 'second' },
++  milliseconds: { factor: 1, short: 'ms', long: 'millisecond' },
++  millisecond: { factor: 1, short: 'ms', long: 'millisecond' },
++  msecs: { factor: 1, short: 'ms', long: 'millisecond' },
++  msec: { factor: 1, short: 'ms', long: 'millisecond' },
++  ms: { factor: 1, short: 'ms', long: 'millisecond' },
++};
++
++function resolveUnit(unit: string, context: string): UnitInfo {
++  const info = unitMap[unit.toLowerCase() as Lowercase<Unit>];
++  if (info === undefined) {
++    throw new Error(`Unknown unit "${unit}" provided to ${context}.`);
++  }
++  return info;
+ }
+ 
+ /**
+@@ -52,7 +108,7 @@ export function ms(
+   options?: Options,
+ ): number | string {
+   if (typeof value === 'string') {
+-    return parse(value);
++    return parse(value, options);
+   } else if (typeof value === 'number') {
+     return format(value, options);
+   }
+@@ -65,10 +121,13 @@ export function ms(
+  * Parse the given string and return milliseconds.
+  *
+  * @param str - A string to parse to milliseconds
++ * @param options - Options for the conversion. When `unit` is set, a number
++ * without a unit in the string is read in that unit. A unit in the string
++ * wins over the option.
+  * @returns The parsed value in milliseconds, or `NaN` if the string can't be
+  * parsed
+  */
+-export function parse(str: string): number {
++export function parse(str: string, options?: Options): number {
+   if (typeof str !== 'string' || str.length === 0 || str.length > 100) {
+     throw new Error(
+       `Value provided to ms.parse() must be a string with length between 1 and 99. value=${JSON.stringify(str)}`,
+@@ -85,76 +144,29 @@ export function parse(str: string): number {
+ 
+   // Named capture groups need to be manually typed today.
+   // https://github.com/microsoft/TypeScript/issues/32098
+-  const { value, unit = 'ms' } = match.groups as {
++  const { value, unit } = match.groups as {
+     value: string;
+     unit: string | undefined;
+   };
+ 
+   const n = parseFloat(value);
+ 
+-  const matchUnit = unit.toLowerCase() as Lowercase<Unit>;
+-
+-  /* istanbul ignore next - istanbul doesn't understand, but thankfully the TypeScript the exhaustiveness check in the default case keeps us type safe here */
+-  switch (matchUnit) {
+-    case 'years':
+-    case 'year':
+-    case 'yrs':
+-    case 'yr':
+-    case 'y':
+-      return n * y;
+-    case 'months':
+-    case 'month':
+-    case 'mo':
+-      return n * mo;
+-    case 'weeks':
+-    case 'week':
+-    case 'w':
+-      return n * w;
+-    case 'days':
+-    case 'day':
+-    case 'd':
+-      return n * d;
+-    case 'hours':
+-    case 'hour':
+-    case 'hrs':
+-    case 'hr':
+-    case 'h':
+-      return n * h;
+-    case 'minutes':
+-    case 'minute':
+-    case 'mins':
+-    case 'min':
+-    case 'm':
+-      return n * m;
+-    case 'seconds':
+-    case 'second':
+-    case 'secs':
+-    case 'sec':
+-    case 's':
+-      return n * s;
+-    case 'milliseconds':
+-    case 'millisecond':
+-    case 'msecs':
+-    case 'msec':
+-    case 'ms':
+-      return n;
+-    default:
+-      matchUnit satisfies never;
+-      throw new Error(
+-        `Unknown unit "${matchUnit}" provided to ms.parse(). value=${JSON.stringify(str)}`,
+-      );
+-  }
++  const effectiveUnit = unit ?? options?.unit ?? 'ms';
++
++  return n * resolveUnit(effectiveUnit, 'ms.parse()').factor;
+ }
+ 
+ /**
+  * Parse the given StringValue and return milliseconds.
+  *
+  * @param value - A typesafe StringValue to parse to milliseconds
++ * @param options - Options for the conversion. When `unit` is set, a number
++ * without a unit is read in that unit.
+  * @returns The parsed value in milliseconds, or `NaN` if the string can't be
+  * parsed
+  */
+-export function parseStrict(value: StringValue): number {
+-  return parse(value);
++export function parseStrict(value: StringValue, options?: Options): number {
++  return parse(value, options);
+ }
+ 
+ /**
+@@ -219,7 +231,8 @@ function fmtLong(ms: number): StringValue {
+  * Format the given integer as a string.
+  *
+  * @param ms - milliseconds
+- * @param options - Options for the conversion
++ * @param options - Options for the conversion. When `unit` is set, the value
++ * is expressed in that unit, rounded to a whole number of that unit.
+  * @returns The formatted string
+  */
+ export function format(ms: number, options?: Options): string {
+@@ -227,6 +240,18 @@ export function format(ms: number, options?: Options): string {
+     throw new Error('Value provided to ms.format() must be of type number.');
+   }
+ 
++  if (options?.unit !== undefined) {
++    const info = resolveUnit(options.unit, 'ms.format()');
++    const rounded = Math.round(ms / info.factor);
++    if (options.long) {
++      if (info.short === 'ms') {
++        return `${rounded} ms`;
++      }
++      return plural(ms, Math.abs(ms), info.factor, info.long);
++    }
++    return `${rounded}${info.short}`;
++  }
++
+   return options?.long ? fmtLong(ms) : fmtShort(ms);
+ }
+ 
+diff --git a/src/unit.test.ts b/src/unit.test.ts
+new file mode 100644
+index 0000000..ec7f642
+--- /dev/null
++++ b/src/unit.test.ts
+@@ -0,0 +1,83 @@
++import { describe, expect, it } from '@jest/globals';
++import { format, ms, parse, parseStrict } from './index';
++
++describe('unit option', () => {
++  it('formats in the given unit', () => {
++    expect(format(5400000, { unit: 'm' })).toBe('90m');
++  });
++
++  it('formats long in the given unit', () => {
++    expect(format(5400000, { unit: 'minutes', long: true })).toBe('90 minutes');
++  });
++
++  it('accepts any spelling and case the parser takes', () => {
++    expect(format(5400000, { unit: 'Minutes' })).toBe('90m');
++    expect(format(5400000, { unit: 'MINS' })).toBe('90m');
++    expect(format(7200000, { unit: 'hrs' })).toBe('2h');
++    expect(format(7200000, { unit: 'hrs', long: true })).toBe('2 hours');
++  });
++
++  it('rounds to a whole number of the unit', () => {
++    expect(format(1500, { unit: 's' })).toBe('2s');
++    expect(format(1200, { unit: 's', long: true })).toBe('1 second');
++    expect(format(10000, { unit: 's', long: true })).toBe('10 seconds');
++  });
++
++  it('formats milliseconds unit', () => {
++    expect(format(500, { unit: 'ms' })).toBe('500ms');
++    expect(format(500, { unit: 'ms', long: true })).toBe('500 ms');
++    expect(format(-500, { unit: 'ms', long: true })).toBe('-500 ms');
++  });
++
++  it('formats other units short and long', () => {
++    expect(format(3600000, { unit: 'h' })).toBe('1h');
++    expect(format(86400000, { unit: 'd' })).toBe('1d');
++    expect(format(604800000, { unit: 'w' })).toBe('1w');
++    expect(format(31557600000, { unit: 'y' })).toBe('1y');
++    expect(format(31557600000, { unit: 'y', long: true })).toBe('1 year');
++    expect(format(2629800000, { unit: 'mo' })).toBe('1mo');
++    expect(format(2629800000, { unit: 'month', long: true })).toBe('1 month');
++    expect(format(-5400000, { unit: 'm' })).toBe('-90m');
++    expect(format(-5400000, { unit: 'minutes', long: true })).toBe(
++      '-90 minutes',
++    );
++  });
++
++  it('throws for unknown format unit and names it', () => {
++    expect(() => format(1000, { unit: 'bogus' as never })).toThrow('bogus');
++  });
++
++  it('parses a unitless number in the given unit', () => {
++    expect(parse('90', { unit: 's' })).toBe(90000);
++  });
++
++  it('lets a unit in the string win', () => {
++    expect(parse('2m', { unit: 's' })).toBe(120000);
++  });
++
++  it('leaves parsing unchanged without the option', () => {
++    expect(parse('100')).toBe(100);
++    expect(parse('100', {})).toBe(100);
++    expect(parse('1m')).toBe(60000);
++  });
++
++  it('parses unit option case-insensitively', () => {
++    expect(parse('90', { unit: 'MINS' })).toBe(5400000);
++    expect(parse('1', { unit: 'Minutes' })).toBe(60000);
++    expect(parse('2', { unit: 'hrs' })).toBe(7200000);
++  });
++
++  it('throws for unknown parse unit and names it', () => {
++    expect(() => parse('90', { unit: 'bogus' as never })).toThrow('bogus');
++  });
++
++  it('supports unit through ms()', () => {
++    expect(ms('90', { unit: 's' })).toBe(90000);
++    expect(ms(5400000, { unit: 'm' })).toBe('90m');
++    expect(ms(5400000, { unit: 'minutes', long: true })).toBe('90 minutes');
++  });
++
++  it('supports unit through parseStrict()', () => {
++    expect(parseStrict('90', { unit: 's' })).toBe(90000);
++  });
++});

@@ -1,0 +1,19 @@
+{
+  "adapter": "muse-code",
+  "cost": {
+    "cachedTokens": 408042,
+    "inputTokens": 455244,
+    "outputTokens": 2827,
+    "usd": 0.1343
+  },
+  "endedAt": "2026-10-29T15:57:38.862Z",
+  "endedBy": "completed",
+  "host": "local-cli",
+  "model": "muse-spark-1.3",
+  "role": "implementer",
+  "run": "r1",
+  "sessionId": "01a18860-d00f-7e32-9056-54338a40d98d",
+  "startedAt": "2026-10-29T15:56:48.402Z",
+  "vendor": "meta",
+  "worktree": ".stint/worktrees/T-0006-r1"
+}

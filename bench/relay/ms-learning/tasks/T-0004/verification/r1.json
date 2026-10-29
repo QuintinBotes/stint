@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-29T15:53:07.661Z",
+  "checks": [
+    {
+      "durationMs": 1934,
+      "exitCode": 0,
+      "failed": 0,
+      "kind": "test",
+      "name": "tests",
+      "passed": 1,
+      "status": "green"
+    }
+  ],
+  "command": "npm run test:nodejs && npm run test:edge",
+  "commit": "d5aea259e7eb18d6ddfb5ca12b2d46d988002127",
+  "coverage": null,
+  "durationMs": 1934,
+  "exitCode": 0,
+  "failed": 0,
+  "outputRef": "verification/r1.out.txt",
+  "passed": 1,
+  "run": "r1",
+  "runBy": "daemon",
+  "scenarios": null,
+  "status": "green"
+}

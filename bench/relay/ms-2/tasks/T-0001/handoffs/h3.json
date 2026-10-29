@@ -1,0 +1,47 @@
+{
+  "askOfNext": "Next: Check the unknown step first. Next: Held-out scenarios failed: src/holdout-unit.test.ts. Their source is held out; the names are all you get...",
+  "changedFiles": [],
+  "cost": {
+    "cachedTokens": 0,
+    "inputTokens": 1639,
+    "outputTokens": 0,
+    "usd": 0
+  },
+  "createdAt": "2026-10-29T15:20:06.823Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "b7d3d54d392a8031e77164091392e0a5df98c2ad",
+    "head": "a424f507ea9986638644e3d3b4c55da84e531ee9"
+  },
+  "done": [],
+  "from": {
+    "adapter": "claude-code",
+    "endedBy": "killed",
+    "host": "ollama",
+    "model": "muse-glimmer:30b-mlx",
+    "role": "implementer",
+    "run": "r2",
+    "sessionId": "36dc437c-0d90-4b2e-9bad-d588b403b7b3",
+    "vendor": "anthropic"
+  },
+  "hash": "sha256:68d449de8b1a1e88c7f453bf71f2e7b211bf20b93d399e119cfad077245cd0c8",
+  "leftOut": [],
+  "open": [
+    "Check the unknown step first. Next: Held-out scenarios failed: src/holdout-unit.test.ts. Their source is held out; the names are all you get..",
+    "Held-out scenarios failed: src/holdout-unit.test.ts. Their source is held out; the names are all you get."
+  ],
+  "refusals": [],
+  "risks": [],
+  "summary": "claude-code killed after 19 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm run test:nodejs && npm run test:edge",
+    "durationMs": 2755,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "red"
+  },
+  "version": "stint.handoff/1"
+}

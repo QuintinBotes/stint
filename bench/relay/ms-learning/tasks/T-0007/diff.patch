@@ -1,0 +1,114 @@
+diff --git a/README.md b/README.md
+index b153b88..531c679 100644
+--- a/README.md
++++ b/README.md
+@@ -229,6 +229,17 @@ between('2m', '1m', '2m'); // true
+ between('3m', '1m', '2m'); // false
+ ```
+ 
++### Average Durations
++
++Use `average` to get the mean in milliseconds of a list of durations, each a duration string or a number of milliseconds.
++
++```ts
++import { average } from 'ms';
++
++average(['1m', '3m']); // 120000
++average([1000, '3s']); // 2000
++```
++
+ ### Enhanced Type Safety
+ 
+ If you want strict type checking for the input value, you can use `parseStrict`.
+diff --git a/src/average.test.ts b/src/average.test.ts
+new file mode 100644
+index 0000000..58ac72a
+--- /dev/null
++++ b/src/average.test.ts
+@@ -0,0 +1,53 @@
++import { describe, expect, it } from '@jest/globals';
++import { average } from './index';
++
++describe('average', () => {
++  it('should average duration strings', () => {
++    expect(average(['1m', '3m'])).toBe(120000);
++  });
++
++  it('should average mixed numbers and strings', () => {
++    expect(average([1000, '3s'])).toBe(2000);
++  });
++
++  it('should average numbers', () => {
++    expect(average([1000, 2000, 3000])).toBe(2000);
++  });
++
++  it('should average a single value', () => {
++    expect(average(['1m'])).toBe(60000);
++    expect(average([1500])).toBe(1500);
++  });
++
++  it('should work with negative durations', () => {
++    expect(average(['-1m', '3m'])).toBe(60000);
++    expect(average([-1000, 3000])).toBe(1000);
++  });
++
++  it('should throw for an empty array', () => {
++    expect(() => average([])).toThrow();
++  });
++
++  it('should throw for non-array input', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => average(undefined)).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => average('1m')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => average(1000)).toThrow();
++  });
++
++  it('should throw for non-finite numbers', () => {
++    expect(() => average([NaN, '1s'])).toThrow();
++    expect(() => average(['1s', Infinity])).toThrow();
++  });
++
++  it('should throw for invalid element types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => average([undefined, '1s'])).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => average(['1s', null])).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => average([{}])).toThrow();
++  });
++});
+diff --git a/src/index.ts b/src/index.ts
+index 30a3da4..444649b 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -353,6 +353,28 @@ export function between(
+   return msValue >= msMin && msValue <= msMax;
+ }
+ 
++/**
++ * Return the mean in milliseconds of a list of durations, each a duration
++ * string or a number of milliseconds.
++ *
++ * @param values - A non-empty array of durations (e.g. `['1m', '3m']`)
++ * @returns The mean in milliseconds
++ * @throws Error if `values` is not a non-empty array, or if any element is
++ * not a string or a finite number
++ */
++export function average(values: (StringValue | number)[]): number {
++  if (!Array.isArray(values) || values.length === 0) {
++    throw new Error(
++      `Value provided to average() must be a non-empty array. value=${JSON.stringify(values)}`,
++    );
++  }
++  let sum = 0;
++  for (const value of values) {
++    sum += toMilliseconds(value, 'average');
++  }
++  return sum / values.length;
++}
++
+ /**
+  * Convert a duration string or a number of milliseconds to milliseconds.
+  */

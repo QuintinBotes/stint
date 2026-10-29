@@ -1,0 +1,34 @@
+{
+  "acceptance": [
+    "`scale('90s', 2)` is 180000 and `scale('1h', 0.5)` is 1800000.",
+    "README.md documents it.",
+    "Both test runs pass with coverage at 100%."
+  ],
+  "assignee": null,
+  "baseCommit": "88f1c3ecfedcc13b15577261adcb26633e07702e",
+  "branch": "stint/T-0005",
+  "budgets": {
+    "implementer": 150000,
+    "learn": 20000,
+    "planner": 40000,
+    "reviewer": 30000
+  },
+  "createdAt": "2026-10-29T15:54:34.198Z",
+  "goal": "Export `scale(value, factor)` from src/index.ts: a duration multiplied by a factor, in milliseconds.",
+  "id": "T-0005",
+  "links": {
+    "beadsId": null,
+    "issueUrl": null
+  },
+  "pendingAsk": null,
+  "risk": "medium",
+  "slug": "add-scale",
+  "status": "done",
+  "tags": [
+    "durations"
+  ],
+  "testCommand": "npm run test:nodejs && npm run test:edge",
+  "title": "Add scale()",
+  "updatedAt": "2026-10-29T15:56:47.762Z",
+  "version": "stint.task/1"
+}

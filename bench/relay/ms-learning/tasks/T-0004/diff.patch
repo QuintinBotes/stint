@@ -1,0 +1,125 @@
+diff --git a/README.md b/README.md
+index 1f65a98..d0b0870 100644
+--- a/README.md
++++ b/README.md
+@@ -193,6 +193,18 @@ clamp('30s', '1m', '1h'); // 60000
+ clamp(90000, '1m', '1h'); // 90000
+ ```
+ 
++### Compare Durations
++
++Use `compare` as a sort comparator for durations, each a duration string or a number of milliseconds. It returns `-1` if the first duration is shorter, `1` if it is longer, and `0` if they are equal.
++
++```ts
++import { compare } from 'ms';
++
++['1h', '5m', '30s'].sort(compare); // ["30s", "5m", "1h"]
++compare('60s', '1m'); // 0
++compare('1h', '5m'); // 1
++```
++
+ ### Enhanced Type Safety
+ 
+ If you want strict type checking for the input value, you can use `parseStrict`.
+diff --git a/src/compare.test.ts b/src/compare.test.ts
+new file mode 100644
+index 0000000..12f3641
+--- /dev/null
++++ b/src/compare.test.ts
+@@ -0,0 +1,58 @@
++import { describe, expect, it } from '@jest/globals';
++import { compare } from './index';
++
++describe('compare', () => {
++  it('should sort duration strings ascending', () => {
++    expect(['1h', '5m', '30s'].sort(compare)).toEqual(['30s', '5m', '1h']);
++  });
++
++  it('should return 0 for equal durations', () => {
++    expect(compare('60s', '1m')).toBe(0);
++    expect(compare('1h', '1h')).toBe(0);
++  });
++
++  it('should return -1 when the first duration is shorter', () => {
++    expect(compare('30s', '1m')).toBe(-1);
++    expect(compare('5m', '1h')).toBe(-1);
++  });
++
++  it('should return 1 when the first duration is longer', () => {
++    expect(compare('1m', '30s')).toBe(1);
++    expect(compare('1h', '5m')).toBe(1);
++  });
++
++  it('should accept numbers for both arguments', () => {
++    expect(compare(1000, 2000)).toBe(-1);
++    expect(compare(2000, 1000)).toBe(1);
++    expect(compare(1000, 1000)).toBe(0);
++  });
++
++  it('should accept mixed strings and numbers', () => {
++    expect(compare(1000, '1s')).toBe(0);
++    expect(compare('1s', 1000)).toBe(0);
++    expect(compare(999, '1s')).toBe(-1);
++    expect(compare('2s', 1000)).toBe(1);
++  });
++
++  it('should work with negative durations', () => {
++    expect(compare('-1h', '1h')).toBe(-1);
++    expect(compare('1h', '-1h')).toBe(1);
++    expect(compare('-1h', -3600000)).toBe(0);
++  });
++
++  it('should throw for non-finite numbers', () => {
++    expect(() => compare(NaN, '1s')).toThrow();
++    expect(() => compare('1s', NaN)).toThrow();
++    expect(() => compare(Infinity, 1000)).toThrow();
++    expect(() => compare(1000, -Infinity)).toThrow();
++  });
++
++  it('should throw for invalid types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => compare(undefined, '1s')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => compare('1s', null)).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => compare({}, [])).toThrow();
++  });
++});
+diff --git a/src/index.ts b/src/index.ts
+index 2f6893b..55ee1da 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -292,10 +292,32 @@ export function clamp(
+   return Math.min(Math.max(msValue, msMin), msMax);
+ }
+ 
++/**
++ * Compare two durations for use as a sort comparator, each a duration string
++ * or a number of milliseconds.
++ *
++ * @param a - A duration string (e.g. `'1h'`) or a number of milliseconds
++ * @param b - A duration string (e.g. `'30m'`) or a number of milliseconds
++ * @returns `-1` if `a` is shorter than `b`, `1` if `a` is longer than `b`,
++ * and `0` if they are equal
++ * @throws Error if either argument is not a string or a finite number
++ */
++export function compare(a: string | number, b: string | number): number {
++  const msA = toMilliseconds(a, 'compare');
++  const msB = toMilliseconds(b, 'compare');
++  if (msA < msB) {
++    return -1;
++  }
++  if (msA > msB) {
++    return 1;
++  }
++  return 0;
++}
++
+ /**
+  * Convert a duration string or a number of milliseconds to milliseconds.
+  */
+-function toMilliseconds(value: StringValue | number, fn: string): number {
++function toMilliseconds(value: string | number, fn: string): number {
+   if (typeof value === 'string') {
+     return parse(value);
+   }

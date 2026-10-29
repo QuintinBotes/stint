@@ -1,0 +1,90 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 21,
+      "path": "README.md",
+      "removed": 0,
+      "run": "r3"
+    },
+    {
+      "added": 86,
+      "path": "src/index.ts",
+      "removed": 61,
+      "run": "r3"
+    },
+    {
+      "added": 83,
+      "path": "src/unit.test.ts",
+      "removed": 0,
+      "run": "r3"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 870025,
+    "inputTokens": 922734,
+    "outputTokens": 20243,
+    "usd": 0.2976
+  },
+  "createdAt": "2026-10-29T15:22:58.875Z",
+  "decisions": [
+    {
+      "id": "D1",
+      "text": "`unit` option type is `UnitAnyCase` so it accepts every spelling and case the parser accepts."
+    },
+    {
+      "id": "D2",
+      "text": "`format` with `unit` rounds with `Math.round(value / factor)`, matching existing format rounding."
+    },
+    {
+      "id": "D3",
+      "text": "`format` long for `ms` stays `\"N ms\"`, matching existing `fmtLong`."
+    },
+    {
+      "id": "D4",
+      "text": "`parse` with `unit` uses it only as default; a unit in the string wins and an unused unknown option is ignored."
+    },
+    {
+      "id": "D5",
+      "text": "`parseStrict` also accepts `{ unit }` and forwards to `parse`."
+    },
+    {
+      "id": "D6",
+      "text": "unknown `unit` throws `Error` naming the raw unit with `ms.parse()` / `ms.format()` context."
+    }
+  ],
+  "diffRef": {
+    "base": "b7d3d54d392a8031e77164091392e0a5df98c2ad",
+    "head": "3acc0d53995dce15993bc23dc963c0bde6e11185"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "codex",
+    "endedBy": "completed",
+    "host": "meta-api",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r3",
+    "sessionId": "01a1883f-3a36-7d20-9963-4f3d290cf096",
+    "vendor": "openai"
+  },
+  "hash": "sha256:3d4e3fb77e02fa5089423b8f2db7a7fda84dcec0bafd7addbae9e692ad22c16e",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "**Implemented** - `src/index.ts` - added `unit?: UnitAnyCase` to `Options`, shared `unitMap` + `resolveUnit` lookup for format/parse, `format` expresses in unit via `Math.round`, `parse` uses option as default when string has no unit, `ms` forwards options, `parseStrict` accepts options. - `src/unit.test.ts` - new coverage for short/long, spellings/case, rounding, ms-unit, unknown-unit errors, ...",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm run test:nodejs && npm run test:edge",
+    "durationMs": 1895,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}
