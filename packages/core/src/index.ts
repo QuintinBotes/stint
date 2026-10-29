@@ -12,6 +12,7 @@ export * from './schemas/metrics';
 export * from './schemas/questions';
 export * from './schemas/goal';
 export * from './schemas/draft';
+export * from './schemas/scorecard';
 export { DRAFT_ROUNDS, answerProblem, closeOpen, draftFromOutput, draftProblem, goalFromDraft, mergeAnswers, nextRound, scenarioLine, taskFromDraft } from './draft';
 export type { DraftBefore } from './draft';
 export { parseSpecKit, toSpecKit } from './speckit';

@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stint.dev/schemas/scorecard/1",
+  "title": "stint.scorecard/1",
+  "description": "What verification and review catch on seeded tasks with hidden tests (R-070), written by scripts/scorecard.ts to bench/scorecard.json. Each attempt starts from a fresh clone at the pinned commit: one implementer run, the daemon's verification with the repository's own tests, Glimmer's offline review of a green change, then the daemon's verification with the hidden tests, which grades the attempt. Every figure carries the number of runs it rests on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "live", "k", "generatedAt", "models", "tasks", "overall", "handoff", "review", "badPatches", "perGreen", "spend", "attempts"],
+  "properties": {
+    "version": { "const": "stint.scorecard/1" },
+    "live": { "type": "boolean", "description": "True when every attempt ran live; a dry run's fakes make it false." },
+    "k": { "type": "integer", "minimum": 1, "description": "Attempts per task; pass^k is read at this k." },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "models": {
+      "type": "array",
+      "description": "Who ran, as the daemon recorded the host that answered: the attempts' implementer and reviewer, and the agents of the relays the hand-off figure rests on.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "role", "adapter", "model", "host", "runs"],
+        "properties": {
+          "source": { "type": "string", "enum": ["attempts", "relays"] },
+          "role": { "type": "string", "enum": ["implementer", "reviewer"] },
+          "adapter": { "type": "string", "minLength": 1 },
+          "model": { "type": ["string", "null"], "minLength": 1 },
+          "host": { "type": ["string", "null"], "minLength": 1 },
+          "runs": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "description": "Per seeded task: pass^1 is the share of graded attempts the hidden tests passed; pass^k is 1 when all k passed and 0 when one did not, null until k are graded (R-046).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "repo", "attempts", "green", "pass1", "passK"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "repo": { "type": "string", "minLength": 1 },
+          "attempts": { "type": "integer", "minimum": 0, "description": "Attempts recorded, graded or not." },
+          "green": { "type": "integer", "minimum": 0, "description": "Attempts the hidden tests passed." },
+          "pass1": { "$ref": "#/$defs/share" },
+          "passK": { "$ref": "#/$defs/share" }
+        }
+      }
+    },
+    "overall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass1", "passK"],
+      "description": "pass^1 over every graded attempt; pass^k over the tasks with k graded attempts.",
+      "properties": {
+        "pass1": { "$ref": "#/$defs/share" },
+        "passK": { "$ref": "#/$defs/share" }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "n", "green", "relays"],
+      "description": "Hand-off success from the published relays: continued runs (started from a packet) whose verification went green, of all continued runs.",
+      "properties": {
+        "value": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "n": { "type": "integer", "minimum": 0 },
+        "green": { "type": "integer", "minimum": 0 },
+        "relays": { "type": "array", "description": "The relay folders it rests on.", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["n", "caught", "missed", "falseAlarm", "agreed"],
+      "description": "The review against the hidden tests, over n reviewed and graded attempts: caught asked for changes or blocked and the hidden tests were red, missed approved and red, falseAlarm asked for changes or blocked and green, agreed approved and green.",
+      "properties": {
+        "n": { "type": "integer", "minimum": 0 },
+        "caught": { "type": "integer", "minimum": 0 },
+        "missed": { "type": "integer", "minimum": 0 },
+        "falseAlarm": { "type": "integer", "minimum": 0 },
+        "agreed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "badPatches": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["n", "byTests", "byTestsAndReview"],
+      "description": "Over the n graded attempts the hidden tests failed: the share the repository's own tests already turned red, and the share the tests or the review stopped.",
+      "properties": {
+        "n": { "type": "integer", "minimum": 0 },
+        "byTests": { "$ref": "#/$defs/share" },
+        "byTestsAndReview": { "$ref": "#/$defs/share" }
+      }
+    },
+    "perGreen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usd", "wallMs"],
+      "description": "Means over the attempts the hidden tests passed. Cost is the run and its review as the daemon priced them; wall time runs from the assign to the review's answer, or to the run's verification when there was no review.",
+      "properties": {
+        "usd": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "n", "unpriced"],
+          "properties": {
+            "value": { "type": ["number", "null"], "minimum": 0 },
+            "n": { "type": "integer", "minimum": 0 },
+            "unpriced": { "type": "integer", "minimum": 0, "description": "Green attempts left out because a part could not be priced." }
+          }
+        },
+        "wallMs": { "$ref": "#/$defs/mean" }
+      }
+    },
+    "spend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usd", "estimated"],
+      "description": "Every attempt's spend; estimated when a part could not be priced.",
+      "properties": {
+        "usd": { "type": "number", "minimum": 0 },
+        "estimated": { "type": "boolean" }
+      }
+    },
+    "attempts": { "type": "array", "items": { "$ref": "#/$defs/attempt" } }
+  },
+  "$defs": {
+    "share": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "n"],
+      "description": "A share from 0 to 1 and the number of runs it rests on; null when it rests on none.",
+      "properties": {
+        "value": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "n": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "mean": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "n"],
+      "description": "A mean over n runs; null when it rests on none.",
+      "properties": {
+        "value": { "type": ["number", "null"], "minimum": 0 },
+        "n": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task", "repo", "attempt", "live", "stintTask", "run", "adapter", "model", "host", "endedBy", "tests", "hidden", "scenarios", "review", "usd", "estimated", "wallMs", "retried", "outcome", "startedAt", "finishedAt"],
+      "description": "One attempt at a seeded task. The published folder bench/scorecard/<task>-a<attempt>/ holds the task folder the daemon wrote, scrubbed, and attempt.json.",
+      "properties": {
+        "task": { "type": "string", "minLength": 1, "description": "The seeded task id in bench/relay/tasks.json." },
+        "repo": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "live": { "type": "boolean" },
+        "stintTask": { "type": ["string", "null"], "pattern": "^T-[0-9]{4,}$" },
+        "run": { "type": ["string", "null"], "pattern": "^r[0-9]+$" },
+        "adapter": { "type": "string", "minLength": 1 },
+        "model": { "type": ["string", "null"], "minLength": 1 },
+        "host": { "type": ["string", "null"], "minLength": 1 },
+        "endedBy": { "enum": ["completed", "capped", "killed", "failed", "handed", null] },
+        "tests": { "enum": ["green", "red", null], "description": "The daemon's verification after the run, with the repository's own tests." },
+        "hidden": { "enum": ["green", "red", null], "description": "The daemon's verification with the hidden tests added; it grades the attempt. Null: not graded." },
+        "scenarios": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["passed", "failed"],
+          "properties": {
+            "passed": { "type": "integer", "minimum": 0 },
+            "failed": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "review": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["verdict", "findings", "adapter", "model", "host", "offline"],
+          "description": "The offline review, offered only after a green verification; null when the change was red or the review did not answer.",
+          "properties": {
+            "verdict": { "type": "string", "enum": ["approve", "request_changes", "block"] },
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["severity", "text"],
+                "properties": {
+                  "severity": { "type": "string", "enum": ["blocker", "major", "minor", "note"] },
+                  "text": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
+            "adapter": { "type": ["string", "null"], "minLength": 1, "description": "Who reviewed, with the host that answered." },
+            "model": { "type": ["string", "null"], "minLength": 1 },
+            "host": { "type": ["string", "null"], "minLength": 1 },
+            "offline": { "type": ["boolean", "null"] }
+          }
+        },
+        "usd": { "type": ["number", "null"], "minimum": 0 },
+        "estimated": { "type": "boolean" },
+        "wallMs": { "type": ["integer", "null"], "minimum": 0 },
+        "retried": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "outcome": { "type": "string", "minLength": 1 },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
