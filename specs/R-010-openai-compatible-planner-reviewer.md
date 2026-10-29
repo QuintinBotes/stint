@@ -23,7 +23,7 @@ One client, four base URLs: Meta's Model API for `muse-wonder-1.0` plans, Basete
 - `POST /api/tasks/:id/plan { host?: 'meta-api' | 'fireworks' | 'baseten' | 'ollama' }` → `Plan` (host optional; the chain decides when absent).
 - `POST /api/tasks/:id/review { host? }` → `Review`.
 - `GET /api/health.adapters[]` gains `host`, `models`, `structuredOutput`, `latencyMs`, and `chains` (the resolved order per role with availability per entry).
-- Base URLs and model ids: `meta-api` (Meta Model API, `muse-wonder-1.0`, `muse-spark-1.3`); `baseten` `https://inference.baseten.co/v1`, `meta-models/muse-spark-open`; `fireworks` `https://api.fireworks.ai/inference/v1`, `accounts/fireworks/models/muse-spark-open`; `ollama` `http://localhost:11434/v1`, `muse-glimmer:30b-mlx`. All in `config.json`, never in code.
+- Base URLs and model ids: `meta-api` (Meta Model API, `muse-wonder-1.0`, `muse-spark-1.3`); `baseten` `https://inference.baseten.co/v1`, `meta-models/muse-spark-open-1026` (the hackathon key works with this model only); `fireworks` `https://api.fireworks.ai/inference/v1`, `accounts/fireworks/models/muse-spark-open`; `ollama` `http://localhost:11434/v1`, `muse-glimmer:30b-mlx`. All in `config.json`, never in code.
 
 ## Acceptance
 1. With a fake OpenAI-compatible server returning a schema-valid plan, `plan()` returns a validated `Plan` and `plan.md` renders its steps: `packages/adapters/openai-compatible/test/plan.test.ts`.

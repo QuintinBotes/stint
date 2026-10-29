@@ -263,7 +263,7 @@ export const DEFAULT_CONFIG: Config = {
     baseten: {
       baseURL: 'https://inference.baseten.co/v1',
       keyEnv: 'BASETEN_API_KEY',
-      models: { 'muse-spark-open': 'meta-models/muse-spark-open' },
+      models: { 'muse-spark-open': 'meta-models/muse-spark-open-1026' },
       offline: false,
       structuredOutput: 'accepted',
       cachedInput: true,

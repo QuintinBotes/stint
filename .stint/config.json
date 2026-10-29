@@ -74,7 +74,7 @@
       "cachedInput": true,
       "keyEnv": "BASETEN_API_KEY",
       "models": {
-        "muse-spark-open": "meta-models/muse-spark-open"
+        "muse-spark-open": "meta-models/muse-spark-open-1026"
       },
       "offline": false,
       "structuredOutput": "accepted",

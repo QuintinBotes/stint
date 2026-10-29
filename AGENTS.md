@@ -136,7 +136,7 @@ AGENTS.md                      this file; `stint init` adds a "## Stint" section
 | Host id | Base URL | Key | Models | Notes |
 |---|---|---|---|---|
 | `meta-api` | Meta Model API | `META_API_KEY` | `muse-wonder-1.0`, `muse-spark-1.3` | the hero models; native structured output |
-| `baseten` | `https://inference.baseten.co/v1` | `BASETEN_API_KEY` | `meta-models/muse-spark-open` | Meta's open-weight 816B model hosted; $1.25 in, $0.15 cached, $4.25 out per M; hackathon partner: $100 credits and 2M TPM; accepts `json_schema` but does not enforce it, so the adapter validates and retries |
+| `baseten` | `https://inference.baseten.co/v1` | `BASETEN_API_KEY` | `meta-models/muse-spark-open-1026` | Meta's open-weight 816B model hosted; $1.25 in, $0.15 cached, $4.25 out per M; hackathon partner: $100 credits and 2M TPM; accepts `json_schema` but does not enforce it, so the adapter validates and retries |
 | `fireworks` | `https://api.fireworks.ai/inference/v1` | `FIREWORKS_API_KEY` | `accounts/fireworks/models/muse-spark-open` | same model and prices, cached input $0.15, enforced `json_schema`, function calling, zero data retention, US-only serverless; hackathon partner: $25 credits |
 | `ollama` | `http://localhost:11434/v1` | none | `muse-glimmer:30b-mlx` | offline, $0, the review beat on stage |
 
