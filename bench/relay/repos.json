@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "checked": "2026-10-29 on macOS, Node 22.18.0 and npm 11.6.0, in a scratch folder outside the Stint repository",
+  "repos": [
+    {
+      "id": "negotiator",
+      "name": "jshttp/negotiator",
+      "url": "https://github.com/jshttp/negotiator.git",
+      "licence": "MIT",
+      "commit": "14b0a7b88e7e7bb1cae38681195951bff29ca2fd",
+      "install": "npm install --ignore-scripts --no-audit --no-fund",
+      "testCommand": "npm test",
+      "removeInBaseline": [],
+      "baseline": { "passed": 253, "failed": 0, "pending": 3, "seconds": 1, "runner": "mocha" }
+    },
+    {
+      "id": "wait-on",
+      "name": "jeffbski/wait-on",
+      "url": "https://github.com/jeffbski/wait-on.git",
+      "licence": "MIT",
+      "commit": "fae57e2e074a241551a8a5e9089e48099247ac41",
+      "install": "npm install --ignore-scripts --no-audit --no-fund",
+      "testCommand": "npm test",
+      "removeInBaseline": ["AGENTS.md", "CLAUDE.md"],
+      "removeReason": "both point agents at a workflow that does not exist here; the baseline commit removes them before stint init writes its own AGENTS.md",
+      "baseline": { "passed": 165, "failed": 0, "seconds": 75, "runner": "eslint, tsc and mocha", "note": "slower than the 30 s the brief asked for; the owner approved this repository by name" }
+    },
+    {
+      "id": "ms",
+      "name": "vercel/ms",
+      "url": "https://github.com/vercel/ms.git",
+      "licence": "MIT",
+      "commit": "4ff48cec099f0514c3e9bbca18706c9c21122bfb",
+      "install": "npm install --ignore-scripts --no-audit --no-fund",
+      "installNote": "pnpm install --ignore-scripts --frozen-lockfile was the first choice and the permission check on this Mac refused it, so npm resolves the ranges in package.json instead of the pnpm lockfile",
+      "testCommand": "npm run test:nodejs && npm run test:edge",
+      "testCommandNote": "the repository's own two test scripts, run by npm: its `test` script calls pnpm",
+      "removeInBaseline": [],
+      "baseline": { "passed": 167, "failed": 0, "seconds": 3, "runner": "jest twice (node and edge runtime), 100% coverage threshold" }
+    }
+  ]
+}

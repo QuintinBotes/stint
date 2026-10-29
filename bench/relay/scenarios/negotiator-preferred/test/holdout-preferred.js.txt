@@ -1,0 +1,74 @@
+var assert = require('assert')
+var fs = require('fs')
+var path = require('path')
+var Negotiator = require('..')
+
+function negotiator (headers) {
+  var request = { headers: {} }
+  Object.keys(headers).forEach(function (key) {
+    request.headers[key.toLowerCase()] = headers[key]
+  })
+  return new Negotiator(request)
+}
+
+describe('holdout: { preferred } breaks ties for every negotiator', function () {
+  describe('media types', function () {
+    var n = negotiator({ Accept: 'text/html, application/json' })
+
+    it('puts the server-preferred type first among equal q-values', function () {
+      assert.deepStrictEqual(n.mediaTypes(['text/html', 'application/json'], { preferred: ['application/json'] }), ['application/json', 'text/html'])
+      assert.strictEqual(n.mediaType(['text/html', 'application/json'], { preferred: ['application/json'] }), 'application/json')
+    })
+
+    it('keeps the order without the option', function () {
+      assert.deepStrictEqual(n.mediaTypes(['text/html', 'application/json']), ['text/html', 'application/json'])
+      assert.strictEqual(n.mediaType(['text/html', 'application/json']), 'text/html')
+    })
+
+    it('lets a higher q-value win over the preference', function () {
+      var lower = negotiator({ Accept: 'text/html, application/json;q=0.5' })
+      assert.deepStrictEqual(lower.mediaTypes(['text/html', 'application/json'], { preferred: ['application/json'] }), ['text/html', 'application/json'])
+      assert.strictEqual(lower.mediaType(['text/html', 'application/json'], { preferred: ['application/json'] }), 'text/html')
+    })
+  })
+
+  describe('languages', function () {
+    it('puts the server-preferred language first among equal q-values', function () {
+      var n = negotiator({ 'Accept-Language': 'en, fr' })
+      assert.deepStrictEqual(n.languages(['en', 'fr'], { preferred: ['fr'] }), ['fr', 'en'])
+      assert.strictEqual(n.language(['en', 'fr'], { preferred: ['fr'] }), 'fr')
+      assert.deepStrictEqual(n.languages(['en', 'fr']), ['en', 'fr'])
+    })
+
+    it('lets a higher q-value win over the preference', function () {
+      var n = negotiator({ 'Accept-Language': 'en, fr;q=0.5' })
+      assert.deepStrictEqual(n.languages(['en', 'fr'], { preferred: ['fr'] }), ['en', 'fr'])
+      assert.strictEqual(n.language(['en', 'fr'], { preferred: ['fr'] }), 'en')
+    })
+  })
+
+  describe('charsets', function () {
+    it('puts the server-preferred charset first among equal q-values', function () {
+      var n = negotiator({ 'Accept-Charset': 'utf-8, iso-8859-1' })
+      assert.deepStrictEqual(n.charsets(['utf-8', 'iso-8859-1'], { preferred: ['iso-8859-1'] }), ['iso-8859-1', 'utf-8'])
+      assert.strictEqual(n.charset(['utf-8', 'iso-8859-1'], { preferred: ['iso-8859-1'] }), 'iso-8859-1')
+      assert.deepStrictEqual(n.charsets(['utf-8', 'iso-8859-1']), ['utf-8', 'iso-8859-1'])
+    })
+
+    it('lets a higher q-value win over the preference', function () {
+      var n = negotiator({ 'Accept-Charset': 'utf-8, iso-8859-1;q=0.5' })
+      assert.deepStrictEqual(n.charsets(['utf-8', 'iso-8859-1'], { preferred: ['iso-8859-1'] }), ['utf-8', 'iso-8859-1'])
+      assert.strictEqual(n.charset(['utf-8', 'iso-8859-1'], { preferred: ['iso-8859-1'] }), 'utf-8')
+    })
+  })
+
+  it('documents the option in each negotiation section of the README', function () {
+    var readme = fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8')
+    var sections = readme.split(/^### /m)
+    ;['Accept Negotiation', 'Accept-Language Negotiation', 'Accept-Charset Negotiation'].forEach(function (title) {
+      var section = sections.find(function (s) { return s.indexOf(title) === 0 })
+      assert.ok(section, 'README has a "' + title + '" section')
+      assert.ok(/\{ ?preferred|`preferred`|preferred:/.test(section), 'the "' + title + '" section documents the preferred option')
+    })
+  })
+})

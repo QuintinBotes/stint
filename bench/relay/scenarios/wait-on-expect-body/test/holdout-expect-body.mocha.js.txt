@@ -1,0 +1,132 @@
+'use strict';
+
+const waitOn = require('../');
+const childProcess = require('child_process');
+const fs = require('fs');
+const http = require('http');
+const os = require('os');
+const path = require('path');
+
+const mocha = require('mocha');
+const describe = mocha.describe;
+const it = mocha.it;
+const afterEach = mocha.afterEach;
+const expect = require('chai').expect;
+
+const ROOT = path.resolve(__dirname, '..');
+const CLI_PATH = path.join(ROOT, 'bin', 'wait-on');
+
+// a local server whose GET body says "starting" for the first `notYet` requests and "ready" after
+function bodyServer(notYet, done) {
+  const seen = { get: 0 };
+  const server = http.createServer(function (req, res) {
+    if (req.method === 'GET') seen.get++;
+    res.end(seen.get > notYet ? 'service is ready' : 'service is starting');
+  });
+  server.listen(0, '127.0.0.1', function () {
+    done(server, server.address().port, seen);
+  });
+  return server;
+}
+
+describe('holdout: expectBody', function () {
+  this.timeout(10000);
+  let server = null;
+
+  afterEach(function () {
+    if (server) server.close();
+    server = null;
+  });
+
+  it('waits until a GET body contains the text, then succeeds', function (done) {
+    server = bodyServer(3, function (s, port, seen) {
+      waitOn({ resources: ['http-get://127.0.0.1:' + port + '/'], expectBody: 'ready', interval: 50, window: 0 }, function (err) {
+        expect(err).to.not.exist;
+        expect(seen.get).to.be.greaterThan(3);
+        done();
+      });
+    });
+  });
+
+  it('accepts a RegExp in the API', function (done) {
+    server = bodyServer(2, function (s, port, seen) {
+      waitOn({ resources: ['http-get://127.0.0.1:' + port + '/'], expectBody: /is re.dy/, interval: 50, window: 0 }, function (err) {
+        expect(err).to.not.exist;
+        expect(seen.get).to.be.greaterThan(2);
+        done();
+      });
+    });
+  });
+
+  it('times out with an error when the body never matches', function (done) {
+    server = bodyServer(Infinity, function (s, port) {
+      waitOn({ resources: ['http-get://127.0.0.1:' + port + '/'], expectBody: 'ready', interval: 50, window: 0, timeout: 800 }, function (err) {
+        expect(err).to.exist;
+        expect(err.message).to.match(/Timed out/);
+        done();
+      });
+    });
+  });
+
+  it('rejects expectBody on a HEAD (http:) resource straight away, naming the option', function (done) {
+    const started = Date.now();
+    waitOn({ resources: ['http://127.0.0.1:9/'], expectBody: 'ready', timeout: 5000 }, function (err) {
+      expect(err).to.exist;
+      expect(err.message).to.match(/expectBody/);
+      expect(err.message).to.match(/-get/);
+      expect(Date.now() - started).to.be.lessThan(2000);
+      done();
+    });
+  });
+
+  it('has a --expect-body flag on the CLI', function (done) {
+    server = bodyServer(2, function (s, port, seen) {
+      const child = childProcess.spawn(process.execPath, [CLI_PATH, '--expect-body', 'ready', '-i', '50', '-w', '0', '-t', '5000', 'http-get://127.0.0.1:' + port + '/']);
+      child.on('exit', function (code) {
+        expect(code).to.equal(0);
+        expect(seen.get).to.be.greaterThan(2);
+        done();
+      });
+    });
+  });
+
+  it('exits non-zero from the CLI when the body never matches', function (done) {
+    server = bodyServer(Infinity, function (s, port) {
+      const child = childProcess.spawn(process.execPath, [CLI_PATH, '--expect-body', 'ready', '-i', '50', '-w', '0', '-t', '800', 'http-get://127.0.0.1:' + port + '/']);
+      child.on('exit', function (code) {
+        expect(code).to.not.equal(0);
+        done();
+      });
+    });
+  });
+
+  it('documents the option in usage.txt and the README', function () {
+    expect(fs.readFileSync(path.join(ROOT, 'bin', 'usage.txt'), 'utf8')).to.include('--expect-body');
+    const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+    expect(readme).to.include('--expect-body');
+    expect(readme).to.include('expectBody');
+  });
+
+  it('types expectBody as a string or a RegExp', function () {
+    this.timeout(30000);
+    const tsPackage = require.resolve('typescript/package.json');
+    const tsc = path.join(path.dirname(tsPackage), require(tsPackage).bin.tsc);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wait-on-types-'));
+    const file = path.join(dir, 'expect-body.ts');
+    const index = JSON.stringify(path.join(ROOT, 'index'));
+    fs.writeFileSync(
+      file,
+      'import waitOn = require(' + index + ');\n' +
+        "void waitOn({ resources: ['http-get://localhost:3000'], expectBody: 'ready' });\n" +
+        "void waitOn({ resources: ['http-get://localhost:3000'], expectBody: /ready/ });\n" +
+        '// @ts-expect-error a number is not a body to look for\n' +
+        "void waitOn({ resources: ['http-get://localhost:3000'], expectBody: 42 });\n"
+    );
+    const typesDir = path.dirname(path.dirname(require.resolve('@types/node/package.json')));
+    const args = ['--noEmit', '--strict', '--skipLibCheck', '--target', 'es2020', '--module', 'node16', '--moduleResolution', 'node16', '--types', 'node', '--typeRoots', typesDir, file];
+    const result = childProcess.spawnSync(process.execPath, [tsc].concat(args), { encoding: 'utf8' });
+    fs.rmSync(dir, { recursive: true, force: true });
+    expect(result.stdout + result.stderr).to.equal('');
+    expect(result.status).to.equal(0);
+  });
+});

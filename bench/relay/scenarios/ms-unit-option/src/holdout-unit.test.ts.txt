@@ -1,0 +1,68 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { format, ms, parse } from './index';
+
+describe('holdout: format({ unit })', () => {
+  it('expresses the value in the unit asked for, short', () => {
+    expect(format(5_400_000, { unit: 'm' })).toBe('90m');
+    expect(ms(5_400_000, { unit: 'm' })).toBe('90m');
+    expect(format(3_600_000, { unit: 's' })).toBe('3600s');
+    expect(format(1500, { unit: 'ms' })).toBe('1500ms');
+    expect(format(-7_200_000, { unit: 'h' })).toBe('-2h');
+    expect(format(1_209_600_000, { unit: 'd' })).toBe('14d');
+  });
+
+  it('expresses the value in the unit asked for, long', () => {
+    expect(format(5_400_000, { unit: 'minutes', long: true })).toBe('90 minutes');
+    expect(format(60_000, { unit: 'minute', long: true })).toBe('1 minute');
+    expect(format(172_800_000, { unit: 'd', long: true })).toBe('2 days');
+    expect(format(1_209_600_000, { unit: 'weeks', long: true })).toBe('2 weeks');
+  });
+
+  it('takes any spelling and case the parser takes', () => {
+    expect(format(5_400_000, { unit: 'Minutes' })).toBe('90m');
+    expect(format(5_400_000, { unit: 'MINS' })).toBe('90m');
+    expect(format(3_600_000, { unit: 'hrs' })).toBe('1h');
+  });
+
+  it('rounds to a whole number of that unit, as format() does today', () => {
+    expect(format(90_000, { unit: 'm' })).toBe('2m');
+  });
+
+  it('formats as before without the option', () => {
+    expect(format(5_400_000)).toBe('2h');
+    expect(format(5_400_000, { long: true })).toBe('2 hours');
+  });
+
+  it('rejects a unit it does not know, naming it', () => {
+    expect(() => format(1000, { unit: 'fortnight' as never })).toThrow(/fortnight/);
+  });
+});
+
+describe('holdout: parse({ unit })', () => {
+  it('reads a number without a unit in the unit given', () => {
+    expect(parse('90', { unit: 's' })).toBe(90_000);
+    expect(ms('90', { unit: 's' })).toBe(90_000);
+    expect(parse('1.5', { unit: 'h' })).toBe(5_400_000);
+    expect(parse('2', { unit: 'Days' })).toBe(172_800_000);
+  });
+
+  it('lets a unit in the string win', () => {
+    expect(parse('2m', { unit: 's' })).toBe(120_000);
+  });
+
+  it('reads milliseconds without the option, as before', () => {
+    expect(parse('90')).toBe(90);
+  });
+
+  it('rejects a unit it does not know, naming it', () => {
+    expect(() => parse('90', { unit: 'fortnight' as never })).toThrow(/fortnight/);
+  });
+});
+
+describe('holdout: README', () => {
+  it('documents the unit option', () => {
+    const readme = readFileSync(join(__dirname, '..', 'README.md'), 'utf8');
+    expect(readme).toMatch(/unit: ?'/);
+  });
+});

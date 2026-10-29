@@ -1,0 +1,18 @@
+var assert = require('assert')
+var Negotiator = require('..')
+
+describe('holdout: no Accept header means nothing was asked for', function () {
+  var n = new Negotiator({ headers: {} })
+
+  it('mediaType() returns undefined', function () {
+    assert.strictEqual(n.mediaType(), undefined)
+  })
+
+  it('mediaTypes() returns an empty list', function () {
+    assert.deepStrictEqual(n.mediaTypes(), [])
+  })
+
+  it('still answers from a list of available types', function () {
+    assert.strictEqual(n.mediaType(['text/html', 'application/json']), 'text/html')
+  })
+})
