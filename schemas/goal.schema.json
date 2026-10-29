@@ -28,7 +28,7 @@
             "required": ["kind", "ref"],
             "description": "How the criterion is proven, accepted after sharpening.",
             "properties": {
-              "kind": { "type": "string", "enum": ["test", "scenario", "check", "human"] },
+              "kind": { "type": "string", "enum": ["test", "scenario", "check", "human", "visual"] },
               "ref": { "type": "string", "minLength": 1, "maxLength": 200 }
             }
           }

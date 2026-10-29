@@ -1,3 +1,4 @@
+import { join, relative } from 'node:path';
 import {
   type Cost,
   type EndedBy,
@@ -10,8 +11,11 @@ import {
   type StintEvent,
   type Vendor,
   VendorSchema,
+  type VisualCheck,
   countTokens,
   renderHandoff,
+  visualChecks,
+  visualRef,
 } from '@stint-dev/core';
 import { constrains, hashHandoff, scrubSecrets } from '@stint-dev/core/node';
 import type { Enrichment } from './adapter';
@@ -145,6 +149,13 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
   const carriedAskClosed = endedBy === 'completed' && green && notReached.length === 0;
   const carriedAsk = carried && !carriedAskClosed ? scrub(carried.askOfNext) : '';
   const carriedAskCore = carriedAsk.replace(/^Next: /, '').replace(/\.$/, '');
+  // what looked wrong on screen (R-068), with the marked screenshot kept whole when the line is clipped
+  const taskDir = await ws.taskDir(taskId);
+  const lookedWrong = verified?.run ? visualChecks(upto, verified.run).filter((c): c is Extract<VisualCheck, { holds: boolean }> => 'holds' in c && !c.holds) : [];
+  const lookedLine = (c: (typeof lookedWrong)[number]) => {
+    const marked = c.marked ? ` Marked screenshot: ${relative(ws.root, join(taskDir, c.marked))}` : '';
+    return `${clip(`${visualRef(c.ref)?.path ?? c.ref} looked wrong for criterion ${c.criterion}: ${c.problem ?? c.seen}`, ITEM - marked.length)}${marked}`;
+  };
   const open = list([
     ...(carriedAsk && !notReached.some((s) => s.text === carriedAskCore) ? [carriedAsk] : []),
     ...notReached.map((s) => s.text),
@@ -152,9 +163,11 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
       ? [`Locked test files changed without a tests: decision: ${tamperFiles.join(', ')}. Restore them, or say on a decision: line why they had to change.`]
       : verified && !green && verified.payload.reason === 'scenarios'
         ? [`Held-out scenarios failed${scenarioFailing.length ? `: ${scenarioFailing.slice(0, 3).join('; ')}` : ''}. Their source is held out; the names are all you get.`]
-        : verified && !green
-          ? [`Make the failing tests pass (${Number(verified.payload.failed)} failed${Array.isArray(verified.payload.failing) && verified.payload.failing.length ? `: ${(verified.payload.failing as string[]).slice(0, 3).join('; ')}` : ''})`]
-          : []),
+        : verified && !green && lookedWrong.length
+          ? lookedWrong.map(lookedLine)
+          : verified && !green
+            ? [`Make the failing tests pass (${Number(verified.payload.failed)} failed${Array.isArray(verified.payload.failing) && verified.payload.failing.length ? `: ${(verified.payload.failing as string[]).slice(0, 3).join('; ')}` : ''})`]
+            : []),
   ]);
   const leftOut = list([
     ...(inFlight ? [`In-flight step unknown: ${inFlight}`] : []),

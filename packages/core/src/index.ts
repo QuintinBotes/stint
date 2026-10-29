@@ -21,8 +21,8 @@ export type { DroppedQuestion, ModelQuestion, ProofSuggestion, SharpenAnswer, Sh
 export * from './schemas/outcome';
 export { METRIC_DEFS, METRIC_GROUPS, METRIC_GROUP, METRIC_IDS, WINDOWS, metrics, weekWindows, windowFor } from './metrics/index';
 export type { MetricDef, MetricId, MetricsGolden, MetricsGroup, MetricsInput, MetricsSkill, WindowName } from './metrics/index';
-export { CRITERION_STATE_LABELS, durationWords, outcome, outcomeLine } from './project/outcome';
-export type { OutcomeInput } from './project/outcome';
+export { CRITERION_STATE_LABELS, durationWords, outcome, outcomeLine, visualChecks } from './project/outcome';
+export type { OutcomeInput, VisualCall, VisualCheck } from './project/outcome';
 export { goalOutcome, isMerged } from './project/goalOutcome';
 export type { GoalOutcome } from './project/goalOutcome';
 export { renderHandoff, parseHandoffPrompt, HANDOFF_PREAMBLE, HEADINGS } from './render';

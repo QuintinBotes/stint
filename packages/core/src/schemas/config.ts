@@ -135,6 +135,8 @@ export const ConfigSchema = z.strictObject({
     .optional(),
   /** Held-out scenarios: kept outside every worktree, run by the daemon after the tests (R-037). */
   scenarios: z.strictObject({ dir: z.string().min(1), command: z.string().min(1).optional() }).optional(),
+  /** Visual checks (R-068): the command that starts the app in a worktree, the address it serves, and how long to wait for it. */
+  visual: z.strictObject({ serve: z.string().min(1), url: z.url(), readyTimeoutMs: z.int().min(1000).max(600_000).optional() }).optional(),
   /** Review lenses and best-of-n reviews; a reviewer may not be the implementer's harness and model (R-035, R-038). */
   review: z
     .strictObject({

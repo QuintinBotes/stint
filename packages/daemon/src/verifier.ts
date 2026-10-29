@@ -7,6 +7,7 @@ import { checkTamperAtRef, readTestsLock, tamperMode, type TamperResult } from '
 import { runEnv } from './env';
 import { git, gitOk } from './git';
 import { listScenarioFiles, scenariosDir } from './scenarios';
+import { checkVisual } from './visual';
 import { installDependencies } from './worktree';
 
 export interface Verifier {
@@ -162,10 +163,15 @@ export class DaemonVerifier implements Verifier {
     private readonly capMs = 10 * 60_000,
   ) {}
 
-  /** Runs one command of the suite on the task's code, inside the run's sandbox when one is configured. */
-  private async exec(task: Task, run: string, command: string, dir: string): Promise<Exec> {
+  /** What a command run on the task's code gets: the run's sandbox when one is configured. */
+  private async prepared(task: Task, run: string, dir: string): Promise<Prepared> {
     const extra = { CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
-    const p: Prepared = this.prepare ? await this.prepare(task.id, run, dir, extra) : { env: { ...runEnv(task.id, run, dir, { hosts: this.ws.config.hosts }), ...extra } };
+    return this.prepare ? this.prepare(task.id, run, dir, extra) : { env: { ...runEnv(task.id, run, dir, { hosts: this.ws.config.hosts }), ...extra } };
+  }
+
+  /** Runs one command of the suite on the task's code. */
+  private async exec(task: Task, run: string, command: string, dir: string): Promise<Exec> {
+    const p = await this.prepared(task, run, dir);
     return execInGroup(command, dir, p.env, this.capMs, undefined, p.wrap);
   }
 
@@ -211,8 +217,11 @@ export class DaemonVerifier implements Verifier {
     const scenariosRed = scenarios.error !== undefined || (scenarios.record !== null && scenarios.record.failed > 0);
     const coverage = await this.coverage(task, run, worktree);
 
-    const green = checks.every((c) => c.status === 'green') && !tamperRed && !scenariosRed;
-    const reason = tamperRed ? 'tampered' : scenariosRed ? 'scenarios' : undefined;
+    const testsGreen = checks.every((c) => c.status === 'green') && !tamperRed && !scenariosRed;
+    // once the tests pass, what a person would see (R-068): each check that did not hold is a reason
+    const looked = testsGreen ? await checkVisual(this.ws, task, run, worktree, await this.prepared(task, run, worktree)) : [];
+    const green = testsGreen && looked.length === 0;
+    const reason = tamperRed ? 'tampered' : scenariosRed ? 'scenarios' : looked.length ? looked.join('; ') : undefined;
     const store = this.ws.verification(task.id);
     const extra = defs.slice(1).map((d, i) => `\n=== check: ${d.name} (${d.kind}): ${d.command} ===\n${outputs[i + 1] ?? ''}`);
     const scenarioLine = scenarios.record

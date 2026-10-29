@@ -61,11 +61,20 @@ export const TaskLimitsSchema = z.strictObject({
   minutes: z.int().min(1).max(1440).nullable().optional(),
 });
 export type TaskLimits = z.infer<typeof TaskLimitsSchema>;
-/** How a criterion is proven: a test that must fail before and pass after, a held-out scenario, a check, or a person (R-064). */
-export const ProofKindSchema = z.enum(['test', 'scenario', 'check', 'human']);
+/**
+ * How a criterion is proven: a test that must fail before and pass after, a held-out scenario, a check, a person
+ * (R-064), or what a page shows, as `<path> :: <what should be seen>` (R-068).
+ */
+export const ProofKindSchema = z.enum(['test', 'scenario', 'check', 'human', 'visual']);
 /** One criterion's proof; `criterion` counts from 1, the first line of `acceptance`. */
 export const TaskProofSchema = z.strictObject({ criterion: z.int().min(1).max(12), kind: ProofKindSchema, ref: z.string().min(1).max(200) });
 export type TaskProof = z.infer<typeof TaskProofSchema>;
+
+/** A visual proof's ref split into the page and what should be seen there; null when it is not `<path> :: <what>`. */
+export function visualRef(ref: string): { path: string; want: string } | null {
+  const m = /^\s*(\/\S*)\s+::\s+(\S.*?)\s*$/.exec(ref);
+  return m ? { path: m[1] as string, want: m[2] as string } : null;
+}
 
 export const TaskSchema = z.strictObject({
   version: z.literal('stint.task/1'),

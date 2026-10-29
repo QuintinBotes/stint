@@ -34,6 +34,7 @@ export const EVENT_TYPES = [
   'acceptance.tampered',
   'verification.tampered',
   'scenario.ran',
+  'visual.checked',
   'outcome.reverted',
   'outcome.followup',
   'outcome.ci',

@@ -393,7 +393,8 @@
               "test",
               "scenario",
               "check",
-              "human"
+              "human",
+              "visual"
             ]
           },
           "ref": {

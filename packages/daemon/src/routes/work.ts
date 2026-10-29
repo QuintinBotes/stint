@@ -108,6 +108,17 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
     return c.text(await Bun.file(file).text());
   });
 
+  // a visual check's screenshot, its marked copy and its clip (R-068)
+  app.get('/api/tasks/:id/verification/:run/visual/:file', async (c) => {
+    const id = c.req.param('id');
+    const run = c.req.param('run');
+    const name = c.req.param('file');
+    if (!/^r[0-9]+$/.test(run) || !/^visual-[0-9]{1,2}(-marked)?\.(png|webm)$/.test(name)) throw new DaemonError('invalid', `bad visual file ${run}/${name}`);
+    const file = Bun.file(join(await ctx.ws.taskDir(id), 'verification', run, name));
+    if (!(await file.exists())) throw new DaemonError('not_found', `${id} kept no ${name} for ${run}`);
+    return new Response(file, { headers: { 'Content-Type': name.endsWith('.webm') ? 'video/webm' : 'image/png', 'Cache-Control': 'no-cache' } });
+  });
+
   app.get('/api/tasks/:id/handoffs', async (c) => {
     const id = c.req.param('id');
     await ctx.ws.readTask(id);
