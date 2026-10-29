@@ -1,8 +1,9 @@
-import { type Metrics, weekOf } from '@stint-dev/core';
+import { type LearningCurve, type Metrics, learningCurve, weekOf } from '@stint-dev/core';
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ADAPTER_NAMES, type Agent, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, hostMark, hostName, markColor, modelName } from '../agents';
 import { type BenchData, type BenchMode, type CostRow, DaemonError, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, type TaskBundle, api, daemonMessage } from '../api';
+import { LearningChart } from '../components/LearningChart';
 import { Queue, WorkspaceMemory } from '../components/MemoryPanel';
 import { Measures, MetricsPanel, type WindowName, metricValue, sample } from '../components/MetricsPanel';
 import { Relay } from '../components/Relay';
@@ -829,8 +830,8 @@ function SpendByTask({ rows }: { rows: TaskSpend[] }) {
   );
 }
 
-/** What the Factory works out from every task's log: the stage funnel, spend by task, skills learned, and what happened after merge. */
-type FromLogs = { funnel: Record<string, number>; spend: TaskSpend[]; learned: number; merged: number; outcomes: OutcomeRow[] };
+/** What the Factory works out from every task's log and the workspace log: the stage funnel, spend by task, skills learned, findings over time, and what happened after merge. */
+type FromLogs = { funnel: Record<string, number>; spend: TaskSpend[]; learned: number; merged: number; outcomes: OutcomeRow[]; learning: LearningCurve };
 
 export function Factory() {
   const { data: cards, error: cardsError } = useTasks();
@@ -872,8 +873,8 @@ export function Factory() {
   useEffect(() => {
     if (!cards) return;
     let live = true;
-    Promise.all(cards.map((c) => api.events(c.task.id)))
-      .then((all) => {
+    Promise.all([Promise.all(cards.map((c) => api.events(c.task.id))), api.workspaceEvents()])
+      .then(([all, workspace]) => {
         if (!live) return;
         // The loops funnel: distinct tasks that entered each stage in the 7 days up to the last event (R-052).
         const latest = Math.max(0, ...all.flat().map((e) => Date.parse(e.ts)));
@@ -935,6 +936,7 @@ export function Factory() {
             // merged as the Tasks merged figure counts it: a task whose log has its merge, over all time
             merged: all.filter((events) => events.some((e) => e.type === 'merge.completed')).length,
             outcomes: [...rows.values()].sort((a, b) => b.merged - a.merged || a.adapter.localeCompare(b.adapter)),
+            learning: learningCurve([...all.flat(), ...workspace]),
           },
           error: null,
         });
@@ -1087,6 +1089,11 @@ export function Factory() {
           <Panel title="What it learned" aside="A skill learned on one task, and the next task that used it" collapsed testId="panel-it-learned">
             <WhenRead v={helped} what="the skills that helped">
               {(h) => <ItLearned helped={h} costByTask={costByTask} />}
+            </WhenRead>
+          </Panel>
+          <Panel title="Review findings per task" aside="Each task's last review, in the order reviewed, and where each skill was approved" collapsed testId="panel-learning">
+            <WhenRead v={fromLogs} what="the review findings">
+              {(d) => <LearningChart curve={d.learning} />}
             </WhenRead>
           </Panel>
           <Panel title="Workspace memory" collapsed testId="panel-memory">
