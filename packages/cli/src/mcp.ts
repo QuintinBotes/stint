@@ -261,10 +261,60 @@ function rootFor(repo: string | undefined): string {
   return repoRoot(undefined);
 }
 
+/** The tools `stint mcp install` registers with, each through its own CLI, and what that changes. */
+const CLIENTS = {
+  claude: { name: 'Claude Code', changed: (root: string) => `Claude Code starts Stint's MCP server for ${root} when you open it in that folder (its local scope).` },
+  codex: { name: 'Codex', changed: (root: string) => `Codex starts Stint's MCP server for ${root} in every session: [mcp_servers.stint] in ~/.codex/config.toml.` },
+} as const;
+export type McpClient = keyof typeof CLIENTS;
+
+/** The command that registers Stint's server; `stint` itself when it is on PATH, else this checkout's bin. */
+export function installCommand(client: McpClient, root: string, stint = Bun.which('stint') ? 'stint' : resolve(import.meta.dir, '..', 'bin', 'stint')): string[] {
+  return [client, 'mcp', 'add', 'stint', '--', stint, 'mcp', '--repo', root];
+}
+
+const shellWord = (w: string) => (/^[\w@%+=:,./-]+$/.test(w) ? w : `'${w.replaceAll("'", "'\\''")}'`);
+
+const install = defineCommand({
+  meta: { name: 'install', description: 'Register Stint\'s MCP server with Claude Code (claude) or Codex (codex), through their own CLIs' },
+  args: {
+    client: { type: 'positional', description: 'claude or codex', required: true },
+    repo: { type: 'string', description: 'Repository root (default: the git top level)' },
+    print: { type: 'boolean', description: 'Print the command without running it' },
+  },
+  run({ args }) {
+    if (!Object.hasOwn(CLIENTS, args.client)) {
+      process.stderr.write(`stint mcp install takes claude or codex, not ${args.client}\n`);
+      process.exit(2);
+    }
+    const client = args.client as McpClient;
+    const root = rootFor(args.repo);
+    const argv = installCommand(client, root);
+    const line = argv.map(shellWord).join(' ');
+    if (args.print) {
+      process.stdout.write(`${line}\n`);
+      return;
+    }
+    if (!Bun.which(client)) {
+      process.stderr.write(`${CLIENTS[client].name} is not installed here (no ${client} on PATH). Install it, or run this yourself where it is:\n${line}\n`);
+      process.exit(1);
+    }
+    const r = Bun.spawnSync(argv, { stdout: 'inherit', stderr: 'inherit' });
+    if (r.exitCode !== 0) {
+      process.stderr.write(`${client} refused it (exit ${r.exitCode}); nothing was changed by Stint. The command was:\n${line}\n`);
+      process.exit(r.exitCode ?? 1);
+    }
+    process.stdout.write(`Ran: ${line}\n${CLIENTS[client].changed(root)}\n`);
+  },
+});
+
 export const mcp = defineCommand({
-  meta: { name: 'mcp', description: 'Serve Stint\'s tools over MCP on stdio, for any agent that speaks MCP' },
+  meta: { name: 'mcp', description: 'Serve Stint\'s tools over MCP on stdio, for any agent that speaks MCP; install registers it with Claude Code or Codex' },
   args: { repo: { type: 'string', description: 'Repository root (default: the git top level, or the running task\'s repository)' } },
+  subCommands: { install },
   async run({ args }) {
+    // citty runs this after a subcommand too, and `stint mcp install` must not then wait on stdin
+    if (args._[0] === 'install') return;
     const list = tools(rootFor(args.repo));
     const lines = createInterface({ input: process.stdin });
     for await (const line of lines) {

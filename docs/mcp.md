@@ -31,13 +31,17 @@ muse plugins install /path/to/stint/packages/adapters/muse-code/plugin --scope u
 muse plugins approve stint
 ```
 
-**Any other MCP client:** run `stint mcp` from the repository, or pass `--repo <path>`. With Claude Code, for example:
+**Claude Code or Codex:** one line from your repository registers the server through the tool's own CLI and prints what it changed:
 
 ```bash
-claude mcp add stint -- stint mcp --repo /path/to/your/repo
+cd /path/to/your/repo
+stint mcp install claude
+stint mcp install codex
 ```
 
-For a client configured with JSON:
+`stint mcp install claude` runs `claude mcp add stint -- stint mcp --repo <your repo>`, which Claude Code keeps in its local scope: that folder, for you. `stint mcp install codex` runs `codex mcp add` with the same command, which writes `[mcp_servers.stint]` to `~/.codex/config.toml` for every Codex session. Add `--print` to see the command without running it, and `--repo <path>` for another repository. When `stint` is not on your PATH, the command names this checkout's `packages/cli/bin/stint` instead.
+
+**Any other MCP client:** run `stint mcp` from the repository, or pass `--repo <path>`. For a client configured with JSON:
 
 ```json
 { "mcpServers": { "stint": { "command": "stint", "args": ["mcp", "--repo", "/path/to/your/repo"] } } }
