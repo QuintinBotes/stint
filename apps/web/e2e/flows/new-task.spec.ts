@@ -37,3 +37,31 @@ test('A task created with an issue URL shows it as a link in the task header', a
   await expect(page.getByRole('button', { name: 'Request changes' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Reject' })).toBeDisabled();
 });
+
+test('A double press on Create task makes one task; the button says it is working while the daemon answers', async ({ page, request }) => {
+  const d = daemon(request);
+  // the create call is held until the second press has landed, so both presses fall inside one request
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/tasks', async (route) => {
+    if (route.request().method() === 'POST') await held;
+    await route.fallback();
+  });
+  const title = `Flow: pressed twice ${Date.now()}`;
+  await page.goto('/');
+  await page.keyboard.press('n');
+  const dialog = page.getByRole('dialog', { name: 'New task' });
+  await dialog.getByLabel('Title').fill(title);
+  await dialog.getByLabel('Goal').fill('One task, however many presses.');
+  await dialog.getByLabel('How you will know it is done, one check per line').fill('there is one task');
+  await dialog.getByRole('button', { name: 'Create task' }).dblclick();
+  const working = dialog.getByRole('button', { name: 'Creating task' });
+  await expect(working).toHaveAttribute('aria-disabled', 'true');
+  await working.click({ force: true });
+  release();
+  await expect(page).toHaveURL(/\/t\/T-\d+/);
+  const { tasks } = await d.get<{ tasks: Array<{ task: { title: string } }> }>('/api/tasks');
+  expect(tasks.filter((c) => c.task.title === title)).toHaveLength(1);
+});

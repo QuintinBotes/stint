@@ -44,7 +44,7 @@ test('A task made with Builds 1 stops at the build limit after a failing build; 
   // on the board the stopped task needs you, whatever its status says
   await page.goto('/');
   await expect(page.getByTestId('lane-needs-you')).toContainText(id);
-  await expect(page.getByTestId('lane-building')).not.toContainText(id);
+  await expect(page.getByTestId('lane-in-progress')).not.toContainText(id);
   await page.goto(`/t/${id}`);
 
   await stop.getByLabel('New build limit').fill('2');

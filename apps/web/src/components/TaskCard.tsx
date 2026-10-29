@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { agentOf } from '../agents';
 import { type TaskCardData, api } from '../api';
 import { age } from '../format';
-import { CostMeter, StatusChip, Who, cx } from './ui';
+import { CostMeter, StateMark, StatusChip, Who, cx } from './ui';
 
 type CardTask = TaskCardData['task'];
 
@@ -85,10 +85,18 @@ function useModelSummary(card: TaskCardData): string | null {
   return summary;
 }
 
+const CLOSED = ['approved', 'done', 'abandoned'];
+
+/** A task autopilot stopped to ask you, at a limit or anywhere else, needs you whatever its status says, until a run starts again. */
+export const stoppedForYou = (c: TaskCardData) => !!c.autopilot?.needsYou && !CLOSED.includes(c.task.status) && !(c.lastRun && !c.lastRun.endedAt);
+
+/** The tasks this one waits on that are not merged yet; autopilot starts it only once there are none (R-036). */
+export const waitsFor = (t: CardTask, all: Map<string, CardTask>) => (t.dependsOn ?? []).filter((d) => all.get(d)?.status !== 'done');
+
 /** How a task in the same split stands: merged, or its status, or what it still waits for. */
 function standing(t: CardTask, all: Map<string, CardTask>): string {
   if (t.status === 'done') return 'merged';
-  const open = (t.dependsOn ?? []).filter((d) => all.get(d)?.status !== 'done');
+  const open = waitsFor(t, all);
   return open.length ? `waits for ${open.join(', ')}` : t.status.replace('_', ' ');
 }
 
@@ -97,6 +105,15 @@ function when(card: TaskCardData, live: boolean): string {
   if (card.task.status === 'awaiting_approval') return `Waiting ${age(card.lastEventAt)}`;
   if (live && card.lastRun) return `Running ${age(card.lastRun.startedAt)}`;
   return `Updated ${age(card.lastEventAt)} ago`;
+}
+
+/** The card's one label. Merged and stopped-for-you say so; a building task with no run going waits rather than runs, so it never claims work is happening. */
+function MainStatus({ card, live }: { card: TaskCardData; live: boolean }) {
+  const { status } = card.task;
+  if (status === 'done') return <StatusChip status="done" label="merged" />;
+  if (stoppedForYou(card)) return <StatusChip status={status} label="needs you" tone="warn" />;
+  if (status === 'building' && !live) return <StatusChip status="building" tone="neutral" shape="waiting" />;
+  return <StatusChip status={status} />;
 }
 
 export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, CardTask> }) {
@@ -112,39 +129,46 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
   const latest = live && lastRun?.adapter ? agentOf(lastRun.adapter, lastRun.host, lastRun.model) : builder ? agentOf(builder.adapter, builder.host, builder.model) : agents.at(-1);
   const others = latest ? agents.filter((a) => a.name !== latest.name).length : 0;
   const gate = task.status === 'awaiting_approval';
+  const needsYou = gate || task.status === 'rejected' || stoppedForYou(card);
   const summary = modelSummary ?? card.summary;
   const tests = card.verification ?? null;
+  const blocked = task.status === 'planned' ? waitsFor(task, tasks) : [];
+  // a task that never ran claims no cost; a priced zero after a run is real, and an unpriced one says unpriced
+  const showCost = !!lastRun || card.cost.usd !== 0;
+  // one line under the label: what holds the task up, else what was last said about it, labelled as such, else its goal
+  const line = stoppedForYou(card) && card.autopilot?.reason ? (
+    <p className="stint-task-description" data-testid="card-blocker">
+      Autopilot stopped: {card.autopilot.reason}
+    </p>
+  ) : blocked.length ? (
+    <p className="stint-task-description" data-testid="card-blocker">
+      Waits for <span className="font-mono">{blocked.join(', ')}</span> to be merged before it starts.
+    </p>
+  ) : card.autopilot?.on && card.autopilot.queued && card.autopilot.reason ? (
+    <p className="stint-task-description" data-testid="card-blocker">
+      Autopilot: {card.autopilot.reason}
+    </p>
+  ) : summary ? (
+    <p className="stint-task-description line-clamp-2" data-testid="card-summary" data-source={modelSummary ? 'model' : 'agent.message'}>
+      <span className="font-medium">{modelSummary ? 'Summary: ' : 'Last message: '}</span>
+      {summary}
+    </p>
+  ) : (
+    <p className="stint-task-description line-clamp-2">{task.goal}</p>
+  );
   return (
-    <article
-      data-testid="task-card"
-      data-task={task.id}
-      className={cx('relative flex flex-col gap-2.5 p-3.5 rounded-[5px] border bg-panel', gate ? 'border-amber' : 'border-rule hover:border-rule-strong')}
-    >
-      <div className="flex items-center justify-between gap-2 min-w-0 text-small text-ink-2">
-        <span className="font-mono">{task.id}</span>
-        {task.status === 'done' ? <StatusChip label="merged" tone="merged" /> : <StatusChip status={task.status} />}
-      </div>
-      <h3 className="font-semibold">
+    <article data-testid="task-card" data-task={task.id} className={cx('stint-task-card', needsYou && 'stint-task-card--attention')}>
+      <h3 className="stint-task-heading">
+        <span className="stint-task-id">{task.id}</span>
         {/* the title's link covers the card, so the whole card opens the task; the controls on it sit above */}
         <Link to={`/t/${task.id}`} className="no-underline hover:underline after:absolute after:inset-0 after:rounded-[5px]">
           {task.title}
         </Link>
       </h3>
-      {summary ? (
-        <p className="text-small text-ink-2 line-clamp-2" data-testid="card-summary" data-source={modelSummary ? 'model' : 'agent.message'}>
-          {summary}
-        </p>
-      ) : (
-        <p className="text-small text-ink-2 line-clamp-2">{task.goal}</p>
-      )}
-      {card.autopilot?.on ? (
-        <div className="flex flex-wrap items-center gap-2 min-w-0 text-small" data-testid="autopilot-chip">
-          <StatusChip label={card.autopilot.queued ? 'queued' : `autopilot: ${card.autopilot.step}`} tone={card.autopilot.queued ? 'neutral' : 'active'} />
-          {card.autopilot.reason ? <span className="text-ink-2 truncate">{card.autopilot.reason}</span> : null}
-        </div>
-      ) : null}
+      <MainStatus card={card} live={live} />
+      {line}
       {task.parent || task.dependsOn?.length ? (
-        <p className="flex flex-wrap items-center gap-x-2 text-small text-ink-2" data-testid="task-family">
+        <p className="flex flex-wrap items-center gap-x-2 text-small text-ink-3" data-testid="task-family">
           {task.parent ? (
             <span>
               Part of <span className="font-mono">{task.parent}</span>
@@ -168,36 +192,38 @@ export function TaskCard({ card, all }: { card: TaskCardData; all?: Map<string, 
         <ol className="flex flex-col gap-1 border-l border-rule-strong pl-2.5 text-small" data-testid="subtasks" aria-label={`${children.length} subtasks`}>
           {children.map((c) => (
             <li key={c.id} className="flex items-baseline gap-2 min-w-0" data-subtask={c.id}>
-              <span className="font-mono text-ink-2 shrink-0">{c.id}</span>
+              <span className="font-mono text-ink-3 shrink-0">{c.id}</span>
               <span className="truncate">{c.title}</span>
-              <span className="ml-auto shrink-0 text-ink-2">{standing(c, tasks)}</span>
+              <span className="ml-auto shrink-0 text-ink-3">{standing(c, tasks)}</span>
             </li>
           ))}
         </ol>
       ) : null}
       {tests ? (
-        <p className={cx('text-small font-medium tabular', tests.status === 'green' ? 'text-green' : 'text-red')} data-testid="card-tests">
+        <p className={cx('stint-task-evidence flex items-center gap-1.5 tabular', tests.status !== 'green' && 'text-red')} data-testid="card-tests">
+          <StateMark shape={tests.status === 'green' ? 'verified' : 'failed'} />
           {testsLine(tests)}
         </p>
       ) : null}
-      <p className="flex flex-wrap items-center gap-x-1.5 text-small text-ink-2" data-testid="card-agents">
-        {latest ? (
-          <>
-            <Who agent={latest} live={live} className={live ? 'font-semibold text-ink' : undefined} />
-            {others ? <span className="text-ink-3">and {others} more</span> : null}
-          </>
-        ) : (
-          <span className="text-ink-3">{['done', 'approved', 'abandoned'].includes(card.task.status) ? 'No runs recorded.' : 'No run yet.'}</span>
-        )}
-      </p>
-      <div className="flex items-baseline justify-between gap-2 text-small text-ink-2">
-        <span>{when(card, live)}</span>
-        <b className={cx('font-semibold', card.cost.usd ? 'text-ink' : 'text-ink-2')}>
-          <CostMeter cost={card.cost} />
-        </b>
+      <div className="stint-task-footer">
+        <span className="flex flex-wrap items-center gap-x-1.5 min-w-0" data-testid="card-agents">
+          {latest ? (
+            <>
+              <Who agent={latest} live={live} className={live ? 'font-semibold text-ink' : 'text-ink-2'} />
+              {others ? <span>and {others} more</span> : null}
+            </>
+          ) : (
+            <span>{CLOSED.includes(task.status) ? 'No runs recorded' : 'No run yet'}</span>
+          )}
+          {card.autopilot?.on ? <span>, on autopilot</span> : null}
+        </span>
+        <span className="flex items-baseline gap-3">
+          <span>{when(card, live)}</span>
+          {showCost ? <CostMeter cost={card.cost} className={card.cost.usd ? 'text-ink-2' : undefined} /> : null}
+        </span>
       </div>
       {gate ? (
-        <Link to={`/t/${task.id}`} className="relative z-10 inline-flex items-center justify-center h-8 px-2.5 rounded-[5px] border border-ink bg-ink text-on-ink text-small font-semibold no-underline hover:bg-ink-2 hover:border-ink-2">
+        <Link to={`/t/${task.id}`} className="stint-button stint-button--primary relative z-10 self-start min-h-8 no-underline">
           Review and approve
         </Link>
       ) : null}

@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { ADAPTER_NAMES, agentOf, hostName, markColor, modelName } from '../agents';
 import type { Health, ModelHealth } from '../api';
 import { localTime } from '../format';
-import { cx } from './ui';
+import { StateMark, cx } from './ui';
 
 export type Credit = { host: string; left: number };
 
@@ -50,7 +50,7 @@ function modelRows(models: ModelHealth[]) {
         mark: agentOf('openai-compatible', first.host, first.model).mark,
         detail: up.length
           ? `${[...new Set(up.flatMap((m) => m.roles))].join(', ')}, on ${up.map((m) => hostName(m.host)).join(', ')}`
-          : [...new Set(ms.map((m) => m.reason).filter(Boolean))].join('; '),
+          : `Not ready: ${[...new Set(ms.map((m) => m.reason).filter(Boolean))].join('; ') || 'no host answers it'}`,
       };
     })
     .sort((a, b) => Number(b.ready) - Number(a.ready));
@@ -86,8 +86,8 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
   if (!health) {
     // the first health read has not come back yet, or it failed: only the second is worth alarming anyone about
     return unreachable ? (
-      <span className="inline-flex shrink-0 items-center gap-2 h-9 px-2.5 rounded-[5px] bg-red-wash font-medium text-red whitespace-nowrap" role="status" data-testid="status-unreachable">
-        <Dot color="var(--red)" />
+      <span className="inline-flex shrink-0 items-center gap-2 h-9 px-2.5 rounded-md border border-red bg-red-wash font-medium text-red whitespace-nowrap" role="status" data-testid="status-unreachable">
+        <StateMark shape="failed" />
         Daemon not reachable
       </span>
     ) : (
@@ -107,7 +107,7 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
   // the button says what is ready in plain words; the panel names the service behind it
   const daemon = health.mode === 'replay' ? 'Replay' : 'Ready';
   // a live daemon with no agent that can run is the one state that needs attention here; healthy is plain ink, since green means verified
-  const tone = ready.length === 0 && health.mode === 'live' ? 'var(--amber)' : 'var(--ink)';
+  const stuck = ready.length === 0 && health.mode === 'live';
 
   return (
     <div ref={root} className="relative shrink-0">
@@ -118,12 +118,12 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
         data-testid="status-button"
-        className="inline-flex items-center gap-1.5 h-9 px-2 rounded-[5px] text-ink-2 whitespace-nowrap hover:bg-panel hover:text-ink aria-expanded:bg-panel aria-expanded:text-ink"
+        className="inline-flex items-center gap-1.5 h-9 px-2 rounded-md text-ink-2 whitespace-nowrap hover:bg-surface-hover hover:text-ink aria-expanded:bg-surface-selected aria-expanded:text-ink"
       >
-        <Dot color={tone} />
+        {stuck ? <StateMark shape="attention" className="text-amber" /> : <Dot color="var(--ink)" />}
         <span>
-          {daemon}
-          <span className="hidden md:inline">
+          <span className="max-sm:sr-only">{daemon}</span>
+          <span className="hidden xl:inline">
             , {plural(ready.length, 'agent')}, {plural(readyModels, 'model')}
           </span>
         </span>
@@ -137,7 +137,7 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
           role="region"
           aria-label="Stint, agents and models"
           data-testid="status-panel"
-          className="absolute right-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-32px)] max-h-[70vh] overflow-y-auto rounded-[5px] border border-rule-strong bg-panel p-4"
+          className="absolute right-0 top-full z-50 mt-2 w-[360px] max-w-[calc(100vw-32px)] max-h-[70vh] overflow-y-auto rounded-md border border-rule-strong bg-panel p-4 shadow-[var(--shadow)] max-sm:fixed max-sm:inset-x-4 max-sm:top-14 max-sm:mt-0 max-sm:w-auto max-sm:max-w-none"
         >
           <Group title="Stint">
             <Row dot="var(--ink)" name={health.mode === 'replay' ? (health.replay?.live ? 'Replaying a recording of a live run' : 'Replaying a hand-written demo') : 'Running on this machine'} detail={`version ${health.version}, started ${localTime(health.startedAt)}${health.repo ? `, in ${health.repo}` : ''}`} />
@@ -191,7 +191,7 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
               ))}
             </Group>
           ) : null}
-          <Link to="/factory" onClick={() => setOpen(false)} className="mt-3 block text-ink underline decoration-rule-strong hover:decoration-ink">
+          <Link to="/factory" onClick={() => setOpen(false)} className="mt-3 block text-ink underline decoration-rule-strong underline-offset-4 hover:decoration-ink">
             Cost and models in the Factory
           </Link>
         </div>
