@@ -1,0 +1,19 @@
+{
+  "adapter": "codex",
+  "cost": {
+    "cachedTokens": 964941,
+    "inputTokens": 1021180,
+    "outputTokens": 15869,
+    "usd": 0.2944
+  },
+  "endedAt": "2026-10-29T14:05:42.227Z",
+  "endedBy": "completed",
+  "handoffFrom": "h4",
+  "host": "local-cli",
+  "role": "implementer",
+  "run": "r3",
+  "sessionId": "01a187f9-4b5f-7180-8458-47f87908186e",
+  "startedAt": "2026-10-29T14:03:44.086Z",
+  "vendor": "openai",
+  "worktree": ".stint/worktrees/T-0001-r3"
+}

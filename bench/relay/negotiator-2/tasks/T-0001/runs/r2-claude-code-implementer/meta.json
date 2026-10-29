@@ -1,0 +1,19 @@
+{
+  "adapter": "claude-code",
+  "cost": {
+    "cachedTokens": 0,
+    "inputTokens": 1596,
+    "outputTokens": 0,
+    "usd": 0
+  },
+  "endedAt": "2026-10-29T14:03:42.877Z",
+  "endedBy": "killed",
+  "handoffFrom": "h2",
+  "host": "local-cli",
+  "role": "implementer",
+  "run": "r2",
+  "sessionId": "1646c74d-59ae-4fc2-abe5-7a727e51ee4a",
+  "startedAt": "2026-10-29T13:48:42.760Z",
+  "vendor": "anthropic",
+  "worktree": ".stint/worktrees/T-0001-r2"
+}

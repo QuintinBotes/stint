@@ -1,0 +1,446 @@
+diff --git a/README.md b/README.md
+index 6fb7f2d..0d684e8 100644
+--- a/README.md
++++ b/README.md
+@@ -61,6 +61,15 @@ Returns an array of preferred media types ordered by the client preference.
+ Returns an array of preferred media types ordered by priority from a list of
+ available media types.
+ 
++##### mediaType(availableMediaTypes, { preferred })
++
++Returns the most preferred media type from a list of available media types, while prioritizing based on `preferred` array between same-quality media types.
++
++##### mediaTypes(availableMediaTypes, { preferred })
++
++Returns an array of preferred media types ordered by priority from a list of
++available media types, while prioritizing based on `preferred` array between same-quality media types.
++
+ ### Accept-Language Negotiation
+ 
+ ```js
+@@ -101,6 +110,15 @@ Returns an array of preferred languages ordered by the client preference.
+ Returns an array of preferred languages ordered by priority from a list of
+ available languages.
+ 
++##### language(availableLanguages, { preferred })
++
++Returns the most preferred language from a list of available languages, while prioritizing based on `preferred` array between same-quality languages.
++
++##### languages(availableLanguages, { preferred })
++
++Returns an array of preferred languages ordered by priority from a list of
++available languages, while prioritizing based on `preferred` array between same-quality languages.
++
+ ### Accept-Charset Negotiation
+ 
+ ```js
+@@ -141,6 +159,15 @@ Returns an array of preferred charsets ordered by the client preference.
+ Returns an array of preferred charsets ordered by priority from a list of
+ available charsets.
+ 
++##### charset(availableCharsets, { preferred })
++
++Returns the most preferred charset from a list of available charsets, while prioritizing based on `preferred` array between same-quality charsets.
++
++##### charsets(availableCharsets, { preferred })
++
++Returns an array of preferred charsets ordered by priority from a list of
++available charsets, while prioritizing based on `preferred` array between same-quality charsets.
++
+ ### Accept-Encoding Negotiation
+ 
+ ```js
+diff --git a/index.js b/index.js
+index 4f51315..813fe40 100644
+--- a/index.js
++++ b/index.js
+@@ -35,13 +35,13 @@ function Negotiator(request) {
+   this.request = request;
+ }
+ 
+-Negotiator.prototype.charset = function charset(available) {
+-  var set = this.charsets(available);
++Negotiator.prototype.charset = function charset(available, options) {
++  var set = this.charsets(available, options);
+   return set && set[0];
+ };
+ 
+-Negotiator.prototype.charsets = function charsets(available) {
+-  return preferredCharsets(this.request.headers['accept-charset'], available);
++Negotiator.prototype.charsets = function charsets(available, options) {
++  return preferredCharsets(this.request.headers['accept-charset'], available, getPreferred(options));
+ };
+ 
+ Negotiator.prototype.encoding = function encoding(available, opts) {
+@@ -50,26 +50,25 @@ Negotiator.prototype.encoding = function encoding(available, opts) {
+ };
+ 
+ Negotiator.prototype.encodings = function encodings(available, options) {
+-  var opts = options || {};
+-  return preferredEncodings(this.request.headers['accept-encoding'], available, opts.preferred);
++  return preferredEncodings(this.request.headers['accept-encoding'], available, getPreferred(options));
+ };
+ 
+-Negotiator.prototype.language = function language(available) {
+-  var set = this.languages(available);
++Negotiator.prototype.language = function language(available, options) {
++  var set = this.languages(available, options);
+   return set && set[0];
+ };
+ 
+-Negotiator.prototype.languages = function languages(available) {
+-  return preferredLanguages(this.request.headers['accept-language'], available);
++Negotiator.prototype.languages = function languages(available, options) {
++  return preferredLanguages(this.request.headers['accept-language'], available, getPreferred(options));
+ };
+ 
+-Negotiator.prototype.mediaType = function mediaType(available) {
+-  var set = this.mediaTypes(available);
++Negotiator.prototype.mediaType = function mediaType(available, options) {
++  var set = this.mediaTypes(available, options);
+   return set && set[0];
+ };
+ 
+-Negotiator.prototype.mediaTypes = function mediaTypes(available) {
+-  return preferredMediaTypes(this.request.headers.accept, available);
++Negotiator.prototype.mediaTypes = function mediaTypes(available, options) {
++  return preferredMediaTypes(this.request.headers.accept, available, getPreferred(options));
+ };
+ 
+ // Backwards compatibility
+@@ -81,3 +80,20 @@ Negotiator.prototype.preferredLanguage = Negotiator.prototype.language;
+ Negotiator.prototype.preferredLanguages = Negotiator.prototype.languages;
+ Negotiator.prototype.preferredMediaType = Negotiator.prototype.mediaType;
+ Negotiator.prototype.preferredMediaTypes = Negotiator.prototype.mediaTypes;
++
++/**
++ * Extract the preferred list from the options argument.
++ * @private
++ */
++
++function getPreferred(options) {
++  if (!options) {
++    return undefined;
++  }
++
++  if (Array.isArray(options)) {
++    return options;
++  }
++
++  return options.preferred;
++}
+diff --git a/lib/charset.js b/lib/charset.js
+index 10596ff..c17c7bd 100644
+--- a/lib/charset.js
++++ b/lib/charset.js
+@@ -95,15 +95,19 @@ function specify(charset, spec, index) {
+  * @public
+  */
+ 
+-function preferredCharsets(accept, provided) {
++function preferredCharsets(accept, provided, preferred) {
+   // RFC 2616 sec 14.2: no header = *
+   var accepts = parseAcceptCharset(accept === undefined ? '*' : accept || '');
++  var preferredOrder = normalizePreferred(preferred);
+ 
+   if (!provided) {
+     // sorted list of all charsets
++    var allComparator = preferredOrder
++      ? compareWithPreferred(getFullCharset, preferredOrder)
++      : compareSpecs;
+     return accepts
+       .filter(isQuality)
+-      .sort(compareSpecs)
++      .sort(allComparator)
+       .map(getFullCharset);
+   }
+ 
+@@ -111,12 +115,77 @@ function preferredCharsets(accept, provided) {
+     return getCharsetPriority(type, accepts, index);
+   });
+ 
++  var comparator = preferredOrder
++    ? compareWithPreferred(function getProvidedCharset(priority) {
++      return provided[priority.i];
++    }, preferredOrder)
++    : compareSpecs;
++
+   // sorted list of accepted charsets
+-  return priorities.filter(isQuality).sort(compareSpecs).map(function getCharset(priority) {
++  return priorities.filter(isQuality).sort(comparator).map(function getCharset(priority) {
+     return provided[priorities.indexOf(priority)];
+   });
+ }
+ 
++
++/**
++ * Build a comparator that breaks ties between equal q-values
++ * using the server's preferred order.
++ * @private
++ */
++
++function compareWithPreferred(getValue, preferred) {
++  var lowerPreferred = preferred.map(function (v) {
++    return String(v).toLowerCase();
++  });
++
++  return function comparator(a, b) {
++    if (a.q !== b.q) {
++      return b.q - a.q;
++    }
++
++    var aValue = getValue(a);
++    var bValue = getValue(b);
++    var aPreferred = aValue === undefined || aValue === null
++      ? -1
++      : lowerPreferred.indexOf(String(aValue).toLowerCase());
++    var bPreferred = bValue === undefined || bValue === null
++      ? -1
++      : lowerPreferred.indexOf(String(bValue).toLowerCase());
++
++    if (aPreferred === -1 && bPreferred === -1) {
++      return (b.s - a.s) || (a.o - b.o) || (a.i - b.i) || 0;
++    }
++
++    if (aPreferred !== -1 && bPreferred !== -1) {
++      return (aPreferred - bPreferred) || (b.s - a.s) || (a.o - b.o) || (a.i - b.i) || 0;
++    }
++
++    return aPreferred === -1 ? 1 : -1;
++  };
++}
++
++/**
++ * Normalize the preferred option to an array, if present.
++ * @private
++ */
++
++function normalizePreferred(preferred) {
++  if (!preferred) {
++    return undefined;
++  }
++
++  if (Array.isArray(preferred)) {
++    return preferred;
++  }
++
++  if (Array.isArray(preferred.preferred)) {
++    return preferred.preferred;
++  }
++
++  return undefined;
++}
++
+ /**
+  * Compare two specs.
+  * @private
+diff --git a/lib/language.js b/lib/language.js
+index e602244..d545a68 100644
+--- a/lib/language.js
++++ b/lib/language.js
+@@ -108,15 +108,19 @@ function specify(language, spec, index) {
+  * @public
+  */
+ 
+-function preferredLanguages(accept, provided) {
++function preferredLanguages(accept, provided, preferred) {
+   // RFC 2616 sec 14.4: no header = *
+   var accepts = parseAcceptLanguage(accept === undefined ? '*' : accept || '');
++  var preferredOrder = normalizePreferred(preferred);
+ 
+   if (!provided) {
+     // sorted list of all languages
++    var allComparator = preferredOrder
++      ? compareWithPreferred(getFullLanguage, preferredOrder)
++      : compareSpecs;
+     return accepts
+       .filter(isQuality)
+-      .sort(compareSpecs)
++      .sort(allComparator)
+       .map(getFullLanguage);
+   }
+ 
+@@ -124,12 +128,77 @@ function preferredLanguages(accept, provided) {
+     return getLanguagePriority(type, accepts, index);
+   });
+ 
++  var comparator = preferredOrder
++    ? compareWithPreferred(function getProvidedLanguage(priority) {
++      return provided[priority.i];
++    }, preferredOrder)
++    : compareSpecs;
++
+   // sorted list of accepted languages
+-  return priorities.filter(isQuality).sort(compareSpecs).map(function getLanguage(priority) {
++  return priorities.filter(isQuality).sort(comparator).map(function getLanguage(priority) {
+     return provided[priorities.indexOf(priority)];
+   });
+ }
+ 
++
++/**
++ * Build a comparator that breaks ties between equal q-values
++ * using the server's preferred order.
++ * @private
++ */
++
++function compareWithPreferred(getValue, preferred) {
++  var lowerPreferred = preferred.map(function (v) {
++    return String(v).toLowerCase();
++  });
++
++  return function comparator(a, b) {
++    if (a.q !== b.q) {
++      return b.q - a.q;
++    }
++
++    var aValue = getValue(a);
++    var bValue = getValue(b);
++    var aPreferred = aValue === undefined || aValue === null
++      ? -1
++      : lowerPreferred.indexOf(String(aValue).toLowerCase());
++    var bPreferred = bValue === undefined || bValue === null
++      ? -1
++      : lowerPreferred.indexOf(String(bValue).toLowerCase());
++
++    if (aPreferred === -1 && bPreferred === -1) {
++      return (b.s - a.s) || (a.o - b.o) || (a.i - b.i) || 0;
++    }
++
++    if (aPreferred !== -1 && bPreferred !== -1) {
++      return (aPreferred - bPreferred) || (b.s - a.s) || (a.o - b.o) || (a.i - b.i) || 0;
++    }
++
++    return aPreferred === -1 ? 1 : -1;
++  };
++}
++
++/**
++ * Normalize the preferred option to an array, if present.
++ * @private
++ */
++
++function normalizePreferred(preferred) {
++  if (!preferred) {
++    return undefined;
++  }
++
++  if (Array.isArray(preferred)) {
++    return preferred;
++  }
++
++  if (Array.isArray(preferred.preferred)) {
++    return preferred.preferred;
++  }
++
++  return undefined;
++}
++
+ /**
+  * Compare two specs.
+  * @private
+diff --git a/lib/mediaType.js b/lib/mediaType.js
+index 5b77295..0f58ff3 100644
+--- a/lib/mediaType.js
++++ b/lib/mediaType.js
+@@ -126,15 +126,19 @@ function specify(type, spec, index) {
+  * @public
+  */
+ 
+-function preferredMediaTypes(accept, provided) {
++function preferredMediaTypes(accept, provided, preferred) {
+   // RFC 2616 sec 14.2: no header = */*
+   var accepts = parseAccept(accept === undefined ? '*/*' : accept || '');
++  var preferredOrder = normalizePreferred(preferred);
+ 
+   if (!provided) {
+     // sorted list of all types
++    var allComparator = preferredOrder
++      ? compareWithPreferred(getFullType, preferredOrder)
++      : compareSpecs;
+     return accepts
+       .filter(isQuality)
+-      .sort(compareSpecs)
++      .sort(allComparator)
+       .map(getFullType);
+   }
+ 
+@@ -142,12 +146,77 @@ function preferredMediaTypes(accept, provided) {
+     return getMediaTypePriority(type, accepts, index);
+   });
+ 
++  var comparator = preferredOrder
++    ? compareWithPreferred(function getProvidedType(priority) {
++      return provided[priority.i];
++    }, preferredOrder)
++    : compareSpecs;
++
+   // sorted list of accepted types
+-  return priorities.filter(isQuality).sort(compareSpecs).map(function getType(priority) {
++  return priorities.filter(isQuality).sort(comparator).map(function getType(priority) {
+     return provided[priorities.indexOf(priority)];
+   });
+ }
+ 
++
++/**
++ * Build a comparator that breaks ties between equal q-values
++ * using the server's preferred order.
++ * @private
++ */
++
++function compareWithPreferred(getValue, preferred) {
++  var lowerPreferred = preferred.map(function (v) {
++    return String(v).toLowerCase();
++  });
++
++  return function comparator(a, b) {
++    if (a.q !== b.q) {
++      return b.q - a.q;
++    }
++
++    var aValue = getValue(a);
++    var bValue = getValue(b);
++    var aPreferred = aValue === undefined || aValue === null
++      ? -1
++      : lowerPreferred.indexOf(String(aValue).toLowerCase());
++    var bPreferred = bValue === undefined || bValue === null
++      ? -1
++      : lowerPreferred.indexOf(String(bValue).toLowerCase());
++
++    if (aPreferred === -1 && bPreferred === -1) {
++      return (b.s - a.s) || (a.o - b.o) || (a.i - b.i) || 0;
++    }
++
++    if (aPreferred !== -1 && bPreferred !== -1) {
++      return (aPreferred - bPreferred) || (b.s - a.s) || (a.o - b.o) || (a.i - b.i) || 0;
++    }
++
++    return aPreferred === -1 ? 1 : -1;
++  };
++}
++
++/**
++ * Normalize the preferred option to an array, if present.
++ * @private
++ */
++
++function normalizePreferred(preferred) {
++  if (!preferred) {
++    return undefined;
++  }
++
++  if (Array.isArray(preferred)) {
++    return preferred;
++  }
++
++  if (Array.isArray(preferred.preferred)) {
++    return preferred.preferred;
++  }
++
++  return undefined;
++}
++
+ /**
+  * Compare two specs.
+  * @private

@@ -1,0 +1,62 @@
+{
+  "enriched": [],
+  "fields": {
+    "askOfNext": {
+      "eventIds": [
+        "01M63YQ0XPA30V3ZASWD72J29B"
+      ],
+      "from": "events"
+    },
+    "changedFiles": {
+      "eventIds": [],
+      "from": "diff"
+    },
+    "cost": {
+      "eventIds": [
+        "01M63YQ0XPA30V3ZASWD72J29B"
+      ],
+      "from": "events"
+    },
+    "decisions": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "done": {
+      "eventIds": [
+        "01M63YQ1SGQTBJ599AHGJG7MRM"
+      ],
+      "from": "events"
+    },
+    "leftOut": {
+      "eventIds": [
+        "01M63YQ0XPA30V3ZASWD72J29B"
+      ],
+      "from": "events"
+    },
+    "open": {
+      "eventIds": [
+        "01M63YQ1SGQTBJ599AHGJG7MRM"
+      ],
+      "from": "events"
+    },
+    "refusals": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "risks": {
+      "eventIds": [],
+      "from": "plan"
+    },
+    "summary": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "verification": {
+      "eventIds": [
+        "01M63YQ1SGQTBJ599AHGJG7MRM"
+      ],
+      "from": "events"
+    }
+  },
+  "reason": "killed"
+}

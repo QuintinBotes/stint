@@ -1,0 +1,50 @@
+{
+  "blockers": [],
+  "cost": {
+    "cachedTokens": 0,
+    "inputTokens": 3953,
+    "outputTokens": 600,
+    "usd": 0
+  },
+  "createdAt": "2026-10-29T14:07:48.432Z",
+  "findings": [
+    {
+      "file": "index.js",
+      "id": "F1",
+      "lens": "general",
+      "line": 1,
+      "severity": "major",
+      "text": "Negotiator methods call getPreferred(options) but getPreferred is not defined in the diff, causing runtime error."
+    },
+    {
+      "file": "lib/mediaType.js",
+      "id": "F2",
+      "lens": "general",
+      "line": 146,
+      "severity": "major",
+      "text": "preferredOrder is used without normalization; normalizePreferred is defined but never applied, so preferred option handling diverges from language/charset."
+    },
+    {
+      "file": "lib/language.js",
+      "id": "F3",
+      "lens": "general",
+      "line": 128,
+      "severity": "minor",
+      "text": "compareWithPreferred duplicated per file instead of shared, increasing drift risk."
+    },
+    {
+      "file": "lib/charset.js",
+      "id": "F4",
+      "lens": "general",
+      "line": 115,
+      "severity": "note",
+      "text": "Comparator fallback for non-preferred items uses (a.o - b.o) ordering which may differ from compareSpecs intent."
+    }
+  ],
+  "model": "ollama/muse-glimmer:30b-mlx",
+  "offline": true,
+  "run": "r4",
+  "summary": "Findings identified.",
+  "verdict": "request_changes",
+  "version": "stint.review/1"
+}

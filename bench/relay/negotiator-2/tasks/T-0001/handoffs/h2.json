@@ -1,0 +1,53 @@
+{
+  "askOfNext": "Next: Held-out scenarios failed. Their source is held out; the names are all you get..",
+  "changedFiles": [],
+  "cost": {
+    "cachedTokens": 0,
+    "estimated": true,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "usd": null
+  },
+  "createdAt": "2026-10-29T13:48:42.161Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "c1d2e99d9876a18ff97b55b340e36c39960ec74c",
+    "head": "5fd5ca7e4e3ca336424c4656fcd8d8772a94dc26"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "killed",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r1",
+    "sessionId": "01a187ea-e6e3-7023-8b71-41843c57ed8a",
+    "vendor": "meta"
+  },
+  "hash": "sha256:c52e9843c41f008e7d72de0f097b3c5bb1573544650836792723b5b8a012ab4c",
+  "leftOut": [],
+  "open": [
+    "Held-out scenarios failed. Their source is held out; the names are all you get."
+  ],
+  "refusals": [],
+  "risks": [],
+  "summary": "muse-code killed after 10 tool calls.",
+  "task": "T-0001",
+  "to": {
+    "adapter": "claude-code",
+    "role": "implementer"
+  },
+  "verification": {
+    "command": "npm test",
+    "durationMs": 547,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "red"
+  },
+  "version": "stint.handoff/1"
+}

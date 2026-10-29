@@ -1,0 +1,33 @@
+{
+  "acceptance": [
+    "With `Accept: text/html, application/json`, `mediaTypes(['text/html', 'application/json'], { preferred: ['application/json'] })` returns `['application/json', 'text/html']`, and `mediaType` with the same arguments returns `'application/json'`.",
+    "languages/language and charsets/charset take `{ preferred }` the same way: among equal q-values the preferred value comes first.",
+    "A lower q-value still loses: with `Accept-Language: en, fr;q=0.5`, `languages(['en', 'fr'], { preferred: ['fr'] })` keeps `en` first.",
+    "Calls without the option behave as before, and the existing tests still pass.",
+    "README.md documents the option for media types, languages and charsets, as it does for encodings."
+  ],
+  "assignee": null,
+  "baseCommit": "c1d2e99d9876a18ff97b55b340e36c39960ec74c",
+  "branch": "stint/T-0001",
+  "budgets": {
+    "implementer": 150000,
+    "learn": 20000,
+    "planner": 40000,
+    "reviewer": 30000
+  },
+  "createdAt": "2026-10-29T13:48:00.804Z",
+  "goal": "Add the `{ preferred }` option, which today only encodings take, to mediaTypes/mediaType, languages/language and charsets/charset, so a server can break a tie between values the client rates equally.",
+  "id": "T-0001",
+  "links": {
+    "beadsId": null,
+    "issueUrl": null
+  },
+  "pendingAsk": null,
+  "risk": "medium",
+  "slug": "server-preference-tie-break-for-every-ne",
+  "status": "awaiting_approval",
+  "testCommand": "npm test",
+  "title": "Server-preference tie-break for every negotiator",
+  "updatedAt": "2026-10-29T14:07:48.472Z",
+  "version": "stint.task/1"
+}
