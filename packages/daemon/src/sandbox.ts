@@ -2,14 +2,15 @@
 // write only its worktree and the git data its commits need, and reach the network only through the egress proxy.
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
-import { writeFileAtomic } from '@stint-dev/core/node';
+import { STINT_CHECKOUT, userKeyFile, writeFileAtomic } from '@stint-dev/core/node';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { Adapter, Config } from '@stint-dev/core';
 import type { DaemonContext } from './app';
 import { type Blocked, EgressProxy, defaultAllow } from './egress';
 import { runEnv } from './env';
 import { DaemonError } from './errors';
+import { scenariosRoot } from './scenarios';
 
 export type SandboxKind = 'none' | 'docker' | 'sandbox-exec';
 
@@ -21,6 +22,8 @@ export type SandboxOpts = {
   /** Loopback ports the run may reach: the egress proxy and the daemon. */
   ports: number[];
   writable?: string[];
+  /** Paths the run may not read: the held-out scenarios and the files Stint loads keys from. */
+  hidden?: string[];
   image?: string;
   /** Names of the variables passed into a container (docker reads their values from its own environment). */
   envNames?: string[];
@@ -42,18 +45,25 @@ const real = (p: string): string => {
   }
 };
 
-/** The places a coding agent writes besides its worktree: temp files and its own state and caches. */
+/** The real path of `p`, or of its nearest existing folder plus the rest, so a rule matches a file made later. */
+const realish = (p: string): string => (existsSync(p) || dirname(p) === p ? real(p) : join(realish(dirname(p)), basename(p)));
+
+/**
+ * The places a coding agent writes besides its worktree: temp files, Muse Code's own state, and caches. Not the rest
+ * of ~/.config (git's global config is there), not ~/Library/Application Support, not ~/.bun/bin: a line or a program
+ * written there would run outside this sandbox the next time the person or the daemon starts it.
+ */
 function writableDefaults(): string[] {
   const home = homedir();
-  return [tmpdir(), '/private/tmp', '/private/var/folders', join(home, '.config'), join(home, '.cache'), join(home, '.bun'), join(home, '.npm'), join(home, 'Library', 'Application Support'), join(home, 'Library', 'Caches')];
+  return [tmpdir(), '/private/tmp', '/private/var/folders', join(home, '.config', 'muse'), join(home, '.cache'), join(home, '.bun', 'install'), join(home, '.npm'), join(home, 'Library', 'Caches')];
 }
 
 const q = (s: string): string => JSON.stringify(s);
 
 /**
- * The macOS sandbox profile: reads are allowed except the daemon's cache, which holds its token; writes only to the
- * worktree, the repository's git data but not its hooks or config, temp and agent state; outbound network only to
- * unix sockets and the loopback ports named.
+ * The macOS sandbox profile: reads are allowed except the daemon's cache, which holds its token, and the hidden paths
+ * (held-out scenarios, key files); writes only to the worktree, the repository's git data but not its hooks or config,
+ * temp and agent state; outbound network only to unix sockets and the loopback ports named.
  */
 export function sandboxProfile(o: SandboxOpts): string {
   const paths = [o.worktree, join(o.root, '.git'), ...writableDefaults(), ...(o.writable ?? [])].map(real);
@@ -67,6 +77,7 @@ export function sandboxProfile(o: SandboxOpts): string {
     `(allow file-write* ${paths.map((p) => `(subpath ${q(p)})`).join(' ')} (subpath "/dev"))`,
     // after the allow rules, since the last matching rule wins; a checkout the daemon made under the cache stays readable
     `(deny file-read* (subpath ${q(cache)}))`,
+    ...(o.hidden?.length ? [`(deny file-read* ${o.hidden.map((p) => `(subpath ${q(realish(p))})`).join(' ')})`] : []),
     ...(worktree.startsWith(`${cache}/`) ? [`(allow file-read* (subpath ${q(worktree)}))`] : []),
     // a hook or a config line written here would run in the daemon's git, outside this sandbox
     `(deny file-write* (subpath ${q(join(gitDir, 'hooks'))}) (literal ${q(join(gitDir, 'config'))}))`,
@@ -236,7 +247,9 @@ export async function prepareRun(ctx: DaemonContext, task: string, run: string, 
   if (kind === 'none') return { env };
   const ports = [egressOn && kind !== 'docker' ? (await egressProxy(ctx)).port : 0, daemonPort(ctx)].filter((p) => p > 0);
   const envNames = kind === 'docker' ? Object.keys(env).filter((k) => k.startsWith('STINT_') || /proxy$/i.test(k) || k === 'NODE_USE_ENV_PROXY' || k === 'TERM' || (adapter.needsEnv ?? []).includes(k) || k in extra) : undefined;
-  const opts: SandboxOpts = { kind, worktree, root: ctx.ws.root, ports, writable: sb?.writable ?? [], ...(sb?.image ? { image: sb.image } : {}), ...(envNames ? { envNames } : {}), dockerProxy, ...(named ? { name: `stint-${task}-${run}`.toLowerCase() } : {}) };
+  // the scenarios are the holdout the agent must never see (R-037); the key files are what keeps keys in the daemon
+  const hidden = [scenariosRoot(ctx.ws, task), userKeyFile(), join(ctx.ws.root, '.env'), join(STINT_CHECKOUT, '.env')];
+  const opts: SandboxOpts = { kind, worktree, root: ctx.ws.root, ports, writable: sb?.writable ?? [], hidden, ...(sb?.image ? { image: sb.image } : {}), ...(envNames ? { envNames } : {}), dockerProxy, ...(named ? { name: `stint-${task}-${run}`.toLowerCase() } : {}) };
   return { env, wrap: (argv) => sandboxArgv(argv, opts) };
 }
 
