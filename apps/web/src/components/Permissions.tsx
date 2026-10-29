@@ -28,7 +28,7 @@ function PermissionButtons({ p, onDecided }: { p: PendingPermission; onDecided?:
   return (
     <div className="flex flex-wrap gap-2">
       {p.options.map((o) => (
-        <Button key={o.optionId} className="h-8 px-2.5 text-small" disabled={busy !== null} aria-busy={busy === o.optionId} onClick={() => decide(o.optionId)} data-testid={`permission-${o.kind}`} {...hold}>
+        <Button key={o.optionId} className="h-8 px-2.5 text-small" aria-disabled={busy !== null} aria-busy={busy === o.optionId} onClick={() => decide(o.optionId)} data-testid={`permission-${o.kind}`} {...hold}>
           {busy === o.optionId ? 'Sending' : optionLabel(o)}
         </Button>
       ))}

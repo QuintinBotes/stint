@@ -23,8 +23,8 @@ test('Every panel in an empty task shows its empty-state sentence, and every car
   for (const [tab, sentence] of Object.entries(expected)) {
     await page.getByTestId(`tab-${tab}`).click();
     await expect(page.getByRole('tabpanel')).toContainText(sentence);
-    // the plan, packet and review cards carry their state beside the sentence (R-051)
-    if (tab === 'plan' || tab === 'packet' || tab === 'review') {
+    // the plan, packet, review and tests cards carry their state beside the sentence (R-051)
+    if (tab === 'plan' || tab === 'packet' || tab === 'review' || tab === 'verification') {
       const chip = page.getByRole('tabpanel').locator('[data-status="planned"]');
       await expect(chip).toBeVisible();
       await expect(chip).toHaveText('planned');

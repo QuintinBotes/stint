@@ -16,7 +16,7 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
   const hold = useHold();
   const host = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<State>({ kind: 'connecting' });
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'copied' | 'refused' | null>(null);
 
   useEffect(() => {
     const el = host.current;
@@ -117,14 +117,25 @@ export function Terminal({ taskId, liveRun, onStop }: { taskId: string; liveRun:
             <Button
               className="h-8 px-2.5 text-small"
               onClick={() => {
-                void navigator.clipboard.writeText(`cd ${state.cwd}`).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                });
+                // a browser that refuses the clipboard, or has none outside a secure page, says so rather than nothing
+                Promise.resolve()
+                  .then(() => navigator.clipboard.writeText(`cd ${state.cwd}`))
+                  .then(
+                    () => {
+                      setCopied('copied');
+                      setTimeout(() => setCopied(null), 1500);
+                    },
+                    () => setCopied('refused'),
+                  );
               }}
             >
-              {copied ? 'Copied' : 'Copy the cd command'}
+              {copied === 'copied' ? 'Copied' : 'Copy the cd command'}
             </Button>
+          ) : null}
+          {copied === 'refused' && state.kind === 'open' ? (
+            <span role="status" className="self-center text-ink-2" data-testid="copy-refused">
+              The browser did not allow copying. Select the path and copy it by hand.
+            </span>
           ) : null}
           {liveRun && onStop ? (
             <Button tone="danger" className="h-8 px-2.5 text-small" title={`Kill ${liveRun}`} aria-keyshortcuts="Meta+Period" onClick={onStop} data-testid="kill-run" {...hold}>

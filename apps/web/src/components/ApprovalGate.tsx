@@ -7,7 +7,7 @@ import { DaemonError, type GoalView, type PendingContradictionItem, type RunSumm
 import { localDate, localTime } from '../format';
 import { singleKey } from '../shortcuts';
 import { HowItWent } from './HowItWent';
-import { LookingBack, useHold } from './Scrubber';
+import { LookingBack, useHold, useHoldField } from './Scrubber';
 import { Button, Explain, Kbd, type Shape, StateMark, StatusChip, Who, cx } from './ui';
 
 const NOT_AT_THE_GATE: Record<string, string> = {
@@ -22,10 +22,13 @@ const NOT_AT_THE_GATE: Record<string, string> = {
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
+/** How the daemon begins every autopilot stop at the gate. */
+export const AT_GATE = 'Waiting for your approval.';
+
 /** Autopilot stopped at the gate, so sending the task back starts it again; the daemon's sendBack reads the log the same way (D-069). */
 function rebuildsOnSendBack(events: StintEvent[]): boolean {
   const last = events.findLast((e) => e.type === 'autopilot.started' || e.type === 'autopilot.stopped');
-  return last?.type === 'autopilot.stopped' && String(last.payload.reason ?? '').startsWith('Waiting for your approval.');
+  return last?.type === 'autopilot.stopped' && String(last.payload.reason ?? '').startsWith(AT_GATE);
 }
 
 /** What made a verification red, in words: tampered tests, held-out scenarios that failed or could not run, the tests, or another check. */
@@ -131,6 +134,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
   const gate = gateState(bundle, contradictions, events);
   const back = useContext(LookingBack);
   const hold = useHold();
+  const holdField = useHoldField();
   // a rewound view shows the past; approving from it would act on a task the page is not showing
   const open = gate.open && !seen;
   const reason = gate.open && seen ? 'Return to latest to approve.' : gate.reason;
@@ -357,7 +361,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
                       ) : null}
                       . The task finishes when it merges.
                     </p>
-                    <Button className={small} disabled={busy !== null} aria-busy={busy === 'refresh'} onClick={() => void call('refresh', () => api.releaseRefresh(id))} data-testid="release-refresh" {...hold}>
+                    <Button className={small} aria-disabled={busy !== null} aria-busy={busy === 'refresh'} onClick={() => void call('refresh', () => api.releaseRefresh(id))} data-testid="release-refresh" {...hold}>
                       {busy === 'refresh' ? 'Checking' : 'Check now'}
                     </Button>
                   </div>
@@ -467,9 +471,9 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
                         ? `Why reject it? The reason becomes a decision${rebuilds ? ', and autopilot builds the task again from it.' : ', and the task goes to Needs you as rejected.'}`
                         : `What should change? ${rebuilds ? 'Autopilot builds the task again with this as the ask.' : 'This becomes the next ask, and the task goes to Needs you as rejected until an agent takes it.'}`}
                     </label>
-                    <textarea id="gate-text" required autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} className="stint-input min-h-0 px-2.5 py-2" />
+                    <textarea id="gate-text" required autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} className="stint-input min-h-0 px-2.5 py-2" {...holdField} />
                     <div className="grid grid-cols-2 gap-2">
-                      <Button tone={asking === 'reject' ? 'danger' : 'primary'} type="submit" className={small} disabled={busy !== null} aria-busy={busy === 'send'} {...hold}>
+                      <Button tone={asking === 'reject' ? 'danger' : 'primary'} type="submit" className={small} aria-disabled={busy !== null} aria-busy={busy === 'send'} {...hold}>
                         {busy === 'send' ? 'Sending' : asking === 'reject' ? 'Reject' : 'Request changes'}
                       </Button>
                       <Button className={small} onClick={close}>
@@ -485,7 +489,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
                       ref={approveButton}
                       tone="primary"
                       // shut at a closed gate; looking back at an open one it holds, focusable, with the notice as its reason
-                      disabled={!gate.open || busy !== null}
+                      aria-disabled={!gate.open || busy !== null}
                       aria-busy={busy === 'approve'}
                       data-testid="approve"
                       data-armed={armed}
@@ -504,10 +508,10 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
                       </p>
                     ) : null}
                     <div className="grid grid-cols-2 gap-2">
-                      <Button ref={askChanges} className={small} aria-keyshortcuts="r" disabled={!built || busy !== null} onClick={() => setAsking('changes')} data-testid="ask-changes" {...hold}>
+                      <Button ref={askChanges} className={small} aria-keyshortcuts="r" aria-disabled={!built || busy !== null} onClick={() => setAsking('changes')} data-testid="ask-changes" {...hold}>
                         Request changes
                       </Button>
-                      <Button ref={askReject} className={small} aria-keyshortcuts="x" disabled={!built || busy !== null} onClick={() => setAsking('reject')} data-testid="ask-reject" {...hold}>
+                      <Button ref={askReject} className={small} aria-keyshortcuts="x" aria-disabled={!built || busy !== null} onClick={() => setAsking('reject')} data-testid="ask-reject" {...hold}>
                         Reject
                       </Button>
                     </div>

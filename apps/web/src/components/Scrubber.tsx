@@ -17,6 +17,13 @@ export function useHold(): Partial<typeof HELD> {
   return useContext(LookingBack) ? HELD : {};
 }
 
+const HELD_FIELD = { readOnly: true, 'aria-describedby': LOOKING_BACK_ID } as const;
+
+/** Props for a text field whose words would change the task: read-only while the view looks back, pointing at the notice. */
+export function useHoldField(): Partial<typeof HELD_FIELD> {
+  return useContext(LookingBack) ? HELD_FIELD : {};
+}
+
 /**
  * The task's own clock, one reading per event, in event order. A replayed event carries its place in the story
  * (replayAt), so the clock shows the story's pace rather than the instant it was appended; an event without one

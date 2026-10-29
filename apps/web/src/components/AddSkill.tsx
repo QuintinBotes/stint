@@ -177,7 +177,7 @@ function Actions({ submit, dismiss }: { submit: Submit | null; dismiss: () => vo
         </p>
       ) : null}
       {cancel}
-      <Button tone="primary" disabled={!!why || busy} aria-busy={busy || undefined} aria-describedby={why ? 'add-skill-why' : undefined} onClick={onSubmit} data-testid="add-skill-submit">
+      <Button tone="primary" aria-disabled={!!why || busy} aria-busy={busy || undefined} aria-describedby={why ? 'add-skill-why' : undefined} onClick={onSubmit} data-testid="add-skill-submit">
         {busy ? 'Sending' : label}
       </Button>
     </>

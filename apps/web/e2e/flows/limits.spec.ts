@@ -47,6 +47,8 @@ test('A task made with Builds 1 stops at the build limit after a failing build; 
   await page.goto('/');
   await expect(page.getByTestId('lane-needs-you')).toContainText(id);
   await expect(page.getByTestId('lane-in-progress')).not.toContainText(id);
+  // the card's chip says needs you, so the line under it does not say it again
+  await expect(page.locator(`[data-task="${id}"]`).getByTestId('card-blocker')).toHaveText('Autopilot stopped: the build limit is reached (1 of 1).');
   await page.goto(`/t/${id}`);
 
   await stop.getByLabel('New build limit').fill('2');

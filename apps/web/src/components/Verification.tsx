@@ -4,7 +4,8 @@ import { localTime } from '../format';
 import { useHold } from './Scrubber';
 import { StackTrace } from './StackTrace';
 import { VisualChecks } from './VisualChecks';
-import { Button, EmptyState, Explain, StateMark, StatusChip, cx, tabKeys } from './ui';
+import { PlannedEmpty } from './Cards';
+import { Button, Explain, StateMark, StatusChip, cx, tabKeys } from './ui';
 
 type TestLine = { name: string; ok: boolean };
 
@@ -129,9 +130,9 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
   if (runs === null) return <p className="text-ink-3">Reading the test runs.</p>;
   if (!v)
     return (
-      <EmptyState testId="empty-verification">
-        {['done', 'approved', 'abandoned'].includes(status) ? 'Stint recorded no test run on this task.' : 'Verification runs here when the run ends.'}
-      </EmptyState>
+      <PlannedEmpty testId="empty-verification" status={status} settled="Stint recorded no test run on this task.">
+        Verification runs here when the run ends.
+      </PlannedEmpty>
     );
 
   return (
@@ -162,7 +163,7 @@ export function VerificationTab({ taskId, acceptance, locked = [], live, onChang
         </div>
         <span className="ml-auto flex items-center gap-2">
           {live ? <span className="text-small text-ink-3">A run is going; Stint tests it when it ends.</span> : null}
-          <Button onClick={rerun} disabled={busy || live} aria-busy={busy} data-testid="rerun" {...hold}>
+          <Button onClick={rerun} aria-disabled={busy || live} aria-busy={busy} data-testid="rerun" {...hold}>
             {busy ? 'Running the tests' : 'Re-run the tests'}
           </Button>
         </span>

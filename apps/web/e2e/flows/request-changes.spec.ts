@@ -46,3 +46,19 @@ test('Pressing x on a gate reached by hand opens an empty reject field that says
   await page.keyboard.press('x');
   await expect(page.locator('#gate-text')).toHaveValue('');
 });
+
+test('A refused send keeps focus on the button that was pressed, with the daemon words beside it and the text kept', async ({ page, request }) => {
+  const d = daemon(request);
+  const t = await d.create('Flow: a refused reject');
+  await d.post(`/api/tasks/${t.id}/assign`, { adapter: 'muse-code', role: 'implementer' });
+  await d.until(t.id, (ev) => ev.some((e) => e.type === 'approval.requested'));
+  await page.goto(`/t/${t.id}`);
+  await page.route(`**/api/tasks/${t.id}/reject`, (r) => r.fulfill({ status: 500, json: { error: { code: 'internal', message: 'the decision could not be written' } } }));
+  await page.keyboard.press('x');
+  await page.keyboard.type('Wrong file');
+  const send = page.getByTestId('approval-gate').getByRole('button', { name: 'Reject' });
+  await send.click();
+  await expect(page.getByTestId('approval-gate').getByRole('alert')).toHaveText('the decision could not be written');
+  await expect(send).toBeFocused();
+  await expect(page.locator('#gate-text')).toHaveValue('Wrong file');
+});

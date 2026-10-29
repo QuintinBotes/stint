@@ -169,7 +169,8 @@ export function TaskCard({ card, all, asks }: { card: TaskCardData; all?: Map<st
     </p>
   ) : stoppedForYou(card) && card.autopilot?.reason ? (
     <p className="stint-task-description" data-testid="card-blocker">
-      Autopilot stopped: {card.autopilot.reason}
+      {/* the label already says it needs you */}
+      Autopilot stopped: {card.autopilot.reason.replace(/^Needs you: /, '')}
     </p>
   ) : blocked.length ? (
     <p className="stint-task-description" data-testid="card-blocker">

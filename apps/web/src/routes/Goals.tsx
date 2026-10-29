@@ -152,7 +152,7 @@ function GoalPage({ id, replay }: { id: string; replay: boolean }) {
             <span data-testid="goal-met">{met(o)}</span>
             <span>{plural(o.tasks.length, 'task')}</span>
           </div>
-          <p className="mt-3 text-ink" data-testid="goal-outcome">
+          <p className="mt-3 text-ink whitespace-pre-line" data-testid="goal-outcome">
             {goal.outcome}
           </p>
           {goal.nonGoals.length ? <p className="mt-1 text-small text-ink-3">Not in scope: {goal.nonGoals.join('; ')}.</p> : null}
@@ -308,7 +308,7 @@ function GoalLimits({ v, onChange }: { v: GoalView; onChange: () => void }) {
             <span className="stint-field-label">Builds</span>
             <input name="builds" type="number" min={1} max={50} step={1} inputMode="numeric" defaultValue={cap.builds ?? ''} className="stint-input w-28 tabular" />
           </label>
-          <Button type="submit" disabled={busy} aria-busy={busy || undefined} data-testid="save-goal-limits">
+          <Button type="submit" aria-disabled={busy} aria-busy={busy || undefined} data-testid="save-goal-limits">
             {busy ? 'Saving' : 'Save the limits'}
           </Button>
           {error ? (
@@ -370,7 +370,7 @@ function Split({ id, proposal, again, onDone }: { id: string; proposal: Proposed
   if (!rows) {
     return (
       <div className="flex flex-col gap-2" data-testid="goal-split">
-        <Button tone={again ? 'quiet' : 'primary'} className="self-start" disabled={!!busy} aria-busy={busy === 'split' || undefined} onClick={split} data-testid="split-goal">
+        <Button tone={again ? 'quiet' : 'primary'} className="self-start" aria-disabled={!!busy} aria-busy={busy === 'split' || undefined} onClick={split} data-testid="split-goal">
           {splitLabel ?? (again ? 'Split again into more tasks' : 'Split into tasks')}
         </Button>
         {status}
@@ -413,10 +413,10 @@ function Split({ id, proposal, again, onDone }: { id: string; proposal: Proposed
         ))}
       </ol>
       <div className="stint-actions">
-        <Button tone="primary" type="submit" disabled={!!busy || rows.some((r) => !r.title.trim() || !r.acceptance.some((a) => a.trim()))} aria-busy={busy === 'create' || undefined} data-testid="create-goal-tasks">
+        <Button tone="primary" type="submit" aria-disabled={!!busy || rows.some((r) => !r.title.trim() || !r.acceptance.some((a) => a.trim()))} aria-busy={busy === 'create' || undefined} data-testid="create-goal-tasks">
           {busy === 'create' ? 'Creating tasks' : 'Create tasks'}
         </Button>
-        <Button disabled={!!busy} aria-busy={busy === 'split' || undefined} onClick={split}>
+        <Button aria-disabled={!!busy} aria-busy={busy === 'split' || undefined} onClick={split}>
           {splitLabel ?? 'Ask for another split'}
         </Button>
       </div>
@@ -499,11 +499,11 @@ function Abandon({ id, onDone }: { id: string; onDone: () => void }) {
     <section aria-label="Abandon the goal" className="stint-section justify-items-start gap-2 pt-6 border-t border-rule">
       {armed ? <p role="status" className="text-small text-ink-2">Abandoning stops counting this goal. Its tasks stay as they are. Click again to abandon {id}.</p> : null}
       <div className="stint-actions">
-        <Button tone={armed ? 'danger' : 'quiet'} disabled={busy} aria-busy={busy || undefined} onClick={armed ? abandon : () => setArmed(true)} data-testid="abandon-goal">
+        <Button tone={armed ? 'danger' : 'quiet'} aria-disabled={busy} aria-busy={busy || undefined} onClick={armed ? abandon : () => setArmed(true)} data-testid="abandon-goal">
           {busy ? 'Abandoning' : armed ? `Abandon ${id}` : 'Abandon this goal'}
         </Button>
         {armed ? (
-          <Button tone="ghost" disabled={busy} onClick={() => setArmed(false)}>
+          <Button tone="ghost" aria-disabled={busy} onClick={() => setArmed(false)}>
             Keep it
           </Button>
         ) : null}

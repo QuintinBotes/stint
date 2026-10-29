@@ -187,7 +187,7 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
     ...(atGate ? [{ id: 'approve', label: 'Approve and merge', key: 'a', cli: `stint approve ${id}`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'approve' })) }] : []),
     { id: 'changes', label: 'Request changes', key: 'r', cli: `stint changes ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },
     { id: 'reject', label: 'Reject', key: 'x', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'reject' })) },
-    { id: 'verify', label: 'Run the tests', cli: '', run: () => report(api.verify(id), `${id}: tests run by Stint`) },
+    { id: 'verify', label: 'Run the tests', cli: `stint verify ${id}`, run: () => report(api.verify(id), `${id}: tests run by Stint`) },
     { id: 'hand', label: 'Hand to another agent', cli: `stint hand ${id} <agent>`, run: tab('packet') },
     { id: 'autopilot-on', label: `Put on autopilot${live}`, cli: `stint run ${id}`, run: () => report(api.autopilot(id, true), `${id} is on autopilot`) },
     { id: 'autopilot-off', label: 'Take off autopilot', cli: `stint run ${id} --stop`, run: () => report(api.autopilot(id, false), `${id} is off autopilot`) },
@@ -207,6 +207,63 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
 /** Where the overlay that just closed would put focus back, while one that opens in its place takes it over. */
 let handover: HTMLElement | null = null;
 
+/** Focus on the page's main content, as Skip to content does: where focus goes when nothing nearer is left to take it. */
+export function focusMain(): void {
+  const main = document.querySelector<HTMLElement>('main');
+  if (!main) return;
+  main.tabIndex = -1;
+  main.focus();
+}
+
+const FOCUSABLE = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])';
+
+/**
+ * When the control that had focus leaves the page (a pressed button replaced by what it did, a run's Kill button once
+ * the run ends), focus goes to the first control in the nearest part of the page still there, up to its landmark, else
+ * to the main content, never to the page itself (R-072). A dialog gives focus back on its own (useRestoreFocus).
+ */
+export function useFocusRescue(): void {
+  useEffect(() => {
+    let had: Element | null = null;
+    const onFocus = (e: FocusEvent) => {
+      had = e.target instanceof Element ? e.target : null;
+    };
+    // a person who moved focus away left the control: its later removal takes nothing from them
+    const onBlur = (e: FocusEvent) => {
+      const t = e.target;
+      queueMicrotask(() => {
+        if (t === had && t instanceof Element && t.isConnected) had = null;
+      });
+    };
+    const observer = new MutationObserver((records) => {
+      const lost = had;
+      if (!lost || lost.isConnected || (document.activeElement && document.activeElement !== document.body)) return;
+      had = null;
+      // a dialog that closed gives focus back itself; focus that left the page for a dialog opening is the dialog's
+      const dialog = lost.closest<HTMLElement>('[aria-modal]');
+      if (dialog ? !dialog.isConnected : document.querySelector('[aria-modal]')) return;
+      const removal = records.find((r) => [...r.removedNodes].some((n) => n === lost || n.contains(lost)));
+      for (let at = removal?.target instanceof Element ? removal.target : null; at?.isConnected && at !== document.body; at = at.parentElement) {
+        for (const next of at.querySelectorAll<HTMLElement>(FOCUSABLE)) {
+          next.focus();
+          if (document.activeElement === next) return;
+        }
+        if (at.matches('main, aside, [aria-modal]')) break;
+      }
+      if (dialog) dialog.focus();
+      else focusMain();
+    });
+    document.addEventListener('focusin', onFocus);
+    document.addEventListener('focusout', onBlur);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      document.removeEventListener('focusin', onFocus);
+      document.removeEventListener('focusout', onBlur);
+      observer.disconnect();
+    };
+  }, []);
+}
+
 /**
  * Puts focus back where it was when an overlay opened, once it closes. An overlay opened as another closes (Write it
  * yourself, a palette command) returns focus to where the first was opened from, and nothing pulls focus out of it.
@@ -220,7 +277,10 @@ function useRestoreFocus(open: boolean): void {
       handover = before;
       requestAnimationFrame(() => {
         handover = null;
-        if (before?.isConnected && !document.querySelector('[aria-modal]')) before.focus();
+        if (document.querySelector('[aria-modal]')) return;
+        // opened by a key, or its opener has gone: focus goes to the content rather than to the page itself
+        if (before?.isConnected) before.focus();
+        else if (!document.activeElement || document.activeElement === document.body) focusMain();
       });
     };
   }, [open]);

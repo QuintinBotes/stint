@@ -155,3 +155,31 @@ test('A Factory panel whose read fails says so in the daemon\'s words, never tha
   // the other panels read on their own
   await expect(page.getByTestId('kpis')).toContainText('Tasks merged');
 });
+
+test('The Factory lead counts merges as the Tasks merged figure does, one build run is singular, and a cost per merged task under a cent keeps its digits', async ({ page }) => {
+  // two tasks marked done, one of them with its merge in the log
+  await page.route('**/api/tasks', async (route) => {
+    const res = await route.fetch();
+    const base = ((await res.json()) as { tasks: Array<{ task: Record<string, unknown> }> }).tasks[0] as { task: Record<string, unknown> };
+    const card = (id: string) => ({ ...base, task: { ...base.task, id, status: 'done', parent: undefined, dependsOn: undefined } });
+    await route.fulfill({ response: res, json: { tasks: [card('T-0201'), card('T-0202')] } });
+  });
+  const event = (task: string, type: string, seq: number) => ({ id: `E${seq}`, seq, ts: '2026-10-29T10:00:00.000Z', task, type, payload: {} });
+  await page.route('**/api/tasks/T-020*/events?*', (route) => {
+    const id = /T-020\d/.exec(route.request().url())?.[0] as string;
+    return route.fulfill({ json: { events: id === 'T-0201' ? [event(id, 'task.created', 1), event(id, 'merge.completed', 2)] : [event(id, 'task.created', 1)] } });
+  });
+  await page.route('**/api/metrics?*', async (route) => {
+    const res = await route.fetch();
+    const body = (await res.json()) as { groups: Record<string, Array<{ id: string; value: number | null }>> };
+    for (const m of body.groups.efficiency ?? []) if (m.id === 'efficiency.hops') m.value = 1;
+    await route.fulfill({ response: res, json: body });
+  });
+  await page.route('**/api/scoreboard', (route) =>
+    route.fulfill({ json: { rows: [{ tag: '*', agent: 'muse-code', model: null, runs: 1, attempts: 1, passed: 1, passRate: 1, pass3: null, resolved: 1, costPerResolved: 0.0042, reverts: 0 }], routing: { mode: 'chains', explore: 0 } } }),
+  );
+  await page.goto('/factory');
+  await expect(page.getByTestId('factory-headline')).toHaveText('How the agents are doing, and what it costs. It has merged one task so far.');
+  await expect(page.getByTestId('kpis')).toContainText('1 build run each');
+  await expect(page.getByTestId('score-row').locator('td').nth(4)).toHaveText('$0.0042');
+});

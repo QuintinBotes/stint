@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { ROLE_NAMES, agentOf } from '../agents';
 import { type PendingContradictionItem, type TaskBundle, api, daemonMessage } from '../api';
-import { ApprovalGate, gateState } from '../components/ApprovalGate';
+import { AT_GATE, ApprovalGate, gateState } from '../components/ApprovalGate';
 import { HandoffCard, PlanCard, ReviewCard } from '../components/Cards';
 import { DiffView, readViewedFiles, writeViewedFiles } from '../components/DiffView';
 import { FilesTab } from '../components/Files';
@@ -350,7 +350,7 @@ export function TaskView() {
   // autopilot the switch below turns on. Looking back, the notice above has Return to latest instead.
   const startable = !back && !liveNow && t.status === 'planned' && !autopilot.on;
   const next = back ? null : liveNow ? (
-    <Button tone="danger" disabled={stopping === liveNow} aria-busy={stopping === liveNow} title={`Stop ${liveNow}; Stint writes its notes from the log`} onClick={() => stop(liveNow)} data-testid="stop-run">
+    <Button tone="danger" aria-disabled={stopping === liveNow} aria-busy={stopping === liveNow} title={`Stop ${liveNow}; Stint writes its notes from the log`} onClick={() => stop(liveNow)} data-testid="stop-run">
       {stopping === liveNow ? 'Stopping the run' : 'Stop the run'} <Kbd>⌘.</Kbd>
     </Button>
   ) : gate.open ? (
@@ -359,7 +359,7 @@ export function TaskView() {
       Approve and merge
     </Button>
   ) : startable ? (
-    <Button tone="primary" onClick={toggleAutopilot} disabled={autoBusy} aria-busy={autoBusy} title="Plan, build, verify and review on its own; it stops at your approval" data-testid="header-start">
+    <Button tone="primary" onClick={toggleAutopilot} aria-disabled={autoBusy} aria-busy={autoBusy} title="Plan, build, verify and review on its own; it stops at your approval" data-testid="header-start">
       {autoBusy ? 'Starting autopilot' : unmerged.length ? 'Queue on autopilot' : 'Start on autopilot'}
     </Button>
   ) : null;
@@ -407,7 +407,8 @@ export function TaskView() {
             {autopilot.text && !asOf && !closed ? (
               <span data-testid="autopilot-step">
                 {' '}
-                Autopilot: {autopilot.text}
+                {/* at the gate the sentence before says it waits for your approval; autopilot says only what is left */}
+                Autopilot: {t.status === 'awaiting_approval' && autopilot.text.startsWith(AT_GATE) ? autopilot.text.slice(AT_GATE.length).trim() || 'went as far as it goes on its own.' : autopilot.text}
               </span>
             ) : null}
           </p>
@@ -453,7 +454,7 @@ export function TaskView() {
           <Button
             className="h-7 px-2.5 text-small min-[760px]:min-h-7"
             onClick={toggleAutopilot}
-            disabled={autoBusy}
+            aria-disabled={autoBusy}
             aria-busy={autoBusy}
             aria-pressed={autopilot.on}
             data-testid="autopilot-switch"

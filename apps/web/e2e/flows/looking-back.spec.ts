@@ -35,6 +35,16 @@ test('Looking back at a task at the gate holds Approve, the a, r and x keys and 
   await expect(page.locator('#gate-text')).toHaveCount(0);
   expect(writes).toEqual([]);
   expect((await d.task(t.id)).status).toBe('awaiting_approval');
+  // a field whose words would go with a change cannot be typed in either: it is read-only and says why
+  await page.getByTestId('tab-packet').click();
+  await page.getByTestId('hand-to').getByText('Change who continues instead').click();
+  const ask = page.locator('#hand-ask');
+  await expect(ask).toHaveAttribute('readonly', '');
+  await expect(ask).toHaveAttribute('aria-describedby', 'looking-back');
+  await ask.focus();
+  await expect(ask).toBeFocused();
+  await page.keyboard.type('typed while looking back');
+  await expect(ask).toHaveValue('');
 
   await page.getByTestId('return-latest').click();
   await expect(page).not.toHaveURL(/asOf=|at=/);

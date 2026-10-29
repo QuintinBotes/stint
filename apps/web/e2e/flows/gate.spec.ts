@@ -46,4 +46,7 @@ test('A run assigned by hand that goes green is reviewed by the reviewer chain a
   await page.keyboard.press('a');
   await approveCall;
   await expect.poll(async () => (await d.task(t.id)).status).toBe('done');
+  // Approve leaves with the merge; focus goes to the sign-off that took its place, not to the page
+  await expect(page.getByTestId('signoff')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[data-testid="signoff"]'))).toBe(true);
 });

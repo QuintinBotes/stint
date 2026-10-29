@@ -47,6 +47,16 @@ test('A new task with "Sharpen it first" shows its questions; one answered by ke
   await expect(card).toHaveCount(0);
   await expect(line).toBeFocused();
 
+  // with every proof cleared, Use these proofs says why it waits; the suggestions go back after
+  const refs = page.getByRole('textbox', { name: /What proves criterion/ });
+  const kept = await refs.evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+  for (const r of await refs.all()) await r.fill('');
+  await expect(page.getByTestId('sharpen-use-proofs')).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.getByTestId('sharpen-use-proofs')).toHaveAttribute('aria-describedby', 'sharpen-proofs-why');
+  await expect(page.getByTestId('sharpen-proofs-why')).toHaveText('Say what proves at least one criterion first.');
+  for (const [i, r] of (await refs.all()).entries()) await r.fill(kept[i] as string);
+  await expect(page.getByTestId('sharpen-proofs-why')).toHaveCount(0);
+
   await page.getByTestId('sharpen-use-proofs').click();
   await expect(page.getByTestId('sharpen-ready')).toHaveText('Ready: every criterion has a proof and nothing waits on you.');
   const task = (await d.task(id)) as unknown as { proofs: unknown };

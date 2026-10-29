@@ -3,7 +3,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { api, daemonMessage } from '../api';
 import { money, moneyOf } from '../format';
-import { useHold } from './Scrubber';
+import { useHold, useHoldField } from './Scrubber';
 import { Button, Explain, StateMark, cx } from './ui';
 
 const METERS: Array<{ k: LimitName; word: string }> = [
@@ -51,6 +51,7 @@ export function Limits({ taskId, events, closed = false, onHand }: { taskId: str
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hold = useHold();
+  const holdField = useHoldField();
   // the caps change only when a person changes them; what is used comes from the log as it arrives
   const changes = useMemo(() => events.filter((e) => e.type === 'limits.changed').length, [events]);
   useEffect(() => {
@@ -172,9 +173,10 @@ export function Limits({ taskId, events, closed = false, onHand }: { taskId: str
                   step={isUsd ? 0.01 : 1}
                   defaultValue={suggest}
                   className="stint-input min-h-9 h-9 w-28 py-0 px-2.5 tabular"
+                  {...holdField}
                 />
               </label>
-              <Button tone="primary" type="submit" disabled={busy} aria-busy={busy} data-testid="raise-limit" {...hold}>
+              <Button tone="primary" type="submit" aria-disabled={busy} aria-busy={busy} data-testid="raise-limit" {...hold}>
                 {busy ? 'Raising the limit' : 'Raise the limit'}
               </Button>
             </form>

@@ -96,3 +96,22 @@ test('At 390 px the New task footer stays in reach with Limits open', async ({ p
   await expect(create).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });
+
+test('Escape from the spec builder opened by n or by the palette puts focus on the page content, not on the page itself', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('board')).toBeVisible();
+  const focused = () => page.evaluate(() => document.activeElement?.tagName ?? 'none');
+  await page.keyboard.press('n');
+  await expect(page.getByRole('dialog', { name: 'What do you want done?' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(focused).toBe('MAIN');
+
+  await page.keyboard.press('Meta+k');
+  await page.getByPlaceholder('Search or run a command').fill('New task');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: 'What do you want done?' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect.poll(focused).toBe('MAIN');
+});

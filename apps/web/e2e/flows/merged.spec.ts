@@ -1,13 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { daemon, stopped } from './daemon';
 
-test('A task autopilot took to the gate says Autopilot: Waiting for your approval until it is merged, and nothing about autopilot after', async ({ page, request }) => {
+test('A task autopilot took to the gate says Waiting for your approval once, and nothing about autopilot once it is merged', async ({ page, request }) => {
   const d = daemon(request);
   const t = await d.create('Flow: merged after autopilot');
   await d.post(`/api/tasks/${t.id}/autopilot`, { on: true });
   await d.until(t.id, stopped);
   await page.goto(`/t/${t.id}`);
-  await expect(page.getByTestId('autopilot-step')).toHaveText('Autopilot: Waiting for your approval.');
+  // the status sentence already says it waits for your approval, so autopilot does not say it again
+  await expect(page.getByTestId('state-detail')).toHaveText('Stint ran the tests: 1 passed, and the review is done. Waiting for your approval. Autopilot: went as far as it goes on its own.');
   await d.post(`/api/tasks/${t.id}/approve`);
   await expect.poll(async () => (await d.task(t.id)).status).toBe('done');
   await page.reload();
