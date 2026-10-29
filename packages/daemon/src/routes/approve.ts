@@ -5,6 +5,7 @@ import { canonicalJSON, latestMergedLine, runsFromEvents, sha256Hex, withLatestM
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
+import { stoppedAtGate } from '../autopilot';
 import { DaemonError } from '../errors';
 import { ghOk, git, gitOk, identityArgs } from '../git';
 import { triggerLearn } from '../learn';
@@ -243,6 +244,18 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash }
   }
 }
 
+/**
+ * A task sent back with an ask for its next run. When autopilot had stopped at the gate it goes on again and builds
+ * from the ask; otherwise the task is rejected, which puts it in the board's Needs you lane.
+ */
+async function sendBack(ctx: DaemonContext, id: string, ask: string): Promise<{ status: 'building' | 'rejected'; autopilot: boolean }> {
+  const autopilot = stoppedAtGate(await ctx.ws.events(id).read());
+  const status = autopilot ? 'building' : 'rejected';
+  await ctx.ws.writeTask(id, { status, pendingAsk: ask });
+  if (autopilot) await ctx.autopilot.start(id);
+  return { status, autopilot };
+}
+
 export function approveRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/approve', async (c) => {
     const id = c.req.param('id');
@@ -263,8 +276,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by }, links: [{ kind: 'decision', ref: d.id }] });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason, decision: d.id } });
     void ctx.otel.task(id).catch(() => undefined);
-    await ctx.ws.writeTask(id, { status: 'building', pendingAsk: reason });
-    const result = { status: 'building', decision: d.id };
+    const result = { ...(await sendBack(ctx, id, reason)), decision: d.id };
     await skillStatuses(ctx);
     triggerLearn(ctx, id);
     return c.json(result);
@@ -277,8 +289,8 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     // asking for changes is not approving: the shadow record counts it against the policy's would-approve
     await recordShadow(ctx, id, 'rejected').catch(() => undefined);
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason: text, changes: true } });
-    await ctx.ws.writeTask(id, { status: 'building', pendingAsk: text });
+    const result = await sendBack(ctx, id, text);
     await skillStatuses(ctx);
-    return c.json({ status: 'building' });
+    return c.json(result);
   });
 }

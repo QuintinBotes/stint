@@ -21,8 +21,8 @@ export const reject = defineCommand({
   meta: { name: 'reject', description: 'Send a task back; the reason becomes a decision and the next ask' },
   args: { task: { type: 'positional', required: true, description: 'Task id' }, reason: { type: 'string', required: true, description: 'Why it is rejected' }, ...repoArg },
   async run({ args }) {
-    const r = await postDaemon<{ decision: string }>(repoRoot(args.repo), `/api/tasks/${args.task}/reject`, { reason: args.reason });
-    process.stdout.write(`${args.task} is back to building; the reason is ${r.decision} and the next run's ask.\n`);
+    const r = await postDaemon<{ decision: string; autopilot: boolean }>(repoRoot(args.repo), `/api/tasks/${args.task}/reject`, { reason: args.reason });
+    process.stdout.write(`${args.task} ${r.autopilot ? 'is back on autopilot' : 'is rejected and waits for you'}; the reason is ${r.decision} and the next run's ask.\n`);
   },
 });
 
