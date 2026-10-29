@@ -35,6 +35,8 @@ test('The hook posts its payload by hand and the daemon drafts a packet with rea
       await fetch(`${d.url}/api/tasks/${t.id}/runs/${run}/stop`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}` } });
       const finished = (await d.ws.events(t.id).read()).find((e) => e.type === 'run.finished');
       expect(finished?.payload.inFlight).toBe('write_file test/ratelimit.test.ts');
+      // the stop answers at run.finished; the ending's packet follows the verification
+      for (let i = 0; i < 600 && !(await d.ws.events(t.id).read()).some((e) => e.type === 'handoff.created' && e.payload.reason === 'killed'); i++) await Bun.sleep(50);
       const packet = await d.ws.handoffs(t.id).latest();
       expect(packet?.leftOut).toContain('In-flight step unknown: write_file test/ratelimit.test.ts');
     } finally {

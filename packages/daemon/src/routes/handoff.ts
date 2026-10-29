@@ -116,14 +116,8 @@ export function handoffRoutes(app: Hono, ctx: DaemonContext): void {
     return c.json({ name: built.name, tokens: built.tokens, bytes: built.bytes, handoff: built.handoff });
   });
 
-  // stop answers with the packet the ending built
-  app.post('/api/tasks/:id/runs/:run/stop', async (c) => {
-    const id = c.req.param('id');
-    const run = c.req.param('run');
-    const r = await stop(ctx, id, run);
-    const packet = await ctx.ws.handoffs(id).latest();
-    return c.json({ ...r, packet: packet?.from.run === run ? packet : null }, 202);
-  });
+  // stop answers once run.finished is recorded; the packet the ending builds arrives on the stream as handoff.created
+  app.post('/api/tasks/:id/runs/:run/stop', async (c) => c.json(await stop(ctx, c.req.param('id'), c.req.param('run')), 202));
 
   /** `stint hand`: a packet addressed to the next agent, then a run of that agent from it. */
   app.post('/api/tasks/:id/hand', async (c) => {
