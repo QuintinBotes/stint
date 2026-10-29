@@ -9,7 +9,7 @@ One verification runs a suite of checks, in order:
 1. The task's `testCommand`, recorded as check `tests`.
 2. The task's own `checks`, or `config.verify.checks` when the task names none. Each check is `{name, command, kind}`, with `kind` one of `test`, `typecheck`, `lint`, `custom`. Eight checks at most.
 
-Each check runs in the worktree with the run environment, in the run's sandbox when one is configured ([`sandbox.md`](sandbox.md#a-sandbox-per-run)), and is recorded as `{name, kind, exitCode, passed?, failed?, durationMs, status}` (counts only for `test` checks). The record is green only when every check is green. The record's `passed` and `failed` stay the test command's counts, and `verification.ran` carries the same `checks` list. A test run's output is kept as its first 64 KB and its last 512 KB, with a line saying how much was left out between them, so the summary and failing names a runner prints at the end are always kept.
+Each check runs in the worktree with the run environment, in the run's sandbox when one is configured ([`sandbox.md`](sandbox.md#a-sandbox-per-run)), and is recorded as `{name, kind, exitCode, passed?, failed?, durationMs, status}` (counts only for `test` checks). The record is green only when every check is green. A check whose command cannot start, for example because its folder is gone, comes back red with exit code 127 and the reason, instead of an error that stops the daemon. The record's `passed` and `failed` stay the test command's counts, and `verification.ran` carries the same `checks` list. A test run's output is kept as its first 64 KB and its last 512 KB, with a line saying how much was left out between them, so the summary and failing names a runner prints at the end are always kept.
 
 ## The tamper guard
 
@@ -34,7 +34,7 @@ stint scenario add T-0042 holdout.test.ts
 stint scenario list T-0042
 ```
 
-After the verify suite, the daemon copies the scenario files into a temporary checkout of the task branch (never the agent's worktree), runs `config.scenarios.command` there (default: the task's test command filtered to those files; `{files}` in the command is replaced by the file list), and records `scenario.ran { passed, failed, names }`. A failing scenario turns the verification red with reason `scenarios`. The next agent learns from its packet that scenarios failed, and their names; the scenario source and output are never copied into a worktree, a prompt or a packet.
+After the verify suite, the daemon copies the scenario files into a temporary checkout of the task branch (never the agent's worktree), runs `config.scenarios.command` there (default: the task's test command filtered to those files; `{files}` in the command is replaced by the file list), and records `scenario.ran { passed, failed, names }`. A failing scenario turns the verification red with reason `scenarios`, and so do scenarios that cannot run at all, with the error in the record's output. The next agent learns from its packet that scenarios failed, and their names; the scenario source and output are never copied into a worktree, a prompt or a packet.
 
 ## Coverage
 

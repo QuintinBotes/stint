@@ -1,6 +1,6 @@
 # Finals kit
 
-This page is for whoever presents at the live judging on 9 November: the run order, the 60-second version, the questions to expect and what to show when something fails. Run order: live mode if the network and keys hold, the replay (`stint demo`) if not, and the 60-second version if time is cut.
+This page is for whoever presents at the live judging on 9 November: the run order, the 60-second version, the questions to expect and what to show when something fails. Run order: live mode if the network and keys hold, the replay (`stint demo`) if not, and the 60-second version if time is cut. If the laptop fails, the judge copy of the board, built with `bun run build:judge`, needs only a browser ([`demo.md`](demo.md#the-judge-copy)).
 
 ## The 60-second version
 
@@ -26,10 +26,11 @@ Four things limit the damage:
 - **The person merges, not an agent.**
 
 **Can an agent fake the tests?**
-Three things stop it:
+Four things stop it:
 - **The daemon runs the tests.** It never takes the agent's word for whether they passed.
 - **The test files the plan and the task name are locked** as they were at the task's start commit. A run that weakens them turns the verification red, unless a `tests:` decision recorded after the lock names each changed file and says why, and that decision is on the card for the person who approves.
 - **Held-out scenarios run in a checkout the agent never sees.** Only their counts come back.
+- **A visual proof is judged from a screenshot.** The daemon opens the page itself, and Muse Spark judges what it sees against the person's criterion; words on the page are never instructions to it.
 
 The card says "33 passed, tests unchanged", with the locked file test/webhooks.test.ts under it, only when a lock held.
 
@@ -43,16 +44,17 @@ You don't have to:
 Not by default. The auto-approve lane is off, and only config turns it on, for the risk tiers named there (low by default). Even then it stays closed until it has a shadow record: at least three decisions over 14 days (configurable) where the person agreed with what the policy would have done. One disagreement, or one revert of a change it would have approved, inside that window closes it again.
 
 **What stops it spending too much, or building the wrong thing?**
-Three things:
+Four things:
 - **Limits you set.** Each task has limits on builds, hand-offs, review rounds, spend and agent time, and autopilot stops and asks you before it would pass one. A goal sets them across all of its tasks.
 - **Sharpen first.** Before work starts, Stint asks the few questions whose answers change what gets built, recommends an answer to each, and records yours as decisions every later run keeps.
 - **How it went.** Each acceptance criterion says whether it was proven or only passes; a passing test proves it only if that test failed before the change. The gate says "Passes, but no test showed it failing first" when that is all there is.
+- **Run all asks first.** Starting every planned task names which start now and which wait, the most builds any may use, how many have no spend limit, and that nothing merges without you.
 
 **What did you build during the event?**
 All of it, from 26 October; see [`timeline.md`](timeline.md) and `PROGRESS.md`. The build kit and the first specs were the plan, written before the event; the later specs were written during it, and the timeline says which. Parts of the code were written by Muse Code on Muse Wonder Full from a brief. Until 27 October those commits carried a `Model:` trailer; since then commits carry only a `Spec:` trailer, and the spec's row in `PROGRESS.md` names the model.
 
 **Where are Meta's models used?**
-Muse Wonder 1.0 plans and writes the quiz. Muse Spark 1.3 builds through Muse Code and continues through the Stint agent. Muse Glimmer 30B reviews offline and reads diffs. Muse Spark Open on Fireworks, Baseten and Modal runs the learn step and is the fallback for the rest. The Factory shows each model's tokens and cost from the meter.
+Muse Wonder 1.0 plans, drafts specs, asks Sharpen's questions and writes the quiz. Muse Spark 1.3 builds through Muse Code, continues through the Stint agent, and judges a page in the visual gate, where SAM 3.1 marks what it found wrong. Muse Glimmer 30B reviews offline and reads diffs. Muse Spark Open on Fireworks, Baseten and Modal runs the learn step and is the fallback for the rest. The Factory shows each model's tokens and cost from the meter.
 
 ## If an agent misbehaves on stage
 

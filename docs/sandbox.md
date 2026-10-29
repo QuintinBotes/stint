@@ -58,9 +58,15 @@ On its own the proxy only covers tools that honour the proxy variables, which mo
 
 If the configured sandbox can't run (docker not running, or `sandbox-exec` on Linux), Stint refuses the run and says why. It never quietly runs an agent outside the boundary you asked for.
 
-The Stint agent's file tools run inside the daemon and are held to the worktree by its path checks. Its search runs in a separate worker that is stopped after 5 seconds, and a pattern over 500 characters, or one that is not a valid regular expression, comes back to the agent as a tool error, so no search can stall the daemon. Its shell commands run in the sandbox.
+The Stint agent's file tools run inside the daemon and are held to the worktree by its path checks. Its search runs in a separate worker that is stopped after 5 seconds, and a pattern over 500 characters, or one that is not a valid regular expression, comes back to the agent as a tool error, so no search can stall the daemon. Its shell commands run in the sandbox, after Stint has checked each part of a chain both as written and with its quotes and backslashes taken out:
+
+- It refuses pushing, a hard reset, history rewrites, git aliases, changing remotes, deleting or moving other branches, `sudo`, uploads and copies to another host, and credential files and folders. Each refusal tells the agent why and is recorded as `rule.blocked`, so the next packet lists it.
+- The run stays on its task branch: `git switch` and checking out a pull request are always refused, and `git checkout` runs only in its file form, `git checkout -- <file>`.
+- git runs only in the worktree. A quoted word is refused only when it names a path outside the worktree that exists, since quoted words are mostly patterns and messages; a redirect's target is always checked.
+- A command that cannot start comes back to the agent as a failure with the reason, as it does in the verifier, instead of stopping the daemon.
 
 Whatever the sandbox:
+- The daemon listens on 127.0.0.1 only, so another machine on the network cannot reach it.
 - Each run gets its own token, `STINT_RUN_TOKEN`, with the daemon's port in `STINT_DAEMON_PORT`. The token reaches only the routes the agent's hooks and `stint mcp` call for that task and run, answers 403 anywhere else, and stops working when the run ends. Approving, merging and managing skills need the daemon token.
 - The daemon runs git with hooks turned off, so a hook an agent wrote never runs outside its sandbox.
 - The daemon's own test runs on the agent's code use the same sandbox as the agent.

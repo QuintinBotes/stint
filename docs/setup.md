@@ -21,6 +21,7 @@ Two folders appear below: the Stint checkout (`/path/to/stint`) and your reposit
 | The Stint agent | `META_API_KEY`, a partner key for Muse Spark Open, or Glimmer running in Ollama | the same refusal |
 | Planning with Muse Wonder | `META_API_KEY` | the planner falls back to Fireworks, Baseten, Modal, then local Glimmer |
 | The offline review | Ollama 0.32.8 or later with `muse-glimmer:30b-mlx` (about 19 GB; 32 GB of memory is comfortable) | the reviewer falls back to Muse Spark Open on Fireworks, Baseten and Modal, then Muse Spark 1.3 on the Meta Model API |
+| Visual checks | `META_API_KEY`, `visual` in `.stint/config.json`, and the Chromium that Playwright installs (`bunx playwright install chromium`) | a visual proof reads "not checked" with the reason, and the verification stays as the tests left it ([`verify.md`](verify.md#what-stint-saw-visual-checks)) |
 | The terminal pane | `Bun.Terminal`, which every Bun that Stint supports has | health reports the terminal as unavailable, and the pane says so |
 
 ## Install
@@ -67,12 +68,12 @@ stint keys list
 
 ## Your first task
 
-The README's [Use it on your repository](../README.md#use-it-on-your-repository) walks through it with the expected output: `stint init`, keys, `stint up`, `stint new`, `stint run`, the gate and `stint approve`. Before a run, `stint sharpen <task>` asks the few questions whose answers change what gets built, and for work bigger than one task, `stint goal new` makes a goal that splits into tasks ([`sharpen.md`](sharpen.md)). After a merge, `stint outcome <task>` says how the task went: each criterion and its proof, the loops, the spend and what happened since. Four things to know before you start:
+The README's [Use it on your repository](../README.md#use-it-on-your-repository) walks through it with the expected output: `stint init`, keys, `stint up`, `stint new`, `stint run`, the gate and `stint approve`. To start from a sentence instead of a form, `stint draft "<what you want>"` drafts the spec with you, or press n in the web UI. Before a run, `stint sharpen <task>` asks the few questions whose answers change what gets built, and for work bigger than one task, `stint goal new` makes a goal that splits into tasks ([`sharpen.md`](sharpen.md)). `stint list` prints every task with its status. After a merge, `stint outcome <task>` says how the task went: each criterion and its proof, the loops, the spend and what happened since. Four things to know before you start:
 
 - **A clean tree.** A run starts from your last commit in its own worktree under `.stint/worktrees/`, on the branch `stint/<task>`. Uncommitted changes to tracked files stop it with `dirty_tree`, so commit or stash them first.
 - **The test command.** The daemon runs the task's test command itself after every run. It is `testCommand` in `.stint/config.json` (`bun test` until you change it), or `stint new --test "<command>"` for one task.
 - **Limits.** Autopilot stops and asks you once a task reaches one of its limits: 8 builds, 3 hand-offs and 1 review round by default, and no limit on spend or agent time until you set one. `stint new "<title>" --max-usd 3` sets them for one task, `stint limits <task>` shows and changes them, and `limits` in `.stint/config.json` sets the defaults ([`factory.md`](factory.md#limits-you-set)).
-- **The gate.** Nothing merges until you approve. Approval is a real merge of the commit the daemon verified, with `Stint-Task` trailers naming the runs and the packet it came from.
+- **The gate.** Nothing merges until you approve. Approval is a real merge of the commit the daemon verified, with `Stint-Task` trailers naming the runs and the packet it came from. To send work back, `stint changes <task> --reason "<what should change>"` or `stint reject <task> --reason "<why>"` makes your words the next run's ask.
 
 ## Other agents
 
