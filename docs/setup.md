@@ -80,7 +80,7 @@ Muse Code and the Stint agent build, Muse Wonder plans, and Muse Glimmer reviews
 
 ## The offline review
 
-The reviewer runs Muse Glimmer 30B on your machine through Ollama, at no cost and with the network off. Pull the model once:
+The reviewer runs Muse Glimmer 30B on your machine through Ollama, at no cost and with the network off. Only this review needs the model, so `scripts/bootstrap.sh` downloads nothing for it unless you pass `--with-glimmer`, which starts the pull in the background. Or pull the model yourself, once:
 
 <!-- needs: muse-glimmer:30b-mlx (a 19 GB download) -->
 ```bash
