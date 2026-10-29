@@ -134,14 +134,15 @@ function Preview({ result }: { result: ReturnType<typeof checked> }) {
 
 type Failure = { message: string; findings: SkillFinding[] };
 
-/** Posts an import; the daemon's refusal is shown in its words, with its findings when it names them. */
+/** Posts an import, one at a time; the daemon's refusal is shown in its words, with its findings when it names them. */
 function useSend(onAdded: (id: string) => void) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
-  const send = (posted: Promise<{ id: string }>) => {
+  const send = (posted: () => Promise<{ id: string }>) => {
+    if (busy) return;
     setBusy(true);
     setFailure(null);
-    posted
+    posted()
       .then((r) => onAdded(r.id))
       .catch((e: unknown) => {
         const hint = e instanceof DaemonError ? e.error.hint : null;
@@ -155,38 +156,46 @@ function useSend(onAdded: (id: string) => void) {
 
 const BLOCKED = 'A blocking finding stops this skill. Fix what it names, then try again.';
 
-/** The dialog's buttons. `why` says what the submit button waits for, beside it and as its description, so a disabled button is never mute. */
-function Footer({ id, why, label, busy, failure, onSubmit, onCancel }: { id: string; why: string | null; label: string; busy: boolean; failure: Failure | null; onSubmit: () => void; onCancel: () => void }) {
+/** What a tab gives the dialog's footer: what its submit waits for, its words, and the send in flight. */
+type Submit = { why: string | null; label: string; busy: boolean; failure: Failure | null; onSubmit: () => void };
+
+/** The footer: the daemon's refusal, what the submit waits for (beside it and as its description, so a disabled button is never mute), and the submit, which says when it is sending. */
+function Actions({ why, label, busy, failure, onSubmit }: Submit) {
   return (
-    <div className="flex flex-col gap-3 pt-4">
+    <>
       {failure ? (
-        <div role="alert" className="flex flex-col gap-2">
-          <p className="text-body text-red">Stint did not add it: {failure.message}.</p>
-          {failure.findings.length ? <Findings findings={failure.findings} /> : null}
-        </div>
+        <p role="alert" className="basis-full stint-field-error" data-testid="add-skill-failure">
+          Stint did not add it: {failure.message}.
+        </p>
       ) : null}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {why ? (
-          <p id={id} className="mr-auto text-small text-ink-2" data-testid="add-skill-why">
-            {why}
-          </p>
-        ) : null}
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button tone="primary" disabled={!!why || busy} aria-describedby={why ? id : undefined} onClick={onSubmit} data-testid="add-skill-submit">
-          {busy ? 'Sending' : label}
-        </Button>
-      </div>
-    </div>
+      {why ? (
+        <p id="add-skill-why" className="mr-auto stint-field-help" data-testid="add-skill-why">
+          {why}
+        </p>
+      ) : null}
+      <Button tone="primary" disabled={!!why || busy} aria-busy={busy || undefined} aria-describedby={why ? 'add-skill-why' : undefined} onClick={onSubmit} data-testid="add-skill-submit">
+        {busy ? 'Sending' : label}
+      </Button>
+    </>
   );
 }
 
-const label = 'flex flex-col gap-2 text-body font-semibold';
-const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 font-normal text-ink placeholder:text-ink-3';
+/** The findings the daemon named when it refused, in the body above the footer that says it refused. */
+function Refused({ failure }: { failure: Failure | null }) {
+  return failure?.findings.length ? (
+    <div className="flex flex-col gap-2" data-testid="add-skill-refused">
+      <h3 className="font-semibold">What Stint found</h3>
+      <Findings findings={failure.findings} />
+    </div>
+  ) : null;
+}
+
 const fileField = 'text-small font-normal text-ink-2 file:mr-3 file:h-8 file:px-3 file:rounded-[5px] file:border file:border-solid file:border-rule-strong file:bg-transparent file:text-body file:font-semibold file:text-ink hover:file:border-ink-2';
 
 type Picked = { kind: Extract<SkillSource['kind'], 'zip' | 'upload' | 'folder'>; ref: string; send: SkillBundleFile[]; files: SkillBundleFile[]; extra: SkillFinding[] };
 
-function UploadTab({ onAdded, onCancel }: { onAdded: (id: string) => void; onCancel: () => void }) {
+/** Upload's draft: the file or folder chosen, checked as the daemon will check it. */
+function useUpload(onAdded: (id: string) => void) {
   const [picked, setPicked] = useState<Picked | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const { busy, failure, send } = useSend(onAdded);
@@ -220,46 +229,52 @@ function UploadTab({ onAdded, onCancel }: { onAdded: (id: string) => void; onCan
     setPicked({ kind: 'upload', ref: first.name, send: files, files, extra: [] });
   };
   const result = picked ? checked(picked.files, picked.extra) : null;
-  const submit = () => {
+  const onSubmit = () => {
     if (!picked) return;
     const form = new FormData();
     for (const f of picked.send) form.append('file', new Blob([f.bytes as Uint8Array<ArrayBuffer>]), f.path);
     form.append('source', JSON.stringify({ kind: picked.kind, ref: picked.ref } satisfies SkillSource));
-    send(api.importSkill(form));
+    send(() => api.importSkill(form));
   };
+  const submit: Submit = { why: !result ? 'Choose a file or folder first.' : result.blocked ? BLOCKED : null, label: 'Add skill', busy, failure, onSubmit };
+  return { take, problem, result, submit, dirty: picked !== null };
+}
+
+function UploadTab({ u }: { u: ReturnType<typeof useUpload> }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid gap-4">
       <div
-        className="flex flex-col gap-4 p-4 rounded-[5px] border border-dashed border-rule-strong"
+        className="grid gap-4 p-4 rounded-[5px] border border-dashed border-rule-strong"
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          void take([...e.dataTransfer.files], false);
+          void u.take([...e.dataTransfer.files], false);
         }}
         data-testid="skill-drop"
       >
-        <p className="text-body">Drop a .zip or a SKILL.md here, or choose one below.</p>
-        <label className={label}>
-          A .zip or SKILL.md
-          <input type="file" accept=".zip,.md" className={fileField} onChange={(e) => void take([...(e.target.files ?? [])], false)} data-testid="skill-file" />
+        <p>Drop a .zip or a SKILL.md here, or choose one below.</p>
+        <label className="stint-field-group">
+          <span className="stint-field-label">A .zip or SKILL.md</span>
+          <input type="file" accept=".zip,.md" className={fileField} onChange={(e) => void u.take([...(e.target.files ?? [])], false)} data-testid="skill-file" />
         </label>
-        <label className={label}>
-          A folder that holds a SKILL.md
-          <input type="file" multiple {...{ webkitdirectory: '' }} className={fileField} onChange={(e) => void take([...(e.target.files ?? [])], true)} data-testid="skill-folder" />
+        <label className="stint-field-group">
+          <span className="stint-field-label">A folder that holds a SKILL.md</span>
+          <input type="file" multiple {...{ webkitdirectory: '' }} className={fileField} onChange={(e) => void u.take([...(e.target.files ?? [])], true)} data-testid="skill-folder" />
         </label>
       </div>
-      {problem ? (
-        <p role="alert" className="text-body text-red">
-          {problem}
+      {u.problem ? (
+        <p role="alert" className="stint-field-error">
+          {u.problem}
         </p>
       ) : null}
-      {result ? <Preview result={result} /> : null}
-      <Footer id="add-skill-why-upload" why={!result ? 'Choose a file or folder first.' : result.blocked ? BLOCKED : null} label="Add skill" busy={busy} failure={failure} onSubmit={submit} onCancel={onCancel} />
+      {u.result ? <Preview result={u.result} /> : null}
+      <Refused failure={u.submit.failure} />
     </div>
   );
 }
 
-function GitTab({ onCancel }: { onCancel: () => void }) {
+/** From git's draft: the URL, ref and path, as the command the CLI takes. */
+function useGit() {
   const [url, setUrl] = useState('');
   const [ref, setRef] = useState('');
   const [path, setPath] = useState('');
@@ -274,42 +289,45 @@ function GitTab({ onCancel }: { onCancel: () => void }) {
       () => setCopied('Copied the command.'),
       () => setCopied('The browser did not allow copying. Select the command and copy it by hand.'),
     );
+  return { url, setUrl, ref, setRef, path, setPath, copied, copy, given, ok, command, dirty: !!(given || ref.trim() || path.trim()) };
+}
+
+function GitTab({ g }: { g: ReturnType<typeof useGit> }) {
   return (
-    <div className="flex flex-col gap-4">
-      <label className={label}>
-        Repository URL
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com/acme/skills" className={cx(field, 'font-mono')} aria-describedby="git-url-hint" />
-      </label>
-      <p id="git-url-hint" className={cx('text-small -mt-2', given && !ok ? 'text-red' : 'text-ink-2')}>
-        {given && !ok ? 'The CLI clones https://, git@ and file:// URLs. Check how the URL starts.' : 'An https://, git@ or file:// URL.'}
-      </p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className={label}>
-          Ref, if not the default branch
-          <input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="main" className={cx(field, 'font-mono')} />
+    <div className="grid gap-5">
+      <div className="stint-field-group">
+        <label htmlFor="git-url" className="stint-field-label">
+          Repository URL
         </label>
-        <label className={label}>
-          Path to the skill folder, if not the root
-          <input value={path} onChange={(e) => setPath(e.target.value)} placeholder="skills/widget-care" className={cx(field, 'font-mono')} />
+        <input id="git-url" value={g.url} onChange={(e) => g.setUrl(e.target.value)} placeholder="https://example.com/acme/skills" className="stint-input font-mono" aria-invalid={(g.given && !g.ok) || undefined} aria-describedby="git-url-hint" />
+        <p id="git-url-hint" className={g.given && !g.ok ? 'stint-field-error' : 'stint-field-help'}>
+          {g.given && !g.ok ? 'The CLI clones https://, git@ and file:// URLs. Check how the URL starts.' : 'An https://, git@ or file:// URL.'}
+        </p>
+      </div>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <label className="stint-field-group">
+          <span className="stint-field-label">Ref, if not the default branch</span>
+          <input value={g.ref} onChange={(e) => g.setRef(e.target.value)} placeholder="main" className="stint-input font-mono" />
+        </label>
+        <label className="stint-field-group">
+          <span className="stint-field-label">Path to the skill folder, if not the root</span>
+          <input value={g.path} onChange={(e) => g.setPath(e.target.value)} placeholder="skills/widget-care" className="stint-input font-mono" />
         </label>
       </div>
       <Section title="Run this in a terminal in your project">
-        <p className="mb-3 text-body text-ink-2">The browser cannot fetch from git, so this command does. The skill then waits on this page with its findings.</p>
+        <p className="mb-3 text-ink-2">The browser cannot fetch from git, so this command does. The skill then waits on this page with its findings.</p>
         <div className="flex items-start gap-2">
-          <pre className="flex-1 min-w-0 font-mono text-code whitespace-pre-wrap break-all rounded-[5px] bg-ground p-3" data-testid="git-command">
-            {ok ? command : 'stint skills add <url>#<ref>:<path>'}
+          <pre className="flex-1 min-w-0 font-mono text-code whitespace-pre-wrap break-all rounded-[5px] border border-rule bg-ground p-3" data-testid="git-command">
+            {g.ok ? g.command : 'stint skills add <url>#<ref>:<path>'}
           </pre>
-          <Button disabled={!ok} onClick={() => void copy()} data-testid="copy-git-command">
+          <Button disabled={!g.ok} onClick={() => void g.copy()} data-testid="copy-git-command">
             Copy
           </Button>
         </div>
-        <p aria-live="polite" className="mt-2 text-small text-ink-2">
-          {copied ?? ''}
+        <p aria-live="polite" className="mt-2 stint-field-help">
+          {g.copied ?? ''}
         </p>
       </Section>
-      <div className="flex justify-end">
-        <Button onClick={onCancel}>Close</Button>
-      </div>
     </div>
   );
 }
@@ -323,7 +341,8 @@ const toBase64 = (bytes: Uint8Array) => {
 /** SKILL.md from the form: JSON values are valid YAML, and both frontmatter readers take them. */
 const skillMarkdown = (fm: Record<string, unknown>, body: string) => ['---', ...Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`), '---', '', body.trim(), ''].join('\n');
 
-function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (id: string) => void; onCancel: () => void }) {
+/** Write's draft: a new skill's fields, or on Edit the approved folder's, with the rest of the folder kept. */
+function useWrite(edit: string | null, onAdded: (id: string) => void) {
   const [name, setName] = useState(edit ?? '');
   const [description, setDescription] = useState('');
   const [roles, setRoles] = useState<Role[]>([]);
@@ -334,20 +353,26 @@ function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (
   const [loading, setLoading] = useState(!!edit);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { busy, failure, send } = useSend(onAdded);
+  // the draft is dirty once it differs from where it started: empty, or the folder Edit read
+  const draft = JSON.stringify([name, description, roles, tags, body]);
+  const [start, setStart] = useState(draft);
   useEffect(() => {
     if (!edit) return;
     exportedFiles(edit)
       .then((files) => {
         const check = validateSkillBundle(files);
-        if (check.frontmatter) {
+        const fm = check.frontmatter;
+        const read = { description: fm?.description ?? '', roles: fm?.roles ?? [], tags: (fm?.tags ?? []).join(', '), body: check.body.trim() };
+        if (fm) {
           // the name stays the folder's id, which is what approving writes into the frontmatter
-          const { name: _n, description: d, roles: r, tags: t, origin: _o, status: _s, source: _src, ...rest } = check.frontmatter;
-          setDescription(d);
-          setRoles(r ?? []);
-          setTags((t ?? []).join(', '));
+          const { name: _n, description: _d, roles: _r, tags: _t, origin: _o, status: _s, source: _src, ...rest } = fm;
           setKept({ files: check.files.filter((f) => f.path !== 'SKILL.md'), fields: rest });
         }
-        setBody(check.body.trim());
+        setDescription(read.description);
+        setRoles(read.roles);
+        setTags(read.tags);
+        setBody(read.body);
+        setStart(JSON.stringify([edit, read.description, read.roles, read.tags, read.body]));
       })
       .catch((e: unknown) => setLoadError(`The skill could not be read for editing: ${daemonMessage(e)}. Close this and try Edit again.`))
       .finally(() => setLoading(false));
@@ -360,55 +385,65 @@ function WriteTab({ edit, onAdded, onCancel }: { edit: string | null; onAdded: (
   const files = [{ path: 'SKILL.md', bytes: new TextEncoder().encode(skillMarkdown(fm, body)) }, ...kept.files];
   const ready = !loading && !!fm.name && !!fm.description;
   const result = ready ? checked(files) : null;
-  const tokens = countTokens(body);
-  const submit = () => send(api.importSkill({ files: files.map((f) => ({ path: f.path, base64: toBase64(f.bytes) })), source: { kind: 'editor', ref: 'the Skills page' }, id: fm.name }));
-  if (loading) return <p className="text-body text-ink-2">Reading {edit}.</p>;
+  const onSubmit = () => send(() => api.importSkill({ files: files.map((f) => ({ path: f.path, base64: toBase64(f.bytes) })), source: { kind: 'editor', ref: 'the Skills page' }, id: fm.name }));
+  const submit: Submit = { why: !ready ? 'Fill in the name and the description first.' : result?.blocked ? BLOCKED : null, label: edit ? 'Save the edit' : 'Add skill', busy, failure, onSubmit };
+  return { name, setName, description, setDescription, roles, setRoles, tags, setTags, body, setBody, loading, loadError, result, tokens: countTokens(body), submit, dirty: draft !== start };
+}
+
+function WriteTab({ w, edit }: { w: ReturnType<typeof useWrite>; edit: string | null }) {
+  if (w.loading) return <p className="text-ink-2">Reading {edit}.</p>;
   return (
-    <div className="flex flex-col gap-4">
-      {loadError ? (
-        <p role="alert" className="text-body text-red">
-          {loadError}
+    <div className="grid gap-5">
+      {w.loadError ? (
+        <p role="alert" className="stint-field-error">
+          {w.loadError}
         </p>
       ) : null}
-      <label className={label}>
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} readOnly={!!edit} required maxLength={64} className={cx(field, 'font-mono')} aria-describedby="skill-name-hint" data-testid="skill-name" />
-      </label>
-      <p id="skill-name-hint" className="text-small text-ink-2 -mt-2">
-        {edit ? 'The name stays the same; approving the edit replaces the skill and adds a version.' : 'Lowercase words joined by dashes, such as run-checks, at most 64 characters.'}
-      </p>
-      <label className={label}>
-        Description
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={1024} rows={2} className={field} aria-describedby="skill-description-hint" data-testid="skill-description" />
-      </label>
-      <p id="skill-description-hint" className="text-small text-ink-2 -mt-2">
-        When an agent should use it. This is the line every agent reads, so name the kind of task.
-      </p>
-      <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-body font-semibold">Given to</legend>
+      <div className="stint-field-group">
+        <label htmlFor="skill-name" className="stint-field-label">
+          Name
+        </label>
+        <input id="skill-name" value={w.name} onChange={(e) => w.setName(e.target.value)} readOnly={!!edit} required maxLength={64} className="stint-input font-mono" aria-describedby="skill-name-hint" data-testid="skill-name" />
+        <p id="skill-name-hint" className="stint-field-help">
+          {edit ? 'The name stays the same; approving the edit replaces the skill and adds a version.' : 'Lowercase words joined by dashes, such as run-checks, at most 64 characters.'}
+        </p>
+      </div>
+      <div className="stint-field-group">
+        <label htmlFor="skill-description" className="stint-field-label">
+          Description
+        </label>
+        <textarea id="skill-description" value={w.description} onChange={(e) => w.setDescription(e.target.value)} required maxLength={1024} rows={2} className="stint-input min-h-0" aria-describedby="skill-description-hint" data-testid="skill-description" />
+        <p id="skill-description-hint" className="stint-field-help">
+          When an agent should use it. This is the line every agent reads, so name the kind of task.
+        </p>
+      </div>
+      <fieldset className="stint-field-group">
+        <legend className="stint-field-label mb-2">Given to</legend>
         <div className="flex flex-wrap gap-4">
           {RoleSchema.options.map((r) => (
-            <label key={r} className="inline-flex items-center gap-2 text-body">
-              <input type="checkbox" checked={roles.includes(r)} onChange={(e) => setRoles((now) => (e.target.checked ? [...now, r] : now.filter((x) => x !== r)))} />
+            <label key={r} className="inline-flex items-center gap-2 min-h-6">
+              <input type="checkbox" checked={w.roles.includes(r)} onChange={(e) => w.setRoles((now) => (e.target.checked ? [...now, r] : now.filter((x) => x !== r)))} />
               {r}
             </label>
           ))}
         </div>
-        <p className="text-small text-ink-2">With none ticked, every role gets it.</p>
+        <p className="stint-field-help">With none ticked, every role gets it.</p>
       </fieldset>
-      <label className={label}>
-        Tags, comma separated
-        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="limits, config" className={field} />
+      <label className="stint-field-group">
+        <span className="stint-field-label">Tags, comma separated</span>
+        <input value={w.tags} onChange={(e) => w.setTags(e.target.value)} placeholder="limits, config" className="stint-input" />
       </label>
-      <label className={label}>
-        Instructions for the agent
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className={cx(field, 'font-mono text-code')} aria-describedby="skill-body-tokens" data-testid="skill-body" />
-      </label>
-      <p id="skill-body-tokens" className={cx('text-small -mt-2 tabular', tokens > SKILL_LIMITS.maxTokens ? 'text-red' : tokens > SKILL_LIMITS.warnTokens ? 'text-amber' : 'text-ink-2')} data-testid="skill-body-tokens">
-        About {tokens.toLocaleString('en')} tokens. Keep it under {SKILL_LIMITS.warnTokens.toLocaleString('en')}; write it from a real failure, and put detail in references/.
-      </p>
-      {result ? <Preview result={result} /> : null}
-      <Footer id="add-skill-why-write" why={!ready ? 'Fill in the name and the description first.' : result?.blocked ? BLOCKED : null} label={edit ? 'Save the edit' : 'Add skill'} busy={busy} failure={failure} onSubmit={submit} onCancel={onCancel} />
+      <div className="stint-field-group">
+        <label htmlFor="skill-body" className="stint-field-label">
+          Instructions for the agent
+        </label>
+        <textarea id="skill-body" value={w.body} onChange={(e) => w.setBody(e.target.value)} rows={8} className="stint-input min-h-0 font-mono text-code" aria-describedby="skill-body-tokens" data-testid="skill-body" />
+        <p id="skill-body-tokens" className={cx('stint-field-help tabular', w.tokens > SKILL_LIMITS.maxTokens ? 'text-red' : w.tokens > SKILL_LIMITS.warnTokens ? 'text-amber' : '')} data-testid="skill-body-tokens">
+          About {w.tokens.toLocaleString('en')} tokens. Keep it under {SKILL_LIMITS.warnTokens.toLocaleString('en')}; write it from a real failure, and put detail in references/.
+        </p>
+      </div>
+      {w.result ? <Preview result={w.result} /> : null}
+      <Refused failure={w.submit.failure} />
     </div>
   );
 }
@@ -420,17 +455,25 @@ const TABS: Array<[Tab, string]> = [
   ['write', 'Write'],
 ];
 
-/** Open while mounted; mount it per use so each opening starts clean. `edit` opens Write on that skill. */
+/**
+ * Open while mounted; mount it per use so each opening starts clean. `edit` opens Write on that skill. The dialog holds
+ * every tab's draft, so switching tabs keeps what was typed or chosen, and a dismissal asks before it drops any of it.
+ */
 export function AddSkillDialog({ edit, onClose, onAdded }: { edit: string | null; onClose: () => void; onAdded: (id: string) => void }) {
   const [tab, setTab] = useState<Tab>(edit ? 'write' : 'upload');
+  const upload = useUpload(onAdded);
+  const git = useGit();
+  const write = useWrite(edit, onAdded);
+  // From git only builds a command to copy, so it has nothing to submit
+  const submit = tab === 'upload' ? upload.submit : tab === 'write' ? write.submit : null;
   const tabs = useRef<Record<string, HTMLButtonElement | null>>({});
   // after the dialog has noted the opener, so closing it gives focus back there
   useEffect(() => tabs.current[edit ? 'write' : 'upload']?.focus(), [edit]);
   return (
-    <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width={720}>
+    <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width={720} dirty={upload.dirty || git.dirty || write.dirty} footer={submit ? <Actions {...submit} /> : null}>
       <div data-testid="add-skill-dialog">
-        <p className="mb-4 text-small text-ink-2">It waits on the Skills page with its findings. No agent gets it until you approve it.</p>
-        <div role="tablist" aria-label="How to add the skill" className="flex flex-wrap border-b border-rule mb-4" onKeyDown={tabKeys}>
+        <p className="mb-4 text-small text-ink-3">It waits on the Skills page with its findings. No agent gets it until you approve it.</p>
+        <div role="tablist" aria-label="How to add the skill" className="flex flex-wrap border-b border-rule mb-5" onKeyDown={tabKeys}>
           {TABS.map(([k, name]) => (
             <button
               key={k}
@@ -453,13 +496,13 @@ export function AddSkillDialog({ edit, onClose, onAdded }: { edit: string | null
         </div>
         {/* every panel stays mounted, so switching tabs keeps what was typed or chosen */}
         <div role="tabpanel" id="add-skill-panel-upload" aria-labelledby="add-skill-tab-upload" hidden={tab !== 'upload'}>
-          <UploadTab onAdded={onAdded} onCancel={onClose} />
+          <UploadTab u={upload} />
         </div>
         <div role="tabpanel" id="add-skill-panel-git" aria-labelledby="add-skill-tab-git" hidden={tab !== 'git'}>
-          <GitTab onCancel={onClose} />
+          <GitTab g={git} />
         </div>
         <div role="tabpanel" id="add-skill-panel-write" aria-labelledby="add-skill-tab-write" hidden={tab !== 'write'}>
-          <WriteTab edit={edit} onAdded={onAdded} onCancel={onClose} />
+          <WriteTab w={write} edit={edit} />
         </div>
       </div>
     </Dialog>

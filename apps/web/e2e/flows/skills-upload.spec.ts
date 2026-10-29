@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { zipSync } from 'fflate';
 import { daemon } from './daemon';
+import { holdRequests } from './pending';
 
 type Skill = { id: string; description: string; origin: string; status: string; source?: { kind: string; ref: string }; findings?: Array<{ id: string; severity: string; file: string }> };
 
@@ -28,7 +29,7 @@ test('Upload a zip on the Skills page: its findings show, the warn is acknowledg
   await expect(preview.getByTestId('skill-preview-files')).toContainText('scripts/run.sh');
   await expect(preview.locator('[data-finding="executable-script"]')).toContainText('Warn');
   await expect(preview.getByTestId('skill-prompt-line')).toHaveText('- flow-run-checks: Run the project checks script before you hand off a task.');
-  await dialog.getByRole('tabpanel').getByTestId('add-skill-submit').click();
+  await dialog.getByTestId('add-skill-submit').click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByTestId('add-skill')).toBeFocused();
 
@@ -63,7 +64,7 @@ test('A folder upload keeps its paths, and Edit opens Write prefilled from the a
   const dialog = page.getByRole('dialog', { name: 'Add skill' });
   await dialog.getByTestId('skill-folder').setInputFiles(dir);
   await expect(dialog.getByTestId('skill-preview-files')).toContainText('scripts/run.sh');
-  await dialog.getByRole('tabpanel').getByTestId('add-skill-submit').click();
+  await dialog.getByTestId('add-skill-submit').click();
   await expect(dialog).toHaveCount(0);
   const queued = await d.get<Skill[]>('/api/skills').then((all) => all.find((s) => s.id === 'flow-folder-checks'));
   expect(queued).toMatchObject({ status: 'proposed', origin: 'import', source: { kind: 'folder', ref: 'flow-folder-checks' } });
@@ -80,4 +81,52 @@ test('A folder upload keeps its paths, and Edit opens Write prefilled from the a
   await page.keyboard.press('Escape');
   await expect(edit).toHaveCount(0);
   await expect(row.getByTestId('edit-skill')).toBeFocused();
+});
+
+test("Add skill sends once however often it is pressed, and a refusal keeps what was typed with the daemon's words beside the button", async ({ page, request }) => {
+  const d = daemon(request);
+  await page.goto('/skills');
+  await page.getByTestId('add-skill').click();
+  const dialog = page.getByRole('dialog', { name: 'Add skill' });
+  await dialog.getByRole('tab', { name: 'Write' }).click();
+  await dialog.getByTestId('skill-name').fill('flow-pressed-twice');
+  await dialog.getByTestId('skill-description').fill('Use when a flow test presses a button twice.');
+  await dialog.getByTestId('skill-body').fill('Press it once.');
+
+  await page.route('**/api/skills/import', (r) => r.fulfill({ status: 409, json: { error: { code: 'conflict', message: 'a skill named flow-pressed-twice is being added', hint: 'Wait for it, then try again' } } }));
+  await dialog.getByTestId('add-skill-submit').click();
+  await expect(dialog.getByTestId('add-skill-failure')).toHaveText('Stint did not add it: a skill named flow-pressed-twice is being added. Wait for it, then try again.');
+  await expect(dialog.getByTestId('skill-name')).toHaveValue('flow-pressed-twice');
+  await expect(dialog.getByTestId('skill-body')).toHaveValue('Press it once.');
+  await page.unroute('**/api/skills/import');
+
+  const held = await holdRequests(page, '**/api/skills/import');
+  await dialog.getByTestId('add-skill-submit').dblclick();
+  await expect(dialog.getByTestId('add-skill-submit')).toHaveText('Sending');
+  await expect(dialog.getByTestId('add-skill-submit')).toBeDisabled();
+  held.release();
+  await expect(dialog).toHaveCount(0);
+  expect(held.count()).toBe(1);
+  await expect.poll(async () => (await d.get<Skill[]>('/api/skills')).filter((s) => s.id === 'flow-pressed-twice').length).toBe(1);
+});
+
+test("Approving a skill sends once however often it is pressed, and a refusal shows the daemon's words beside the buttons", async ({ page, request }) => {
+  const d = daemon(request);
+  const id = 'flow-approve-twice';
+  await d.post('/api/skills/import', { files: [{ path: 'SKILL.md', base64: Buffer.from(skillMd(id)).toString('base64') }], source: { kind: 'editor', ref: 'a flow test' }, id });
+  await page.goto(`/skills?skill=${id}`);
+  const row = page.locator(`[data-testid="skill-row"][data-skill="${id}"]`);
+  const approve = `**/api/skills/${id}/approve`;
+
+  await page.route(approve, (r) => r.fulfill({ status: 409, json: { error: { code: 'conflict', message: 'the skill changed on disk', hint: 'Reload and look again' } } }));
+  await row.getByTestId('approve-skill').click();
+  await expect(row.getByTestId('skill-act-error')).toHaveText('That did not go through: the skill changed on disk. Reload and look again');
+  await page.unroute(approve);
+
+  const held = await holdRequests(page, approve);
+  await row.getByTestId('approve-skill').dblclick();
+  await expect(row.getByTestId('approve-skill')).toHaveText('Approving');
+  held.release();
+  await expect.poll(async () => (await d.get<Skill[]>('/api/skills')).find((s) => s.id === id)?.status).toBe('probation');
+  expect(held.count()).toBe(1);
 });
