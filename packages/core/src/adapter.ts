@@ -58,7 +58,8 @@ export type RunResult = {
   lastMessage?: string;
 };
 
-export type Enrichment = Partial<Pick<Handoff, 'summary' | 'leftOut' | 'risks' | 'askOfNext'>>;
+/** The four packet fields a leaving agent may improve, and what asking it cost, which the daemon records as `cost.recorded` (D-060). */
+export type Enrichment = Partial<Pick<Handoff, 'summary' | 'leftOut' | 'risks' | 'askOfNext'>> & { cost?: Cost };
 
 /** The adapter contract: adapters never touch `.stint/`; the daemon writes everything they report. */
 export interface Adapter {

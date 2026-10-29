@@ -39,6 +39,24 @@ describe('task stream', () => {
     });
   });
 
+  test('R-004 Req 2: an idle stream sends a heartbeat with no id every heartbeatMs, on the task stream and the board stream', async () => {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await makeApp(repo, [], { heartbeatMs: 150 });
+      const t = await ws.createTask(newTask);
+      for (const [path, expected] of [
+        [`/api/tasks/${t.id}/stream`, ['task.created:1', 'heartbeat:{}', 'heartbeat:{}']],
+        ['/api/stream', ['heartbeat:{}', 'heartbeat:{}']],
+      ] as const) {
+        const t0 = performance.now();
+        const frames = await readSSE(await app.request(path), (f) => f.filter((x) => x.event === 'heartbeat').length >= 2, 3000);
+        expect([path, frames.map((f) => `${f.event}:${f.event === 'heartbeat' ? f.data : f.id}`)]).toEqual([path, [...expected]]);
+        expect(frames.filter((f) => f.event === 'heartbeat').every((f) => f.id === undefined)).toBe(true);
+        // two beats cannot come sooner than two intervals
+        expect(performance.now() - t0).toBeGreaterThanOrEqual(290);
+      }
+    });
+  });
+
   test('the board stream carries events from every task', async () => {
     await withFixtureRepo(async (repo) => {
       const { app } = await makeApp(repo);

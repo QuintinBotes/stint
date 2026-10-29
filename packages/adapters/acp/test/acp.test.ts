@@ -70,6 +70,21 @@ test('A fake ACP agent that reads, writes, runs a terminal command and asks perm
   });
 }, 60_000);
 
+test('R-033 Req 2: terminal/kill stops a command the agent started in the worktree, and wait_for_exit then reports the signal', async () => {
+  process.env.FAKE_ACP_MODE = 'kill';
+  await withFixtureRepo(async (repo) => {
+    const made = await makeApp(repo, [acpAgent('fake-acp', def)]);
+    const t = await made.ws.createTask({ ...newTask, testCommand: 'true' });
+    const t0 = Date.now();
+    await post(made.app, `/api/tasks/${t.id}/assign`, { adapter: 'fake-acp', role: 'implementer' });
+    const events = await until(made, t.id, (ty) => ty.includes('run.finished'));
+    expect(events.find((e) => e.type === 'run.finished')?.payload.endedBy).toBe('completed');
+    expect(events.filter((e) => e.type === 'agent.message').map((e) => String(e.payload.text)).join('')).toContain('The terminal ended by SIGKILL with exit code null; its output says SIGKILL.');
+    // the sleep 30 did not run out
+    expect(Date.now() - t0).toBeLessThan(20_000);
+  });
+}, 60_000);
+
 test('A write outside the worktree is refused and recorded', async () => {
   process.env.FAKE_ACP_MODE = 'outside';
   await withFixtureRepo(async (repo) => {

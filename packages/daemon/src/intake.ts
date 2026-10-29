@@ -149,8 +149,12 @@ export async function pull(ctx: DaemonContext, source: Source, o: { repo?: strin
     if (existsSync(itemPath(ctx, id))) continue;
     const item: IntakeItem = { id, source, ref: r.ref, url: r.url, title: r.title.slice(0, 200), body: r.body.slice(0, 8000), labels: r.labels, receivedAt: new Date().toISOString(), triage: null, state: 'open', task: null };
     await save(ctx, item);
+    // an item is not a task yet, so its arrival and triage go in the workspace log; accept copies them to the task
+    const log = ctx.ws.workspaceEvents();
+    await log.append({ task: 'workspace', vendor: 'daemon', type: 'intake.received', payload: { item: id, source, ref: item.ref, url: item.url, title: item.title, labels: item.labels } });
     const done = await triage(ctx, item);
     await save(ctx, done);
+    await log.append({ task: 'workspace', vendor: 'daemon', type: 'intake.triaged', payload: { item: id, triage: done.triage, ...(done.triageError ? { error: done.triageError } : {}) } });
     received.push(id);
     if (done.triage) triaged += 1;
   }
