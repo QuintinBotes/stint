@@ -1,5 +1,5 @@
 import { type Host, capDiff, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
-import { runsFromEvents } from '@stint-dev/core/node';
+import { billingHost, runsFromEvents } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { Enrichment, RunResult } from '../adapter';
@@ -7,7 +7,7 @@ import type { DaemonContext } from '../app';
 import { quizPacket } from '../quiz';
 import { DaemonError } from '../errors';
 import { buildHandoff } from '../handoff';
-import { assign, stop } from '../lifecycle';
+import { assign, priced, stop } from '../lifecycle';
 import { markCommentsHanded, pendingCommentSuffix, readComments } from './comments';
 import { effectiveChain, walkChain } from '../route';
 import { worktreePath } from '../worktree';
@@ -19,7 +19,14 @@ async function enrichFrom(ctx: DaemonContext, taskId: string, run: string, adapt
   const adapter = ctx.adapters.find((a) => a.id === adapterId);
   if (!adapter?.enrich || !adapter.capabilities.resumable || !sessionId) return null;
   const task = await ctx.ws.readTask(taskId);
-  const ask = adapter.enrich({ task, run, sessionId, worktree: worktreePath(ctx.ws, taskId, run), ...(model ? { model } : {}) }).catch(() => ({}));
+  const ask = adapter
+    .enrich({ task, run, sessionId, worktree: worktreePath(ctx.ws, taskId, run), ...(model ? { model } : {}) })
+    .then(async ({ cost, ...fields }) => {
+      // recorded when the call answers, even after the cap gave up waiting: it was paid for either way (D-060)
+      if (cost) await ctx.ws.events(taskId).append({ task: taskId, vendor: 'daemon', type: 'cost.recorded', payload: { for: 'enrich', run, host: billingHost(null, adapterId), model: model ?? null, cost: priced(ctx, adapterId, { cost, model }) } });
+      return fields;
+    })
+    .catch(() => ({}));
   return Promise.race([ask, Bun.sleep(ENRICH_CAP_MS).then(() => ({}))]);
 }
 

@@ -73,11 +73,12 @@ const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string =>
 
 /**
  * The one structured question for the leaving session (R-009): resumed by id, a few steps, the four fields the
- * packet takes from an agent. Anything malformed or late comes back as `{}`, and the daemon builds the packet
- * from events alone. shortcut: the call's tokens are not added to the run's cost; count them when enrich is metered.
+ * packet takes from an agent, and the call's tokens. Anything malformed or late comes back with no fields, and the
+ * daemon builds the packet from events alone; the tokens come back either way, since the call was paid for.
  */
 export async function askSession(sessionId: string, worktree: string, model: string): Promise<Enrichment> {
   const dir = mkdtempSync(join(tmpdir(), 'stint-enrich-'));
+  let spent: Enrichment = {};
   try {
     const promptPath = join(dir, 'prompt.md');
     const outputSchema = join(dir, 'schema.json');
@@ -89,9 +90,10 @@ export async function askSession(sessionId: string, worktree: string, model: str
     const p = Bun.spawn([bin, ...museArgs({ promptPath, model, steps: 3, sessionId, outputSchema })], { cwd: worktree, stdout: 'pipe', stderr: 'ignore', timeout: ENRICH_TIMEOUT_MS });
     const mapper = new MuseMapper();
     for (const line of (await new Response(p.stdout).text()).split('\n')) if (line.trim()) mapper.map(line);
-    if ((await p.exited) !== 0 || mapper.terminal?.kind !== 'completed') return {};
+    if (mapper.usage) spent = { cost: { ...mapper.usage, usd: null } };
+    if ((await p.exited) !== 0 || mapper.terminal?.kind !== 'completed') return spent;
     const a = JSON.parse(mapper.terminal.text) as Record<string, unknown>;
-    const out: Enrichment = {};
+    const out: Enrichment = { ...spent };
     if (typeof a.summary === 'string' && a.summary.trim()) out.summary = a.summary.trim().slice(0, 400);
     if (typeof a.askOfNext === 'string' && a.askOfNext.trim()) out.askOfNext = a.askOfNext.trim().slice(0, 400);
     const leftOut = strings(a.leftOut);
@@ -100,7 +102,7 @@ export async function askSession(sessionId: string, worktree: string, model: str
     if (risks.length) out.risks = risks;
     return out;
   } catch {
-    return {};
+    return spent;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
