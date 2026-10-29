@@ -8,6 +8,7 @@ import {
   PlanSchema,
   QuestionsSchema,
   ReviewSchema,
+  ScorecardSchema,
   SkillFrontmatterSchema,
   SkillProposalSchema,
   StintEventSchema,
@@ -88,6 +89,7 @@ const cases = [
   { name: 'questions', schema: QuestionsSchema, examples: ['questions'] },
   { name: 'goal', schema: GoalSchema, examples: ['goal'] },
   { name: 'draft', schema: DraftSchema, examples: ['draft'] },
+  { name: 'scorecard', schema: ScorecardSchema, examples: ['scorecard'] },
 ] as const;
 
 describe('zod schemas agree with the kit JSON Schemas on every example and every field mutation', () => {
