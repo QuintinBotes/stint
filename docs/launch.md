@@ -23,8 +23,12 @@ github.com/QuintinBotes/stint
 
 5. Measured on five live tasks: runs that continued from the packet passed 9 of 10, runs from the full transcript 3 of 5, on 31% fewer input tokens. A quiz between two Muse models got us there: our first packet named the files, not what the code did.
 
-6. It learns: when the same finding shows up on two tasks, it proposes a rule with the evidence, measures it on a real run with and without, and waits for you to approve it.
+6. Then we ran it live on three open-source repos Stint had never seen. Each task went from Muse Code to Claude Code on Glimmer to Codex on Muse Spark, each agent starting from the last one's packet. All three reached the gate with the hidden tests green.
 
-7. It looks, too. A criterion can be a page: Stint opens it, Muse Spark judges the screenshot, and SAM 3.1 boxes what is wrong. On a live check it caught a banner that said "Try again in NaN s." for less than a cent.
+7. The honest part: single runs of our own agent on Muse Spark Open passed the hidden tests 3 of 9. The relays used other agents and models, so that is no controlled comparison. And the offline review approved all 5 failing patches it saw: the hidden tests are the gate.
+
+8. It learns: when the same finding shows up on two tasks, it proposes a rule with the evidence, measures it on a real run with and without, and waits for you to approve it. On a live run of seven tasks nothing recurred, so it proposed nothing.
+
+9. It looks, too. A criterion can be a page: Stint opens it, Muse Spark judges the screenshot, and SAM 3.1 boxes what is wrong. On a live check it caught a banner that said "Try again in NaN s." for less than a cent.
 
 By default every model it calls is Meta's. MIT, local-first: github.com/QuintinBotes/stint
