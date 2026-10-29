@@ -6,6 +6,7 @@ import { lockAcceptance } from './acceptance';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
 import { git, gitOk } from './git';
+import { goalTasks, inherited } from './goals';
 import { assign } from './lifecycle';
 import { walkChain } from './route';
 import { chooseLearned, recordsFor, workspaceRecords } from './routing';
@@ -360,9 +361,9 @@ export class Autopilot {
     const caps = { usd: goal?.limits?.usd ?? null, builds: goal?.limits?.builds ?? null };
     if (!goal || (caps.usd === null && caps.builds === null)) return this.sharpenFirst;
     const usage = { usd: 0, builds: 0 };
-    for (const id of new Set([...goal.tasks, task.id])) {
-      const events = await this.ctx.ws.readTask(id).then(() => this.ctx.ws.events(id).read(), () => []);
-      const u = taskUsage(events);
+    // the subtasks and candidates made from the goal's tasks carry its id, so their spend and builds count too
+    for (const t of await goalTasks(this.ctx, goal)) {
+      const u = taskUsage(await this.ctx.ws.events(t.id).read());
       usage.usd += u.usd;
       usage.builds += u.builds;
     }
@@ -590,7 +591,7 @@ export class Autopilot {
           const chain = this.settings.implementers.filter((a) => this.ctx.adapters.some((x) => x.id === a));
           const candidates: string[] = [];
           for (let k = 1; k <= s.n; k++) {
-            const c = await ws.createTask({ title: `${task.title} (candidate ${k} of ${s.n})`.slice(0, 120), goal: task.goal, acceptance: task.acceptance, testCommand: task.testCommand, tags: [...(task.tags ?? []).filter((t) => t !== 'candidate'), 'candidate'] });
+            const c = await ws.createTask({ title: `${task.title} (candidate ${k} of ${s.n})`.slice(0, 120), goal: task.goal, acceptance: task.acceptance, testCommand: task.testCommand, tags: [...(task.tags ?? []).filter((t) => t !== 'candidate'), 'candidate'], ...inherited(task, s.n) });
             await ws.writeTask(c.id, { parent: id, baseCommit: task.baseCommit });
             if (plan) await ws.writePlan(c.id, plan);
             candidates.push(c.id);

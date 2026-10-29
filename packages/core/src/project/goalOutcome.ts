@@ -28,8 +28,10 @@ export const isMerged = (r: OutcomeResult) => r.startsWith('merged') && r !== 'm
 /**
  * `covers` names the goal criteria (from 1) each task covers, from its `goalCriteria`. A covering task that carries the
  * goal criterion as an acceptance line of its own is judged on that line; one that does not, on all of its criteria.
+ * `under` are the subtasks and best-of candidates made from the goal's tasks: their spend and builds count, nothing else.
  */
-export function goalOutcome(goal: Pick<Goal, 'id' | 'criteria' | 'limits'>, outcomes: Outcome[], covers: Record<string, number[]>): GoalOutcome {
+export function goalOutcome(goal: Pick<Goal, 'id' | 'criteria' | 'limits'>, outcomes: Outcome[], covers: Record<string, number[]>, under: Outcome[] = []): GoalOutcome {
+  const spending = [...outcomes, ...under];
   const criteria = goal.criteria.map(({ text }, index) => {
     const by = outcomes.filter((o) => covers[o.task]?.includes(index + 1));
     const weakest = by
@@ -52,8 +54,8 @@ export function goalOutcome(goal: Pick<Goal, 'id' | 'criteria' | 'limits'>, outc
     met,
     tasks: outcomes.map((o) => ({ id: o.task, result: o.result, resultLabel: o.resultLabel, covers: covers[o.task] ?? [] })),
     byResult,
-    spend: { usd: Math.round(outcomes.reduce((s, o) => s + o.spend.usd, 0) * 10_000) / 10_000, unpriced: outcomes.reduce((s, o) => s + o.spend.unpriced, 0), limit: goal.limits?.usd ?? null },
-    builds: { used: outcomes.reduce((s, o) => s + o.loops.builds, 0), limit: goal.limits?.builds ?? null },
+    spend: { usd: Math.round(spending.reduce((s, o) => s + o.spend.usd, 0) * 10_000) / 10_000, unpriced: spending.reduce((s, o) => s + o.spend.unpriced, 0), limit: goal.limits?.usd ?? null },
+    builds: { used: spending.reduce((s, o) => s + o.loops.builds, 0), limit: goal.limits?.builds ?? null },
     merged,
   };
 }

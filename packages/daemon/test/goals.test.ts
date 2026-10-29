@@ -2,8 +2,9 @@ import { expect, test } from 'bun:test';
 import { LIMIT_DEFAULTS, type SharpenState, type StintEvent, type Task } from '@stint-dev/core';
 import { type Workspace, costs } from '@stint-dev/core/node';
 import { nextStep } from '../src/autopilot';
-import { fakeModels, setup, stopped, until } from './autopilot.fixtures';
-import { auth, post, withFixtureRepo } from './helpers';
+import { fakeModels, setup, stopped, task, until } from './autopilot.fixtures';
+import { auth, fakeAdapter, makeApp, post, withFixtureRepo } from './helpers';
+import { plan, planner, writeConfig } from './plan.fixtures';
 
 const GOAL = { title: 'Webhooks survive a noisy tenant', outcome: 'One noisy tenant slows only itself.', criteria: ['429 with Retry-After', 'Other tenants are served as before'], nonGoals: ['Billing for extra webhooks'] };
 
@@ -306,3 +307,64 @@ test('GET /api/goals/:id rolls the goal up from its tasks; once every task is me
     models.stop();
   }
 }, 60_000);
+
+test("The subtasks a goal task's plan splits it into keep the goal, its criteria and a share of its limits, and their spend counts against the goal's limits", async () => {
+  const subtasks = [
+    { title: 'Add the limiter', goal: 'A per-tenant limiter.', acceptance: ['limits a tenant'], dependsOn: [] },
+    { title: 'Read limits from config', goal: 'Limits through loadConfig().', acceptance: ['configurable'], dependsOn: [0] },
+  ];
+  const models = planner([plan({ subtasks })]);
+  try {
+    await withFixtureRepo(async (repo) => {
+      writeConfig(repo, models.url, { implementers: ['muse-code'], maxHops: 1, parallel: 2 });
+      const { app, ws } = await makeApp(repo, []);
+      const g = await ws.createGoal({ ...GOAL, limits: { usd: 3, builds: 6 } });
+      const [p, b] = await Promise.all([
+        ws.createTask({ title: 'Count webhooks per tenant', goal: 'Each tenant has its own counter.', acceptance: ['429 with Retry-After'], testCommand: 'true', goalId: g.id, goalCriteria: [1, 2], limits: { usd: 1.5, builds: 3 } }),
+        ws.createTask({ title: 'Serve the other tenants', goal: 'A tenant under its limit is served.', acceptance: ['Other tenants get 200'], testCommand: 'true', goalId: g.id, goalCriteria: [2] }),
+      ]);
+      await ws.updateGoal(g.id, () => ({ tasks: [p.id, b.id], status: 'running' }));
+      expect((await post(app, `/api/tasks/${p.id}/plan`, {})).status).toBe(200);
+      const children = (await ws.events(p.id).read()).find((e) => e.type === 'task.decomposed')?.payload.children as [string, string];
+      const kids = await Promise.all(children.map((c) => ws.readTask(c)));
+      expect(kids.map((k) => [k.parent, k.goalId, k.goalCriteria, k.limits])).toEqual([
+        [p.id, g.id, [1, 2], { usd: 0.75, builds: 1 }],
+        [p.id, g.id, [1, 2], { usd: 0.75, builds: 1 }],
+      ]);
+
+      // a subtask built for $2 and the other goal task planned for $1: the goal's $3 is spent, so the next build stops
+      await spent(ws, children[0], 'r1', 'implementer', 2);
+      await spent(ws, b.id, 'r1', 'planner', 1);
+      const view = (await (await app.request(`/api/goals/${g.id}`)).json()) as { outcome: { spend: { usd: number }; builds: { used: number }; tasks: Array<{ id: string }> } };
+      expect([view.outcome.spend.usd, view.outcome.builds.used, view.outcome.tasks.map((t) => t.id)]).toEqual([3, 1, [p.id, b.id]]);
+      await post(app, `/api/tasks/${b.id}/autopilot`, { on: true });
+      const events = await until(ws, b.id, stopped);
+      expect(events.find((e) => e.type === 'limit.reached')?.payload).toEqual({ limit: 'usd', used: 3, cap: 3, scope: 'goal', goal: g.id });
+      await Bun.sleep(200);
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
+
+test("The best-of candidates of a goal task keep the goal, its criteria and a share of its limits", async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }, { ...fakeAdapter('edit'), id: 'stint-agent' }], models, { implementers: ['muse-code', 'stint-agent'], maxHops: 0, parallel: 2, bestOf: 2 });
+      const g = await ws.createGoal({ ...GOAL, limits: { usd: 4, builds: 8 } });
+      const t = await ws.createTask({ ...task('true'), goalId: g.id, goalCriteria: [1], limits: { usd: 1, builds: 4 } });
+      await ws.updateGoal(g.id, () => ({ tasks: [t.id], status: 'running' }));
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped, 120_000);
+      const candidates = events.find((e) => e.type === 'bestofn.started')?.payload.candidates as string[];
+      const made = await Promise.all(candidates.map((c) => ws.readTask(c)));
+      expect(made.map((c) => [c.parent, c.goalId, c.goalCriteria, c.limits])).toEqual([
+        [t.id, g.id, [1], { usd: 0.5, builds: 2 }],
+        [t.id, g.id, [1], { usd: 0.5, builds: 2 }],
+      ]);
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);

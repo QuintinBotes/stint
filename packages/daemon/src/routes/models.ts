@@ -18,6 +18,7 @@ import { namedFiles } from '../paths';
 import { afterReview } from '../risk';
 import { lockPlanTests } from '../acceptance';
 import { git } from '../git';
+import { inherited } from '../goals';
 import { ChainExhaustedError, effectiveChain, walkChain } from '../route';
 import { skillsFor } from '../skills';
 import { sharpenBrief } from '../sharpen';
@@ -164,7 +165,7 @@ export async function decompose(ctx: DaemonContext, id: string, plan: Plan, run:
   const children: string[] = [];
   const edges: Array<[string, string]> = [];
   for (const [i, st] of (plan.subtasks ?? []).entries()) {
-    const child = await ctx.ws.createTask({ title: st.title, goal: st.goal, acceptance: st.acceptance, testCommand: parent.testCommand, tags: [...new Set([...(parent.tags ?? []), 'subtask'])] });
+    const child = await ctx.ws.createTask({ title: st.title, goal: st.goal, acceptance: st.acceptance, testCommand: parent.testCommand, tags: [...new Set([...(parent.tags ?? []), 'subtask'])], ...inherited(parent, plan.subtasks?.length ?? 1) });
     const deps = st.dependsOn.map((d) => children[d] as string);
     await ctx.ws.writeTask(child.id, { parent: id, dependsOn: deps });
     for (const d of deps) edges.push([child.id, d]);

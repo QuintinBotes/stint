@@ -110,6 +110,17 @@ export function shareOf(limits: TaskLimits | undefined, n: number): TaskLimits |
   return out;
 }
 
+/** What each of the `n` subtasks or best-of candidates made from a task takes from it: its goal, the goal criteria it covers, and a share of its limits. */
+export function inherited(parent: Task, n: number): { goalId?: string; goalCriteria?: number[]; limits?: TaskLimits } {
+  const limits = shareOf(parent.limits, n);
+  return { ...(parent.goalId ? { goalId: parent.goalId, goalCriteria: parent.goalCriteria ?? [] } : {}), ...(limits ? { limits } : {}) };
+}
+
+/** Every task that spends on a goal: the goal's own tasks, and the subtasks and candidates made from them, which carry its id. */
+export async function goalTasks(ctx: DaemonContext, goal: Goal): Promise<Task[]> {
+  return (await ctx.ws.listTasks()).filter((t) => t.goalId === goal.id || goal.tasks.includes(t.id));
+}
+
 /**
  * A proposed task's acceptance with each covered goal criterion that has a proof added as a line of its own, unless
  * the task already has that line, and the proof on that line: the task's outcome then judges the criterion the way
@@ -187,12 +198,15 @@ export type GoalView = {
 /**
  * A goal as the page and the CLI read it: its rollup from each task's outcome record, its sharpen state and any split
  * waiting to be made into tasks. A draft that has become ready, or a running goal its rollup calls done, says so first.
+ * The subtasks and candidates under its tasks count towards its spend and builds, as its limits count them.
  */
 export async function goalView(ctx: DaemonContext, id: string): Promise<GoalView> {
   let goal = await settleGoal(ctx, id);
-  const tasks = (await Promise.all(goal.tasks.map((t) => ctx.ws.readTask(t).catch(() => null)))).filter((t): t is Task => !!t);
+  const all = await goalTasks(ctx, goal);
+  const tasks = goal.tasks.flatMap((t) => all.filter((x) => x.id === t));
   const outcomes = await Promise.all(tasks.map((t) => taskOutcome(ctx.ws, t.id)));
-  const outcome = goalOutcome(goal, outcomes, Object.fromEntries(tasks.map((t) => [t.id, t.goalCriteria ?? []])));
+  const under = await Promise.all(all.filter((t) => !goal.tasks.includes(t.id)).map((t) => taskOutcome(ctx.ws, t.id)));
+  const outcome = goalOutcome(goal, outcomes, Object.fromEntries(tasks.map((t) => [t.id, t.goalCriteria ?? []])), under);
   if (goal.status === 'running' && outcome.result === 'done') goal = await setGoalStatus(ctx, id, 'done');
   const events = await goalEvents(ctx.ws, id);
   const planned = events.findLastIndex((e) => e.type === 'goal.planned');
