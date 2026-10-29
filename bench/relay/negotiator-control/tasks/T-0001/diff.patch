@@ -1,0 +1,18 @@
+diff --git a/lib/mediaType.js b/lib/mediaType.js
+index 5b77295..be8086d 100644
+--- a/lib/mediaType.js
++++ b/lib/mediaType.js
+@@ -127,7 +127,12 @@ function specify(type, spec, index) {
+  */
+ 
+ function preferredMediaTypes(accept, provided) {
+-  // RFC 2616 sec 14.2: no header = */*
++  // No Accept header: no media type was asked for, so the
++  // unfiltered list is empty. When negotiating against a list
++  // of provided types, fall back to */* so the first item wins.
++  if (accept === undefined && !provided) {
++    return [];
++  }
+   var accepts = parseAccept(accept === undefined ? '*/*' : accept || '');
+ 
+   if (!provided) {

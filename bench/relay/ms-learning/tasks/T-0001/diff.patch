@@ -1,0 +1,106 @@
+diff --git a/README.md b/README.md
+index d752132..ceba2b5 100644
+--- a/README.md
++++ b/README.md
+@@ -158,6 +158,18 @@ parse('1h'); // 3600000
+ format(2000); // "2s"
+ ```
+ 
++### Convert to Seconds
++
++Use `toSeconds` to get the whole number of seconds, rounded down, from a duration string or a number of milliseconds.
++
++```ts
++import { toSeconds } from 'ms';
++
++toSeconds('90s'); // 90
++toSeconds('2m'); // 120
++toSeconds(1500); // 1
++```
++
+ ### Enhanced Type Safety
+ 
+ If you want strict type checking for the input value, you can use `parseStrict`.
+diff --git a/src/index.ts b/src/index.ts
+index d50e3c7..1c5b996 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -230,6 +230,31 @@ export function format(ms: number, options?: Options): string {
+   return options?.long ? fmtLong(ms) : fmtShort(ms);
+ }
+ 
++/**
++ * Return the whole number of seconds, rounded down, in a duration string or
++ * a number of milliseconds.
++ *
++ * @param value - A duration string (e.g. `'90s'`) or a number of milliseconds
++ * @returns The whole number of seconds, rounded down
++ * @throws Error if `value` is not a string or a finite number
++ */
++export function toSeconds(value: StringValue | number): number {
++  if (typeof value === 'string') {
++    return Math.floor(parse(value) / 1000);
++  }
++  if (typeof value === 'number') {
++    if (!Number.isFinite(value)) {
++      throw new Error(
++        `Value provided to toSeconds() must be a finite number. value=${JSON.stringify(value)}`,
++      );
++    }
++    return Math.floor(value / 1000);
++  }
++  throw new Error(
++    `Value provided to toSeconds() must be a string or number. value=${JSON.stringify(value)}`,
++  );
++}
++
+ /**
+  * Pluralization helper.
+  */
+diff --git a/src/to-seconds.test.ts b/src/to-seconds.test.ts
+new file mode 100644
+index 0000000..6df946f
+--- /dev/null
++++ b/src/to-seconds.test.ts
+@@ -0,0 +1,41 @@
++import { describe, expect, it } from '@jest/globals';
++import { toSeconds } from './index';
++
++describe('toSeconds', () => {
++  it('should convert seconds string to seconds', () => {
++    expect(toSeconds('90s')).toBe(90);
++  });
++
++  it('should convert minutes string to seconds', () => {
++    expect(toSeconds('2m')).toBe(120);
++  });
++
++  it('should floor milliseconds to seconds', () => {
++    expect(toSeconds(1500)).toBe(1);
++  });
++
++  it('should floor fractional seconds from strings', () => {
++    expect(toSeconds('1500ms')).toBe(1);
++    expect(toSeconds('1.9s')).toBe(1);
++  });
++
++  it('should return 0 for sub-second values', () => {
++    expect(toSeconds(999)).toBe(0);
++    expect(toSeconds('500ms')).toBe(0);
++  });
++
++  it('should throw for non-finite numbers', () => {
++    expect(() => toSeconds(NaN)).toThrow();
++    expect(() => toSeconds(Infinity)).toThrow();
++    expect(() => toSeconds(-Infinity)).toThrow();
++  });
++
++  it('should throw for invalid types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => toSeconds(undefined)).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => toSeconds(null)).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => toSeconds({})).toThrow();
++  });
++});

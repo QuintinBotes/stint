@@ -1,0 +1,40 @@
+
+> ms@4.0.0 test:nodejs
+> jest --env node
+
+PASS src/index.test.ts
+PASS src/parse-strict.test.ts
+PASS src/format.test.ts
+PASS src/parse.test.ts
+PASS src/to-seconds.test.ts
+PASS src/clamp.test.ts
+PASS src/add.test.ts
+----------|---------|----------|---------|---------|-------------------
+File      | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+----------|---------|----------|---------|---------|-------------------
+All files |     100 |      100 |     100 |     100 |                   
+ index.ts |     100 |      100 |     100 |     100 |                   
+----------|---------|----------|---------|---------|-------------------
+
+Test Suites: 7 passed, 7 total
+Tests:       190 passed, 190 total
+Snapshots:   0 total
+Time:        0.449 s, estimated 1 s
+Ran all test suites.
+
+> ms@4.0.0 test:edge
+> jest --env @edge-runtime/jest-environment --no-coverage
+
+PASS src/index.test.ts
+PASS src/parse-strict.test.ts
+PASS src/format.test.ts
+PASS src/parse.test.ts
+PASS src/clamp.test.ts
+PASS src/to-seconds.test.ts
+PASS src/add.test.ts
+
+Test Suites: 7 passed, 7 total
+Tests:       190 passed, 190 total
+Snapshots:   0 total
+Time:        0.401 s, estimated 1 s
+Ran all test suites.

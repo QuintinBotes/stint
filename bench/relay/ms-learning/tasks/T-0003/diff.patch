@@ -1,0 +1,139 @@
+diff --git a/README.md b/README.md
+index 145318f..1f65a98 100644
+--- a/README.md
++++ b/README.md
+@@ -181,6 +181,18 @@ add('1h', '30m'); // 5400000
+ add(1000, '1s'); // 2000
+ ```
+ 
++### Clamp Durations
++
++Use `clamp` to hold a duration between two bounds, each a duration string or a number of milliseconds. It returns the duration in milliseconds.
++
++```ts
++import { clamp } from 'ms';
++
++clamp('2h', '1m', '1h'); // 3600000
++clamp('30s', '1m', '1h'); // 60000
++clamp(90000, '1m', '1h'); // 90000
++```
++
+ ### Enhanced Type Safety
+ 
+ If you want strict type checking for the input value, you can use `parseStrict`.
+diff --git a/src/clamp.test.ts b/src/clamp.test.ts
+new file mode 100644
+index 0000000..8039718
+--- /dev/null
++++ b/src/clamp.test.ts
+@@ -0,0 +1,54 @@
++import { describe, expect, it } from '@jest/globals';
++import { clamp } from './index';
++
++describe('clamp', () => {
++  it('should clamp a value above max down to max', () => {
++    expect(clamp('2h', '1m', '1h')).toBe(3600000);
++  });
++
++  it('should clamp a value below min up to min', () => {
++    expect(clamp('30s', '1m', '1h')).toBe(60000);
++  });
++
++  it('should return the value when within bounds', () => {
++    expect(clamp(90000, '1m', '1h')).toBe(90000);
++  });
++
++  it('should return the bounds when the value equals them', () => {
++    expect(clamp('1m', '1m', '1h')).toBe(60000);
++    expect(clamp('1h', '1m', '1h')).toBe(3600000);
++  });
++
++  it('should accept numbers for all arguments', () => {
++    expect(clamp(5000, 1000, 2000)).toBe(2000);
++    expect(clamp(500, 1000, 2000)).toBe(1000);
++    expect(clamp(1500, 1000, 2000)).toBe(1500);
++  });
++
++  it('should accept duration strings for all arguments', () => {
++    expect(clamp('90s', '1m', '2m')).toBe(90000);
++  });
++
++  it('should work with negative durations', () => {
++    expect(clamp('-2h', '-1h', '1h')).toBe(-3600000);
++    expect(clamp('2h', '-1h', '1h')).toBe(3600000);
++    expect(clamp('-30m', '-1h', '1h')).toBe(-1800000);
++  });
++
++  it('should throw for non-finite numbers', () => {
++    expect(() => clamp(NaN, '1m', '1h')).toThrow();
++    expect(() => clamp('30m', NaN, '1h')).toThrow();
++    expect(() => clamp('30m', '1m', NaN)).toThrow();
++    expect(() => clamp(Infinity, '1m', '1h')).toThrow();
++    expect(() => clamp('30m', '1m', -Infinity)).toThrow();
++  });
++
++  it('should throw for invalid types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => clamp(undefined, '1m', '1h')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => clamp('30m', null, '1h')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => clamp('30m', '1m', {})).toThrow();
++  });
++});
+diff --git a/src/index.ts b/src/index.ts
+index 0431114..2f6893b 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -268,26 +268,47 @@ export function add(
+   a: StringValue | number,
+   b: StringValue | number,
+ ): number {
+-  return toMilliseconds(a) + toMilliseconds(b);
++  return toMilliseconds(a, 'add') + toMilliseconds(b, 'add');
++}
++
++/**
++ * Hold a duration between two bounds, returning the duration in
++ * milliseconds clamped to the inclusive range `[min, max]`.
++ *
++ * @param value - A duration string (e.g. `'2h'`) or a number of milliseconds
++ * @param min - A duration string (e.g. `'1m'`) or a number of milliseconds
++ * @param max - A duration string (e.g. `'1h'`) or a number of milliseconds
++ * @returns The value in milliseconds, held between `min` and `max`
++ * @throws Error if any argument is not a string or a finite number
++ */
++export function clamp(
++  value: StringValue | number,
++  min: StringValue | number,
++  max: StringValue | number,
++): number {
++  const msValue = toMilliseconds(value, 'clamp');
++  const msMin = toMilliseconds(min, 'clamp');
++  const msMax = toMilliseconds(max, 'clamp');
++  return Math.min(Math.max(msValue, msMin), msMax);
+ }
+ 
+ /**
+  * Convert a duration string or a number of milliseconds to milliseconds.
+  */
+-function toMilliseconds(value: StringValue | number): number {
++function toMilliseconds(value: StringValue | number, fn: string): number {
+   if (typeof value === 'string') {
+     return parse(value);
+   }
+   if (typeof value === 'number') {
+     if (!Number.isFinite(value)) {
+       throw new Error(
+-        `Value provided to add() must be a finite number. value=${JSON.stringify(value)}`,
++        `Value provided to ${fn}() must be a finite number. value=${JSON.stringify(value)}`,
+       );
+     }
+     return value;
+   }
+   throw new Error(
+-    `Value provided to add() must be a string or number. value=${JSON.stringify(value)}`,
++    `Value provided to ${fn}() must be a string or number. value=${JSON.stringify(value)}`,
+   );
+ }
+ 

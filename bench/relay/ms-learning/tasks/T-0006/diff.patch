@@ -1,0 +1,113 @@
+diff --git a/README.md b/README.md
+index 65fc373..b153b88 100644
+--- a/README.md
++++ b/README.md
+@@ -217,6 +217,18 @@ scale('1h', 0.5); // 1800000
+ scale(1000, 3); // 3000
+ ```
+ 
++### Between Durations
++
++Use `between` to check whether a duration lies between two others, bounds included. Each argument is a duration string or a number of milliseconds.
++
++```ts
++import { between } from 'ms';
++
++between('90s', '1m', '2m'); // true
++between('2m', '1m', '2m'); // true
++between('3m', '1m', '2m'); // false
++```
++
+ ### Enhanced Type Safety
+ 
+ If you want strict type checking for the input value, you can use `parseStrict`.
+diff --git a/src/between.test.ts b/src/between.test.ts
+new file mode 100644
+index 0000000..0528890
+--- /dev/null
++++ b/src/between.test.ts
+@@ -0,0 +1,53 @@
++import { describe, expect, it } from '@jest/globals';
++import { between } from './index';
++
++describe('between', () => {
++  it('should return true for a value strictly inside the bounds', () => {
++    expect(between('90s', '1m', '2m')).toBe(true);
++  });
++
++  it('should include both bounds', () => {
++    expect(between('1m', '1m', '2m')).toBe(true);
++    expect(between('2m', '1m', '2m')).toBe(true);
++  });
++
++  it('should return false for values outside the bounds', () => {
++    expect(between('30s', '1m', '2m')).toBe(false);
++    expect(between('3m', '1m', '2m')).toBe(false);
++  });
++
++  it('should accept numbers for all arguments', () => {
++    expect(between(1500, 1000, 2000)).toBe(true);
++    expect(between(1000, 1000, 2000)).toBe(true);
++    expect(between(2000, 1000, 2000)).toBe(true);
++    expect(between(500, 1000, 2000)).toBe(false);
++    expect(between(2500, 1000, 2000)).toBe(false);
++  });
++
++  it('should accept mixed strings and numbers', () => {
++    expect(between(90000, '1m', '2m')).toBe(true);
++    expect(between('90s', 60000, 120000)).toBe(true);
++  });
++
++  it('should work with negative durations', () => {
++    expect(between('-30m', '-1h', '1h')).toBe(true);
++    expect(between('-2h', '-1h', '1h')).toBe(false);
++  });
++
++  it('should throw for non-finite numbers', () => {
++    expect(() => between(NaN, '1m', '2m')).toThrow();
++    expect(() => between('90s', NaN, '2m')).toThrow();
++    expect(() => between('90s', '1m', NaN)).toThrow();
++    expect(() => between(Infinity, '1m', '2m')).toThrow();
++    expect(() => between('90s', '1m', -Infinity)).toThrow();
++  });
++
++  it('should throw for invalid types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => between(undefined, '1m', '2m')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => between('90s', null, '2m')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => between('90s', '1m', {})).toThrow();
++  });
++});
+diff --git a/src/index.ts b/src/index.ts
+index 2c2fb2f..30a3da4 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -333,6 +333,26 @@ export function scale(value: StringValue | number, factor: number): number {
+   return msValue * factor;
+ }
+ 
++/**
++ * Whether a duration lies between two others, bounds included.
++ *
++ * @param value - A duration string (e.g. `'90s'`) or a number of milliseconds
++ * @param min - A duration string (e.g. `'1m'`) or a number of milliseconds
++ * @param max - A duration string (e.g. `'2m'`) or a number of milliseconds
++ * @returns `true` if `value` lies in the inclusive range `[min, max]`
++ * @throws Error if any argument is not a string or a finite number
++ */
++export function between(
++  value: StringValue | number,
++  min: StringValue | number,
++  max: StringValue | number,
++): boolean {
++  const msValue = toMilliseconds(value, 'between');
++  const msMin = toMilliseconds(min, 'between');
++  const msMax = toMilliseconds(max, 'between');
++  return msValue >= msMin && msValue <= msMax;
++}
++
+ /**
+  * Convert a duration string or a number of milliseconds to milliseconds.
+  */

@@ -1,0 +1,167 @@
+{
+  "totalUsd": 1.0793,
+  "estimated": false,
+  "tasks": [
+    {
+      "task": "T-0001",
+      "usd": 0.151,
+      "estimated": false,
+      "runs": [
+        {
+          "run": "r1",
+          "adapter": "muse-code",
+          "role": "implementer",
+          "host": "local-cli",
+          "model": "muse-spark-1.3",
+          "usd": 0.151
+        },
+        {
+          "run": "r2",
+          "adapter": "openai-compatible",
+          "role": "reviewer",
+          "host": "ollama",
+          "model": "muse-glimmer:30b-mlx",
+          "usd": 0
+        }
+      ]
+    },
+    {
+      "task": "T-0002",
+      "usd": 0.1319,
+      "estimated": false,
+      "runs": [
+        {
+          "run": "r1",
+          "adapter": "muse-code",
+          "role": "implementer",
+          "host": "local-cli",
+          "model": "muse-spark-1.3",
+          "usd": 0.1319
+        },
+        {
+          "run": "r2",
+          "adapter": "openai-compatible",
+          "role": "reviewer",
+          "host": "ollama",
+          "model": "muse-glimmer:30b-mlx",
+          "usd": 0
+        }
+      ]
+    },
+    {
+      "task": "T-0003",
+      "usd": 0.1412,
+      "estimated": false,
+      "runs": [
+        {
+          "run": "r1",
+          "adapter": "muse-code",
+          "role": "implementer",
+          "host": "local-cli",
+          "model": "muse-spark-1.3",
+          "usd": 0.1412
+        },
+        {
+          "run": "r2",
+          "adapter": "openai-compatible",
+          "role": "reviewer",
+          "host": "ollama",
+          "model": "muse-glimmer:30b-mlx",
+          "usd": 0
+        }
+      ]
+    },
+    {
+      "task": "T-0004",
+      "usd": 0.236,
+      "estimated": false,
+      "runs": [
+        {
+          "run": "r1",
+          "adapter": "muse-code",
+          "role": "implementer",
+          "host": "local-cli",
+          "model": "muse-spark-1.3",
+          "usd": 0.236
+        },
+        {
+          "run": "r2",
+          "adapter": "openai-compatible",
+          "role": "reviewer",
+          "host": "ollama",
+          "model": "muse-glimmer:30b-mlx",
+          "usd": 0
+        }
+      ]
+    },
+    {
+      "task": "T-0005",
+      "usd": 0.1082,
+      "estimated": false,
+      "runs": [
+        {
+          "run": "r1",
+          "adapter": "muse-code",
+          "role": "implementer",
+          "host": "local-cli",
+          "model": "muse-spark-1.3",
+          "usd": 0.1082
+        },
+        {
+          "run": "r2",
+          "adapter": "openai-compatible",
+          "role": "reviewer",
+          "host": "ollama",
+          "model": "muse-glimmer:30b-mlx",
+          "usd": 0
+        }
+      ]
+    },
+    {
+      "task": "T-0006",
+      "usd": 0.1343,
+      "estimated": false,
+      "runs": [
+        {
+          "run": "r1",
+          "adapter": "muse-code",
+          "role": "implementer",
+          "host": "local-cli",
+          "model": "muse-spark-1.3",
+          "usd": 0.1343
+        },
+        {
+          "run": "r2",
+          "adapter": "openai-compatible",
+          "role": "reviewer",
+          "host": "ollama",
+          "model": "muse-glimmer:30b-mlx",
+          "usd": 0
+        }
+      ]
+    },
+    {
+      "task": "T-0007",
+      "usd": 0.1767,
+      "estimated": false,
+      "runs": [
+        {
+          "run": "r1",
+          "adapter": "muse-code",
+          "role": "implementer",
+          "host": "local-cli",
+          "model": "muse-spark-1.3",
+          "usd": 0.1767
+        },
+        {
+          "run": "r2",
+          "adapter": "openai-compatible",
+          "role": "reviewer",
+          "host": "ollama",
+          "model": "muse-glimmer:30b-mlx",
+          "usd": 0
+        }
+      ]
+    }
+  ]
+}

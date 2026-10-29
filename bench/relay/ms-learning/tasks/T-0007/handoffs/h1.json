@@ -1,0 +1,88 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 53,
+      "path": "src/average.test.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 22,
+      "path": "src/index.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 11,
+      "path": "README.md",
+      "removed": 0,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 627487,
+    "inputTokens": 675520,
+    "outputTokens": 4507,
+    "usd": 0.1767
+  },
+  "createdAt": "2026-10-29T16:00:19.535Z",
+  "decisions": [
+    {
+      "id": "D1",
+      "text": "average() throws on empty or non-array input rather than returning NaN, since a mean over zero values is undefined an..."
+    },
+    {
+      "id": "D1",
+      "text": "`toSeconds` throws for non-string/non-number input and for non-finite numbers, mirroring the error style of `ms()` an..."
+    },
+    {
+      "id": "D1",
+      "text": "add() follows toSeconds() conventions - each argument is a StringValue or finite number of milliseconds, strings go t..."
+    },
+    {
+      "id": "D1",
+      "text": "clamp reuses the shared toMilliseconds helper, parameterized with the caller name so its errors say clamp() while add..."
+    },
+    {
+      "id": "D2",
+      "text": "clamp is Math.min(Math.max(value, min), max) with no min<=max validation; inverted bounds yield max"
+    }
+  ],
+  "diffRef": {
+    "base": "48efb0298416561caa9c06ea3867d866cb65b536",
+    "head": "0d26c4f978a95ec8afc7f32adc8ebd139c9ceaca"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "completed",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r1",
+    "sessionId": "01a18862-c11f-7e40-b9b2-465c5c9a6858",
+    "vendor": "meta"
+  },
+  "hash": "sha256:b21764fc84a56377d7e6260b94d1c95cb25fdd8d30e63308834f4e472d812808",
+  "leftOut": [
+    "Trimmed to fit 600 tokens: 4 items and file entries are not listed; the diff and the task's log have them"
+  ],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "Done. `average()` is implemented, documented, and verified. decision: average() throws on empty or non-array input rather than returning NaN, since a mean over zero values is undefined and sibling helpers throw on invalid input. Changes:...",
+  "task": "T-0007",
+  "verification": {
+    "command": "npm run test:nodejs && npm run test:edge",
+    "durationMs": 2054,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

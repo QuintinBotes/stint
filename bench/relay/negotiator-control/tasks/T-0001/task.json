@@ -1,0 +1,30 @@
+{
+  "acceptance": [
+    "With no Accept header, `mediaType()` is `undefined` and `mediaTypes()` is `[]`.",
+    "With a list of available types and no Accept header, `mediaType(list)` still returns the first item.",
+    "The existing tests in test/mediaType.js stay exactly as they are."
+  ],
+  "assignee": null,
+  "baseCommit": "f64acae5bf34228088b320fa17060975df6fea34",
+  "branch": "stint/T-0001",
+  "budgets": {
+    "implementer": 150000,
+    "learn": 20000,
+    "planner": 40000,
+    "reviewer": 30000
+  },
+  "createdAt": "2026-10-29T15:24:43.213Z",
+  "goal": "When a request has no Accept header, `mediaType()` returns undefined and `mediaTypes()` returns an empty list, so a server can tell a client that asked for nothing from one that accepts anything.",
+  "id": "T-0001",
+  "links": {
+    "beadsId": null,
+    "issueUrl": null
+  },
+  "pendingAsk": null,
+  "slug": "no-accept-header-means-no-media-type",
+  "status": "building",
+  "testCommand": "npm test",
+  "title": "No Accept header means no media type",
+  "updatedAt": "2026-10-29T15:42:20.767Z",
+  "version": "stint.task/1"
+}

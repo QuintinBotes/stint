@@ -1,0 +1,106 @@
+diff --git a/README.md b/README.md
+index d0b0870..65fc373 100644
+--- a/README.md
++++ b/README.md
+@@ -205,6 +205,18 @@ compare('60s', '1m'); // 0
+ compare('1h', '5m'); // 1
+ ```
+ 
++### Scale Durations
++
++Use `scale` to multiply a duration, a duration string or a number of milliseconds, by a factor. It returns the result in milliseconds.
++
++```ts
++import { scale } from 'ms';
++
++scale('90s', 2); // 180000
++scale('1h', 0.5); // 1800000
++scale(1000, 3); // 3000
++```
++
+ ### Enhanced Type Safety
+ 
+ If you want strict type checking for the input value, you can use `parseStrict`.
+diff --git a/src/index.ts b/src/index.ts
+index 55ee1da..2c2fb2f 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -314,6 +314,25 @@ export function compare(a: string | number, b: string | number): number {
+   return 0;
+ }
+ 
++/**
++ * Scale a duration by a factor, returning the result in milliseconds.
++ *
++ * @param value - A duration string (e.g. `'90s'`) or a number of milliseconds
++ * @param factor - The factor to multiply the duration by
++ * @returns The scaled duration in milliseconds
++ * @throws Error if `value` is not a string or a finite number, or if
++ * `factor` is not a finite number
++ */
++export function scale(value: StringValue | number, factor: number): number {
++  const msValue = toMilliseconds(value, 'scale');
++  if (typeof factor !== 'number' || !Number.isFinite(factor)) {
++    throw new Error(
++      `Value provided to scale() must be a finite number. value=${JSON.stringify(factor)}`,
++    );
++  }
++  return msValue * factor;
++}
++
+ /**
+  * Convert a duration string or a number of milliseconds to milliseconds.
+  */
+diff --git a/src/scale.test.ts b/src/scale.test.ts
+new file mode 100644
+index 0000000..d157600
+--- /dev/null
++++ b/src/scale.test.ts
+@@ -0,0 +1,47 @@
++import { describe, expect, it } from '@jest/globals';
++import { scale } from './index';
++
++describe('scale', () => {
++  it('should scale a duration string by a factor', () => {
++    expect(scale('90s', 2)).toBe(180000);
++    expect(scale('1h', 0.5)).toBe(1800000);
++  });
++
++  it('should scale a number of milliseconds by a factor', () => {
++    expect(scale(1000, 3)).toBe(3000);
++    expect(scale(1000, 0.5)).toBe(500);
++  });
++
++  it('should work with zero and negative factors', () => {
++    expect(scale('1s', 0)).toBe(0);
++    expect(scale('1s', -2)).toBe(-2000);
++    expect(scale('-1h', 2)).toBe(-7200000);
++  });
++
++  it('should throw for non-finite factors', () => {
++    expect(() => scale('1s', NaN)).toThrow();
++    expect(() => scale('1s', Infinity)).toThrow();
++    expect(() => scale(1000, -Infinity)).toThrow();
++  });
++
++  it('should throw for invalid factor types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => scale('1s', undefined)).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => scale('1s', '2')).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => scale('1s', null)).toThrow();
++  });
++
++  it('should throw for non-finite numbers', () => {
++    expect(() => scale(NaN, 2)).toThrow();
++    expect(() => scale(Infinity, 2)).toThrow();
++  });
++
++  it('should throw for invalid value types', () => {
++    // @ts-expect-error - We expect this to throw.
++    expect(() => scale(undefined, 2)).toThrow();
++    // @ts-expect-error - We expect this to throw.
++    expect(() => scale(null, 2)).toThrow();
++  });
++});

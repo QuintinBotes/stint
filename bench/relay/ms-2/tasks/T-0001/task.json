@@ -1,0 +1,33 @@
+{
+  "acceptance": [
+    "`format(5400000, { unit: 'm' })` is `'90m'`, and with `{ unit: 'minutes', long: true }` it is `'90 minutes'`; the value is rounded to a whole number of that unit, as format() rounds today.",
+    "The unit takes any spelling and case the parser takes, such as `'m'`, `'Minutes'`, `'MINS'` or `'hrs'`, and the option is typed that way.",
+    "`parse('90', { unit: 's' })` is `90000`; a unit in the string wins, so `parse('2m', { unit: 's' })` is `120000`; without the option nothing changes.",
+    "An unknown unit throws an Error that names it, in format and in parse.",
+    "README.md documents the option, and both test runs (node and edge) pass with coverage still at 100%."
+  ],
+  "assignee": null,
+  "baseCommit": "b7d3d54d392a8031e77164091392e0a5df98c2ad",
+  "branch": "stint/T-0001",
+  "budgets": {
+    "implementer": 150000,
+    "learn": 20000,
+    "planner": 40000,
+    "reviewer": 30000
+  },
+  "createdAt": "2026-10-29T15:01:09.388Z",
+  "goal": "Add a `unit` option: `format(value, { unit })` and `ms(number, { unit })` express the value in that unit, and `parse(str, { unit })` and `ms(string, { unit })` read a number without a unit in that unit. Keep the 100% coverage the repository enforces.",
+  "id": "T-0001",
+  "links": {
+    "beadsId": null,
+    "issueUrl": null
+  },
+  "pendingAsk": null,
+  "risk": "medium",
+  "slug": "format-into-and-parse-from-a-chosen-unit",
+  "status": "awaiting_approval",
+  "testCommand": "npm run test:nodejs && npm run test:edge",
+  "title": "Format into, and parse from, a chosen unit",
+  "updatedAt": "2026-10-29T15:24:32.824Z",
+  "version": "stint.task/1"
+}

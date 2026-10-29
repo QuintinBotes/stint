@@ -1,0 +1,34 @@
+{
+  "acceptance": [
+    "`between('90s', '1m', '2m')` is true, `between('2m', '1m', '2m')` is true and `between('3m', '1m', '2m')` is false.",
+    "README.md documents it.",
+    "Both test runs pass with coverage at 100%."
+  ],
+  "assignee": null,
+  "baseCommit": "15f2ced8afe090a7c47e5e5d85933002ee0444ad",
+  "branch": "stint/T-0006",
+  "budgets": {
+    "implementer": 150000,
+    "learn": 20000,
+    "planner": 40000,
+    "reviewer": 30000
+  },
+  "createdAt": "2026-10-29T15:56:48.119Z",
+  "goal": "Export `between(value, min, max)` from src/index.ts: whether a duration lies between two others, bounds included.",
+  "id": "T-0006",
+  "links": {
+    "beadsId": null,
+    "issueUrl": null
+  },
+  "pendingAsk": null,
+  "risk": "medium",
+  "slug": "add-between",
+  "status": "done",
+  "tags": [
+    "durations"
+  ],
+  "testCommand": "npm run test:nodejs && npm run test:edge",
+  "title": "Add between()",
+  "updatedAt": "2026-10-29T15:58:55.016Z",
+  "version": "stint.task/1"
+}

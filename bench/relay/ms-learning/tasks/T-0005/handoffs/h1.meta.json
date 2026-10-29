@@ -1,0 +1,76 @@
+{
+  "enriched": [],
+  "fields": {
+    "askOfNext": {
+      "eventIds": [
+        "01M645YVG2N34JE76MW1RYFBB6"
+      ],
+      "from": "events"
+    },
+    "changedFiles": {
+      "eventIds": [
+        "01M645Y9QY1N7VXY4YWTQ8YPZK",
+        "01M645YEMJ4091ZKRR00S9R87G",
+        "01M645YEMKAGF3QJEDYFTJXYAK"
+      ],
+      "from": "diff"
+    },
+    "cost": {
+      "eventIds": [
+        "01M645YVG2N34JE76MW1RYFBB6"
+      ],
+      "from": "events"
+    },
+    "decisions": {
+      "eventIds": [
+        "01M645YV7R8GPFDTK3RESZHN1J"
+      ],
+      "from": "events"
+    },
+    "done": {
+      "eventIds": [
+        "01M645YX5SXS1M5ZGA8GDF0J9B"
+      ],
+      "from": "events"
+    },
+    "leftOut": {
+      "eventIds": [
+        "01M645YVG2N34JE76MW1RYFBB6"
+      ],
+      "from": "events"
+    },
+    "open": {
+      "eventIds": [
+        "01M645YX5SXS1M5ZGA8GDF0J9B"
+      ],
+      "from": "events"
+    },
+    "refusals": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "risks": {
+      "eventIds": [],
+      "from": "plan"
+    },
+    "summary": {
+      "eventIds": [
+        "01M645YV7Q2WDM0P0HTVVSFW05"
+      ],
+      "from": "events"
+    },
+    "verification": {
+      "eventIds": [
+        "01M645YX5SXS1M5ZGA8GDF0J9B"
+      ],
+      "from": "events"
+    }
+  },
+  "reason": "completed",
+  "trimmed": {
+    "files": 8,
+    "item": 120,
+    "list": 5,
+    "summary": 240
+  }
+}
