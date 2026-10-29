@@ -25,7 +25,7 @@ Every guide in this folder, one line each, grouped by what you came to do. New t
 
 ## Evidence and the hackathon
 
-- [`proofs.md`](proofs.md): every number Stint claims, the live packet, the benchmark, the visual gate's live run, the runs still to come, where each Meta model works, and what was built during the hackathon.
+- [`proofs.md`](proofs.md): every number Stint claims, the live relays, control, learning sequence and scorecard of 29 October on repositories Stint had never seen, the visual gate's live run, the live packet, the benchmark, where each Meta model works, and what was built during the hackathon.
 - [`writeup.md`](writeup.md): the submission write-up.
 - [`timeline.md`](timeline.md): when Stint was built, which commits came before the hackathon kickoff, when each spec was written, and what was built each day through 29 October.
 - [`build-kit.md`](build-kit.md): the spec-driven build loop Stint was built with (`AGENTS.md`, `GOAL.md`, `LOOP.md`, `specs/`).

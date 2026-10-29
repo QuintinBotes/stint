@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added (30 October)
+- Live relays on three public repositories Stint had never seen (R-070): jshttp/negotiator, jeffbski/wait-on and vercel/ms. One task each goes from Muse Code to Claude Code on Muse Glimmer 30B to Codex on Muse Spark 1.3 by packet, is verified by the daemon with hidden tests, is reviewed offline, and stops at the gate. All three tasks reached the gate with the hidden tests green; a control task that cannot pass without editing a locked test stopped red before it; a seven-task learning sequence ran green with no findings, so no skill was proposed. Every run is published in `bench/relay/`, the failed ones too.
+- The scorecard (R-070): `bun scripts/scorecard.ts` runs each relay task k times as a single run, has Glimmer review each green build, grades it with the hidden tests, and writes pass^k, hand-off success and how the review did against the hidden tests to `bench/scorecard.json`; `--render` prints the table in `docs/proofs.md`. Live, the Stint agent on Muse Spark Open passed 3 of 9.
+- The learning chart on the Factory: review findings per task in the order reviewed, with a labelled mark where each skill was approved, drawn from the task and workspace logs so the replay draws it too.
+- The judge page is published at https://quintinbotes.github.io/stint/, built on the owner's Mac with `bun run build:judge`.
+- Run the goal's tasks asks first, as Run all does: what starts now and what waits, the goal's limits, and that nothing merges without you. Only Start starts it.
+
+### Fixed (30 October)
+- Agent CLIs on a Stint host run without the person's own setup: Claude Code with no MCP servers or subagents, and Codex from a clean home, so a run no longer carries the person's plugins. The person's own configs are never edited, and relay runs never publish raw agent transcripts.
+- The Stint agent no longer reads a cut-off reply as done. A reply cut off before the model says or does anything is asked again with more room (4,096, then 16,384, then 32,768 output tokens), and a model still cut off at the most room ends the run failed, saying why. The first live scorecard found it.
+- Approve writes the shadow decision before `merge.completed`, so whatever follows the merge already sees it.
+- The enrich cost test waits for the packet as long as the daemon's own verification can take on a CI runner.
+
 ### Added (29 October)
 - The spec builder (R-066): say what you want in a sentence, and Stint drafts a task or a goal in GitHub Spec Kit's shape, asks only the questions that change what gets built, and keeps the answers as decisions. It opens a Spec Kit `spec.md` and `tasks.md`, and writes a draft back as `spec.md`, with no model call. One dialog, "What do you want done?", opened by n, New task, New goal and the palette; `stint draft`; `/api/drafts`.
 - Visual proofs (R-068): a criterion can name a page and what should be seen there. Once the tests are green, the daemon opens the page in headless Chromium, Muse Spark 1.3 judges the screenshot, SAM 3.1 marks what looks wrong, and the Tests tab shows what Stint saw. Sharpen offers It looks right as a proof. One live check of a seeded defect is kept in `bench/visual/`.
