@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { type Cost, type PermissionRequest, type Role, type StintEvent, type Task, countTokens, priceUsage } from '@stint-dev/core';
 import { runsFromEvents, writeJsonAtomic } from '@stint-dev/core/node';
@@ -84,6 +84,14 @@ async function writeActive(ctx: DaemonContext, value: Record<string, string> | n
   const path = join(ctx.ws.stintDir, 'active');
   if (value) await writeJsonAtomic(path, value);
   else await rm(path, { force: true });
+}
+
+/** A run ended: `.stint/active` is left alone when it names another run, else it names a run still live, else it goes. */
+async function clearActive(ctx: DaemonContext, task: string, run: string): Promise<void> {
+  const now = await readFile(join(ctx.ws.stintDir, 'active'), 'utf8').then((t) => JSON.parse(t) as { task?: unknown; run?: unknown }, () => null);
+  if (now && (now.task !== task || now.run !== run)) return;
+  const live = ctx.runs.list()[0];
+  await writeActive(ctx, live ? { task: live.task, run: live.run, worktree: relative(ctx.ws.root, live.worktree), adapter: live.adapter } : null);
 }
 
 /** Starts a run: worktree, skills, prompt, run.started, then the adapter in the background. */
@@ -294,8 +302,8 @@ async function closeRun(ctx: DaemonContext, task: Task, base: RunBase, worktree:
     type: 'run.finished',
     payload: { endedBy: result.endedBy, cost, host: result.host ?? 'local-cli', model: result.model ?? model ?? null, inFlight, commit, ...(result.sessionId ? { sessionId: result.sessionId } : {}) },
   });
-  await writeActive(ctx, null);
   ctx.runs.remove(taskId, run);
+  await clearActive(ctx, taskId, run);
   await ws.writeTask(taskId, { status: 'verifying', assignee: null });
   const v = existsSync(worktree) ? await ctx.verifier.verify(await ws.readTask(taskId), run, worktree) : null;
   await ws.writeTask(taskId, { status: v?.status === 'green' ? 'reviewing' : 'building' });

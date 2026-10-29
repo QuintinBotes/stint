@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitOk } from '../src/index';
 import { fakeAdapter, makeApp, newTask, post, withFixtureRepo } from './helpers';
@@ -25,6 +26,26 @@ test('stop during a run produces run.finished { endedBy: killed } within 6 s and
     expect(again.status).toBe(404);
   });
 }, 30_000);
+
+test('.stint/active names a live run while one is live: a run that ends leaves another run\'s pointer alone, hands it to the run still going, and clears it when none is', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { app, ws } = await makeApp(repo, [fakeAdapter('sleep')]);
+    const [a, b, c] = [await ws.createTask({ ...newTask, testCommand: 'true' }), await ws.createTask({ ...newTask, title: 'Second task', testCommand: 'true' }), await ws.createTask({ ...newTask, title: 'Third task', testCommand: 'true' })] as const;
+    const active = () => (existsSync(join(repo, '.stint', 'active')) ? (JSON.parse(readFileSync(join(repo, '.stint', 'active'), 'utf8')) as Record<string, string>) : null);
+    const assign = async (id: string) => expect((await post(app, `/api/tasks/${id}/assign`, { adapter: 'fake', role: 'implementer' })).status).toBe(202);
+    const stop = async (id: string) => expect((await post(app, `/api/tasks/${id}/runs/r1/stop`, {})).status).toBe(202);
+    await assign(a.id);
+    await assign(b.id);
+    expect(active()).toEqual({ task: b.id, run: 'r1', worktree: `.stint/worktrees/${b.id}-r1`, adapter: 'fake' });
+    await stop(a.id);
+    expect(active()).toEqual({ task: b.id, run: 'r1', worktree: `.stint/worktrees/${b.id}-r1`, adapter: 'fake' });
+    await assign(c.id);
+    await stop(c.id);
+    expect(active()).toEqual({ task: b.id, run: 'r1', worktree: `.stint/worktrees/${b.id}-r1`, adapter: 'fake' });
+    await stop(b.id);
+    expect(active()).toBeNull();
+  });
+}, 60_000);
 
 const live = process.env.STINT_LIVE === '1';
 const hasMuse = Bun.which('muse') !== null;
