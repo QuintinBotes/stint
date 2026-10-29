@@ -1,0 +1,64 @@
+{
+  "enriched": [],
+  "fields": {
+    "askOfNext": {
+      "eventIds": [
+        "01M6496TMK62TCRDGGH62V09AR"
+      ],
+      "from": "events"
+    },
+    "changedFiles": {
+      "eventIds": [],
+      "from": "diff"
+    },
+    "cost": {
+      "eventIds": [
+        "01M6496TMK62TCRDGGH62V09AR"
+      ],
+      "from": "events"
+    },
+    "decisions": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "done": {
+      "eventIds": [
+        "01M64993T28YQ06T12507F3Q1W"
+      ],
+      "from": "events"
+    },
+    "leftOut": {
+      "eventIds": [
+        "01M6496TMK62TCRDGGH62V09AR"
+      ],
+      "from": "events"
+    },
+    "open": {
+      "eventIds": [
+        "01M64993T28YQ06T12507F3Q1W"
+      ],
+      "from": "events"
+    },
+    "refusals": {
+      "eventIds": [
+        "01M6496A6EGCAP0SA3Q1HN011Y"
+      ],
+      "from": "events"
+    },
+    "risks": {
+      "eventIds": [],
+      "from": "plan"
+    },
+    "summary": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "verification": {
+      "eventIds": [
+        "01M64993T28YQ06T12507F3Q1W"
+      ],
+      "from": "events"
+    }
+  },
+  "reason": "completed"
+}

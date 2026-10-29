@@ -82,3 +82,34 @@ test('Four malformed tool calls in a row end the run as failed instead of loopin
     host.stop();
   }
 }, 60_000);
+
+// a reasoning model can spend its whole reply thinking (finish_reason length, no content, no tool call): that is not done
+const cutOff = () => ({ id: 'c', object: 'chat.completion', model: 'muse-spark-open', choices: [{ index: 0, finish_reason: 'length', message: { role: 'assistant', content: null } }], usage: { prompt_tokens: 1200, completion_tokens: 4096, prompt_tokens_details: { cached_tokens: 400 } } });
+
+test('A reply cut off while the model reasons is asked again with more room, and the run goes on to write and finish', async () => {
+  const { host, go } = await runAgent([{ body: cutOff() }, { body: callTool('write_file', { path: 'src/room.ts', content: 'export const ROOM = 1;\n' }) }, { body: say('Wrote src/room.ts.') }]);
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { events } = await go(repo);
+      expect(events.find((e) => e.type === 'run.finished')?.payload.endedBy).toBe('completed');
+      expect(events.some((e) => e.type === 'agent.tool_call' && e.payload.tool === 'write_file')).toBe(true);
+      expect((host.seen as Array<{ max_tokens?: number }>).map((r) => r.max_tokens)).toEqual([4096, 16384, 16384]);
+    });
+  } finally {
+    host.stop();
+  }
+});
+
+test('A model cut off at the most room ends the run failed, saying why, never completed', async () => {
+  const { host, go } = await runAgent([{ body: cutOff() }, { body: cutOff() }, { body: cutOff() }]);
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { events } = await go(repo);
+      expect(events.find((e) => e.type === 'run.finished')?.payload.endedBy).toBe('failed');
+      expect(events.some((e) => e.type === 'agent.message' && String(e.payload.text).includes('used all 32768 output tokens reasoning'))).toBe(true);
+      expect((host.seen as Array<{ max_tokens?: number }>).map((r) => r.max_tokens)).toEqual([4096, 16384, 32768]);
+    });
+  } finally {
+    host.stop();
+  }
+});

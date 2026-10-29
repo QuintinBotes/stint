@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-29T16:56:06.262Z",
+  "checks": [
+    {
+      "durationMs": 73885,
+      "exitCode": 0,
+      "failed": 0,
+      "kind": "test",
+      "name": "tests",
+      "passed": 1,
+      "status": "green"
+    }
+  ],
+  "command": "npm test",
+  "commit": "150ebfd835c410b2b47f854d117050cf50001037",
+  "coverage": null,
+  "durationMs": 73885,
+  "exitCode": 0,
+  "failed": 0,
+  "outputRef": "verification/r1.out.txt",
+  "passed": 1,
+  "reason": "scenarios",
+  "run": "r1",
+  "runBy": "daemon",
+  "scenarios": {
+    "failed": 1,
+    "names": [
+      "test/holdout-expect-body.mocha.js"
+    ],
+    "passed": 0
+  },
+  "status": "red"
+}

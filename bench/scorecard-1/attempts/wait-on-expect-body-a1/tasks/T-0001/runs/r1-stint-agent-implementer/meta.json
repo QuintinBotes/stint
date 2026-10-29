@@ -1,0 +1,18 @@
+{
+  "adapter": "stint-agent",
+  "cost": {
+    "cachedTokens": 89472,
+    "inputTokens": 157641,
+    "outputTokens": 7089,
+    "usd": 0.1288
+  },
+  "endedAt": "2026-10-29T16:42:23.393Z",
+  "endedBy": "completed",
+  "host": "local-cli",
+  "model": "baseten/muse-spark-open",
+  "role": "implementer",
+  "run": "r1",
+  "startedAt": "2026-10-29T16:41:45.794Z",
+  "vendor": "meta",
+  "worktree": ".stint/worktrees/T-0001-r1"
+}

@@ -1,0 +1,51 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [],
+  "cost": {
+    "cachedTokens": 448640,
+    "inputTokens": 488633,
+    "outputTokens": 13787,
+    "usd": 0.1759
+  },
+  "createdAt": "2026-10-29T16:53:19.813Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "df70c5b767af034cbbba9754c682c899914cafd7",
+    "head": "150ebfd835c410b2b47f854d117050cf50001037"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "stint-agent",
+    "endedBy": "completed",
+    "host": "baseten",
+    "model": "muse-spark-open",
+    "role": "implementer",
+    "run": "r1",
+    "vendor": "meta"
+  },
+  "hash": "sha256:bb0be3d348902222cd5afcfe4cfdcb3830fdb9cc4923b886b45c4f759d18b4d2",
+  "leftOut": [],
+  "open": [],
+  "refusals": [
+    {
+      "action": "git diff master..stint-relay --name-only 2>&1 | head -20; echo \"---\"; cat /tmp/*.log 2>&1 | head",
+      "by": "stint-rules",
+      "reason": "/tmp/*.log is outside the worktree"
+    }
+  ],
+  "risks": [],
+  "summary": "stint-agent completed after 48 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm test",
+    "durationMs": 74901,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

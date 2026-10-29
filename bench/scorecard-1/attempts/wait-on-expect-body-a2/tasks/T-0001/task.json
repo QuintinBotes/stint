@@ -1,0 +1,33 @@
+{
+  "acceptance": [
+    "Against a local server, `expectBody` on an `http-get:` resource keeps waiting while the GET body does not contain the text, then succeeds once it does; a RegExp works the same way in the API.",
+    "It fails with the usual timeout error when the body never matches.",
+    "The options check rejects `expectBody` on a HEAD (`http:` or `https:`) resource straight away, with a clear message that names `expectBody` and the `-get` form to use instead.",
+    "The CLI takes `--expect-body <text>`, exits 0 once the body matches and non-zero on a timeout.",
+    "bin/usage.txt, README.md and index.d.ts document the option, the type tests cover it, and `npm test` (lint, types and mocha) passes."
+  ],
+  "assignee": null,
+  "baseCommit": "337320d47ae0f87ecc33a849e2eb4751c5cfa58f",
+  "branch": "stint/T-0001",
+  "budgets": {
+    "implementer": 150000,
+    "learn": 20000,
+    "planner": 40000,
+    "reviewer": 30000
+  },
+  "createdAt": "2026-10-29T16:46:24.920Z",
+  "goal": "Add an `expectBody` option (a substring, or a RegExp in the API) and a `--expect-body` CLI flag, so `http-get:` and `https-get:` resources count as available only once the response body contains the text.",
+  "id": "T-0001",
+  "links": {
+    "beadsId": null,
+    "issueUrl": null
+  },
+  "pendingAsk": null,
+  "risk": "low",
+  "slug": "match-http-response-bodies",
+  "status": "awaiting_approval",
+  "testCommand": "npm test",
+  "title": "Match HTTP response bodies",
+  "updatedAt": "2026-10-29T16:48:20.162Z",
+  "version": "stint.task/1"
+}

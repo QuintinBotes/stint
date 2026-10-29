@@ -17,6 +17,9 @@ Do not push, switch branches or rewrite history: the person merges through Stint
 When a decision should not be silently reversed, write it on its own line as: decision: <the decision>
 When you are done, reply without a tool call: say what you did, what you did not finish and what you did not look at.`;
 
+/** Output tokens a reply may use: the first is enough for most turns; the rest are for reasoning models cut off mid-thought. */
+const ROOM = [4096, 16384, 32768];
+
 /** The system prompt for one run: the tool contract plus the skills mounted for the run, when any are. */
 export function systemPromptFor(skills: Array<{ name: string; description: string }> = []): string {
   if (skills.length === 0) return SYSTEM_PROMPT;
@@ -71,6 +74,8 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
 
   async function run(ctx: RunContext): Promise<RunResult> {
     const maxTurns = ctx.budget.maxTurns ?? Number(settings.maxTurns ?? 40);
+    // the output room per reply; it grows when a reasoning model is cut off before it acts
+    let room = ROOM[0] as number;
     // `host/model` runs exactly that model (any model on any configured host); a short name starts at its
     // entry in the chain; a name that is in neither is refused rather than swapped for another model
     const explicit = ctx.model?.includes('/') && config.hosts[ctx.model.split('/')[0] as string] ? [ctx.model] : null;
@@ -111,7 +116,7 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
         }
         try {
           const res = await call.client.chat.completions.create(
-            { model: call.providerId, messages, tools: TOOLS, tool_choice: 'auto', max_tokens: 4096 },
+            { model: call.providerId, messages, tools: TOOLS, tool_choice: 'auto', max_tokens: room },
             { signal: ctx.signal },
           );
           state.answered = call;
@@ -137,6 +142,17 @@ export function createStintAgent(config: Config = DEFAULT_CONFIG, env: Record<st
         usage.outputTokens += res.usage?.completion_tokens ?? 0;
         const msg = res.choices[0]?.message;
         if (!msg) return done('failed');
+        // a reasoning model can spend the whole reply thinking and be cut off before it says or calls anything: that is
+        // not done. Ask again with more room; if even the most room is not enough, the run failed, and says why.
+        if (res.choices[0]?.finish_reason === 'length' && !msg.tool_calls?.length && !msg.content?.trim()) {
+          const more = ROOM.find((r) => r > room);
+          if (more) {
+            room = more;
+            continue;
+          }
+          await ctx.emit({ type: 'agent.message', payload: { text: `The Stint agent stopped: the model used all ${room} output tokens reasoning, before it said or did anything.`, stderr: true } });
+          return done('failed');
+        }
         if (msg.content?.trim()) {
           lastText = msg.content.trim();
           await ctx.emit({ type: 'agent.message', payload: { text: lastText.slice(0, 2048) } });

@@ -1,0 +1,17 @@
+{
+  "adapter": "openai-compatible",
+  "cost": {
+    "cachedTokens": 0,
+    "inputTokens": 870,
+    "outputTokens": 83,
+    "usd": 0
+  },
+  "endedAt": "2026-10-29T16:48:20.115Z",
+  "endedBy": "completed",
+  "host": "ollama",
+  "model": "muse-glimmer:30b-mlx",
+  "role": "reviewer",
+  "run": "r2",
+  "startedAt": "2026-10-29T16:48:06.095Z",
+  "vendor": "meta"
+}

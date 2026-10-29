@@ -1,0 +1,501 @@
+
+> negotiator@1.1.0 test
+> mocha --reporter spec --check-leaks test/
+
+
+
+  negotiator.charset()
+    when no Accept-Charset
+      ✔ should return *
+    when Accept-Charset: *
+      ✔ should return *
+    when Accept-Charset: *, UTF-8
+      ✔ should return *
+    when Accept-Charset: *, UTF-8;q=0
+      ✔ should return *
+    when Accept-Charset: ISO-8859-1
+      ✔ should return ISO-8859-1
+    when Accept-Charset: UTF-8;q=0
+      ✔ should return undefined
+    when Accept-Charset: UTF-8, ISO-8859-1
+      ✔ should return UTF-8
+    when Accept-Charset: UTF-8;q=0.8, ISO-8859-1
+      ✔ should return ISO-8859-1
+    when Accept-Charset: UTF-8;q=0.9, ISO-8859-1;q=0.8, UTF-8;q=0.7
+      ✔ should return UTF-8
+
+  negotiator.charset(array)
+    when no Accept-Charset
+      ✔ should return undefined for empty list
+      ✔ should return first type in list
+    when Accept-Charset: *
+      ✔ should return undefined for empty list
+      ✔ should return first type in list
+    when Accept-Charset: *, UTF-8
+      ✔ should return first type in list
+    when Accept-Charset: *, UTF-8;q=0
+      ✔ should return most client-preferred charset
+      ✔ should exclude UTF-8
+    when Accept-Charset: ISO-8859-1
+      ✔ should return matching charset
+      ✔ should be case insensitive, returning provided casing
+      ✔ should return undefined when no matching charsets
+    when Accept-Charset: UTF-8;q=0
+      ✔ should always return undefined
+    when Accept-Charset: UTF-8, ISO-8859-1
+      ✔ should return first matching charset
+      ✔ should return undefined when no matching charsets
+    when Accept-Charset: UTF-8;q=0.8, ISO-8859-1
+      ✔ should return most client-preferred charset
+    when Accept-Charset: UTF-8;q=0.9, ISO-8859-1;q=0.8, UTF-8;q=0.7
+      ✔ should use highest perferred order on duplicate
+
+  negotiator.charsets()
+    when no Accept-Charset
+      ✔ should return *
+    when Accept-Charset: *
+      ✔ should return *
+    when Accept-Charset: *, UTF-8
+      ✔ should return client-preferred charsets
+    when Accept-Charset: *, UTF-8;q=0
+      ✔ should exclude UTF-8
+    when Accept-Charset: UTF-8;q=0
+      ✔ should return empty list
+    when Accept-Charset: ISO-8859-1
+      ✔ should return client-preferred charsets
+    when Accept-Charset: UTF-8, ISO-8859-1
+      ✔ should return client-preferred charsets
+    when Accept-Charset: UTF-8;q=0.8, ISO-8859-1
+      ✔ should return client-preferred charsets
+    when Accept-Charset: UTF-8;foo=bar;q=1, ISO-8859-1;q=1
+      ✔ should return client-preferred charsets
+    when Accept-Charset: UTF-8;foo="bar,baz", ISO-8859-1
+      ✔ should handle commas in quoted parameters
+    when Accept-Charset: UTF-8;q=0.9, ISO-8859-1;q=0.8, UTF-8;q=0.7
+      - should use highest perferred order on duplicate
+
+  negotiator.charsets(array)
+    when no Accept-Charset
+      ✔ should return empty list for empty list
+      ✔ should return original list
+    when Accept-Charset: *
+      ✔ should return empty list for empty list
+      ✔ should return original list
+    when Accept-Charset: *, UTF-8
+      ✔ should return matching charsets
+    when Accept-Charset: *, UTF-8;q=0
+      ✔ should exclude UTF-8
+    when Accept-Charset: UTF-8;q=0
+      ✔ should always return empty list
+    when Accept-Charset: ISO-8859-1
+      ✔ should return matching charsets
+      ✔ should be case insensitive, returning provided casing
+      ✔ should return empty list when no matching charsets
+    when Accept-Charset: UTF-8, ISO-8859-1
+      ✔ should return matching charsets
+      ✔ should return empty list when no matching charsets
+    when Accept-Charset: UTF-8;q=0.8, ISO-8859-1
+      ✔ should return matching charsets in client-preferred order
+      ✔ should return empty list when no matching charsets
+    when Accept-Charset: UTF-8;q=0.9, ISO-8859-1;q=0.8, UTF-8;q=0.7
+      ✔ should use highest perferred order on duplicate
+
+  negotiator.encoding()
+    when no Accept-Encoding
+      ✔ should return identity
+    when Accept-Encoding: *
+      ✔ should return *
+    when Accept-Encoding: *, gzip
+      ✔ should return *
+    when Accept-Encoding: *, gzip;q=0
+      ✔ should return *
+    when Accept-Encoding: *;q=0
+      ✔ should return undefined
+    when Accept-Encoding: *;q=0, identity;q=1
+      ✔ should return identity
+    when Accept-Encoding: identity
+      ✔ should return identity
+    when Accept-Encoding: identity;q=0
+      ✔ should return undefined
+    when Accept-Encoding: gzip
+      ✔ should return gzip
+    when Accept-Encoding: gzip, compress;q=0
+      ✔ should return gzip
+    when Accept-Encoding: gzip, deflate
+      ✔ should return gzip
+    when Accept-Encoding: gzip;q=0.8, deflate
+      ✔ should return deflate
+    when Accept-Encoding: gzip;q=0.8, identity;q=0.5, *;q=0.3
+      ✔ should return gzip
+
+  negotiator.encoding(array)
+    when no Accept-Encoding
+      ✔ should return undefined for empty list
+      ✔ should only match identity
+    when Accept-Encoding: *
+      ✔ should return undefined for empty list
+      ✔ should return first item in list
+    when Accept-Encoding: *, gzip
+      ✔ should prefer gzip
+    when Accept-Encoding: *, gzip;q=0
+      ✔ should exclude gzip
+    when Accept-Encoding: *;q=0
+      ✔ should return undefined for empty list
+      ✔ should match nothing
+    when Accept-Encoding: *;q=0, identity;q=1
+      ✔ should return undefined for empty list
+      ✔ should still match identity
+    when Accept-Encoding: identity
+      ✔ should return undefined for empty list
+      ✔ should only match identity
+    when Accept-Encoding: identity;q=0
+      ✔ should return undefined for empty list
+      ✔ should match nothing
+    when Accept-Encoding: gzip
+      ✔ should return undefined for empty list
+      ✔ should return client-preferred encodings
+    when Accept-Encoding: gzip, compress;q=0
+      ✔ should not return compress
+    when Accept-Encoding: gzip, deflate
+      ✔ should return first client-preferred encoding
+      ✔ should return developer-preferred encodings
+    when Accept-Encoding: gzip;q=0.8, deflate
+      ✔ should return most client-preferred encoding
+    when Accept-Encoding: gzip;q=0.8, identity;q=0.5, *;q=0.3
+      ✔ should return most client-preferred encoding
+      ✔ should return developer-preferred encodings
+
+  negotiator.encodings()
+    when no Accept-Encoding
+      ✔ should return identity
+    when Accept-Encoding: *
+      ✔ should return *
+    when Accept-Encoding: *, gzip
+      ✔ should prefer gzip
+    when Accept-Encoding: *, gzip;q=0
+      ✔ should return *
+    when Accept-Encoding: *;q=0
+      ✔ should return an empty list
+    when Accept-Encoding: *;q=0, identity;q=1
+      ✔ should return identity
+    when Accept-Encoding: identity
+      ✔ should return identity
+    when Accept-Encoding: identity;q=0
+      ✔ should return an empty list
+    when Accept-Encoding: gzip
+      ✔ should return gzip, identity
+    when Accept-Encoding: gzip, compress;q=0
+      ✔ should not return compress
+    when Accept-Encoding: gzip, deflate
+      ✔ should return client-preferred encodings
+    when Accept-Encoding: gzip;q=0.8, deflate
+      ✔ should return client-preferred encodings
+    when Accept-Encoding: gzip;foo=bar;q=1, deflate;q=1
+      ✔ should return client-preferred encodings
+    when Accept-Encoding: gzip;foo="bar,baz", deflate
+      ✔ should handle commas in quoted parameters
+    when Accept-Encoding: gzip;q=0.8, identity;q=0.5, *;q=0.3
+      ✔ should return client-preferred encodings
+
+  negotiator.encodings(array)
+    when no Accept-Encoding
+      ✔ should return empty list for empty list
+      ✔ should only match identity
+    when Accept-Encoding: *
+      ✔ should return empty list for empty list
+      ✔ should return original list
+    when Accept-Encoding: *, gzip
+      ✔ should prefer gzip
+    when Accept-Encoding: *, gzip;q=0
+      ✔ should exclude gzip
+    when Accept-Encoding: *;q=0
+      ✔ should always return empty list
+    when Accept-Encoding: *;q=0, identity;q=1
+      ✔ should still match identity
+    when Accept-Encoding: identity
+      ✔ should return empty list for empty list
+      ✔ should only match identity
+    when Accept-Encoding: identity;q=0
+      ✔ should always return empty list
+    when Accept-Encoding: gzip
+      ✔ should return empty list for empty list
+      ✔ should be case insensitive, returning provided casing
+      ✔ should return client-preferred encodings
+    when Accept-Encoding: gzip, compress;q=0
+      ✔ should not return compress
+    when Accept-Encoding: gzip, deflate
+      ✔ should return client-preferred encodings
+      ✔ should return developer-preferred encodings
+    when Accept-Encoding: gzip;q=0.8, deflate
+      ✔ should return client-preferred encodings
+    when Accept-Encoding: gzip;q=0.8, identity;q=0.5, *;q=0.3
+      ✔ should return client-preferred encodings
+      ✔ should return developer-preferred encodings
+
+  negotiator.language()
+    when no Accept-Language
+      ✔ should return *
+    when Accept-Language: *
+      ✔ should return *
+    when Accept-Language: *, en
+      ✔ should return *
+    when Accept-Language: *, en;q=0
+      ✔ should return *
+    when Accept-Language: *;q=0.8, en, es
+      ✔ should return en
+    when Accept-Language: en
+      ✔ should en
+    when Accept-Language: en;q=0
+      ✔ should return undefined
+    when Accept-Language: en;q=0.8, es
+      ✔ should return es
+    when Accept-Language: en;q=0.9, es;q=0.8, en;q=0.7
+      ✔ should return en
+    when Accept-Language: en-US, en;q=0.8
+      ✔ should return en-US
+    when Accept-Language: en-US, en-GB
+      ✔ should return en-US
+    when Accept-Language: en-US;q=0.8, es
+      ✔ should return es
+    when Accept-Language: nl;q=0.5, fr, de, en, it, es, pt, no, se, fi, ro
+      ✔ should return fr
+
+  negotiator.language(array)
+    when no Accept-Language
+      ✔ should return undefined for empty list
+      ✔ should return first language in list
+    when Accept-Language: *
+      ✔ should return undefined for empty list
+      ✔ should return first language in list
+    when Accept-Language: *, en
+      ✔ should return undefined for empty list
+      ✔ should return most preferred language
+    when Accept-Language: *, en;q=0
+      ✔ should return undefined for empty list
+      ✔ should exclude en
+    when Accept-Language: *;q=0.8, en, es
+      ✔ should prefer en and es over everything
+    when Accept-Language: en
+      ✔ should return undefined for empty list
+      ✔ should return preferred langauge
+      ✔ should accept en-US, preferring en over en-US
+    when Accept-Language: en;q=0
+      ✔ should return undefined for empty list
+      ✔ should return preferred langauge
+    when Accept-Language: en;q=0.8, es
+      ✔ should return undefined for empty list
+      ✔ should return preferred langauge
+    when Accept-Language: en;q=0.9, es;q=0.8, en;q=0.7
+      ✔ should use highest perferred order on duplicate
+    when Accept-Language: en-US, en;q=0.8
+      ✔ should use prefer en-US over en
+    when Accept-Language: en-US, en-GB
+      ✔ should prefer en-US
+    when Accept-Language: en-US;q=0.8, es
+      ✔ should prefer es over en-US
+    when Accept-Language: nl;q=0.5, fr, de, en, it, es, pt, no, se, fi, ro
+      ✔ should use prefer fr over nl
+
+  negotiator.languages()
+    when no Accept-Language
+      ✔ should return *
+    when Accept-Language: *
+      ✔ should return *
+    when Accept-Language: *, en
+      ✔ should return *, en
+    when Accept-Language: *, en;q=0
+      ✔ should return *
+    when Accept-Language: *;q=0.8, en, es
+      ✔ should return preferred languages
+    when Accept-Language: en
+      ✔ should return preferred languages
+    when Accept-Language: en;q=0
+      ✔ should return empty list
+    when Accept-Language: en;q=0.8, es
+      ✔ should return preferred languages
+    when Accept-Language: en;q=0.9, es;q=0.8, en;q=0.7
+      - should use highest perferred order on duplicate
+    when Accept-Language: en-US, en;q=0.8
+      ✔ should return en-US, en
+    when Accept-Language: en-US, en-GB
+      ✔ should return en-US, en-GB
+    when Accept-Language: en-US;q=0.8, es
+      ✔ should return es, en-US
+    when Accept-Language: en-US;foo=bar;q=1, en-GB;q=1
+      ✔ should return en-US, en-GB
+    when Accept-Language: en-US;foo="bar,baz", en-GB
+      ✔ should handle commas in quoted parameters
+    when Accept-Language: nl;q=0.5, fr, de, en, it, es, pt, no, se, fi, ro
+      ✔ should use prefer fr over nl
+
+  negotiator.languages(array)
+    when no Accept-Language
+      ✔ should return original list
+    when Accept-Language: *
+      ✔ should return original list
+    when Accept-Language: *, en
+      ✔ should return list in client-preferred order
+    when Accept-Language: *, en;q=0
+      ✔ should exclude en
+    when Accept-Language: *;q=0.8, en, es
+      ✔ should return preferred languages
+    when Accept-Language: en
+      ✔ should return preferred languages
+      ✔ should accept en-US, preferring en over en-US
+    when Accept-Language: en;q=0
+      ✔ should return nothing
+    when Accept-Language: en;q=0.8, es
+      ✔ should return preferred languages
+    when Accept-Language: en;q=0.9, es;q=0.8, en;q=0.7
+      - should return preferred languages
+    when Accept-Language: en-US, en;q=0.8
+      ✔ should be case insensitive
+      ✔ should prefer en-US over en
+    when Accept-Language: en-US, en-GB
+      ✔ should prefer en-US over en-GB
+    when Accept-Language: en-US;q=0.8, es
+      ✔ should prefer es over en-US
+    when Accept-Language: nl;q=0.5, fr, de, en, it, es, pt, no, se, fi, ro
+      ✔ should return preferred languages
+
+  negotiator.mediaType()
+    when no Accept
+      ✔ should return */*
+    when Accept: */*
+      ✔ should return */*
+    when Accept: application/json
+      ✔ should return application/json
+    when Accept: application/json;q=0
+      ✔ should return undefined
+    when Accept: application/json;q=0.2, text/html
+      ✔ should return text/html
+    when Accept: text/*
+      ✔ should return text/*
+    when Accept: text/plain, application/json;q=0.5, text/html, */*;q=0.1
+      ✔ should return text/plain
+    when Accept: text/plain, application/json;q=0.5, text/html, text/xml, text/yaml, text/javascript, text/csv, text/css, text/rtf, text/markdown, application/octet-stream;q=0.2, */*;q=0.1
+      ✔ should return text/plain
+
+  negotiator.mediaType(array)
+    when no Accept
+      ✔ should return first item in list
+    when Accept: */*
+      ✔ should return first item in list
+    when Accept: application/json
+      ✔ should be case insensitive
+      ✔ should only return application/json
+    when Accept: application/json;q=0
+      ✔ should return undefined
+    when Accept: application/json;q=0.2, text/html
+      ✔ should prefer text/html over application/json
+    when Accept: text/*
+      ✔ should prefer text media types
+    when Accept: text/*, text/plain;q=0
+      ✔ should prefer text media types
+    when Accept: text/plain, application/json;q=0.5, text/html, */*;q=0.1
+      ✔ should return in preferred order
+    when Accept: text/plain, application/json;q=0.5, text/html, text/xml, text/yaml, text/javascript, text/csv, text/css, text/rtf, text/markdown, application/octet-stream;q=0.2, */*;q=0.1
+      ✔ should return the client-preferred order
+
+  negotiator.mediaTypes()
+    when no Accept
+      ✔ should return */*
+    when Accept: */*
+      ✔ should return */*
+    when Accept: application/json
+      ✔ should return application/json
+    when Accept: application/json;q=0
+      ✔ should return empty list
+    when Accept: application/json;q=0.2, text/html
+      ✔ should return text/html, application/json
+    when Accept: text/*
+      ✔ should return text/*
+    when Accept: text/*, text/plain;q=0
+      ✔ should return text/*
+    when Accept: text/html;LEVEL=1
+      ✔ should return text/html;LEVEL=1
+    when Accept: text/html;foo="bar,text/css;";fizz="buzz,5", text/plain
+      ✔ should return text/html, text/plain
+    when Accept: text/html;foo="bar\"", application/json
+      ✔ should handle escaped quotes
+    when Accept: text/plain, application/json;q=0.5, text/html, */*;q=0.1
+      ✔ should return text/plain, text/html, application/json, */*
+    when Accept: text/plain, application/json;q=0.5, text/html, text/xml, text/yaml, text/javascript, text/csv, text/css, text/rtf, text/markdown, application/octet-stream;q=0.2, */*;q=0.1
+      ✔ should return the client-preferred order
+
+  negotiator.mediaTypes(array)
+    when no Accept
+      ✔ should return return original list
+    when Accept: */*
+      ✔ should return return original list
+    when Accept: */*;q=0.8, text/*, image/*
+      ✔ should return return stable-sorted list
+    when Accept: application/json
+      ✔ should accept application/json
+      ✔ should be case insensitive
+      ✔ should only return application/json
+      ✔ should ignore invalid types
+    when Accept: application/json;q=0
+      ✔ should not accept application/json
+      ✔ should not accept other media types
+    when Accept: application/json;q=0.2, text/html
+      ✔ should prefer text/html over application/json
+    when Accept: application/json;q=0.9, text/html;q=0.8, application/json;q=0.7
+      ✔ should prefer application/json over text/html
+    when Accept: application/json, */*;q=0.1
+      ✔ should prefer application/json over text/html
+    when Accept: application/xhtml+xml;profile="http://www.wapforum.org/xhtml"
+      ✔ should accept application/xhtml+xml;profile="http://www.wapforum.org/xhtml"
+    when Accept: text/*
+      ✔ should prefer text media types
+    when Accept: text/*, text/html;level
+      ✔ should accept text/html
+    when Accept: text/*, text/plain;q=0
+      ✔ should prefer text media types except text/plain
+    when Accept: text/*, text/plain;q=0.5
+      ✔ should prefer text/plain below other text types
+    when Accept: text/html;level=1
+      ✔ should accept text/html;level=1
+      ✔ should accept text/html;Level=1
+      ✔ should not accept text/html;level=2
+      ✔ should not accept text/html
+      ✔ should accept text/html;level=1;foo=bar
+    when Accept: text/html;level=1;foo=bar
+      ✔ should not accept text/html;level=1
+      ✔ should accept text/html;level=1;foo=bar
+      ✔ should accept text/html;foo=bar;level=1
+    when Accept: text/html;level=1;foo="bar"
+      ✔ should accept text/html;level=1;foo=bar
+      ✔ should accept text/html;level=1;foo="bar"
+    when Accept: text/html;foo=";level=2;"
+      ✔ should not accept text/html;level=2
+      ✔ should accept text/html;foo=";level=2;"
+    when Accept: text/html;LEVEL=1
+      ✔ should accept text/html;level=1
+      ✔ should accept text/html;Level=1
+    when Accept: text/html;LEVEL=1;level=2
+      ✔ should accept the first parameter value
+      ✔ should not accept the duplicate parameter value
+    when Accept: text/html;level=2
+      ✔ should not accept text/html;level=1
+    when Accept: text/html;level=2, text/html
+      ✔ should prefer text/html;level=2 over text/html
+    when Accept: text/html;level=2;q=0.1, text/html
+      ✔ should prefer text/html over text/html;level=2
+    when Accept: text/html;level=2;q=0.1;level=1
+      ✔ should not accept text/html;level=1
+    when Accept: text/html;level=2;q=0.1, text/html;level=1, text/html;q=0.5
+      ✔ should prefer text/html;level=1, text/html, text/html;level=2
+    when Accept: text/plain, application/json;q=0.5, text/html, */*;q=0.1
+      ✔ should prefer text/plain over text/html
+      ✔ should prefer application/json after text
+      ✔ should prefer image/jpeg after text
+    when Accept: text/plain, application/json;q=0.5, text/html, text/xml, text/yaml, text/javascript, text/csv, text/css, text/rtf, text/markdown, application/octet-stream;q=0.2, */*;q=0.1
+      ✔ should return the client-preferred order
+
+
+  253 passing (51ms)
+  3 pending
+
+
+=== held-out scenarios: 0 passed, 1 failed (test/holdout-preferred.js) ===

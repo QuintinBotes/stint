@@ -1,0 +1,33 @@
+{
+  "task": "negotiator-preferred",
+  "repo": "negotiator",
+  "attempt": 3,
+  "live": true,
+  "stintTask": "T-0001",
+  "run": "r1",
+  "adapter": "stint-agent",
+  "model": "muse-spark-open",
+  "host": "baseten",
+  "endedBy": "completed",
+  "tests": "green",
+  "hidden": "red",
+  "scenarios": {
+    "passed": 0,
+    "failed": 1
+  },
+  "review": {
+    "verdict": "approve",
+    "findings": [],
+    "adapter": "openai-compatible",
+    "model": "muse-glimmer:30b-mlx",
+    "host": "ollama",
+    "offline": true
+  },
+  "usd": 0.0778,
+  "estimated": false,
+  "wallMs": 43767,
+  "retried": [],
+  "outcome": "graded red by the hidden tests; the run ended completed and its own tests were green; the review answered approve",
+  "startedAt": "2026-10-29T16:40:54.675Z",
+  "finishedAt": "2026-10-29T16:41:42.736Z"
+}

@@ -1,0 +1,45 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [],
+  "cost": {
+    "cachedTokens": 10240,
+    "inputTokens": 28349,
+    "outputTokens": 4613,
+    "usd": 0.0438
+  },
+  "createdAt": "2026-10-29T16:57:33.634Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "0ae280b4e800d4880680ce093d33a9561d56e085",
+    "head": "704b6f2854ab49f2a343c73204abc0899e510b18"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "stint-agent",
+    "endedBy": "completed",
+    "host": "baseten",
+    "model": "muse-spark-open",
+    "role": "implementer",
+    "run": "r1",
+    "vendor": "meta"
+  },
+  "hash": "sha256:d29bfacaed6873f191ba093d8e24b243d8662cde67825e27e4f6064d6ebca378",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "stint-agent completed after 10 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm run test:nodejs && npm run test:edge",
+    "durationMs": 2394,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}
