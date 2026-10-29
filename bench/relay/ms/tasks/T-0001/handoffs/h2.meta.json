@@ -1,0 +1,62 @@
+{
+  "enriched": [],
+  "fields": {
+    "askOfNext": {
+      "eventIds": [
+        "01M641NNQYFSSPZ8J8B9APGR1W"
+      ],
+      "from": "events"
+    },
+    "changedFiles": {
+      "eventIds": [],
+      "from": "diff"
+    },
+    "cost": {
+      "eventIds": [
+        "01M641NNQYFSSPZ8J8B9APGR1W"
+      ],
+      "from": "events"
+    },
+    "decisions": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "done": {
+      "eventIds": [
+        "01M641NSQCJBCAMQ3C8QX7VFDJ"
+      ],
+      "from": "events"
+    },
+    "leftOut": {
+      "eventIds": [
+        "01M641NNQYFSSPZ8J8B9APGR1W"
+      ],
+      "from": "events"
+    },
+    "open": {
+      "eventIds": [
+        "01M641NSQCJBCAMQ3C8QX7VFDJ"
+      ],
+      "from": "events"
+    },
+    "refusals": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "risks": {
+      "eventIds": [],
+      "from": "plan"
+    },
+    "summary": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "verification": {
+      "eventIds": [
+        "01M641NSQCJBCAMQ3C8QX7VFDJ"
+      ],
+      "from": "events"
+    }
+  },
+  "reason": "handed"
+}

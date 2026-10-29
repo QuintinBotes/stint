@@ -1,0 +1,248 @@
+diff --git a/README.md b/README.md
+index e4f097c..f4c199b 100644
+--- a/README.md
++++ b/README.md
+@@ -40,6 +40,7 @@ wait-on http://localhost:8000/foo && NEXT_CMD # wait for http 2XX HEAD
+ wait-on https://myserver/foo && NEXT_CMD # wait for https 2XX HEAD
+ wait-on http-get://localhost:8000/foo && NEXT_CMD # wait for http 2XX GET
+ wait-on https-get://myserver/foo && NEXT_CMD # wait for https 2XX GET
++wait-on --expect-body ready http-get://localhost:8000/foo && NEXT_CMD # wait for http GET body to contain "ready"
+ wait-on tcp:4000 && NEXT_CMD # wait for service to listen on a TCP port
+ wait-on socket:/path/mysock # wait for service to listen on domain socket
+ wait-on http://unix:/var/SOCKPATH:http://server/a/foo # wait for http HEAD on domain socket
+@@ -220,7 +221,12 @@ var opts = {
+   // --status-codes sets it from a list of codes/ranges and overrides this one.
+   validateStatus: function (status) {
+     return status >= 200 && status < 300; // default if not provided
+-  }
++  },
++  // expectBody is a substring (or RegExp via the API) which the response body
++  // of http-get:/https-get: resources must contain before they count as
++  // available. From the CLI, --expect-body <text> sets the string form.
++  // Using it with http:/https: (HEAD) is rejected, use the -get form instead.
++  expectBody: 'ready',
+ };
+ 
+ // Usage with callback function
+@@ -288,6 +294,7 @@ waitOn(opts, [cb]) - function which triggers resource checks
+ - opts.followRedirect: false, // defaults to true
+ - opts.headers: { 'x-custom': 'headers' }, also settable from the CLI with the repeatable `-H, --header "Name: value"` flag (CLI headers win over config-file headers on a name conflict)
+ - opts.validateStatus: optional function `(status) => boolean` deciding which HTTP status codes count as success, default accepts 2XX. Because it is a function it can only be set via the Node API or a `.js` config file, not a JSON config. From the CLI, `--status-codes 200-499` (a code, a range, or a comma-separated list) sets it and overrides a config-file `validateStatus`.
++- opts.expectBody: optional substring or RegExp (RegExp via the API only) which the response body of `http-get:`/`https-get:` resources must contain before they count as available. Only valid with the `-get` forms; using it with `http:`/`https:` (HEAD) is rejected since HEAD has no body. From the CLI, `--expect-body <text>` sets the string form.
+ 
+ - cb(err) - if err is provided then, resource checks did not succeed
+ 
+@@ -303,6 +310,7 @@ On Node.js 20+ `localhost` resolves to both IPv4 and IPv6 and wait-on connects t
+ - wait for files to stabilize
+ - wait for http(s) resources to return 2XX in response to HEAD request
+ - wait for http(s) resources to return 2XX in response to GET request
++- wait for http-get(s) response bodies to contain expected text via `expectBody` / `--expect-body`
+ - wait for services to be listening on tcp ports
+ - wait for services to be listening on unix domain sockets
+ - configurable initial delay, poll interval, stabilization window, timeout
+diff --git a/bin/usage.txt b/bin/usage.txt
+index 5bc2790..4e4ccd9 100644
+--- a/bin/usage.txt
++++ b/bin/usage.txt
+@@ -54,6 +54,13 @@ Standard Options:
+   last value wins.
+   ex: --status-codes 200-499 or --status-codes 200,204,404
+ 
++ --expect-body
++
++  Text which the response body of http-get:/https-get: resources must
++  contain before they count as available. Only valid with the -get forms;
++  using it with http:/https: (HEAD) is an error since HEAD has no body.
++  ex: --expect-body ready
++
+  -d, --delay
+ 
+   Initial delay before checking for resources in ms, default 0
+diff --git a/bin/wait-on b/bin/wait-on
+index 2b5c6d5..6875ae0 100755
+--- a/bin/wait-on
++++ b/bin/wait-on
+@@ -15,6 +15,7 @@ const optionDefs = {
+   reverse: { type: 'boolean', default: false, short: 'r' },
+   simultaneous: { type: 'string', short: 's' },
+   'status-codes': { type: 'string' },
++  'expect-body': { type: 'string' },
+   timeout: { type: 'string', short: 't' },
+   verbose: { type: 'boolean', default: false, short: 'v' },
+   window: { type: 'string', short: 'w' },
+@@ -119,6 +120,16 @@ function main() {
+       }
+     }
+ 
++    // --expect-body sets the expectBody substring which an http-get:/https-get:
++    // response body must contain. Checked against undefined so a missing value
++    // is an error, not silently ignored. A RegExp is only available via the API.
++    if (argv['expect-body'] !== undefined) {
++      if (typeof argv['expect-body'] !== 'string' || argv['expect-body'].length === 0) {
++        return errorExit(new Error('--expect-body requires a value, ex: --expect-body ready'));
++      }
++      configOpts.expectBody = argv['expect-body'];
++    }
++
+     // now check for specific options and set those
+     const opts = [
+       'delay',
+diff --git a/index.d.ts b/index.d.ts
+index d4264ed..fec1ae1 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -34,6 +34,13 @@ declare namespace waitOn {
+     timeout?: number;
+     /** Custom function to determine if an HTTP status code is a success. Defaults to 2xx. */
+     validateStatus?: ValidateStatus;
++    /**
++     * Substring or RegExp which the response body of `http-get:`/`https-get:`
++     * resources must contain before they count as available. Only valid with
++     * the `-get` forms; using it with `http:`/`https:` (HEAD) is rejected.
++     * The CLI `--expect-body <text>` sets the string form.
++     */
++    expectBody?: string | RegExp;
+     /** Enable debug output (also enables log). @default false */
+     verbose?: boolean;
+     /** Stabilization window in ms. Resource must remain available for this duration. @default 750 */
+diff --git a/lib/wait-on.js b/lib/wait-on.js
+index 7bcec22..cb94c50 100644
+--- a/lib/wait-on.js
++++ b/lib/wait-on.js
+@@ -57,7 +57,8 @@ const WAIT_ON_SCHEMA = Joi.object({
+   }),
+   strictSSL: Joi.boolean().default(false),
+   followRedirect: Joi.boolean().default(true), // HTTP 3XX responses
+-  headers: Joi.object()
++  headers: Joi.object(),
++  expectBody: Joi.alternatives().try(Joi.string().min(1), Joi.object().instance(RegExp))
+ });
+ 
+ /**
+@@ -88,6 +89,7 @@ const WAIT_ON_SCHEMA = Joi.object({
+    @param opts.simultaneous integer - optional limit of concurrent connections to a resource, default Infinity
+    @param opts.tcpTimeout - Maximum time in ms for tcp connect, default 300ms
+    @param opts.commandTimeout integer - optional per-attempt timeout in ms for command: resources, default 0 (no limit). A command still running at this bound is killed and the next poll retries
++   @param opts.expectBody string|RegExp - optional substring or RegExp which must match the response body of http-get:/https-get: resources before they count as available
+    @param opts.timeout integer - optional timeout in ms, default Infinity. Aborts with error.
+    @param opts.verbose boolean - optional flag to turn on debug log
+    @param opts.window integer - optional stabilization time in ms, default 750ms. Waits this amount of time for file sizes to stabilize or other resource availability to remain unchanged. If less than interval then will be reset to interval
+@@ -134,6 +136,21 @@ function waitOnImpl(opts, cbFunc) {
+     return cbOnce(resourceError);
+   }
+ 
++  // expectBody needs a response body, so HEAD (http:/https:) resources are rejected straight away
++  if (validatedOpts.expectBody !== undefined) {
++    const headResource = resources.find(function (r) {
++      const prefix = extractPrefix(r);
++      return prefix === 'http:' || prefix === 'https:';
++    });
++    if (headResource) {
++      return cbOnce(
++        new Error(
++          `Invalid option "expectBody": "${headResource}" uses HEAD which has no response body. Use the http-get: or https-get: (-get) form with "expectBody" instead.`
++        )
++      );
++    }
++  }
++
+   const output = verbose ? console.log.bind() : noop;
+   const log = shouldLog ? console.log.bind() : noop;
+   const logWaitingForWDeps = partial(logWaitingFor, [{ log, resources }]);
+@@ -337,6 +354,7 @@ async function getFileSize(filePath) {
+ function createHTTP$({ validatedOpts, output }, resource) {
+   const {
+     delay,
++    expectBody,
+     followRedirect,
+     httpTimeout: timeout,
+     interval,
+@@ -362,11 +380,16 @@ function createHTTP$({ validatedOpts, output }, resource) {
+     proxy, // can be undefined, false, or object
+     ...(timeout && { timeout }),
+     ...urlSocketOptions,
+-    method
++    method,
+     // by default it provides full response object
+     // validStatus is 2xx unless followRedirect is true (default)
++    // when matching a body, read the raw text so substring/RegExp sees the exact payload
++    ...(expectBody !== undefined && method === 'get' ? { responseType: 'text', transformResponse: [(data) => data] } : {})
+   };
+-  const checkFn = reverse ? negateAsync(httpCallSucceeds) : httpCallSucceeds;
++  function checkWithBody(output, httpOptions) {
++    return httpCallSucceeds(output, httpOptions, expectBody);
++  }
++  const checkFn = reverse ? negateAsync(checkWithBody) : checkWithBody;
+   return timer(delay, interval).pipe(
+     mergeMap(() => {
+       output(`making HTTP(S) ${method} request to ${socketPathDesc} url:${urlSocketOptions.url} ...`);
+@@ -378,9 +401,18 @@ function createHTTP$({ validatedOpts, output }, resource) {
+   );
+ }
+ 
+-async function httpCallSucceeds(output, httpOptions) {
++async function httpCallSucceeds(output, httpOptions, expectBody) {
+   try {
+     const result = await axios(httpOptions);
++    if (expectBody !== undefined) {
++      const body = toBodyString(result.data);
++      const matched =
++        typeof expectBody === 'string' ? body.includes(expectBody) : matchRegExp(expectBody, body);
++      output(`  HTTP(S) body check for ${httpOptions.url}: ${matched ? 'matched' : 'no match'}`);
++      if (!matched) {
++        return false;
++      }
++    }
+     output(
+       `  HTTP(S) result for ${httpOptions.url}: ${util.inspect(
+         pick(['status', 'statusText', 'headers', 'data'], result)
+@@ -393,6 +425,34 @@ async function httpCallSucceeds(output, httpOptions) {
+   }
+ }
+ 
++function toBodyString(data) {
++  if (typeof data === 'string') {
++    return data;
++  }
++  if (data === undefined || data === null) {
++    return '';
++  }
++  if (Buffer.isBuffer(data)) {
++    return data.toString('utf8');
++  }
++  if (typeof data === 'object') {
++    try {
++      return JSON.stringify(data);
++    } catch {
++      return String(data);
++    }
++  }
++  return String(data);
++}
++
++function matchRegExp(re, body) {
++  // reset stateful flags (/g, /y) so repeated polls test from the start
++  if (re.global || re.sticky) {
++    re.lastIndex = 0;
++  }
++  return re.test(body);
++}
++
+ function createTCP$({ validatedOpts: { delay, interval, tcpTimeout, reverse, simultaneous }, output }, resource) {
+   const tcpPath = extractPath(resource);
+   const checkFn = reverse ? negateAsync(tcpExists) : tcpExists;
+diff --git a/test/types.test-d.ts b/test/types.test-d.ts
+index 90b88a1..c2f6c04 100644
+--- a/test/types.test-d.ts
++++ b/test/types.test-d.ts
+@@ -46,6 +46,10 @@ waitOn({ resources: ['http://localhost:3000'], proxy: false });
+ // command: resource with per-attempt commandTimeout (U11)
+ waitOn({ resources: ['command:pg_isready'], commandTimeout: 2000 });
+ 
++// expectBody substring and RegExp on http-get: resources
++waitOn({ resources: ['http-get://localhost:3000/health'], expectBody: 'ready' });
++waitOn({ resources: ['https-get://localhost:3000/health'], expectBody: /ready/ });
++
+ // --- #250 regression: @types/wait-on callback compatibility ---
+ // The old @types typed cb as (err: any) => void, and at runtime the success
+ // path invokes cb with `undefined` (never null). These explicitly annotated

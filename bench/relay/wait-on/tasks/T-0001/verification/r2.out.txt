@@ -1,0 +1,215 @@
+
+> wait-on@9.5.1 test
+> npm run lint && npm run test:types && npm run test:mocha
+
+
+> wait-on@9.5.1 lint
+> eslint "lib/**/*.js" "test/**/*.js" "bin/wait-on"
+
+
+> wait-on@9.5.1 test:types
+> tsc -p test/tsconfig.json
+
+
+> wait-on@9.5.1 test:mocha
+> mocha --exit "test/**/*.mocha.js"
+
+
+
+  api
+    ✔ should succeed when file resources are available (765ms)
+    ✔ should succeed when file resources are become available later (1265ms)
+    ✔ should succeed when http resources are become available later (537ms)
+    ✔ should succeed when custom validateStatus fn is provided http resource returns 401 (509ms)
+    ✔ should succeed when http resource become available later via redirect (522ms)
+    ✔ should succeed when http GET resources become available later (525ms)
+    ✔ should succeed when http GET resource become available later via redirect (518ms)
+    ✔ should succeed when a service is listening to tcp port (512ms)
+    ✔ should succeed when a service is listening to a socket (511ms)
+    ✔ should close the tcp connection after a successful check (#82)
+    ✔ should not leak a socket handle after a timed-out tcp check (#82) (708ms)
+    ✔ should close the unix socket connection after a successful check (#82)
+    ✔ should succeed when a http service is listening to a socket whose path contains a colon (515ms)
+    ✔ should succeed when a http service is listening to a socket (506ms)
+    ✔ should succeed when a http GET service is listening to a socket (517ms)
+    ✔ should timeout when all resources are not available and timout option is specified (1004ms)
+    ✔ should timeout when some resources are not available and timout option is specified (1014ms)
+    ✔ should timeout when an http resource returns 404 (1005ms)
+    ✔ should timeout when an http resource is not available (1004ms)
+    ✔ should timeout when an http resource does not respond before httpTimeout (1003ms)
+    ✔ should timeout when followRedirect is false and http resource redirects (1010ms)
+    ✔ should timeout when an http GET resource is not available (1007ms)
+    ✔ should timeout when an https resource is not available (1004ms)
+    ✔ should timeout when an https GET resource is not available (1009ms)
+    ✔ should timeout when followRedirect is false and http GET resource redirects (1006ms)
+    ✔ should timeout when a service is not listening to tcp port (1004ms)
+    ✔ should timeout when a service is not listening to a socket (1005ms)
+    ✔ should timeout when a service host is unreachable (1003ms)
+    ✔ should trigger TCP timeout handler (2002ms)
+waiting for 1 resources: file:/non/existent/file/path
+wait-on(35941) Timed out waiting for: file:/non/existent/file/path; exiting with error
+    ✔ should log timeout error when log is enabled (507ms)
+    ✔ should timeout when an http service listening to a socket returns 404 (1005ms)
+    ✔ should timeout when an http service listening to a socket is too slow (1006ms)
+    ✔ should succeed when a service host is unreachable in reverse mode
+    ✔ should succeed when file resources are not available in reverse mode
+    ✔ should succeed when file resources are not available later in reverse mode (510ms)
+    ✔ should invoke the callback with err === undefined (not null) on success (#250) (761ms)
+    ✔ should invoke the callback with err === undefined (not null) on reverse-mode success (#250)
+    ✔ should timeout when file resources are available in reverse mode (1004ms)
+    string/array opts shorthand (#61)
+      ✔ accepts a string, resolving like { resources: [string] } (callback form) (515ms)
+      ✔ accepts a string via the promise form (518ms)
+      ✔ accepts a string array, resolving like { resources: arr } (513ms)
+      ✔ still accepts an object opts unchanged (506ms)
+    promise support
+      ✔ should succeed when file resources are available (760ms)
+      ✔ should succeed when file resources are become available later (1266ms)
+      ✔ should timeout when all resources are not available and timout option is specified (1004ms)
+      ✔ should timeout when some resources are not available and timout option is specified (1002ms)
+      ✔ should succeed when file resources are not available in reverse mode
+      ✔ should succeed when file resources are not available later in reverse mode (509ms)
+      ✔ should timeout when file resources are available in reverse mode (1005ms)
+    resource validation (#217, #140, #141)
+      ✔ should reject a malformed http-get resource promptly, not poll to timeout (#217)
+      ✔ should reject tcp:// with a tcp:host:port hint, not poll to timeout (#140)
+      ✔ should succeed against a tcp IPv6 listener (#141)
+      ✔ should time out (no TypeError) for a tcp IPv6 with no listener (#141) (805ms)
+    command (#87, #15, #71)
+      ✔ succeeds when the command exits 0 (63ms)
+      ✔ keeps polling to the global timeout when the command keeps exiting non-zero (602ms)
+      ✔ succeeds once a failing command starts passing after several polls (447ms)
+      ✔ never runs a slow command concurrently with itself (1031ms)
+      ✔ kills a command that exceeds commandTimeout and keeps polling (670ms)
+      ✔ in reverse mode, waits until the command starts failing (441ms)
+
+  cli
+    ✔ should succeed when file resources are available (351ms)
+    ✔ should succeed when file resources are become available later (467ms)
+    ✔ should succeed when http resources become available later (392ms)
+    ✔ should succeed when http resources become available later via redirect (381ms)
+    ✔ should succeed when http GET resources become available later (384ms)
+    ✔ should succeed when http GET resources become available later via redirect (385ms)
+    ✔ should succeed when a service is listening to tcp port (379ms)
+    ✔ should succeed when a service is listening to a socket (374ms)
+    ✔ should succeed when a http service is listening to a socket (384ms)
+    ✔ should succeed when a http GET service is listening to a socket (380ms)
+    ✔ should timeout when all resources are not available and timout option is specified (1162ms)
+    ✔ should timeout when all resources are not available and timout option is specified with unit (1163ms)
+    ✔ should timeout when some resources are not available and timout option is specified (1180ms)
+    ✔ should timeout when an http resource returns 404 (1171ms)
+    ✔ should timeout when an http resource is not available (1161ms)
+    ✔ should timeout when an http resource does not respond before httpTimeout (1166ms)
+    ✔ should timeout when an http resource does not respond before httpTimeout specified with unit (1167ms)
+    ✔ should timeout when an http GET resource is not available (1166ms)
+    ✔ should timeout when an https resource is not available (1177ms)
+    ✔ should timeout when an https GET resource is not available (1173ms)
+    ✔ should timeout when a service is not listening to tcp port (1175ms)
+    ✔ should timeout when a service host is unreachable (1169ms)
+    ✔ should timeout when a service host is unreachable, tcpTimeout specified with unit (1189ms)
+    ✔ should timeout when a service is not listening to a socket (1170ms)
+    ✔ should timeout when an http service listening to a socket returns 404 (1172ms)
+    ✔ should succeed when file resources are not available in reverse mode (161ms)
+    ✔ should succeed when file resources are not available later in reverse mode (347ms)
+    ✔ should timeout when file resources are available in reverse mode (1167ms)
+    ✔ should succeed when a service host is unreachable in reverse mode (183ms)
+    resources are specified in config
+      ✔ should succeed when http resources become available later (372ms)
+      ✔ should succeed when http resources from command line become available later (ignores config resources) (379ms)
+    resource validation
+      ✔ should exit non-zero and name the bad resource for a malformed resource (#140) (159ms)
+    argument parsing
+      ✔ should ignore an unknown flag instead of erroring (non-strict parseArgs) (246ms)
+    http headers (-H/--header)
+      ✔ sends a single -H header to the server (160ms)
+      ✔ sends two -H headers to the server (162ms)
+      ✔ splits a header value only at the first colon (161ms)
+      ✔ exits non-zero with a message for a malformed header (no colon) (144ms)
+      ✔ merges CLI headers with config-file headers, CLI winning on a conflict (156ms)
+    status codes (--status-codes, #187, #49)
+      ✔ succeeds on a 404 when the range includes it (156ms)
+      ✔ succeeds on a 404 when it is listed as a single code (153ms)
+      ✔ times out on a 500 outside the accepted range (1154ms)
+      ✔ times out on a 200 when 2XX is not listed (1167ms)
+      ✔ applies to http-get resources (183ms)
+      ✔ overrides a config-file validateStatus (169ms)
+      ✔ inverts the accepted set in reverse mode (1156ms)
+      ✔ exits non-zero with a message for `--status-codes 499-200` (150ms)
+      ✔ exits non-zero with a message for `--status-codes abc` (145ms)
+      ✔ exits non-zero with a message for `--status-codes=` (141ms)
+      ✔ exits non-zero with a message for `--status-codes` (139ms)
+    command (#87, #15, #71)
+      ✔ exits 0 when the command exits 0 (178ms)
+      ✔ exits 0 when a command starts passing later (389ms)
+      ✔ exits non-zero (times out) when the command never passes (1147ms)
+      reverse mode
+        ✔ exits 0 when the command exits non-zero (200ms)
+        ✔ exits non-zero (times out) when the command keeps passing (1163ms)
+
+  cli parseArgv
+    ✔ parses `-c cfg.js` to config=cfg.js
+    ✔ parses `--config cfg.js` to config=cfg.js
+    ✔ parses `-d 10` to delay=10
+    ✔ parses `--delay 10` to delay=10
+    ✔ parses `-i 100` to interval=100
+    ✔ parses `--interval 100` to interval=100
+    ✔ parses `-s 1` to simultaneous=1
+    ✔ parses `--simultaneous 1` to simultaneous=1
+    ✔ parses `-t 5000` to timeout=5000
+    ✔ parses `--timeout 5000` to timeout=5000
+    ✔ parses `-w 750` to window=750
+    ✔ parses `--window 750` to window=750
+    ✔ parses `--httpTimeout 70ms` to httpTimeout=70ms
+    ✔ parses `--tcpTimeout 300` to tcpTimeout=300
+    ✔ parses `--status-codes 200-499` to status-codes=200-499
+    ✔ parses `-l` to log=true
+    ✔ parses `--log` to log=true
+    ✔ parses `-r` to reverse=true
+    ✔ parses `--reverse` to reverse=true
+    ✔ parses `-v` to verbose=true
+    ✔ parses `--verbose` to verbose=true
+    ✔ parses `-h` to help=true
+    ✔ parses `--help` to help=true
+    ✔ ignores an unknown flag rather than throwing
+    ✔ treats the argument after an unknown --flag as its value, not a resource
+    ✔ maps --no-<x> boolean forms to <x>: false
+    ✔ keeps the last value of a repeated --status-codes
+    ✔ collects multiple positionals as resources
+
+  cli parseHeaders
+    ✔ parses "Name: value" into an object with a trimmed name and value
+    ✔ collects multiple headers
+    ✔ splits only at the first colon so values may contain colons
+    ✔ throws, naming the entry, for a header with no colon
+    ✔ throws for a header with an empty name
+
+  cli parseStatusCodes
+    ✔ accepts a single code
+    ✔ accepts an inclusive range
+    ✔ accepts a comma list of codes and ranges, ignoring whitespace
+    ✔ throws, naming the entry, for `abc`
+    ✔ throws, naming the entry, for `2xx`
+    ✔ throws, naming the entry, for `600`
+    ✔ throws, naming the entry, for `99`
+    ✔ throws, naming the entry, for `050`
+    ✔ throws, naming the entry, for `499-200`
+    ✔ throws, naming the entry, for `200,,204`
+    ✔ throws, naming the entry, for ``
+    ✔ throws, naming the entry, for `200-`
+    ✔ accepts the 100 and 599 bounds
+    ✔ names the offending entry in the message
+    ✔ throws when the flag has no value (bare --status-codes parses to true)
+
+  validation
+    API
+      ✔ should callback with error when resources property is omitted
+      ✔ should callback with error when no resources are provided
+      ✔ should return error when opts is null
+    CLI
+      ✔ should exit with non-zero error code when no resources provided
+
+
+  165 passing (1m)
+
+
+=== held-out scenarios: 0 passed, 1 failed (test/holdout-expect-body.mocha.js) ===

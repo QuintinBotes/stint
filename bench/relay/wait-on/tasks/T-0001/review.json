@@ -1,0 +1,17 @@
+{
+  "blockers": [],
+  "cost": {
+    "cachedTokens": 0,
+    "inputTokens": 4223,
+    "outputTokens": 402,
+    "usd": 0
+  },
+  "createdAt": "2026-10-29T14:37:53.043Z",
+  "findings": [],
+  "model": "ollama/muse-glimmer:30b-mlx",
+  "offline": true,
+  "run": "r4",
+  "summary": "No actionable findings.",
+  "verdict": "approve",
+  "version": "stint.review/1"
+}

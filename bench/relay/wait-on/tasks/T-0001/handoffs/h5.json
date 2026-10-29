@@ -1,0 +1,100 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 9,
+      "path": "README.md",
+      "removed": 1,
+      "run": "r3"
+    },
+    {
+      "added": 7,
+      "path": "bin/usage.txt",
+      "removed": 0,
+      "run": "r3"
+    },
+    {
+      "added": 11,
+      "path": "bin/wait-on",
+      "removed": 0,
+      "run": "r3"
+    },
+    {
+      "added": 7,
+      "path": "index.d.ts",
+      "removed": 0,
+      "run": "r3"
+    },
+    {
+      "added": 64,
+      "path": "lib/wait-on.js",
+      "removed": 4,
+      "run": "r3"
+    },
+    {
+      "added": 4,
+      "path": "test/types.test-d.ts",
+      "removed": 0,
+      "run": "r3"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 1551144,
+    "inputTokens": 1610677,
+    "outputTokens": 16064,
+    "usd": 0.3874
+  },
+  "createdAt": "2026-10-29T14:35:59.960Z",
+  "decisions": [
+    {
+      "id": "D1",
+      "text": "expectBody accepts a non-empty string or a RegExp instance, validated by Joi as alternatives(string min 1, object instance RegExp)"
+    },
+    {
+      "id": "D2",
+      "text": "expectBody with any http:/https: HEAD resource fails fast with an error naming expectBody and directing to the http-get:/https-get: (-get) form"
+    },
+    {
+      "id": "D3",
+      "text": "when expectBody is set on a GET request, axios reads raw text (responseType text with identity transform) so matching sees the exact payload"
+    },
+    {
+      "id": "D4",
+      "text": "tests: test/types.test-d.ts changed because the task acceptance requires the type tests to cover the new expectBody option"
+    }
+  ],
+  "diffRef": {
+    "base": "826857aef62e4af7ffff073d0aaa6d6e48dda85d",
+    "head": "16d29bc7b7c17413d4d3a3fbb5aa9331db365fe3"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "codex",
+    "endedBy": "completed",
+    "host": "meta-api",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r3",
+    "sessionId": "01a18812-1834-7742-841f-e89102685af4",
+    "vendor": "openai"
+  },
+  "hash": "sha256:8a9cfa2f621bee867248a8492e2622b96a5acadb702dbe7faee297c7ee319088",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "Implemented `expectBody` / `--expect-body` for this task. **Changes** - `lib/wait-on.js`: added `expectBody` (non-empty string or RegExp) to the Joi schema; fail-fast rejection when any `http:`/`https:` HEAD resource is used with it; GET polling now requires status success plus body match (substring `includes` or RegExp `test`, with `lastIndex` reset for `/g`/`/y`), reading the raw text payload...",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm test",
+    "durationMs": 73781,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

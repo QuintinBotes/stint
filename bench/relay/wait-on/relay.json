@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "kind": "relay",
+  "repo": {
+    "id": "wait-on",
+    "name": "jeffbski/wait-on",
+    "url": "https://github.com/jeffbski/wait-on.git",
+    "licence": "MIT",
+    "commit": "fae57e2e074a241551a8a5e9089e48099247ac41"
+  },
+  "seeded": [
+    "wait-on-expect-body"
+  ],
+  "tasks": [
+    "T-0001"
+  ],
+  "live": true,
+  "agents": [
+    {
+      "adapter": "muse-code",
+      "model": "muse-spark-1.3",
+      "host": "meta-api"
+    },
+    {
+      "adapter": "claude-code",
+      "model": "muse-glimmer:30b-mlx",
+      "host": "ollama"
+    },
+    {
+      "adapter": "codex",
+      "model": "muse-spark-1.3",
+      "host": "meta-api"
+    }
+  ],
+  "hops": [
+    {
+      "hop": 1,
+      "adapter": "muse-code",
+      "run": "r1",
+      "model": "muse-spark-1.3",
+      "host": "local-cli",
+      "endedBy": "killed",
+      "stoppedByRelay": "stopped by the relay after 11 tool calls",
+      "handoffFrom": null,
+      "packetLeft": "h1",
+      "verification": "red",
+      "usd": null
+    },
+    {
+      "hop": 2,
+      "adapter": "claude-code",
+      "run": "r2",
+      "model": "muse-glimmer:30b-mlx",
+      "host": "ollama",
+      "endedBy": "killed",
+      "stoppedByRelay": null,
+      "handoffFrom": "h2",
+      "packetLeft": "h3",
+      "verification": "red",
+      "usd": 0
+    },
+    {
+      "hop": 3,
+      "adapter": "codex",
+      "run": "r3",
+      "model": "muse-spark-1.3",
+      "host": "meta-api",
+      "endedBy": "completed",
+      "stoppedByRelay": null,
+      "handoffFrom": "h4",
+      "packetLeft": "h5",
+      "verification": "green",
+      "usd": 0.3874
+    }
+  ],
+  "steps": [],
+  "review": {
+    "verdict": "approve",
+    "findings": 0,
+    "model": "ollama/muse-glimmer:30b-mlx",
+    "offline": true
+  },
+  "gate": true,
+  "end": "at-gate",
+  "outcome": "at the gate: verified green and reviewed; the relay stops here and approves nothing",
+  "spendUsd": 0.3874,
+  "spendEstimated": true,
+  "priorSpendUsd": 0.2944,
+  "budgetUsd": 40,
+  "scripted": [
+    "the baseline commit removes AGENTS.md, CLAUDE.md",
+    "stint init wrote .gitignore, AGENTS.md, CLAUDE.md",
+    "muse-code is stopped by the script after 10 tool calls or 300 s, whichever comes first, through the stop route a person's stint stop uses"
+  ],
+  "retried": [],
+  "scrubbed": [
+    "machine paths, the user name, emails and key values",
+    "long dashes written as -",
+    "events.jsonl hash chains and packet hashes computed again over the scrubbed text"
+  ],
+  "chainVerifiedBeforeScrub": true,
+  "startedAt": "2026-10-29T14:10:28.816Z",
+  "finishedAt": "2026-10-29T14:37:53.134Z"
+}

@@ -1,0 +1,51 @@
+{
+  "askOfNext": "Next: Check the unknown step first. Next: Held-out scenarios failed. Their source is held out; the names are all you get...",
+  "changedFiles": [],
+  "cost": {
+    "cachedTokens": 0,
+    "inputTokens": 1601,
+    "outputTokens": 0,
+    "usd": 0
+  },
+  "createdAt": "2026-10-29T14:30:49.153Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "826857aef62e4af7ffff073d0aaa6d6e48dda85d",
+    "head": "23affc5081b6459e527b95ea15afeb24709dc785"
+  },
+  "done": [],
+  "from": {
+    "adapter": "claude-code",
+    "endedBy": "killed",
+    "host": "ollama",
+    "model": "muse-glimmer:30b-mlx",
+    "role": "implementer",
+    "run": "r2",
+    "sessionId": "921e1e75-54ae-44fd-9b1d-e30e5057224a",
+    "vendor": "anthropic"
+  },
+  "hash": "sha256:a04dc0a9573b260d464c3d7df8a73ace794ffe592379b78d11d0597142a17dcc",
+  "leftOut": [],
+  "open": [
+    "Check the unknown step first. Next: Held-out scenarios failed. Their source is held out; the names are all you get..",
+    "Held-out scenarios failed. Their source is held out; the names are all you get."
+  ],
+  "refusals": [],
+  "risks": [],
+  "summary": "claude-code killed after 21 tool calls.",
+  "task": "T-0001",
+  "to": {
+    "adapter": "codex",
+    "role": "implementer"
+  },
+  "verification": {
+    "command": "npm test",
+    "durationMs": 74113,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "red"
+  },
+  "version": "stint.handoff/1"
+}

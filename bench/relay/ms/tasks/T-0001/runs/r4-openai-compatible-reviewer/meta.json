@@ -1,0 +1,9 @@
+{
+  "adapter": "openai-compatible",
+  "host": "ollama",
+  "model": "muse-glimmer:30b-mlx",
+  "role": "reviewer",
+  "run": "r4",
+  "startedAt": "2026-10-29T14:57:27.825Z",
+  "vendor": "meta"
+}
