@@ -16,6 +16,7 @@ const ALLOWED: Record<string, string> = {
   'packages/daemon/src/routes/approve.ts': 'temp files handed to git hash-object and commit-tree, removed after',
   'packages/cli/src/init.ts': 'AGENTS.md and .gitignore in the repository, not under .stint',
   'packages/cli/src/report.ts': 'PROGRESS.md in the repository',
+  'packages/cli/src/draft.ts': 'stint draft --out writes the exported spec.md where the person names, not under .stint',
   'packages/cli/src/eval.ts': 'a golden task file in bench/golden',
   'packages/cli/src/bench/results.ts': 'bench results in bench/',
   'packages/cli/src/bench/live.ts': 'recorded bench runs in bench/runs',
