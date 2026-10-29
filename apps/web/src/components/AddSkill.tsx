@@ -159,8 +159,11 @@ const BLOCKED = 'A blocking finding stops this skill. Fix what it names, then tr
 /** What a tab gives the dialog's footer: what its submit waits for, its words, and the send in flight. */
 type Submit = { why: string | null; label: string; busy: boolean; failure: Failure | null; onSubmit: () => void };
 
-/** The footer: the daemon's refusal, what the submit waits for (beside it and as its description, so a disabled button is never mute), and the submit, which says when it is sending. */
-function Actions({ why, label, busy, failure, onSubmit }: Submit) {
+/** The footer: the daemon's refusal, what the submit waits for (beside it and as its description, so a disabled button is never mute), Cancel, which asks first once anything is chosen or typed, and the submit, which says when it is sending. From git has no submit. */
+function Actions({ submit, dismiss }: { submit: Submit | null; dismiss: () => void }) {
+  const cancel = <Button onClick={dismiss}>Cancel</Button>;
+  if (!submit) return cancel;
+  const { why, label, busy, failure, onSubmit } = submit;
   return (
     <>
       {failure ? (
@@ -173,6 +176,7 @@ function Actions({ why, label, busy, failure, onSubmit }: Submit) {
           {why}
         </p>
       ) : null}
+      {cancel}
       <Button tone="primary" disabled={!!why || busy} aria-busy={busy || undefined} aria-describedby={why ? 'add-skill-why' : undefined} onClick={onSubmit} data-testid="add-skill-submit">
         {busy ? 'Sending' : label}
       </Button>
@@ -470,7 +474,7 @@ export function AddSkillDialog({ edit, onClose, onAdded }: { edit: string | null
   // after the dialog has noted the opener, so closing it gives focus back there
   useEffect(() => tabs.current[edit ? 'write' : 'upload']?.focus(), [edit]);
   return (
-    <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width={720} dirty={upload.dirty || git.dirty || write.dirty} footer={submit ? <Actions {...submit} /> : null}>
+    <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width={720} dirty={upload.dirty || git.dirty || write.dirty} footer={(dismiss) => <Actions submit={submit} dismiss={dismiss} />}>
       <div data-testid="add-skill-dialog">
         <p className="mb-4 text-small text-ink-3">It waits on the Skills page with its findings. No agent gets it until you approve it.</p>
         <div role="tablist" aria-label="How to add the skill" className="flex flex-wrap border-b border-rule mb-5" onKeyDown={tabKeys}>

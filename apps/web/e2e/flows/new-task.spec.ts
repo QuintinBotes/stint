@@ -5,6 +5,8 @@ test('Pressing n opens the new task dialog; creating a task opens it, puts it in
   const d = daemon(request);
   await page.goto('/');
   await page.keyboard.press('n');
+  // the spec builder opens first; the plain form is behind Write it yourself
+  await page.getByTestId('builder-write').click();
   const dialog = page.getByRole('dialog', { name: 'New task' });
   await dialog.getByLabel('Title').fill('Flow: add a health endpoint');
   await dialog.getByLabel('Goal').fill('GET /health answers 200.');
@@ -52,6 +54,8 @@ test('A double press on Create task makes one task; the button says it is workin
   const title = `Flow: pressed twice ${Date.now()}`;
   await page.goto('/');
   await page.keyboard.press('n');
+  // the spec builder opens first; the plain form is behind Write it yourself
+  await page.getByTestId('builder-write').click();
   const dialog = page.getByRole('dialog', { name: 'New task' });
   await dialog.getByLabel('Title').fill(title);
   await dialog.getByLabel('Goal').fill('One task, however many presses.');

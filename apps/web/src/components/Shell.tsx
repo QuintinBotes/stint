@@ -204,13 +204,24 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
   return actions.filter((a) => (closed ? views.has(a.id) : a.id !== (onAutopilot ? 'autopilot-on' : 'autopilot-off')));
 }
 
-/** Puts focus back where it was when an overlay opened, once it closes. */
+/** Where the overlay that just closed would put focus back, while one that opens in its place takes it over. */
+let handover: HTMLElement | null = null;
+
+/**
+ * Puts focus back where it was when an overlay opened, once it closes. An overlay opened as another closes (Write it
+ * yourself, a palette command) returns focus to where the first was opened from, and nothing pulls focus out of it.
+ */
 function useRestoreFocus(open: boolean): void {
   useEffect(() => {
     if (!open) return;
-    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const active = document.activeElement;
+    const before = active instanceof HTMLElement && active !== document.body ? active : handover;
     return () => {
-      if (before?.isConnected) requestAnimationFrame(() => before.focus());
+      handover = before;
+      requestAnimationFrame(() => {
+        handover = null;
+        if (before?.isConnected && !document.querySelector('[aria-modal]')) before.focus();
+      });
     };
   }, [open]);
 }
@@ -297,9 +308,10 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
 /**
  * A modal in the charcoal system: a header with the title and a visible Close, a body that scrolls, and an optional footer
  * that stays in reach below it. With `dirty`, a dismissal (Escape, Close, a click outside) asks before it drops the draft:
- * the footer becomes "Discard this draft?" with Keep editing first, and Escape there keeps editing.
+ * the footer becomes "Discard this draft?" with Keep editing first, and Escape there keeps editing. A `footer` given as a
+ * function receives that guarded dismissal, so a Cancel in it asks first too.
  */
-export function Dialog({ title, open, onClose, children, footer, dirty = false, width = 640 }: { title: string; open: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode; dirty?: boolean; width?: number }) {
+export function Dialog({ title, open, onClose, children, footer, dirty = false, width = 640 }: { title: string; open: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode | ((dismiss: () => void) => ReactNode); dirty?: boolean; width?: number }) {
   useRestoreFocus(open);
   const box = useRef<HTMLDivElement>(null);
   const keep = useRef<HTMLButtonElement>(null);
@@ -327,6 +339,7 @@ export function Dialog({ title, open, onClose, children, footer, dirty = false, 
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, dirty, asking]);
   if (!open) return null;
+  const foot = typeof footer === 'function' ? footer(dismiss) : footer;
   return (
     <div className="fixed inset-0 z-50 bg-shell/75 flex items-start justify-center pt-[8vh] px-4" onMouseDown={dismiss}>
       <div
@@ -363,8 +376,8 @@ export function Dialog({ title, open, onClose, children, footer, dirty = false, 
               </Button>
             </div>
           </div>
-        ) : footer ? (
-          <div className="stint-dialog-footer">{footer}</div>
+        ) : foot ? (
+          <div className="stint-dialog-footer">{foot}</div>
         ) : null}
       </div>
     </div>
@@ -380,7 +393,7 @@ const LIMIT_FIELDS: Array<{ k: keyof Limits; label: string; hint: string; min: n
 ];
 
 /** A create dialog's form: whether anything is typed, the request in flight, and what the daemon said when it refused. Cleared when the dialog closes. */
-function useDraft(open: boolean) {
+export function useDraft(open: boolean) {
   const [dirty, setDirty] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -416,7 +429,7 @@ function useDraft(open: boolean) {
 }
 
 /** A labelled field; its hint sits under it and is read with it through aria-describedby on the control. */
-function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
+export function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="stint-field-group">
       <label htmlFor={id} className="stint-field-label">
@@ -432,8 +445,8 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
   );
 }
 
-/** The footer of a create dialog: the daemon's message beside the action when it refused, and the action, which says when it is working. */
-function CreateFooter({ form, pending, error, label, working }: { form: string; pending: boolean; error: string | null; label: string; working: string }) {
+/** The footer of a create dialog: the daemon's message beside the action when it refused, Cancel, which asks first once anything is typed, and the action, which says when it is working. */
+function CreateFooter({ form, pending, error, label, working, dismiss }: { form: string; pending: boolean; error: string | null; label: string; working: string; dismiss: () => void }) {
   return (
     <>
       {error ? (
@@ -441,6 +454,7 @@ function CreateFooter({ form, pending, error, label, working }: { form: string; 
           {error}
         </p>
       ) : null}
+      <Button onClick={dismiss}>Cancel</Button>
       <Button tone="primary" type="submit" form={form} aria-disabled={pending} aria-busy={pending}>
         {pending ? working : label}
       </Button>
@@ -463,7 +477,7 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
     if (open) void api.limitDefaults().then(setDefaults).catch(() => undefined);
   }, [open]);
   return (
-    <Dialog title="New task" open={open} onClose={onClose} dirty={draft.dirty} footer={<CreateFooter form={`${id}-form`} pending={draft.pending} error={draft.error} label="Create task" working="Creating task" />}>
+    <Dialog title="New task" open={open} onClose={onClose} dirty={draft.dirty} footer={(dismiss) => <CreateFooter form={`${id}-form`} pending={draft.pending} error={draft.error} label="Create task" working="Creating task" dismiss={dismiss} />}>
       <form
         id={`${id}-form`}
         className="grid gap-5"
@@ -546,7 +560,7 @@ export function NewGoalDialog({ open, onClose }: { open: boolean; onClose: () =>
   const id = useId();
   const draft = useDraft(open);
   return (
-    <Dialog title="New goal" open={open} onClose={onClose} dirty={draft.dirty} footer={<CreateFooter form={`${id}-form`} pending={draft.pending} error={draft.error} label="Create goal" working="Creating goal" />}>
+    <Dialog title="New goal" open={open} onClose={onClose} dirty={draft.dirty} footer={(dismiss) => <CreateFooter form={`${id}-form`} pending={draft.pending} error={draft.error} label="Create goal" working="Creating goal" dismiss={dismiss} />}>
       <form
         id={`${id}-form`}
         className="grid gap-5"
@@ -612,8 +626,8 @@ export function usePaletteActions(extra: { newTask: () => void; newGoal: () => v
   const singleKeys = useSingleKeys();
   return useMemo(
     () => [
-      { id: 'new', label: 'New task', key: 'n', cli: 'stint new "..."', group: 'go' as const, run: extra.newTask },
-      { id: 'new-goal', label: 'New goal', cli: 'stint goal new "..." --outcome "..." --criterion "..."', group: 'go' as const, run: extra.newGoal },
+      { id: 'new', label: 'New task', key: 'n', cli: 'stint draft "..."', group: 'go' as const, run: extra.newTask },
+      { id: 'new-goal', label: 'New goal', cli: 'stint draft "..." --goal', group: 'go' as const, run: extra.newGoal },
       { id: 'run-all', label: 'Run all planned tasks on autopilot', cli: 'stint run --all', group: 'actions' as const, run: () => report(api.autopilotAll(true), 'Planned tasks are on autopilot') },
       {
         id: 'notifications',

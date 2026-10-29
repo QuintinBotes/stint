@@ -11,6 +11,8 @@ test('A task made with Builds 1 stops at the build limit after a failing build; 
   const d = daemon(request);
   await page.goto('/');
   await page.keyboard.press('n');
+  // the spec builder opens first; the plain form is behind Write it yourself
+  await page.getByTestId('builder-write').click();
   const dialog = page.getByRole('dialog', { name: 'New task' });
   await dialog.getByLabel('Title').fill('Flow: stop at the build limit');
   await dialog.getByLabel('Goal').fill('The build fails, and autopilot stops at one build.');
