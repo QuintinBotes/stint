@@ -81,6 +81,22 @@ test('stint goal new, sharpen, plan, show and list: a goal is made, sharpened, s
         expect(json).toMatchObject({ goal: { id: 'G-0001' }, outcome: { met: 0 } });
         expect(json.outcome.tasks).toHaveLength(2);
         expect((await out(stint(repo, ['goal', 'list']))).stdout).toBe('G-0001  running  0 of 2 criteria met  2 tasks  $0.00 of $4.00  Health checks\n');
+
+        // limits, proofs, run and abandon: what the goal page does, from a terminal
+        expect((await out(stint(repo, ['goal', 'limits', 'G-0001']))).stdout).toBe('Spend         $0.00 of $4.00\nBuilds        0 of 4\n');
+        expect((await out(stint(repo, ['goal', 'limits', 'G-0001', '--max-builds', '6', '--none', 'usd']))).stdout).toBe('Spend         $0.00, no limit\nBuilds        0 of 6\n');
+        expect((await d.ws.readGoal('G-0001')).limits).toEqual({ usd: null, builds: 6 });
+        const minutes = await out(stint(repo, ['goal', 'limits', 'G-0001', '--none', 'minutes']));
+        expect([minutes.code, minutes.stderr]).toEqual([2, '--none takes usd or builds for a goal, not minutes\n']);
+        const proofs = await out(stint(repo, ['proofs', 'G-0001', '--set', '2=check:body-ok']));
+        expect(proofs.code, proofs.stderr).toBe(0);
+        expect(proofs.stdout).toContain('2. The body says ok\n   check: body-ok');
+        expect((await d.ws.readGoal('G-0001')).criteria[1]).toEqual({ text: 'The body says ok', proof: { kind: 'check', ref: 'body-ok' } });
+        const ran = await out(stint(repo, ['goal', 'run', 'G-0001']));
+        expect(ran.stdout).toBe('G-0001: T-0001, T-0002 on autopilot. Each stops at your approval, and a task waits for the tasks it depends on to be merged.\n');
+        expect((await out(stint(repo, ['goal', 'abandon', 'G-0001']))).stdout).toBe('G-0001 is abandoned.\n');
+        const again = await out(stint(repo, ['goal', 'run', 'G-0001']));
+        expect([again.code, again.stderr]).toEqual([1, 'invalid: G-0001 is abandoned\n']);
       } finally {
         await d.stop();
       }
