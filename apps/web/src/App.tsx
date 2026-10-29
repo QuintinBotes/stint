@@ -1,7 +1,9 @@
+import type { DraftKind } from '@stint-dev/core';
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Link, Route, Routes } from 'react-router';
 import { Dialog, NewGoalDialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions } from './components/Shell';
 import { Notifier } from './components/Notifier';
+import { SpecBuilder } from './components/SpecBuilder';
 import { Kbd } from './components/ui';
 import { GLOSSARY } from './glossary';
 import { singleKey } from './shortcuts';
@@ -61,9 +63,11 @@ export function App() {
   const [palette, setPalette] = useState(false);
   const [newTask, setNewTask] = useState(false);
   const [newGoal, setNewGoal] = useState(false);
+  // the spec builder is the one door to new work (R-066); New goal opens it asking for a goal
+  const [builder, setBuilder] = useState<{ kind?: DraftKind } | null>(null);
   const [help, setHelp] = useState(false);
-  const openNewTask = useCallback(() => setNewTask(true), []);
-  const openNewGoal = useCallback(() => setNewGoal(true), []);
+  const openNewTask = useCallback(() => setBuilder({}), []);
+  const openNewGoal = useCallback(() => setBuilder({ kind: 'goal' }), []);
   const actions = usePaletteActions({ newTask: openNewTask, newGoal: openNewGoal });
 
   useEffect(() => {
@@ -74,12 +78,15 @@ export function App() {
         return;
       }
       if (!singleKey(e)) return;
-      if (e.key === 'n') setNewTask(true);
-      else if (e.key === '?') setHelp(true);
+      // the key opens the builder, whose text box takes focus at once: the n is not typed into it
+      if (e.key === 'n') {
+        e.preventDefault();
+        openNewTask();
+      } else if (e.key === '?') setHelp(true);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [openNewTask]);
 
   return (
     <BrowserRouter>
@@ -133,6 +140,18 @@ export function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
         <Palette open={palette} onClose={() => setPalette(false)} actions={actions} health={health.data} />
+        {builder ? (
+          <SpecBuilder
+            kind={builder.kind}
+            replay={health.data?.mode === 'replay'}
+            onClose={() => setBuilder(null)}
+            onWrite={() => {
+              setBuilder(null);
+              if (builder.kind === 'goal') setNewGoal(true);
+              else setNewTask(true);
+            }}
+          />
+        ) : null}
         <NewTaskDialog open={newTask} onClose={() => setNewTask(false)} />
         <NewGoalDialog open={newGoal} onClose={() => setNewGoal(false)} />
         <Dialog title="Help" open={help} onClose={() => setHelp(false)} width={720}>

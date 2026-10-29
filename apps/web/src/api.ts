@@ -1,5 +1,5 @@
 // Typed client for the daemon. The daemon is the only writer of .stint/; the UI only reads and asks.
-import { type Cost, EVENT_TYPES, type Goal, type GoalOutcome, type Handoff, type ProposedTask, type Limits, type Plan, type Review, type SharpenState, type SkillFinding, type SkillSource, type StintEvent, type Task, type TaskLimits, type TaskProof, type TaskUsage } from '@stint-dev/core';
+import { type Cost, type Draft, type DraftKind, EVENT_TYPES, type Goal, type GoalOutcome, type Handoff, type ProposedTask, type Limits, type Plan, type Review, type SharpenState, type SkillFinding, type SkillSource, type StintEvent, type Task, type TaskLimits, type TaskProof, type TaskUsage } from '@stint-dev/core';
 
 export type CapabilityLevel = { level: 'supported' | 'partial' | 'unsupported' | 'unknown'; reason?: string; note?: string };
 export type AdapterHealth = {
@@ -201,7 +201,9 @@ export function daemonMessage(e: unknown): string {
 /** A schema's complaints as a sentence a person reads ("criteria: at most 12"), never as raw JSON. */
 function plainIssues(hint: unknown): string {
   const issues = Array.isArray(hint) ? hint : [];
-  const said = issues.flatMap((i: { path?: unknown[]; code?: string; maximum?: number; minimum?: number; message?: string }) => {
+  const said = issues.flatMap((i: string | { path?: unknown[]; code?: string; maximum?: number; minimum?: number; message?: string }) => {
+    // a list of problems already in words, as a Spec Kit spec that could not be read gives them
+    if (typeof i === 'string') return [i.replace(/\.$/, '')];
     const field = (i.path ?? []).filter((p) => typeof p === 'string').join('.') || 'the request';
     if (i.code === 'too_big' && typeof i.maximum === 'number') return [`${field}: at most ${i.maximum}`];
     if (i.code === 'too_small' && typeof i.minimum === 'number') return [`${field}: at least ${i.minimum}`];
@@ -332,6 +334,12 @@ export const api = {
   createGoalTasks: (id: string, tasks: ProposedTask[]) => post<{ tasks: Task[] }>(`/api/goals/${id}/tasks`, { tasks }),
   abandonGoal: (id: string) => post<Goal>(`/api/goals/${id}/abandon`),
   setGoalLimits: (id: string, limits: TaskLimits) => request<Goal>(`/api/goals/${id}/limits`, { method: 'PATCH', body: JSON.stringify(limits) }),
+  /** The spec builder (R-066): the daemon holds no draft, so each call sends it whole and nothing is written before create. */
+  draft: (input: string, kind?: DraftKind) => post<Draft>('/api/drafts', { input, ...(kind ? { kind } : {}) }),
+  refineDraft: (draft: Draft) => post<Draft>('/api/drafts/refine', { draft, answers: [] }),
+  importDraft: (spec: string, tasks?: string) => post<Draft>('/api/drafts/import', { spec, ...(tasks ? { tasks } : {}) }),
+  createFromDraft: (draft: Draft) => post<{ kind: DraftKind; id: string }>('/api/drafts/create', { draft }),
+  exportDraft: (draft: Draft) => post<string>('/api/drafts/export', { draft }),
 };
 
 /** A goal's sharpen routes sit under /api/goals, a task's under /api/tasks; the id says which. */

@@ -10,6 +10,8 @@ test('A goal made from the Goals page is sharpened, split into tasks a person ed
   await page.goto('/goals');
   await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Goals' })).toHaveAttribute('aria-current', 'page');
   await page.getByTestId('new-goal').click();
+  // New goal opens the spec builder asking for a goal; the plain form is behind Write it yourself
+  await page.getByRole('dialog', { name: 'What do you want done?' }).getByTestId('builder-write').click();
   const dialog = page.getByRole('dialog', { name: 'New goal' });
   await dialog.getByLabel('Title').fill('Flow: health checks for the service');
   await dialog.getByLabel('Outcome: what is true once it is met').fill('Operators can tell the service is up without reading its logs.');
@@ -108,6 +110,7 @@ test('The Goals list, a goal page and the New goal dialog have no WCAG A or AA v
   await page.keyboard.press('Meta+k');
   await page.getByPlaceholder('Search or run a command').fill('New goal');
   await page.keyboard.press('Enter');
+  await page.getByTestId('builder-write').click();
   const dialog = page.getByRole('dialog', { name: 'New goal' });
   await expect(dialog).toBeVisible();
   await dialog.getByText('Limits', { exact: true }).click();

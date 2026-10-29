@@ -6,6 +6,8 @@ test('A new task with "Sharpen it first" shows its questions; one answered by ke
   const d = daemon(request);
   await page.goto('/');
   await page.keyboard.press('n');
+  // the spec builder opens first; the plain form is behind Write it yourself
+  await page.getByTestId('builder-write').click();
   const dialog = page.getByRole('dialog', { name: 'New task' });
   await dialog.getByLabel('Title').fill('Flow: sharpen a health endpoint');
   await dialog.getByLabel('Goal').fill('GET /health answers 200.');
@@ -76,6 +78,8 @@ test('The Sharpen panel and the New task dialog have no WCAG A or AA violations,
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   await page.goto('/');
   await page.keyboard.press('n');
+  // the spec builder opens first; the plain form is behind Write it yourself
+  await page.getByTestId('builder-write').click();
   await expect(page.getByRole('dialog', { name: 'New task' }).getByLabel('Sharpen it first')).toBeVisible();
   expect(await axe()).toEqual([]);
 });
