@@ -1,0 +1,62 @@
+{
+  "enriched": [],
+  "fields": {
+    "askOfNext": {
+      "eventIds": [
+        "01M63XG9B4A29BFW38R9V2YF9B"
+      ],
+      "from": "events"
+    },
+    "changedFiles": {
+      "eventIds": [],
+      "from": "diff"
+    },
+    "cost": {
+      "eventIds": [
+        "01M63XG9B4A29BFW38R9V2YF9B"
+      ],
+      "from": "events"
+    },
+    "decisions": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "done": {
+      "eventIds": [
+        "01M63XGA1S870KY7VZN5EZF41Y"
+      ],
+      "from": "events"
+    },
+    "leftOut": {
+      "eventIds": [
+        "01M63XG9B4A29BFW38R9V2YF9B"
+      ],
+      "from": "events"
+    },
+    "open": {
+      "eventIds": [
+        "01M63XGA1S870KY7VZN5EZF41Y"
+      ],
+      "from": "events"
+    },
+    "refusals": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "risks": {
+      "eventIds": [],
+      "from": "plan"
+    },
+    "summary": {
+      "eventIds": [],
+      "from": "events"
+    },
+    "verification": {
+      "eventIds": [
+        "01M63XGA1S870KY7VZN5EZF41Y"
+      ],
+      "from": "events"
+    }
+  },
+  "reason": "failed"
+}

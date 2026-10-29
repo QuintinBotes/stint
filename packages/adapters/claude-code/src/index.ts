@@ -10,7 +10,7 @@ export type { ClaudeRecord } from './mapper';
  * The headless command line (R-034); approvals stay at acceptEdits, never a bypass mode. The task's own test command
  * is the one shell command allowed, so the agent can check its work before the daemon verifies it; any other still asks.
  */
-export function claudeArgs(o: { model?: string; sessionId?: string; bin?: string; testCommand?: string }): string[] {
+export function claudeArgs(o: { model?: string; sessionId?: string; bin?: string; testCommand?: string; onHost?: boolean }): string[] {
   return [
     o.bin ?? 'claude',
     '-p',
@@ -22,6 +22,9 @@ export function claudeArgs(o: { model?: string; sessionId?: string; bin?: string
     ...(o.model ? ['--model', o.model] : []),
     ...(o.sessionId ? ['--resume', o.sessionId] : []),
     ...(o.testCommand ? ['--allowedTools', `Bash(${o.testCommand}:*)`] : []),
+    // on a Stint host the person's own hooks, plugins and MCP servers stay out, and the run is one agent, not a team:
+    // they cost a local model minutes of prompt (18,617 tokens against 1,155 measured on 29 Oct) and are not the task
+    ...(o.onHost ? ['--bare', '--strict-mcp-config', '--disallowedTools', 'Agent'] : []),
   ];
 }
 
@@ -55,7 +58,7 @@ export function claudeCode(name: string, def: AgentDef, host?: { id: string; bas
 
   async function exec(ctx: RunContext, extra: { sessionId?: string; prompt?: string } = {}): Promise<RunResult> {
     const model = ctx.model ?? def.model;
-    const argv = claudeArgs({ bin, ...(model ? { model } : {}), ...(extra.sessionId ? { sessionId: extra.sessionId } : {}), testCommand: ctx.task.testCommand });
+    const argv = claudeArgs({ bin, ...(model ? { model } : {}), ...(extra.sessionId ? { sessionId: extra.sessionId } : {}), testCommand: ctx.task.testCommand, onHost: !!host?.baseURL });
     const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
     const child = spawn(cmd, args, { cwd: ctx.worktree, env: hostEnv(ctx.env, host), detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
     if (child.pid) ctx.onSpawn?.(child.pid);

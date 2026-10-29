@@ -1,0 +1,50 @@
+{
+  "askOfNext": "Next: Check the unknown step first. Next: Held-out scenarios failed. Their source is held out; the names are all you get...",
+  "changedFiles": [],
+  "cost": {
+    "cachedTokens": 0,
+    "estimated": true,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "usd": null
+  },
+  "createdAt": "2026-10-29T13:27:32.665Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "9db6151fdbe381c92224e6c5fcf67c8ee3eacba6",
+    "head": "930dd5f633015dc54b14835c0c1b9e92644121b1"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "codex",
+    "endedBy": "failed",
+    "host": "meta-api",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r3",
+    "sessionId": "01a187d8-0086-7150-94b0-a7d824a7ef10",
+    "vendor": "openai"
+  },
+  "hash": "sha256:40b825a2c8111c612b6f82fbc865f4c96ddbd753ae0011d64f598be980e8f942",
+  "leftOut": [],
+  "open": [
+    "Next: Check the unknown step first. Next: Held-out scenarios failed. Their source is held out; the names are all you get...",
+    "Held-out scenarios failed. Their source is held out; the names are all you get."
+  ],
+  "refusals": [],
+  "risks": [],
+  "summary": "codex failed after 0 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm test",
+    "durationMs": 341,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "red"
+  },
+  "version": "stint.handoff/1"
+}

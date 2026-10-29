@@ -108,6 +108,9 @@ describe('Claude Code mapper', () => {
     expect(args).toContain('acceptEdits');
     for (const flag of ['bypassPermissions', '--dangerously-skip-permissions', '--disallowedTools']) expect(args.join(' ')).not.toContain(flag);
     expect(claudeArgs({})).not.toContain('--allowedTools');
+    // on a Stint host: bare, no MCP servers of the person's, and no subagents
+    expect(claudeArgs({ model: 'muse-glimmer:30b-mlx', onHost: true }).slice(-4)).toEqual(['--bare', '--strict-mcp-config', '--disallowedTools', 'Agent']);
+    expect(claudeArgs({ model: 'sonnet' })).not.toContain('--bare');
   });
 });
 

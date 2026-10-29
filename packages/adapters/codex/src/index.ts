@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { Adapter, AgentDef, Availability, EndedBy, RunContext, RunResult } from '@stint-dev/core';
 import { CodexMapper } from './mapper';
@@ -24,6 +27,13 @@ export function codexArgs(o: { model?: string; threadId?: string; bin?: string; 
   return [bin, ...config, 'exec', '--json', '--sandbox', 'workspace-write', ...(o.model ? ['--model', o.model] : []), '-'];
 }
 
+/** Codex's own home for runs on a Stint host, kept between runs. */
+function agentHome(agent: string): string {
+  const dir = join(tmpdir(), 'stint-agent-home', agent);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 export function codexEndedBy(o: { failed: boolean; aborted: boolean; signal: NodeJS.Signals | null; exitCode: number | null }): EndedBy {
   if (o.aborted || o.signal === 'SIGKILL' || o.signal === 'SIGTERM') return 'killed';
   if (o.failed || o.exitCode !== 0) return 'failed';
@@ -37,8 +47,11 @@ export function codex(name: string, def: AgentDef, provider?: CodexProvider): Ad
   async function exec(ctx: RunContext, extra: { threadId?: string; prompt?: string } = {}): Promise<RunResult> {
     const model = ctx.model ?? def.model;
     const argv = codexArgs({ bin, ...(model ? { model } : {}), ...(extra.threadId ? { threadId: extra.threadId } : {}), ...(provider ? { provider } : {}) });
+    // with a Stint host, a clean Codex home: the person's plugins and MCP servers would reach the model, and the Meta Model
+    // API refuses tool schemas some of them carry (recursive JSON schemas)
+    const env = provider && !ctx.env.CODEX_HOME ? { ...ctx.env, CODEX_HOME: agentHome('codex') } : ctx.env;
     const [cmd, ...args] = (ctx.wrap?.(argv) ?? argv) as [string, ...string[]];
-    const child = spawn(cmd, args, { cwd: ctx.worktree, env: ctx.env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, { cwd: ctx.worktree, env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
     if (child.pid) ctx.onSpawn?.(child.pid);
     let aborted = false;
     const kill = () => {

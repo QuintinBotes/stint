@@ -161,6 +161,9 @@ function publishDir(src: string, dst: string, scrub: (t: string) => string): voi
       continue;
     }
     if (!entry.isFile()) continue;
+    // an agent CLI's raw transcript carries the person's own setup (plugins, paths, settings); the events, packets, diff
+    // and verification are the record, so the transcript is never published
+    if (entry.name.startsWith('transcript')) continue;
     mkdirSync(dst, { recursive: true });
     const buf = readFileSync(from);
     if (buf.includes(0)) {
