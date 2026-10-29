@@ -56,48 +56,75 @@ export function Who({ agent, live = false, className }: { agent: Agent; live?: b
 
 export type ChipTone = 'neutral' | 'active' | 'good' | 'warn' | 'bad' | 'merged' | 'learned' | 'recommend';
 
-/** A chip's wash and ink: amber needs you, green verified, red stopped, violet learned; merged and approved are plain ink, and a recommendation is an ink outline, not a state. */
+/** A state's shape, drawn beside its word so no state rests on colour: a triangle needs you, a tick verified, a cross failed, a dot runs, a ring waits, a square is closed, a bar was abandoned, a diamond was learned. */
+export type Shape = 'attention' | 'verified' | 'failed' | 'running' | 'waiting' | 'closed' | 'abandoned' | 'learned';
+
+/** A tone's class on the stint-status label: amber needs you, green verified, red stopped, violet learned; merged, closed and waiting stay neutral. */
 const CHIP: Record<ChipTone, string> = {
-  neutral: 'bg-panel-2 text-ink-2',
-  active: 'bg-panel-2 text-ink',
-  good: 'bg-green-wash text-green',
-  warn: 'bg-amber-wash text-amber',
-  bad: 'bg-red-wash text-red',
-  merged: 'bg-panel-2 text-ink',
-  learned: 'bg-violet-wash text-violet',
-  recommend: 'bg-transparent text-ink shadow-[inset_0_0_0_1px_var(--ink)]',
+  neutral: '',
+  active: 'stint-status--active',
+  good: 'stint-status--verified',
+  warn: 'stint-status--attention',
+  bad: 'stint-status--failed',
+  merged: '',
+  learned: 'stint-status--learned',
+  recommend: 'stint-status--recommend',
 };
 
-const STATUS: Record<string, { label: string; tone: ChipTone }> = {
-  planned: { label: 'planned', tone: 'neutral' },
-  building: { label: 'building', tone: 'active' },
-  verifying: { label: 'verifying', tone: 'active' },
-  reviewing: { label: 'reviewing', tone: 'active' },
-  in_review: { label: 'in review', tone: 'active' },
-  awaiting_approval: { label: 'needs you', tone: 'warn' },
-  approved: { label: 'approved', tone: 'merged' },
-  rejected: { label: 'rejected', tone: 'bad' },
-  done: { label: 'done', tone: 'merged' },
-  abandoned: { label: 'abandoned', tone: 'neutral' },
-  running: { label: 'running', tone: 'active' },
-  draft: { label: 'draft', tone: 'neutral' },
-  ready: { label: 'ready', tone: 'active' },
-  completed: { label: 'finished', tone: 'neutral' },
-  killed: { label: 'killed', tone: 'bad' },
-  capped: { label: 'capped', tone: 'warn' },
-  failed: { label: 'failed', tone: 'bad' },
-  handed: { label: 'handed off', tone: 'active' },
-  green: { label: 'green', tone: 'good' },
-  red: { label: 'red', tone: 'bad' },
+const TONE_SHAPE: Partial<Record<ChipTone, Shape>> = { good: 'verified', warn: 'attention', bad: 'failed', active: 'running', merged: 'closed', learned: 'learned' };
+
+const STATUS: Record<string, { label: string; tone: ChipTone; shape: Shape }> = {
+  planned: { label: 'planned', tone: 'neutral', shape: 'waiting' },
+  building: { label: 'building', tone: 'active', shape: 'running' },
+  verifying: { label: 'verifying', tone: 'active', shape: 'running' },
+  reviewing: { label: 'reviewing', tone: 'active', shape: 'running' },
+  // a pull request waiting on review: nothing of Stint's is running
+  in_review: { label: 'in PR review', tone: 'neutral', shape: 'waiting' },
+  awaiting_approval: { label: 'needs you', tone: 'warn', shape: 'attention' },
+  approved: { label: 'approved', tone: 'merged', shape: 'closed' },
+  rejected: { label: 'rejected', tone: 'bad', shape: 'failed' },
+  done: { label: 'done', tone: 'merged', shape: 'closed' },
+  abandoned: { label: 'abandoned', tone: 'neutral', shape: 'abandoned' },
+  running: { label: 'running', tone: 'active', shape: 'running' },
+  draft: { label: 'draft', tone: 'neutral', shape: 'waiting' },
+  ready: { label: 'ready', tone: 'active', shape: 'waiting' },
+  completed: { label: 'finished', tone: 'neutral', shape: 'closed' },
+  killed: { label: 'killed', tone: 'bad', shape: 'failed' },
+  capped: { label: 'capped', tone: 'warn', shape: 'attention' },
+  failed: { label: 'failed', tone: 'bad', shape: 'failed' },
+  handed: { label: 'handed off', tone: 'neutral', shape: 'closed' },
+  green: { label: 'green', tone: 'good', shape: 'verified' },
+  red: { label: 'red', tone: 'bad', shape: 'failed' },
 };
 
-/** A status as a chip: its word on the state's wash. */
-export function StatusChip({ status, label, tone }: { status?: string; label?: string; tone?: ChipTone }) {
+const SHAPE_PATH: Record<Shape, ReactNode> = {
+  attention: <path d="M5 0.8 9.6 9.2H0.4Z" fill="currentColor" />,
+  verified: <path d="M1.2 5.4 3.9 8.1 8.8 2.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />,
+  failed: <path d="M1.8 1.8 8.2 8.2M8.2 1.8 1.8 8.2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />,
+  running: <circle cx="5" cy="5" r="3.6" fill="currentColor" />,
+  waiting: <circle cx="5" cy="5" r="3.4" fill="none" stroke="currentColor" strokeWidth="1.5" />,
+  closed: <rect x="1.5" y="1.5" width="7" height="7" fill="currentColor" />,
+  abandoned: <path d="M1.5 5h7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />,
+  learned: <path d="M5 0.6 9.4 5 5 9.4 0.6 5Z" fill="currentColor" />,
+};
+
+/** A state's shape as a 10 px mark in the current ink; hidden from screen readers, since the word beside it says the same. */
+export function StateMark({ shape, className }: { shape: Shape; className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 10 10" width="10" height="10" data-shape={shape} className={cx('shrink-0 forced-colors:text-[CanvasText]', className)}>
+      {SHAPE_PATH[shape]}
+    </svg>
+  );
+}
+
+/** A status as a label: its shape and its word, on the state's wash when it has one. */
+export function StatusChip({ status, label, tone, shape }: { status?: string; label?: string; tone?: ChipTone; shape?: Shape }) {
   const s = status ? STATUS[status] : undefined;
   const t = tone ?? s?.tone ?? 'neutral';
+  const mark = shape ?? (tone ? TONE_SHAPE[tone] : s?.shape);
   return (
-    // a wash is dropped in Windows High Contrast; a border keeps the chip a chip
-    <span data-status={status} className={cx('inline-flex items-center h-6 px-2 rounded-[3px] text-small font-medium whitespace-nowrap forced-colors:border', CHIP[t])}>
+    <span data-status={status} className={cx('stint-status', CHIP[t])}>
+      {mark ? <StateMark shape={mark} /> : null}
       {/* sentence case on screen; the words stay as the daemon and the tests name them */}
       <span className="inline-block first-letter:uppercase">{label ?? s?.label ?? status}</span>
     </span>
@@ -128,41 +155,31 @@ export function EmptyState({ children, testId }: { children: ReactNode; testId?:
   );
 }
 
-type ButtonTone = 'primary' | 'quiet' | 'danger';
-export function Button({ tone = 'quiet', className, ...rest }: ComponentProps<'button'> & { tone?: ButtonTone }) {
-  // a height, padding or size the caller gives replaces the default; two utilities for one property would leave the
-  // winner to the stylesheet's order, not to the caller
-  const own = (re: RegExp) => re.test(className ?? '');
-  return (
-    <button
-      type="button"
-      {...rest}
-      className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-[5px] border whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:bg-panel-2 disabled:text-ink-3 disabled:border-rule',
-        !own(/(^|\s)h-/) && 'h-9',
-        !own(/(^|\s)px-/) && 'px-3.5',
-        !own(/(^|\s)text-(\[|title|section|body|small|code)/) && 'text-body',
-        tone === 'primary' && 'bg-ink text-on-ink font-semibold border-ink hover:bg-ink-2 hover:border-ink-2',
-        // a toggle shows its state through aria-pressed; a variant, so it wins over the base colours
-        tone === 'quiet' && 'bg-transparent text-ink font-medium border-rule-strong hover:border-ink-2 hover:bg-panel aria-pressed:border-ink aria-pressed:bg-panel-2 aria-selected:border-ink aria-selected:bg-panel-2',
-        tone === 'danger' && 'bg-transparent text-red font-medium border-rule-strong hover:border-red hover:bg-panel',
-        className,
-      )}
-    />
-  );
+type ButtonTone = 'primary' | 'quiet' | 'danger' | 'ghost';
+const BUTTON: Record<ButtonTone, string> = {
+  primary: 'stint-button stint-button--primary',
+  quiet: 'stint-button',
+  danger: 'stint-button stint-button--danger',
+  ghost: 'stint-button stint-button--quiet',
+};
+/** A button in the charcoal system. A caller's height, padding or size utility wins over the component class. aria-disabled only says the state, so the click is stopped here too. */
+export function Button({ tone = 'quiet', className, onClick, ...rest }: ComponentProps<'button'> & { tone?: ButtonTone }) {
+  const off = rest['aria-disabled'] === true || rest['aria-disabled'] === 'true';
+  return <button type="button" {...rest} onClick={off ? (e) => e.preventDefault() : onClick} className={cx(BUTTON[tone], className)} />;
 }
 
 /**
- * Table parts (DESIGN.md): a rule-strong grid, caption and header cells on panel, body cells on ground. `block` adds the heavy
- * ink-3 object line, kept for the revision block, the packet header and a skill's versions; every other table is plain.
+ * Table parts (DESIGN.md). An ordinary table is quiet: a header row on panel and a rule between rows. `block` is the heavy
+ * revision block, a rule-strong grid inside an ink-3 object line, kept for history, provenance and approval structures: the
+ * revision block, the packet header and a skill's versions.
  */
 export const rev = {
   // text-left here, so a header cell starts at the left and a figure's cell can say text-right without a second alignment
   table: 'w-full border-collapse text-left text-small',
-  block: 'w-full border-collapse text-left text-small outline outline-ink-3',
-  caption: 'caption-top px-2.5 py-2 text-left font-semibold border border-b-0 border-rule-strong bg-panel',
-  th: 'px-2.5 py-1.5 border border-rule-strong align-top font-medium text-ink-2 bg-panel',
-  td: 'px-2.5 py-1.5 border border-rule-strong align-top bg-ground',
+  block: 'w-full border-collapse text-left text-small outline outline-ink-3 [&_th]:border [&_td]:border [&_th]:border-rule-strong [&_td]:border-rule-strong [&_td]:bg-ground',
+  caption: 'caption-top px-3 py-2 text-left font-semibold border border-b-0 border-rule-strong bg-panel',
+  th: 'px-3 py-2 border-b border-rule align-top font-medium text-ink-3 bg-panel',
+  td: 'px-3 py-2 border-b border-rule align-top',
 };
 
 /** A key hint on a control. Hidden from screen readers, so a button's name is its words alone; the control carries aria-keyshortcuts instead. */

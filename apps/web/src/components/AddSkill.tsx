@@ -427,7 +427,7 @@ export function AddSkillDialog({ edit, onClose, onAdded }: { edit: string | null
   // after the dialog has noted the opener, so closing it gives focus back there
   useEffect(() => tabs.current[edit ? 'write' : 'upload']?.focus(), [edit]);
   return (
-    <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width="max-w-[720px]">
+    <Dialog title={edit ? `Edit ${edit}` : 'Add skill'} open onClose={onClose} width={720}>
       <div data-testid="add-skill-dialog">
         <p className="mb-4 text-small text-ink-2">It waits on the Skills page with its findings. No agent gets it until you approve it.</p>
         <div role="tablist" aria-label="How to add the skill" className="flex flex-wrap border-b border-rule mb-4" onKeyDown={tabKeys}>

@@ -1,58 +1,76 @@
-/* Stint tokens, drawing office edition: the Blueprint palette from the design's tokens.css, the only look.
-   Vendor inks always carry a name. State inks: amber needs you, green verified, red stopped, violet learned. No gradients, no textures.
+/* Stint tokens, charcoal edition: near-black surfaces with a cool undertone, near-white ink, the only look.
+   Vendor inks are small marks beside a name. State inks: amber needs you, green verified, red stopped, violet learned; merged and
+   other closed outcomes stay neutral. A state never rests on colour alone: every status label carries a shape (ui.tsx, StateMark).
    Fonts are bundled (styles.css), never fetched, so the UI works with the network off.
-   Contrast (DESIGN.md, Colors): every text ink 4.5:1 on every surface it sits on, ink-3 7:1 on shell, ground and panel, and every
-   mark (rule-strong, field, focus, a vendor ink) 3:1. The state inks differ in lightness as well as hue, so they stay apart for
-   people who see fewer colours: amber and green light, violet in the middle, red the darkest. */
+   rule is decoration; rule-strong and field are boundaries a person must find, held to 3:1 (DESIGN.md, Colors). */
 
 :root {
+  color-scheme: dark;
+
   --sans: 'Geist Variable', 'Geist', ui-sans-serif, system-ui, sans-serif;
   --mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --r-tag: 3px;
   --r-control: 5px;
 
-  --shell: #002745;
-  --ground: #043051;
-  --panel: #0b3a5f;
-  --panel-2: #1b486d;
-  --rule: #30597d;
-  /* a block's edge and a selected row's outline: 3:1 on every surface, panel-2 included */
-  --rule-strong: #6e95ba;
-  /* a field's edge: 3:1 on every surface, so an input is found by its outline (WCAG 1.4.11) */
-  --field: #7798ba;
+  --shell: #090c10;
+  --ground: #0b0f14;
+  --panel: #141b24;
+  --panel-2: #1b2633;
+  --rule: #283647;
+  --rule-strong: #66788c;
+  --field: #74869a;
   --ink: #eef3f8;
-  --ink-2: #cddff0;
-  --ink-3: #b4cbe2;
-  --on-ink: #043051;
-  /* vendor inks are marks beside a name (a square, a spine, a bar), held to 3:1, with on-ink labels on them at 4.5:1 */
-  --meta: #4499ff;
-  --anthropic: #e89f72;
-  --openai: #5fd8b2;
-  --local: #d3dce5;
-  --amber: #ffe040;
-  --green: #93ffe0;
-  --red: #fe9890;
-  --violet: #d5c5ff;
-  --amber-wash: rgba(255, 224, 64, 0.13);
-  --red-wash: rgba(254, 152, 144, 0.14);
-  --green-wash: rgba(147, 255, 224, 0.13);
-  --violet-wash: rgba(213, 197, 255, 0.14);
-  --term: #001d36;
-  --term-ink: #e3edf6;
-  --focus: #ffcb62;
-  --shadow: 0 12px 32px rgba(0, 12, 26, 0.55);
+  --ink-2: #c6d1df;
+  --ink-3: #abb9ca;
+  --on-ink: #0b0f14;
+
+  --meta: #70b5ff;
+  --anthropic: #e8ad88;
+  --openai: #78d9b3;
+  --local: #c9d4e2;
+
+  --amber: #ffd369;
+  --green: #93e5c0;
+  --red: #ffaaa2;
+  --violet: #d2c2ff;
+  --amber-wash: rgb(255 211 105 / 9%);
+  --green-wash: rgb(147 229 192 / 9%);
+  --red-wash: rgb(255 170 162 / 10%);
+  --violet-wash: rgb(210 194 255 / 10%);
+
+  --term: #080c11;
+  --term-ink: #dfe8f3;
+  --focus: #a5caff;
+  --shadow: 0 18px 60px rgb(0 0 0 / 45%);
   /* the pinned approval row casts upward, over the runs that scroll under it */
-  --shadow-pinned: 0 -14px 22px rgba(0, 10, 22, 0.28);
-  color-scheme: dark;
+  --shadow-pinned: 0 -12px 24px rgb(0 0 0 / 22%);
+
+  --surface-hover: #192330;
+  --surface-selected: #202e3e;
+  --selection-bg: #27466a;
+  --selection-ink: #f4f8ff;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --page-max: 1440px;
+  --control-height: 36px;
+  --transition-fast: 140ms;
 }
 
-/* A person who asks their system for more contrast gets brighter secondary text and lines: ink-3 reaches 7:1 on panel-2 too. */
+/* A person who asks their system for more contrast gets brighter secondary text, lines and focus. */
 @media (prefers-contrast: more) {
   :root {
-    --ink-2: #dceeff;
-    --ink-3: #c8e0f7;
-    --rule: #46709a;
-    --rule-strong: #8fb7dd;
-    --field: #a6c9ec;
+    --ink-2: #e1e9f3;
+    --ink-3: #cedbea;
+    --rule: #66788c;
+    --rule-strong: #9aadc2;
+    --field: #b0c2d6;
+    --focus: #c3dcff;
   }
 }

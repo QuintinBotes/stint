@@ -274,29 +274,49 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
   );
 }
 
-export function Dialog({ title, open, onClose, children, width = 'max-w-[520px]' }: { title: string; open: boolean; onClose: () => void; children: ReactNode; width?: string }) {
+/**
+ * A modal in the charcoal system: a header with the title and a visible Close, a body that scrolls, and an optional footer
+ * that stays in reach below it. With `dirty`, a dismissal (Escape, Close, a click outside) asks before it drops the draft:
+ * the footer becomes "Discard this draft?" with Keep editing first, and Escape there keeps editing.
+ */
+export function Dialog({ title, open, onClose, children, footer, dirty = false, width = 640 }: { title: string; open: boolean; onClose: () => void; children: ReactNode; footer?: ReactNode; dirty?: boolean; width?: number }) {
   useRestoreFocus(open);
   const box = useRef<HTMLDivElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const [asking, setAsking] = useState(false);
+  const dismiss = () => (dirty ? setAsking(true) : onClose());
+  useEffect(() => {
+    if (!open) setAsking(false);
+  }, [open]);
+  useEffect(() => {
+    if (asking) keep.current?.focus();
+  }, [asking]);
   // focus moves into the dialog when it opens, unless a field inside already took it
   useEffect(() => {
     if (open && !box.current?.contains(document.activeElement)) box.current?.focus();
   }, [open]);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (asking) setAsking(false);
+      else if (dirty) setAsking(true);
+      else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, dirty, asking]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-shell/70 flex items-start justify-center pt-[10vh] px-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 bg-shell/75 flex items-start justify-center pt-[8vh] px-4" onMouseDown={dismiss}>
       <div
         ref={box}
         tabIndex={-1}
         role="dialog"
         aria-modal
         aria-label={title}
-        className={cx('relative w-full max-h-[85vh] outline-none overflow-y-auto rounded-[5px] border border-rule-strong bg-panel p-6', width)}
+        className="stint-dialog outline-none"
+        style={{ width: `min(${width}px, calc(100vw - 32px))`, maxHeight: 'calc(100dvh - 8vh - 16px)' }}
         onMouseDown={(e) => e.stopPropagation()}
         // a key pressed in a dialog stays in it: the page's single-key shortcuts do not fire behind it; Escape and Cmd+K still reach the window
         onKeyDown={(e) => {
@@ -304,8 +324,28 @@ export function Dialog({ title, open, onClose, children, width = 'max-w-[520px]'
           if (e.key !== 'Escape' && !e.metaKey && !e.ctrlKey) e.stopPropagation();
         }}
       >
-        <h2 className="text-section mb-4">{title}</h2>
-        {children}
+        <div className="stint-dialog-header">
+          <h2 className="text-section">{title}</h2>
+          <Button tone="ghost" className="-my-1.5 -mr-2 px-2" onClick={dismiss} data-testid="dialog-close">
+            Close
+          </Button>
+        </div>
+        <div className="stint-dialog-body">{children}</div>
+        {asking ? (
+          <div className="stint-dialog-footer justify-between" role="alertdialog" aria-label="Discard this draft?" data-testid="dialog-discard">
+            <p className="text-small">Discard this draft? What you typed is lost.</p>
+            <div className="stint-actions">
+              <Button ref={keep} onClick={() => setAsking(false)}>
+                Keep editing
+              </Button>
+              <Button tone="danger" onClick={onClose}>
+                Discard
+              </Button>
+            </div>
+          </div>
+        ) : footer ? (
+          <div className="stint-dialog-footer">{footer}</div>
+        ) : null}
       </div>
     </div>
   );

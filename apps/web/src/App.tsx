@@ -110,7 +110,7 @@ export function App() {
         <Palette open={palette} onClose={() => setPalette(false)} actions={actions} health={health.data} />
         <NewTaskDialog open={newTask} onClose={() => setNewTask(false)} />
         <NewGoalDialog open={newGoal} onClose={() => setNewGoal(false)} />
-        <Dialog title="Help" open={help} onClose={() => setHelp(false)} width="max-w-[640px]">
+        <Dialog title="Help" open={help} onClose={() => setHelp(false)}>
           <p className="text-ink-2 mb-5">Stint gives coding work to AI agents, checks it with your tests, and waits for you to approve before anything is merged.</p>
           <h3 className="font-semibold mb-2">Words used here</h3>
           <dl className="flex flex-col gap-2.5 mb-6" data-testid="glossary">
