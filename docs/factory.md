@@ -4,17 +4,25 @@ This page is for anyone who wants the whole picture: what each screen of the web
 
 ## What you see
 
-- **Board** (`/`): every task by stage, each card showing the agents that worked on it and who holds it now. A task autopilot stopped to ask you sits in Needs you, whatever its stage, until a run starts again. Issues pulled from GitHub or Linear wait in an intake panel until you accept them. Run all planned puts every planned task on autopilot.
-- **Task view** (`/t/<task>`): the title block across the top, with the task's state, spend and runs, and a meter for each of its [limits](#limits-you-set). The runs are on the left, one agent after another with every hand-off, with a clock above them that goes back in time and the revision block under them. The approval gate closes that block: it opens only on a green verification, and shows the change's risk tier and how the task went ([`metrics.md`](metrics.md#how-it-went)). Request changes and Reject wait until something has been built: before that there is nothing to send back. In the middle, Sharpen's questions while a task has them ([`sharpen.md`](sharpen.md)), then the tabs:
+The top bar holds Board, Goals, Factory and Skills, then search (Cmd+K opens the command palette, which names the command each action runs in a terminal), the spend, one status button for Stint, its agents and its models, and Help. Every status label draws a shape beside its word, so no state rests on colour. The UI follows the system's light or dark setting. Dialogs have a visible Close, keep their actions in a footer, and ask "Discard this draft?" before Escape or a click outside drops what you typed.
+
+- **Board** (`/`): a sentence under the title says what needs you and why ("T-0043 waits for your approval."), or that nothing does. Counts of tasks that need you, are running and are planned sit beside it, with the decisions waiting kept apart, since a decision is not a task. The tasks are in four groups:
+  - Needs you: waiting for your approval, rejected, stopped by autopilot to ask you, or waiting on a permission question from an agent, labelled with the tool;
+  - Planned, with the task a planned task waits on;
+  - In progress: building, verifying, reviewing, or in PR review;
+  - Closed: merged, approved or abandoned.
+
+  Each card has one status label, one summary or blocker line, the daemon's test result once there is one, and who worked on it, how long and what it cost. A task that never ran shows its goal, not a summary. A task made from a goal says "Part of G-0001, covers criterion 2". The header's main action is Review for the oldest task waiting for approval, else Run all for the planned tasks, else New task. Run all asks first: which tasks start now and which wait, the most builds any may use, how many have no spend limit, and that nothing merges without you. Only Start starts them, and the palette asks the same question. Issues pulled from GitHub or Linear wait in an intake panel until you accept them.
+- **Task view** (`/t/<task>`): the title block across the top, with the task's state, its one next action (Approve and merge at the gate, Stop while a run is live, Start on autopilot for a planned task), its goal and the tasks it waits on, its spend and runs, and a meter for each of its [limits](#limits-you-set). While the clock looks back, a notice says "You are looking at T-0042 as it was at 2:12" with Return to latest, and every action, key and palette command that would change something waits until you return. The runs are on the left, one agent after another with every hand-off, with a clock above them that goes back in time and the revision block under them. The approval gate closes that block: it opens only on a green verification, says what was red when it is not (failed tests out of the total, held-out scenarios, tampered tests or a check by name), and shows the change's risk tier and how the task went ([`metrics.md`](metrics.md#how-it-went)). While a review finding that would reverse a decision waits, the gate lists it and Approve holds, with the reason. Request changes and Reject wait until something has been built: before that there is nothing to send back. In the middle, Sharpen's questions while a task has them ([`sharpen.md`](sharpen.md)), then the tabs:
   - Changes, the diff; Files, the worktree's files with "Open in your editor";
   - Terminal, a terminal in the worktree;
   - Plan and Packet;
   - Review, one row per lens;
-  - Tests, the daemon's verification: "33 passed, tests unchanged, run by Stint".
+  - Tests, the daemon's verification: "33 passed, tests unchanged, run by Stint", and under "What Stint saw" each visual check's screenshot and verdict ([`verify.md`](verify.md#what-stint-saw-visual-checks)).
 
-  Memory opens beside the work on request (the Memory button, or m): similar tasks and the decisions that constrain this one, as they stood at the clock's time. A merged, rejected or abandoned task shows how it went under its title block.
-- **Goals** (`/goals`, between Board and Factory in the top bar): outcomes bigger than one task. The list shows each goal's status, how many of its criteria are met, its tasks and its spend against its limit. A goal's page shows its outcome, each criterion with its state and the tasks covering it, Sharpen, Split into tasks, the tasks with how each went, its spend and build meters with "Change the goal's limits", and "Abandon this goal" ([`sharpen.md`](sharpen.md#goals)).
-- **Factory** (`/factory`): who carried each task and what they handed on, which Muse model did what and what it cost. Also there:
+  Memory opens beside the work on request (the Memory button, or m): similar tasks and the decisions that constrain this one, as they stood at the clock's time. A merged, rejected or abandoned task shows how it went under its title block. On a phone the gate and the tabs come before the runs.
+- **Goals** (`/goals`, between Board and Factory in the top bar): outcomes bigger than one task. The list shows each goal's status, how many of its criteria are met, its tasks and its spend against its limit. A goal's page shows its outcome, each criterion with its state and the tasks covering it, Sharpen, Split into tasks, the tasks with how each went, its spend and build meters with "Change the goal's limits", "Run the goal's tasks", and "Abandon this goal" ([`sharpen.md`](sharpen.md#goals)). Each task row shows its own status and what it waits for.
+- **Factory** (`/factory`): what the agents did in four figures, the agents table, then named groups that open on request: who carried each task and what they handed on, which Muse model did what and what it cost. Also there:
   - a scoreboard per agent and model;
   - outcomes after merge (reverts, follow-ups, failing CI);
   - the auto-approve lane's shadow record;
@@ -22,7 +30,7 @@ This page is for anyone who wants the whole picture: what each screen of the web
   - every harness and host this workspace can use.
 - **Skills** (`/skills`): what the agents load before a run, learned or written by hand, with evidence, an eval with and without, and a track record.
 
-<p align="center"><img alt="The Factory: what the agents did in four figures, then the agents table, with every other measure in named sections below" src="../assets/screenshot-factory.png" width="900"></p>
+<p align="center"><img alt="The Factory in the replay: what the agents did over 30 days in four figures (1 task merged, $0.76 this week, 50% passed the tests first time, 100% of hand-offs passed), the agents table for the Stint agent and Muse Code, and the decision waiting for you below it" src="../assets/screenshot-factory.png" width="900"></p>
 
 ## The loop around the hand-off
 
@@ -65,7 +73,7 @@ Each task has limits on what autopilot may use before it stops and asks you:
 
 The counts cover the task's whole life, so switching autopilot off and on does not reset them. Autopilot checks before each step. It starts no build or hand-off past the build limit, no hand-off past the hand-off limit, and no build a review asked for past the review round limit. Once the spend or agent time limit is reached, it starts nothing new. It also skips a build whose expected cost would pass the spend limit; the expected cost is the median of this task's earlier builds.
 
-Set them in the New task dialog under Limits, with `stint new "<title>" --max-builds 4 --max-usd 3`, or as the defaults for new tasks in `.stint/config.json`:
+Set them under Limits in the New task form (Write it yourself, in the dialog n opens), with `stint new "<title>" --max-builds 4 --max-usd 3`, or as the defaults for new tasks in `.stint/config.json`:
 
 ```json
 "limits": { "builds": 8, "handoffs": 3, "reviewRounds": 1, "usd": null, "minutes": null }

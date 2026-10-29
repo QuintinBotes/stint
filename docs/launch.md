@@ -25,4 +25,6 @@ github.com/QuintinBotes/stint
 
 6. It learns: when the same finding shows up on two tasks, it proposes a rule with the evidence, measures it on a real run with and without, and waits for you to approve it.
 
+7. It looks, too. A criterion can be a page: Stint opens it, Muse Spark judges the screenshot, and SAM 3.1 boxes what is wrong. On a live check it caught a banner that said "Try again in NaN s." for less than a cent.
+
 By default every model it calls is Meta's. MIT, local-first: github.com/QuintinBotes/stint

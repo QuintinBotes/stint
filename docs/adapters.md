@@ -44,7 +44,7 @@ The UI shows the gate beside each agent, and the packet attributes every refusal
 | `acp` | any Agent Client Protocol agent, such as goose, opencode or Gemini CLI, off by default | its own | observed |
 | `cli` | any other command-line agent under `agents` in config, off by default | its own | observed |
 
-Planning, review, Sharpen's questions, a goal's split into tasks, the learn step, the packet digest and the quiz are not adapters. They are model calls the daemon makes through a chain of OpenAI-compatible hosts: the Meta Model API, Fireworks, Baseten, Modal, and Ollama on your machine. A busy host, or one that answers twice with output that does not fit the schema the call asked for, falls through to the next one, and the fallback appears on the timeline. The cost of every call is counted, an answer that was thrown away included ([`metrics.md`](metrics.md#on-the-factory)).
+Planning, review, the spec builder's drafts, Sharpen's questions, a goal's split into tasks, the learn step, the packet digest and the quiz are not adapters. They are model calls the daemon makes through a chain of OpenAI-compatible hosts: the Meta Model API, Fireworks, Baseten, Modal, and Ollama on your machine. A visual check is not an adapter either: the daemon calls Muse Spark 1.3 and SAM 3.1 on the Meta Model API directly ([`verify.md`](verify.md#what-stint-saw-visual-checks)). A busy host, or one that answers twice with output that does not fit the schema the call asked for, falls through to the next one, and the fallback appears on the timeline. The cost of every call is counted, an answer that was thrown away included ([`metrics.md`](metrics.md#on-the-factory)).
 
 ## Adding one
 

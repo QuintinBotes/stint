@@ -2,7 +2,7 @@
 
 This page is the script for the demo video, for whoever records and edits it: 2:30 target, 2:40 cap, 1080p, captions burned in. Record the live run with `stint demo --live` and screen capture. If any segment is a replay, the strip under the top bar says so ("Replay, hand-written", or "A recording of a live run on <date>" for a recorded take), and that stays on screen. The voiceover is below; each line names what must be on screen while it plays.
 
-Footage from the replay instead of a live take: `bun apps/web/scripts/capture-video.ts` plays the replay through the real daemon at 1.2x, which puts its beats on the times below, switches the view on the replay's own clock, pans the Factory (`/factory`), ends on a title card, and writes a silent 1920x1080 MP4 to `.loop/video/`. The strip under the top bar says "Replay, hand-written" for its whole length, so nobody takes it for a live run.
+Footage from the replay instead of a live take: `bun apps/web/scripts/capture-video.ts` plays the replay through the real daemon at 1.2x, which puts its beats on the times below, switches the view on the replay's own clock, pans the Factory (`/factory`), ends on a title card, and writes a silent 1920x1080 MP4 to `.loop/video/`. It records in the dark charcoal theme whatever the machine's setting; for a screen capture of a live take, set the system to dark first, since the UI follows it. The strip under the top bar says "Replay, hand-written" for its whole length, so nobody takes it for a live run.
 
 | Time | On screen | Voiceover |
 |---|---|---|
@@ -31,3 +31,4 @@ Captions are the voiceover lines, at most two lines on screen at a time. Numbers
 - `META_API_KEY` is set; `muse --version` works.
 - `stint demo seed` on a fresh fixture copy; the browser is on the Board at 1080p.
 - Notifications are off; the terminal font is large enough to read at 1080p.
+- The system is set to dark, so the UI shows the charcoal theme.

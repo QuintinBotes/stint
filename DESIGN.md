@@ -95,15 +95,17 @@ components:
 
 ## Overview
 
-Stint is a working tool, so the screens are a standard agent workspace first: board lanes by state, a task view with a run rail, tabs, and a memory panel, a command palette, and plain tables. The world is a drawing office, and it lends exactly four things: the blueprint palette, technical type, drawing-sheet density, and one signature move.
+Stint is a working tool for people who hand coding work to agents, so every screen answers four questions first: what needs me, what is running, what is ready or waiting, and what I can safely do next. The look is a calm charcoal workspace: near-black surfaces with a cool undertone, near-white ink, quiet tables, and colour kept for meaning. The UI follows the system's light or dark setting on the same tokens; dark is charcoal, the default, and the look the demo and the video use.
 
-**The revision block.** A task is a drawing that many hands revise. Its run history is set like a drawing's revision table: run, change, by (vendor ink plus name), daemon check. The approval row closes the block, with Approve and merge as its last cell. The same block is the packet header (a title-block key and value table) and a skill's version history. The task header is the drawing's title block: ID and title on one line, then a field strip for state, spend, and runs, then the limit meters.
+Every state reads in a word and a shape, never in colour alone. Amber means it needs you, mint green means verified evidence and nothing else, red means failed or stopped, and violet means a skill was learned. Merged and other closed outcomes are neutral.
 
-Copy is the product's own: task, run, packet, decision, finding, skill, verify, gate. Sentence case, present tense, and no metaphor vocabulary.
+One signature move stays: **the revision block**. A task's run history is set like a drawing's revision table: run, change, by (vendor ink and name), result. The approval row closes the block, with Approve and merge as its last control. The same heavy block holds the packet header and a skill's versions; every other table is quiet.
+
+Copy is the product's own: task, run, packet, decision, finding, skill, verify, gate. Sentence case, present tense, plain words, and no metaphor vocabulary. On screen the daemon is "Stint".
 
 ## Colors
 
-Charcoal is the only look: near-black surfaces with a cool blue undertone, stepped up in lightness from shell to panel-2, near-white ink, and borders that carry a little blue. The palette is the owner's (29 Oct brief), with one change: red.
+Charcoal is the dark theme, and the system setting picks light or dark (the light set is below). Charcoal is near-black surfaces with a cool blue undertone, stepped up in lightness from shell to panel-2, near-white ink, and borders that carry a little blue. The palette is the owner's (29 Oct brief), with one change: red.
 
 - **Vendor inks** mark who did the work, on rail segments, run blocks, revision cells, and spend bars. They are small marks, never text, and always paired with a name.
 - **State inks** carry meaning only: amber means it needs you or waits for approval, mint green means verified evidence and nothing else, red means failed or stopped, violet means a skill was learned. Merged, approved and other closed outcomes are neutral ink.
@@ -159,50 +161,62 @@ Nothing is set below 12px.
 
 ## Layout
 
-The 8px grid has 36px controls and 36px rows.
+The spacing scale is 4, 8, 12, 16, 20, 24, 32 and 40px, and controls are 36px high. A page (`stint-page`) is at most 1440px wide and centred, with 40px gutters. Its header (`stint-page-header`) puts the title (26px) and a one-line summary, at most 75 characters wide, on the left, and the page's actions on the right.
 
-- **Task view:** title block across the top, then two columns: rail 320 and work area fluid. Memory, 360, opens as a third column on request (the Memory button, or m).
-- **Below 1180px**, memory drops under the work area.
-- **Below 760px**, everything stacks in reading order: title block, runs, work, memory. Gutters are 16px, and the topbar becomes wordmark, nav, a Search button, and one health line.
-- **Board:** lanes use auto-fit columns of at least 200px, with Needs you first.
+- **Top bar** (`stint-topbar`, 64px): the Stint wordmark and the project name (cut short, with the full name in its title), then Board, Goals, Factory and Skills, the current one marked by an ink underline and `aria-current="page"`. Search, spend, the status button and Help sit on the right. Below 768px the nav takes its own row, so the bar fits a phone in two rows.
+- **Board** (`stint-board`): a sentence that says what needs you, the counts, then four groups in order: Needs you, Planned, In progress, Closed. Four columns from 1200px, two from 768px, one below.
+- **Task view:** the title block across the top, then the runs (340px from 1180px, 320px from 760px) beside the work area. Memory, 360px, opens as a third column on request (the Memory button, or m). Below 1180px memory drops under the work. Below 760px everything stacks, with the gate and the tabs before the runs.
+- **Goals, Factory and Skills:** the same page header, then sections 32px apart, each with a 16px section title. The Factory keeps its figures at ordinary size, and its groups open on request.
+- **Dialogs** (`stint-dialog`): 640px wide by default and 720px for the spec builder, Add skill and Help, never wider than the viewport less 32px, 8% down the page. The body scrolls; the footer stays in reach.
+- Gutters drop to 24px below 1200px and 16px below 768px. No page scrolls sideways at 1440, 1280, 768 or 390px; code and wide tables scroll inside their own regions.
 
 ## Elevation & Depth
 
-The surfaces are flat. Depth comes from line weight, as on a drawing:
-- a hairline 1px rule between rows;
-- a 1px rule-strong border on blocks;
-- a second, outer ink-3 line on the revision block and title block, the heavy object line.
+The surfaces are flat and step up in lightness: shell for the top bar, ground for the page, panel for cards, tables and dialogs, panel-2 above that. Depth comes from lines:
+- a 1px rule between rows and around cards and notices;
+- a 1px rule-strong border on controls and status labels, and on the revision block's cells, which an outer ink-3 line closes;
+- a left edge on what asks for attention: 2px amber on a card that needs you, 3px on a notice (ink-3, amber for attention, red for an error), and an amber rule under the Needs you header.
 
-Only two things take a soft shadow:
-- the pinned approval row, which sits above the rail;
-- the command palette, which sits above the page.
+A selected row or run takes the surface-selected fill and an inset rule-strong line. Only what floats above the page takes a shadow (`--shadow`): a dialog over a 75% shell scrim, the command palette, and the status button's panel.
 
 ## Shapes
 
 Corners are nearly square:
-- 3px on tags and chips;
-- 5px on controls, cards, and panels;
+- 3px on status labels, tags and key hints;
+- 5px on buttons, inputs, cards, notices, tables and the palette;
+- 8px on dialogs;
 - 12px on the skill pill in the memory graph.
+
+Every status label draws a 10px mark before its word (`StateMark` in `ui.tsx`): a triangle needs you, a tick verified, a cross failed, a filled dot runs, a ring waits, a square is closed, a bar was abandoned, a diamond was learned. A run's packet joint on the rail is a 12px square, red-edged when the run was killed or failed.
 
 ## Components
 
-These are standard controls: button (primary ink-filled, secondary outlined, disabled panel-2), tabs with a 2px ink underline, chips, a native select, a range input, a textarea, and tables.
+The `stint-*` classes in `styles.css` sit in Tailwind's components layer, so a utility on the same element wins and no rule needs `!important`.
 
-Signature components:
-- **The revision block.** A bordered table with a pinned approval row.
-- **The run rail.** A 4px vendor-inked axis per run, with a square packet joint between runs that shows the token count.
-- **The title block.** The task's ID and title, with a field strip for state, spend, and runs, and a row of limit meters under it. A meter is used of cap with a square bar, and turns amber once its limit is reached.
+- **Button** (`Button` in `ui.tsx`, `stint-button`): `primary` is filled near-white with ground text, `quiet` (the default) is outlined in rule-strong, `danger` is outlined and written in red, with a red wash on hover, and `ghost` has no border. A toggle shows its state through `aria-pressed` or `aria-selected` with the selected fill. `aria-disabled` stops the click as well as saying the state, and `aria-busy` marks a request in flight.
+- **Status label** (`StatusChip`, `stint-status`): one word and its shape, 24px high, on the state's wash: attention (amber), verified (green), failed (red), learned (violet), active, recommend (an ink outline, since a recommendation is not a state), or neutral.
+- **Notice** (`stint-notice`): a sentence and its action, with a left edge; attention and error variants carry the amber or red wash. It says why something is stopped, stale or looking back.
+- **Task card** (`stint-task-card`): the title first with a small mono id, one status label, one summary or blocker line, the daemon's test result, then who, how long and what it cost. A card that needs you has one action.
+- **Table**: an ordinary table is quiet, with a header row on panel and a rule between rows (`rev.table`, `stint-table`), figures right-aligned in tabular digits. `rev.block` is the heavy revision block, kept for history, provenance and approval.
+- **Dialog** (`Dialog` in `Shell.tsx`): a header with the title and a visible Close, a body that scrolls, and a footer for its actions. Focus moves in, stays in, and returns where it was. With typed text, Escape, Close or a click outside turns the footer into "Discard this draft?" with Keep editing focused first.
+- **Tabs**: ink-2 at rest, ink with a 2px ink underline when chosen.
+- **Forms** (`stint-input`, `stint-field-*`): 38px fields with a label above, help or an error below, and `aria-invalid` drawn in red.
+- **The run rail:** a 4px vendor-inked axis per run, which pulses while the run is live, with the square packet joint between runs showing the packet's token count.
+- **The title block:** the task's id and title on one line, the state and the one next action on the right, then spend, runs, branch and the limit meters. A meter is used of cap with a bar, and turns amber with a triangle once its limit is reached.
 
-Opacity changes driven by the scrubber fade over 220ms ease-out. That motion is off under prefers-reduced-motion.
+Motion is small and carries meaning: a live run's axis pulses, a memory node fades over 220ms as the clock passes it, and hover colours change over 140ms. Each of these stops under `prefers-reduced-motion`.
 
 ## Do's and Don'ts
 
-- Do keep navigation, controls, and layout standard; the world only supplies palette, type, density, and the revision block.
-- Do pair every vendor ink with the vendor's name.
-- Do give every empty panel a sentence that says what will appear there.
-- Don't put a label or ID above a heading; put the ID inline in the heading line.
-- Don't add drafting texture, grid paper, or sheet borders with zone letters; that is a costume of the world.
-- Don't use green for anything but verified.
+- Do answer what needs you first: a page leads with a sentence that names the task and the reason, or says nothing does.
+- Do give every state a word and a shape; never let colour carry meaning alone.
+- Do keep green for verified evidence only, and show closed outcomes in neutral ink.
+- Do pair every vendor ink with the agent's or model's name.
+- Do give every empty group or panel a sentence that says what will appear there, and keep loading, error, empty and filtered-empty apart.
+- Do give every action that changes something a pending state, so a second press sends nothing, and keep what was typed when the daemon refuses.
+- Do show one primary action per screen; a card never becomes a row of buttons.
+- Do keep the code-review convention in a diff: a green wash and a + on added lines, a red wash and a - on removed ones. It is notation for code, not a state.
+- Don't put an id above a heading; set it inline, small and mono, in the heading line.
+- Don't use gradients, glass, decorative grids, giant rounded cards or oversized statistics.
+- Don't add motion that carries no meaning.
 - Don't rename product concepts with a metaphor.
-- Do keep the code-review convention in a diff: a green wash and a + on added lines, a red wash and a - on removed ones, is notation for code, not a state.
-- Don't let a colour carry meaning on its own; say it in a word or a shape too.

@@ -2,7 +2,55 @@
 
 ## Unreleased
 
+### Added (29 October)
+- The spec builder (R-066): say what you want in a sentence, and Stint drafts a task or a goal in GitHub Spec Kit's shape, asks only the questions that change what gets built, and keeps the answers as decisions. It opens a Spec Kit `spec.md` and `tasks.md`, and writes a draft back as `spec.md`, with no model call. One dialog, "What do you want done?", opened by n, New task, New goal and the palette; `stint draft`; `/api/drafts`.
+- Visual proofs (R-068): a criterion can name a page and what should be seen there. Once the tests are green, the daemon opens the page in headless Chromium, Muse Spark 1.3 judges the screenshot, SAM 3.1 marks what looks wrong, and the Tests tab shows what Stint saw. Sharpen offers It looks right as a proof. One live check of a seeded defect is kept in `bench/visual/`.
+- The judge path (R-069): `bun run build:judge` builds a read-only copy of the finished replay for GitHub Pages, `bun run serve:judge` serves it locally, and a workflow publishes it once the owner turns `JUDGE_PAGES` on. The README opens with a section for judges.
+- `stint mcp install claude` and `stint mcp install codex` register Stint's MCP server through each tool's own CLI; `--print` shows the command.
+- Goals that run and finish (R-064): Run the goal's tasks on its page, `stint goal run`, `stint goal limits`, `stint goal abandon` and `POST /api/goals/:id/run`. A goal criterion with a proof reaches the tasks that cover it, and raising a goal limit resumes the tasks stopped at it.
+- A command for every gate and board action: `stint changes` asks for changes, `stint list` prints every task, `stint run --all` starts every planned task (`--all --stop` takes every task off autopilot), `stint intake accept`, `merge` and `dismiss` settle intake items, and `stint proofs` works on a goal.
+- A light theme that follows the system setting (R-067), on the same tokens as the dark one.
+- `UX_AUDIT.md` (R-071): an adversarial audit of what needs you, what runs and what is safe to do next; 18 findings, 14 fixed with tests.
+
+### Changed (29 October)
+- The charcoal redesign (R-065): near-black surfaces, a compact top bar, a Board of four groups (Needs you, Planned, In progress, Closed) with its counts kept apart from decisions, cards with one label and one line, quiet tables, and a task page whose header gives the one next action. It replaces the navy Blueprint look.
+- The Board says in a sentence what needs you and why. Run all says how many tasks it starts and asks first: which start now and which wait, the most builds any may use, how many have no spend limit, and that nothing merges without you. A task whose agent waits on a permission question is in Needs you, labelled with the tool.
+- A task shows its goal and the tasks it waits for, on its card and in its header; the sign-off after a merge links to the goal and its next open task.
+- Sending work back: reject and request changes start autopilot again when it stopped at the gate, so it builds from the ask, and otherwise set the task rejected, in Needs you. A request for changes runs the learn step too.
+- Approve refuses with `decision_pending` while a review finding that would reverse a decision waits. The gate lists the finding and holds Approve with the reason, and `stint demo --live` keeps D3 before its approve beat.
+- Bootstrap downloads Muse Glimmer 30B only with `--with-glimmer`.
+- The replay turns on Claude Code (Muse Glimmer 30B through Ollama) and Codex (Muse Spark 1.3 on the Meta Model API) beside Muse Code and the Stint agent. A new repository still keeps them off.
+- The status button says "Connected, 4 agents and 1 model ready", or "Replay, agents are off".
+- The stop route answers once the run has finished; the verification and the packet follow on the task's stream.
+- Every model call is metered, including the question to a leaving Muse Code session for its packet and the spec builder's drafts. An intake pull records `intake.received` and `intake.triaged` before anyone accepts the item.
+- The Baseten host asks for `meta-models/muse-spark-open-1026`, the model the hackathon key accepts.
+
+### Fixed (29 October)
+- A board card no longer asks a model to summarise a task no agent has run, and the summary route answers `source: 'none'` for one.
+- The gate says what was red (failed tests out of the total, held-out scenarios, tampered tests, or a check by name) instead of "0 failed".
+- Held-out scenarios that cannot run turn the verification red.
+- A command that cannot start, in the verifier or the Stint agent's shell, comes back red with the reason instead of ending the daemon.
+- Two live runs no longer leave `.stint/active` naming the wrong one.
+- A Board that fails to refresh keeps its last data under a stale warning, never "nothing needs you".
+- Subtasks and best-of-n candidates keep their task's goal, its goal criteria and a share of its limits.
+
+### Accessibility (29 October)
+- Every status label draws a shape beside its word: a triangle needs you, a tick verified, a cross failed, a dot runs, a ring waits, a square is closed, a bar was abandoned, a diamond was learned.
+- Red is deepened to `#f2786f`, which keeps it apart from green for people without red or green cones. The light theme is measured to the same contrast and colour-vision targets.
+- axe finds no WCAG 2.2 A or AA violation on the main screens in either theme.
+- Dialogs have a visible Close, keep focus inside and return it on close, and ask "Discard this draft?" before dropping what you typed. Every create or change sends one request however often it is pressed.
+- Looking back in time says so in a notice and holds every action, key and palette command until Return to latest.
+
+### Security (29 October)
+- Under sandbox-exec a run can no longer write the rest of `~/.config`, `~/Library/Application Support` or `~/.bun/bin`, nor read the held-out scenarios or the files Stint loads keys from.
+- The Stint agent's refusals read a command with its quotes and backslashes taken out, so a quoted branch name, a nested shell, a forced or detached checkout, a git alias and a quoted path outside the worktree that exists are refused.
+- Inside a run, `stint mcp` lists only the 8 tools its run token can call, and the run token no longer reaches the hand and verify routes.
+- A test pins the daemon to 127.0.0.1 and checks that another address of the machine is refused.
+- A visual check puts nothing read from the page into the prompt, and calls SAM 3.1 with `store: false`.
+
 ### Added (28 October)
+- Custom skills (R-060): write one, import one from a folder, a zip or git, read its pattern scan, approve it onto probation, and share it as a zip. The Skills page adds and previews them; `stint skills add`, `stint skills export`, `POST /api/skills/import`.
+- Verification and outcome metrics, defined once (R-061): first pass, escaped defects, cost per good merge, human load and learning, each with its sample size. `stint metrics`, and the Factory's figures; the week's spend is one local Monday-to-Sunday figure.
 - Limits you set on a task (R-062): builds, hand-offs, review rounds, spend and agent time, with config defaults, meters in the task view, and a stop that names the limit and offers Raise the limit or Hand to another agent. `stint new --max-*`, `stint limits`, `PATCH /api/tasks/:id/limits`.
 - How it went (R-063): one outcome record per task, with each criterion proven, passing but not proven, failing or yours to check; loops against limits, spend, times, the review and what happened after the merge. On the gate and under a finished task's title; `stint outcome`, `GET /api/tasks/:id/outcome`.
 - Sharpen (R-064): before work starts, the few questions whose answers change what gets built, each with a recommendation; questions the repository can answer are dropped in code, material ones are always asked, and answers become decisions every later run keeps. Proofs per criterion. `stint sharpen`, `stint answer`, `stint proofs`.
@@ -28,6 +76,8 @@
 
 ### Added
 - Specs R-050 to R-057 and eleven architecture decision records (`docs/adr/`), from a requirements audit of R-001 to R-049 on 27 October.
+- A README and a setup guide a stranger can follow (R-059): keys saved once in a user-level file (`stint keys set`, `stint keys list`), `stint doctor` with the command that fixes each failing check, `scripts/install-cli.sh` for the `stint` command, and a bootstrap that replays the story with no keys.
+- A guard that keeps client and employer names out of the repository, in CI (R-058).
 - One status button for the daemon, agents and models, with the chat models on this machine that no route uses yet; LM Studio, llama.cpp and LiteLLM as hosts; Claude Code takes its base URL from its host.
 - The diff tab on @pierre/diffs with a file tree, viewed marks, per-hunk attribution from git blame and line comments the next agent receives; a windowed timeline with checkpoints that restore a run's code.
 - Cards with every state, the review's blockers, the full sign-off record, a permission tier per run and plan steps marked from the packet; the Factory's workspace graph, 7-day funnel, transcript-share figure, benchmark bars and credits left.

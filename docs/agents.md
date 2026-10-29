@@ -1,6 +1,6 @@
 # Agents and models
 
-This page is for anyone who wants Stint to run another coding agent or model, or to change how autopilot picks, escalates, reviews and plans. Stint's defaults run only Meta's models: Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Muse Glimmer 30B reviews on your machine. The demo uses nothing else. The packet is plain JSON and markdown, so any other agent or model can take a task too. Every setting below lives in `.stint/config.json`.
+This page is for anyone who wants Stint to run another coding agent or model, or to change how autopilot picks, escalates, reviews and plans. Stint's defaults run only Meta's models: Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Muse Glimmer 30B reviews on your machine. The demo's replay also turns on Claude Code, on Muse Glimmer 30B through Ollama, and Codex, on Muse Spark 1.3 through the Meta Model API, so its status menu lists four agents on Meta's models alone; a new repository keeps them off. The packet is plain JSON and markdown, so any other agent or model can take a task too. Every setting below lives in `.stint/config.json`.
 
 ## Another coding agent
 
@@ -96,7 +96,7 @@ Then turn the preset on, set its `model` to `muse-spark-1.3`, and add `META_API_
 
 The Agent Client Protocol is JSON-RPC 2.0 over stdio, one JSON object per line, spoken by goose, opencode, Gemini CLI and others: https://agentclientprotocol.com. With `harness: "acp"`, Stint is the client. It starts the command in the manifest, opens a session in the run's worktree, and sends `prompt.md` as the prompt; the manifest's `prompt` setting is ignored for ACP. Messages, tool calls and tool results from the agent land on the same timeline as every other run. ACP does not report token usage, so these runs show as unpriced, not as $0.
 
-Because Stint is the client, the agent's file reads and writes, terminal commands and permission questions come to Stint first. File paths must resolve inside the worktree, symlinks included; a path outside is refused and recorded. Terminal commands run in the worktree in the run's sandbox. A permission question waits for you: it appears on the task and in the queue on the Factory (`/factory`) with the choices the agent offered (such as allow once, always for this run, or reject), and your answer goes back to the agent. `GET /api/permissions` lists the questions still waiting. Stopping a run cancels any question it is waiting on.
+Because Stint is the client, the agent's file reads and writes, terminal commands and permission questions come to Stint first. File paths must resolve inside the worktree, symlinks included; a path outside is refused and recorded. Terminal commands run in the worktree in the run's sandbox. A permission question waits for you: it appears on the task, puts the task in the Board's Needs you labelled with the tool, and sits in the queue on the Factory (`/factory`) with the choices the agent offered (such as allow once, always for this run, or reject), and your answer goes back to the agent. `GET /api/permissions` lists the questions still waiting. Stopping a run cancels any question it is waiting on.
 
 Three presets use ACP, all turned off: `goose` (`goose acp`, https://block.github.io/goose/docs/guides/acp-clients), `opencode` (`opencode acp`, https://opencode.ai/docs/acp/) and `gemini-acp` (`gemini --experimental-acp`, https://geminicli.com/docs/cli/acp-mode/). No preset carries a flag that bypasses approvals.
 
@@ -130,10 +130,10 @@ Stint's reviewer skips any entry in `routes.reviewer` that runs the model the St
 ## Which agent gets the task
 
 The Agents table on the Factory shows how each agent and model has done, overall and per task tag:
-- **Attempts:** runs the daemon verified.
+- **Runs tested:** runs the daemon verified.
 - **Passed:** how many of those were green.
-- **Last 3 all passed:** whether all of the last three attempts passed.
-- **Cost per merged task**, and **reverts** after merge.
+- **Passed the last 3:** whether all of the last three passed.
+- **Cost per merged task**, and **Reverted**, the merges reverted later.
 
 `GET /api/scoreboard` returns the same rows.
 
@@ -206,4 +206,12 @@ Each open issue becomes an intake item on the Board, never a task straight away.
 - the existing tasks it may duplicate, chosen only from tasks with matching words;
 - a risk tier and one line on why.
 
-You accept it as a task (it keeps a link to the issue), merge it into the task it duplicates, or dismiss it. Nothing is ever pulled twice. With `intake` set in the config, the daemon also pulls every 15 minutes.
+You accept it as a task (it keeps a link to the issue), merge it into the task it duplicates, or dismiss it, on the Board or from a terminal:
+
+```bash
+stint intake accept github-41                # from its triage, or with --title, --goal and --accept
+stint intake merge github-41 --into T-0042
+stint intake dismiss github-41 --reason "duplicate of an old bug"
+```
+
+Each new item records `intake.received` and `intake.triaged` (or the triage's failure, with the reason) on the workspace log before anyone accepts it, and accepting copies both to the task. Nothing is ever pulled twice. With `intake` set in the config, the daemon also pulls every 15 minutes.

@@ -11,6 +11,12 @@ This page is the runbook for whoever presents the demo: the commands, the checks
 | `stint demo record --repo <path> --out <file>` | Turns a finished live workspace into a `stint.recording/1` file with real timings and `live: true`, with commit patches under `patches/` beside it. Local paths are scrubbed. |
 | `stint demo [--path <file>] [--speed n] [--from mm:ss]` | Replays a recording with no keys and no Ollama. The strip under the top bar says "A recording of a live run on <date>" for a live recording. |
 
+## The judge copy
+
+`bun run build:judge` builds a read-only copy of the board into `apps/web/dist-judge/`, for GitHub Pages. It plays the replay into a daemon as `stint demo` does, drives the real UI through every page, task, tab and view while it records each read, and builds the UI around that snapshot. Nothing in the copy calls a daemon or a model: Approve is off with the reason "This is a read-only copy of the recorded story. Install Stint to run it.", and every other change is refused with the same words. The strip still says "Replay, hand-written". `bun run serve:judge` serves the copy at `http://127.0.0.1:4321/stint/` as Pages would (`STINT_JUDGE_PORT` picks another port), and `bun run test:judge` builds it and checks it in a browser.
+
+The workflow `.github/workflows/judge.yml` builds, checks and deploys it on a push to main, but only once the owner has looked at a local build and set the repository variable `JUDGE_PAGES` to `on`. Until then every run is skipped.
+
 ## Before the show
 
 1. `scripts/bootstrap.sh --check-only` lists every adapter and host as available or not, with the reason.
@@ -31,7 +37,7 @@ The live runner runs these beats in order. Press Enter to move to the next one, 
 | 1:05 | Kill it | once a `src/` file has changed plus `--kill-after` seconds (6 by default), stops r2 through the daemon | a red notice says the run was killed; the packet appears anyway: size and tokens, in-flight step unknown |
 | 1:20 | A different agent finishes | hands T-0042 to the Stint agent and waits for its verification by the daemon | it checks the unknown step first; the verification card on the Tests tab goes green: "33 passed, tests unchanged, run by Stint" |
 | 1:45 | Review offline | checks that the network is off (it asks, and refuses while online unless `--allow-online`), then reviews on Ollama | $0.00; a finding that contradicts a decision goes to the queue |
-| 2:05 | Approve and merge | approves T-0042 through the gate | one merge commit with `Stint-Task: T-0042` |
+| 2:05 | Approve and merge | keeps D3 against the queued finding, since approve waits while a finding that would reverse a decision is queued, then approves T-0042 through the gate | one merge commit with `Stint-Task: T-0042` |
 | 2:15 | It learned | waits for the learn step, measures the proposed skill on T-0042 with it and without (two short runs on fresh copies; `--no-eval` skips this), approves it, then assigns T-0043, verifies and reviews it, and stops at awaiting approval | the skill card's eval line, "with skill: N findings, without: M"; `skill.applied` on T-0043; the review finds nothing on what was flagged before |
 | 2:35 | Close | prints the per-task cost, the T-0042 packet tokens and hash, the URL, and the repository path to record from | the "One packet, any agent" panel on the Factory (`/factory`): every configured agent and model host |
 

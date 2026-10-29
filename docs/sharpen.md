@@ -2,6 +2,26 @@
 
 Most agent work that goes wrong starts as an unclear task: nobody said what done looks like, what is out of scope, or how a criterion is proven. Sharpen settles that before an agent spends money on it. Stint asks the few questions whose answers change what gets built or how it is proven, recommends an answer to each, settles the rest itself and says so, and records every answer as a decision that later runs keep.
 
+## Start from a sentence: the spec builder
+
+Press n, or New task, New goal or the command palette, and Stint asks "What do you want done?". Write a sentence or two and choose Draft it. One call on the planner chain (`routes.planner`, Muse Wonder first) drafts a spec in [GitHub Spec Kit](https://github.com/github/spec-kit)'s shape: a title and a summary, user stories with a priority (P1 first) and Given, When, Then scenarios, requirements (`FR-001`), success criteria (`SC-001`), edge cases, assumptions, what is not in scope, and the open items Spec Kit marks `[NEEDS CLARIFICATION]`. Its questions go through the same rules as a Sharpen round (below), so a question the repository could answer is dropped. The draft also says whether it is one task or a goal, and why.
+
+The dialog asks the questions first, each with its recommended answer. "Use the recommended answers" settles only the questions that are not material; a material one needs its own answer. Your answers fold back into the draft with one more call, which may ask a second round of questions; after two rounds, whatever is still open is listed as assumed. Then you edit the draft and choose Create task or Create goal, or Download spec.md to keep it in your repository.
+
+On create, a task gets the summary as its goal (with the requirements and what is out of scope under it), one acceptance line per scenario ("Given ..., when ..., then ..."), and a `scenario` proof for each line. A goal gets the summary and the requirements as its outcome, the success criteria as its criteria, and a split proposal to check before any task is made: one task per story, P1 first, or one per phase of an opened `tasks.md`. The questions become the new task's or goal's first Sharpen round, and each answer a decision with "spec builder" as its evidence, so the plan and every run keep it. Nothing is written before create, except what the calls cost: each records `cost.recorded { for: 'draft' }` on the workspace log.
+
+Open a Spec Kit spec reads a `spec.md` you already have, and optionally its `tasks.md`, with no model call. A malformed file is refused with its problems in plain words. Write it yourself opens the plain New task form, or the New goal form for a goal. A replay calls no model, so it cannot draft, but it can open a spec, create and export.
+
+| Command | What it does |
+|---|---|
+| `stint draft "<what you want>"` | Drafts a spec and prints it with its questions; `--goal` drafts a goal |
+| `stint draft --from spec.md --tasks tasks.md` | Opens a Spec Kit spec instead, or a draft saved with `--json` |
+| `stint draft ... --answer Q1=A --recommended` | Answers a question by letter or in your own words, once per answer; `--recommended` takes the recommendation for every open question that is not material |
+| `stint draft ... --create` | Creates the task or the goal |
+| `stint draft ... --out spec.md` | Writes the draft as a Spec Kit `spec.md` |
+
+The routes, each POST needing the daemon token: `POST /api/drafts` (`{ input, kind? }`), `POST /api/drafts/refine` (`{ draft, answers }`), `POST /api/drafts/import` (`{ spec, tasks? }`), `POST /api/drafts/create` (`{ draft }`, answering with the new id) and `POST /api/drafts/export` (the markdown). The draft is `stint.draft/1` ([`schemas/draft.schema.json`](../schemas/draft.schema.json)).
+
 ## How a round works
 
 A round is one call to the sharpen chain: `routes.sharpen` when it is set, else the planner chain (the task's own planner route wins over the config one). The prompt carries the task's title, goal, numbered acceptance criteria, test command and checks; the similar tasks and the decisions and findings on the files it names, from the memory; up to 200 tracked file paths; the task's valid decisions; and every earlier round's questions and answers.
@@ -51,9 +71,10 @@ Each criterion gets one proof, numbered from 1 like the acceptance lines:
 | `test` | a test name or part of one; the test should fail before the change and pass after it |
 | `scenario` | a held-out scenario |
 | `check` | a check, such as `typecheck` |
+| `visual` | a page and what should be seen there, as `<path> :: <what should be seen>`; Muse Spark judges a screenshot of it ([`verify.md`](verify.md#what-stint-saw-visual-checks)) |
 | `human` | what a person looks at before approving |
 
-A round suggests one proof per criterion. Accepted proofs live in `task.json` as `proofs` and are what the outcome record reads. "Use these proofs" in the task view, or `stint proofs --set`, accepts them and records `proofs.set`.
+A round suggests one proof per criterion. Accepted proofs live in `task.json` as `proofs` and are what the outcome record reads. "Use these proofs" in the task view, or `stint proofs --set`, accepts them and records `proofs.set`. In the task view the kinds read A test, A scenario, A check, It looks right and You check it. `stint proofs --set` takes `test`, `scenario`, `check` or `human`; a `visual` proof is set in the task view.
 
 A task is **ready** when no material question is open and every criterion has an accepted proof.
 
@@ -97,7 +118,12 @@ A goal is an outcome bigger than one task, with the criteria that prove it and l
 - `goalId` and `goalCriteria`, the goal criteria it covers;
 - `dependsOn`, so it starts only once the tasks it waits for are merged;
 - its share of the goal's spend and builds as its own limits;
-- a ledger that starts with the goal's standing decisions, by `goal`, with `goal:G-0001/D1` as evidence. The plan and the first build carry them under "Before work started".
+- a ledger that starts with the goal's standing decisions, by `goal`, with `goal:G-0001/D1` as evidence. The plan and the first build carry them under "Before work started";
+- for each goal criterion it covers that has a proof, an acceptance line with that criterion's text and that proof, so the goal judges the criterion on the task's line of the same text.
+
+Subtasks a task is split into, and best-of-n candidates, keep its `goalId`, its goal criteria and a share of its limits, and the goal's limits count every task that carries its id. A task shows its goal: "Part of G-0001, covers criterion 2", with a link, on its card and in its header, and the sign-off after a merge links back to the goal and points at the goal's next open task.
+
+**Running it.** "Run the goal's tasks" on the goal's page, `stint goal run`, or `POST /api/goals/:id/run` puts every open task on autopilot in the goal's order. A task waits until the tasks it depends on are merged. The page says what it starts and the goal's limits before you press it, and in a replay it is off. Raising a goal limit puts the tasks autopilot stopped at that limit back on autopilot.
 
 **How it went** rolls up from each task's outcome record (`goalOutcome` in `packages/core/src/project/goalOutcome.ts`). Each goal criterion takes the weakest state among the criteria of the tasks that cover it, weakest first: failing, not checked, you check it, passing, checked by you, proven. A criterion is met when it is proven or checked by you, and one no task covers is not checked. The rollup also gives each task's result, spend and builds against the goal's limits, and how many tasks are merged. A goal is done when every task is merged (a reverted merge does not count) and every criterion is met. How a goal's limits stop autopilot is in [`factory.md`](factory.md#a-goals-limits).
 
@@ -109,5 +135,9 @@ A goal is an outcome bigger than one task, with the criteria that prove it and l
 | `stint goal plan G-0001` | Shows the proposed tasks and asks before creating them; `--yes` creates them without asking |
 | `stint goal show G-0001` | Prints the rollup the way `stint outcome` prints a task; `--json` for the record |
 | `stint goal list` | Each goal with its status, criteria met, tasks and spend |
+| `stint goal run G-0001` | Puts every open task of the goal on autopilot; a task waits for the tasks it depends on to be merged |
+| `stint goal limits G-0001` | Shows what its tasks have spent and built against its limits; `--max-usd`, `--max-builds` or `--none usd` changes them |
+| `stint goal abandon G-0001` | Gives up the goal: it is not split or run again, and its tasks stay as they are |
+| `stint proofs G-0001` | Shows or sets the proof of each of its criteria, as for a task |
 
-The routes, each POST needing the daemon token: `POST /api/goals` and `GET /api/goals`; `GET /api/goals/:id` (the goal, its rollup, its sharpen state and any proposal not yet made into tasks); the same sharpen routes as a task under `/api/goals/:id`, with `POST /api/goals/:id/proofs`; `POST /api/goals/:id/plan` (the proposal) and `POST /api/goals/:id/tasks` (`{ tasks }`, as proposed or edited); `POST /api/goals/:id/abandon`; and `PATCH /api/goals/:id/limits`. In the web UI, Goals sits between Board and Factory, and "New goal" is on the Goals page and in the command palette. The New goal dialog says in words when a goal has more than 12 criteria or more than 8 non-goals, before anything is sent.
+The routes, each POST needing the daemon token: `POST /api/goals` and `GET /api/goals`; `GET /api/goals/:id` (the goal, its rollup, its sharpen state and any proposal not yet made into tasks); the same sharpen routes as a task under `/api/goals/:id`, with `POST /api/goals/:id/proofs`; `POST /api/goals/:id/plan` (the proposal) and `POST /api/goals/:id/tasks` (`{ tasks }`, as proposed or edited); `POST /api/goals/:id/abandon`; `POST /api/goals/:id/run`; and `PATCH /api/goals/:id/limits`. In the web UI, Goals sits between Board and Factory. "New goal", on the Goals page and in the command palette, opens the spec builder set to a goal, and its Write it yourself opens the New goal form. That form says in words when a goal has more than 12 criteria or more than 8 non-goals, before anything is sent.
