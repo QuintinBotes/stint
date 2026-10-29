@@ -373,7 +373,7 @@ export const api = {
 const subjectPath = (id: string) => (/^G-/.test(id) ? `/api/goals/${id}` : `/api/tasks/${id}`);
 
 export type GoalListItem = { goal: Goal; outcome: GoalOutcome };
-export type GoalView = GoalListItem & { titles: Record<string, string>; tasks: Array<{ id: string; title: string; status: Task['status']; dependsOn: string[] }>; sharpen: SharpenState; proposal: ProposedTask[] | null };
+export type GoalView = GoalListItem & { tasks: Array<{ id: string; title: string; status: Task['status']; dependsOn: string[] }>; sharpen: SharpenState; proposal: ProposedTask[] | null };
 
 export type Unsubscribe = () => void;
 

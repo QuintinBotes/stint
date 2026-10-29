@@ -6,7 +6,7 @@ import { ADAPTER_NAMES } from '../agents';
 import { type CostRow, type DemoStatus, type Health, type TaskCardData, api, daemonMessage } from '../api';
 import { toast } from 'sonner';
 import { localDate, money } from '../format';
-import { useTasks } from '../hooks';
+import { useGoals, useTasks } from '../hooks';
 import { setSingleKeys, useSingleKeys } from '../shortcuts';
 import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
 import { StatusMenu } from './StatusMenu';
@@ -146,7 +146,7 @@ export function ReplayStrip({ health }: { health: Health | null }) {
 }
 
 /** `key` is the shortcut on the page, shown beside the command that does the same from a terminal. `group` places it. */
-type Action = { id: string; label: string; cli: string; key?: string; group?: 'actions' | 'go' | 'settings' | 'notifications'; run: () => void };
+type Action = { id: string; label: string; cli: string; key?: string; group?: 'go' | 'settings' | 'notifications'; run: () => void };
 
 /** What a daemon call said, as a toast: the daemon's own message when it refuses. */
 function report(promise: Promise<unknown>, done: string): void {
@@ -228,6 +228,7 @@ function useRestoreFocus(open: boolean): void {
 
 export function Palette({ open, onClose, actions: global, health }: { open: boolean; onClose: () => void; actions: Action[]; health: Health | null }) {
   const { data: tasks } = useTasks();
+  const { data: goals } = useGoals();
   const navigate = useNavigate();
   const location = useLocation();
   useRestoreFocus(open);
@@ -238,13 +239,16 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
     { id: 'goals', label: 'Goals', cli: 'stint goal list', run: () => navigate('/goals') },
     { id: 'factory', label: 'Factory', cli: '/factory', run: () => navigate('/factory') },
     { id: 'skills', label: 'Skills', cli: 'stint skills list', run: () => navigate('/skills') },
+    ...(goals ?? []).map(({ goal: g }) => ({ id: `goal-${g.id}`, label: `${g.id}, ${g.title}`, cli: `stint goal show ${g.id}`, run: () => navigate(`/goals/${g.id}`) })),
     ...(tasks ?? []).map((c) => ({ id: `task-${c.task.id}`, label: `${c.task.id}, ${c.task.title}`, cli: `/t/${c.task.id}`, run: () => navigate(`/t/${c.task.id}`) })),
   ];
   const replay = health?.mode === 'replay' ? ' (not in the replay)' : '';
+  // Run all starts paid work on every planned task, so it opens the Board's question of what it would start, not the work itself
+  const actions: Action[] = [{ id: 'run-all', label: `Run all planned tasks on autopilot${replay}`, cli: 'stint run --all', run: () => navigate('/?run=all') }];
   const here = taskId ? taskActions(taskId, tasks?.find((c) => c.task.id === taskId), navigate, health, location.search) : [];
   const groups: Array<[string, Action[]]> = [
     [taskId ? `${taskId}${new URLSearchParams(location.search).has('asOf') ? ', as it was' : ''}` : 'This task', here],
-    ['Actions', global.filter((a) => a.group === 'actions').map((a) => (a.id === 'run-all' ? { ...a, label: `${a.label}${replay}` } : a))],
+    ['Actions', actions],
     ['Go to', [...global.filter((a) => a.group === 'go'), ...go]],
     ['Settings', global.filter((a) => a.group === 'settings')],
     ['Notifications', global.filter((a) => a.group === 'notifications')],
@@ -628,7 +632,6 @@ export function usePaletteActions(extra: { newTask: () => void; newGoal: () => v
     () => [
       { id: 'new', label: 'New task', key: 'n', cli: 'stint draft "..."', group: 'go' as const, run: extra.newTask },
       { id: 'new-goal', label: 'New goal', cli: 'stint draft "..." --goal', group: 'go' as const, run: extra.newGoal },
-      { id: 'run-all', label: 'Run all planned tasks on autopilot', cli: 'stint run --all', group: 'actions' as const, run: () => report(api.autopilotAll(true), 'Planned tasks are on autopilot') },
       {
         id: 'notifications',
         label: 'Turn on desktop notifications',

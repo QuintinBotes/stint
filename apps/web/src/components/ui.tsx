@@ -80,7 +80,7 @@ const STATUS: Record<string, { label: string; tone: ChipTone; shape: Shape }> = 
   reviewing: { label: 'reviewing', tone: 'active', shape: 'running' },
   // a pull request waiting on review: nothing of Stint's is running
   in_review: { label: 'in PR review', tone: 'neutral', shape: 'waiting' },
-  awaiting_approval: { label: 'needs you', tone: 'warn', shape: 'attention' },
+  awaiting_approval: { label: 'awaiting approval', tone: 'warn', shape: 'attention' },
   approved: { label: 'approved', tone: 'merged', shape: 'closed' },
   rejected: { label: 'rejected', tone: 'bad', shape: 'failed' },
   done: { label: 'done', tone: 'merged', shape: 'closed' },

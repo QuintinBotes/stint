@@ -104,8 +104,10 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
   const broken = agents.filter((a) => a.capability.level !== 'supported' && a.enabled !== false);
   const models = modelRows(health.models ?? []);
   const readyModels = models.filter((m) => m.ready).length;
-  // the button says what is ready in plain words; the panel names the service behind it
-  const daemon = health.mode === 'replay' ? 'Replay' : 'Ready';
+  // the button says in plain words that Stint answers, and how many agents and models could take work now (none in the
+  // replay, which starts nothing); the panel names each. Nothing here counts what is running: the Board does that.
+  const daemon = health.mode === 'replay' ? 'Replay' : 'Connected';
+  const tail = health.mode === 'replay' ? ', agents are off' : `, ${plural(ready.length, 'agent')} and ${plural(readyModels, 'model')} ready`;
   // a live daemon with no agent that can run is the one state that needs attention here; healthy is plain ink, since green means verified
   const stuck = ready.length === 0 && health.mode === 'live';
 
@@ -123,9 +125,8 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
         {stuck ? <StateMark shape="attention" className="text-amber" /> : <Dot color="var(--ink)" />}
         <span>
           <span className="max-sm:sr-only">{daemon}</span>
-          <span className="hidden xl:inline">
-            , {plural(ready.length, 'agent')}, {plural(readyModels, 'model')}
-          </span>
+          {/* below 1280 px the counts leave the bar but stay in the button's name */}
+          <span className="max-xl:sr-only">{tail}</span>
         </span>
         <svg aria-hidden="true" viewBox="0 0 12 12" className={cx('size-3 text-ink-2 transition-transform', open && 'rotate-180')}>
           <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

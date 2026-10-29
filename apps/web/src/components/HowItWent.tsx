@@ -2,11 +2,18 @@ import { CRITERION_STATE_LABELS, type CriterionState, type Outcome, outcomeLine 
 import { useEffect, useState } from 'react';
 import { type TaskBundle, api } from '../api';
 import { localDate } from '../format';
-import { Explain, type Shape, StateMark, cx, rev } from './ui';
+import { type ChipTone, Explain, type Shape, StateMark, cx, rev } from './ui';
 
-// green and a tick only for proven, amber and a triangle only for failing, ink for the rest; the words carry the meaning
-const INK: Partial<Record<CriterionState, string>> = { proven: 'text-green', failing: 'text-amber' };
-const MARK: Partial<Record<CriterionState, Shape>> = { proven: 'verified', failing: 'attention' };
+/** A criterion's tone and shape, the same on the Goals page and here: green and a tick only for proven, a red cross for failing, an amber triangle where you must check it yourself, ink for the rest. */
+export const CRITERION: Record<CriterionState, { tone: ChipTone; shape: Shape }> = {
+  proven: { tone: 'good', shape: 'verified' },
+  passing: { tone: 'neutral', shape: 'waiting' },
+  failing: { tone: 'bad', shape: 'failed' },
+  you_check: { tone: 'warn', shape: 'attention' },
+  checked_by_you: { tone: 'neutral', shape: 'verified' },
+  not_checked: { tone: 'neutral', shape: 'waiting' },
+};
+const INK: Partial<Record<ChipTone, string>> = { good: 'text-green', bad: 'text-red', warn: 'text-amber' };
 // an ordinary table's caption: a heading above it, not the revision block's boxed one
 const caption = 'caption-top pb-2 text-left font-semibold';
 const label = (s: CriterionState) => (s === 'passing' ? 'Passes, but no test showed it failing first' : CRITERION_STATE_LABELS[s]);
@@ -54,9 +61,9 @@ export function HowItWent({ bundle, after = false }: { bundle: TaskBundle; after
               {/* the passing label already says what its evidence would */}
               {c.state === 'passing' ? null : <span className="block mt-0.5 text-ink-2">{c.evidence}</span>}
             </th>
-            <td className={cx(rev.td, 'font-medium', INK[c.state] ?? 'text-ink')}>
+            <td className={cx(rev.td, 'font-medium', INK[CRITERION[c.state].tone] ?? 'text-ink')}>
               <span className="flex items-baseline gap-1.5">
-                {MARK[c.state] ? <StateMark shape={MARK[c.state] as Shape} className="translate-y-px" /> : null}
+                <StateMark shape={CRITERION[c.state].shape} className="translate-y-px" />
                 {label(c.state)}
               </span>
             </td>

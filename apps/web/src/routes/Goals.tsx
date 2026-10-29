@@ -1,22 +1,14 @@
-import { CRITERION_STATE_LABELS, type CriterionState, type GoalOutcome, type OutcomeResult, type ProposedTask } from '@stint-dev/core';
+import { CRITERION_STATE_LABELS, type GoalOutcome, type OutcomeResult, type ProposedTask } from '@stint-dev/core';
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { type GoalView, api, daemonMessage } from '../api';
+import { type GoalView, api, daemonMessage, readOnly } from '../api';
+import { CRITERION } from '../components/HowItWent';
 import { Meter } from '../components/Limits';
 import { Sharpen } from '../components/SharpenPanel';
 import { Button, type ChipTone, EmptyState, Explain, type Shape, StatusChip, cx } from '../components/ui';
-import { moneyOf } from '../format';
+import { money, moneyOf } from '../format';
 import { useGoal, useGoals } from '../hooks';
 
-// green only for proven, red for failing, amber where you must check it yourself; each with its shape
-const CRITERION: Record<CriterionState, { tone: ChipTone; shape: Shape }> = {
-  proven: { tone: 'good', shape: 'verified' },
-  passing: { tone: 'neutral', shape: 'waiting' },
-  failing: { tone: 'bad', shape: 'failed' },
-  you_check: { tone: 'warn', shape: 'attention' },
-  checked_by_you: { tone: 'neutral', shape: 'verified' },
-  not_checked: { tone: 'neutral', shape: 'waiting' },
-};
 // a merge that held up stays neutral like every closed outcome; one that went wrong after is a failure
 const RESULT: Record<OutcomeResult, { tone: ChipTone; shape: Shape }> = {
   in_progress: { tone: 'neutral', shape: 'waiting' },
@@ -45,6 +37,11 @@ function Page({ testId, children }: { testId: string; children: ReactNode }) {
   );
 }
 
+/** A goal's status. A goal with tasks is "running" in the daemon's words even while none of them executes, so it reads "in progress" with a ring here, as the Board keeps "running" for work that executes now. */
+function GoalStatus({ status }: { status: string }) {
+  return status === 'running' ? <StatusChip status={status} label="in progress" tone="neutral" shape="waiting" /> : <StatusChip status={status} />;
+}
+
 /** A wide table scrolls sideways in its own frame on a phone, so the page never does. */
 function Scroller({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -65,9 +62,9 @@ function LoadNotice({ what, error, stale, onRetry, testId }: { what: string; err
 }
 
 /** Goals (R-064): the list at /goals, one goal at /goals/:id. */
-export function Goals({ onNewGoal }: { onNewGoal: () => void }) {
+export function Goals({ onNewGoal, replay = false }: { onNewGoal: () => void; replay?: boolean }) {
   const { id } = useParams();
-  return id ? <GoalPage id={id} /> : <GoalList onNewGoal={onNewGoal} />;
+  return id ? <GoalPage id={id} replay={replay} /> : <GoalList onNewGoal={onNewGoal} />;
 }
 
 function GoalList({ onNewGoal }: { onNewGoal: () => void }) {
@@ -113,7 +110,7 @@ function GoalList({ onNewGoal }: { onNewGoal: () => void }) {
                     </Link>
                   </th>
                   <td>
-                    <StatusChip status={goal.status} />
+                    <GoalStatus status={goal.status} />
                   </td>
                   <td className="tabular">{met(o)}</td>
                   <td className="tabular">{plural(o.tasks.length, 'task')}</td>
@@ -128,7 +125,7 @@ function GoalList({ onNewGoal }: { onNewGoal: () => void }) {
   );
 }
 
-function GoalPage({ id }: { id: string }) {
+function GoalPage({ id, replay }: { id: string; replay: boolean }) {
   const { data: v, error, reload } = useGoal(id);
   if (!v) {
     return (
@@ -140,7 +137,7 @@ function GoalPage({ id }: { id: string }) {
       </Page>
     );
   }
-  const { goal, outcome: o, titles } = v;
+  const { goal, outcome: o } = v;
   const closed = goal.status === 'abandoned' || goal.status === 'done';
   return (
     <Page testId="goal-page">
@@ -151,7 +148,7 @@ function GoalPage({ id }: { id: string }) {
             {goal.title}
           </h1>
           <div className="stint-page-summary flex flex-wrap items-center gap-x-3 gap-y-1">
-            <StatusChip status={goal.status} />
+            <GoalStatus status={goal.status} />
             <span data-testid="goal-met">{met(o)}</span>
             <span>{plural(o.tasks.length, 'task')}</span>
           </div>
@@ -161,6 +158,7 @@ function GoalPage({ id }: { id: string }) {
           {goal.nonGoals.length ? <p className="mt-1 text-small text-ink-3">Not in scope: {goal.nonGoals.join('; ')}.</p> : null}
           <Explain word="goal" className="mt-2" />
         </div>
+        {closed ? null : <RunGoal v={v} replay={replay} />}
       </header>
       {error ? <LoadNotice what="this goal" error={error} stale onRetry={reload} testId="goal-stale" /> : null}
 
@@ -217,7 +215,7 @@ function GoalPage({ id }: { id: string }) {
             <table className="stint-table min-w-[480px]" data-testid="goal-tasks">
               <thead>
                 <tr>
-                  {['Task', 'Result', 'Covers'].map((h) => (
+                  {['Task', 'State', 'Covers'].map((h) => (
                     <th key={h} scope="col">
                       {h}
                     </th>
@@ -225,19 +223,29 @@ function GoalPage({ id }: { id: string }) {
                 </tr>
               </thead>
               <tbody>
-                {o.tasks.map((t) => (
-                  <tr key={t.id} data-testid={`goal-task-${t.id}`}>
-                    <th scope="row" className="font-normal">
-                      <Link to={`/t/${t.id}`} className={cx(LINK, 'inline-flex items-center gap-1 min-h-6 text-ink')}>
-                        <span className="font-mono text-ink-3 whitespace-nowrap">{t.id}</span> {titles[t.id] ?? ''}
-                      </Link>
-                    </th>
-                    <td data-testid="goal-task-result">
-                      <StatusChip label={t.resultLabel} {...RESULT[t.result]} />
-                    </td>
-                    <td className="tabular">{t.covers.length ? `Criteri${t.covers.length === 1 ? 'on' : 'a'} ${t.covers.join(', ')}` : 'None'}</td>
-                  </tr>
-                ))}
+                {o.tasks.map((t) => {
+                  const task = v.tasks.find((x) => x.id === t.id);
+                  const waits = (task?.dependsOn ?? []).filter((d) => v.tasks.find((x) => x.id === d)?.status !== 'done');
+                  return (
+                    <tr key={t.id} data-testid={`goal-task-${t.id}`}>
+                      <th scope="row" className="font-normal">
+                        <Link to={`/t/${t.id}`} className={cx(LINK, 'inline-flex items-center gap-1 min-h-6 text-ink')}>
+                          <span className="font-mono text-ink-3 whitespace-nowrap">{t.id}</span> {task?.title ?? ''}
+                        </Link>
+                      </th>
+                      {/* an outcome once there is one (merged, waiting for you, stopped); before that the task's own status, so a planned task never reads as in progress */}
+                      <td data-testid="goal-task-result">
+                        {t.result === 'in_progress' && task ? <StatusChip status={task.status} /> : <StatusChip label={t.resultLabel} {...RESULT[t.result]} />}
+                        {waits.length && task?.status === 'planned' ? (
+                          <span className="block mt-1 text-small text-ink-3" data-testid="goal-task-waits">
+                            Waits for <span className="font-mono">{waits.join(', ')}</span> to be merged
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="tabular">{t.covers.length ? `Criteri${t.covers.length === 1 ? 'on' : 'a'} ${t.covers.join(', ')}` : 'None'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </Scroller>
@@ -414,6 +422,60 @@ function Split({ id, proposal, again, onDone }: { id: string; proposal: Proposed
       </div>
       {status}
     </form>
+  );
+}
+
+const CLOSED_TASK = ['done', 'approved', 'abandoned'];
+
+/**
+ * "Run the goal's tasks": every open task of the goal on autopilot, in the goal's order (POST /api/goals/:id/run). It
+ * says what it starts and under which limits before the press, which the goal's meters above repeat; a second press
+ * while the request runs does nothing.
+ */
+function RunGoal({ v, replay }: { v: GoalView; replay: boolean }) {
+  const [busy, setBusy] = useState(false);
+  // the same reasons the Board's Run all is off: nothing runs in the replay or the read-only copy
+  const off = readOnly ?? (replay ? 'Not in the replay: nothing runs here.' : null);
+  const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState<string[] | null>(null);
+  const open = v.tasks.filter((t) => !CLOSED_TASK.includes(t.status));
+  if (!open.length) return null;
+  const waiting = open.filter((t) => t.dependsOn.some((d) => v.tasks.find((x) => x.id === d)?.status !== 'done')).map((t) => t.id);
+  const { spend, builds } = v.outcome;
+  const caps = [spend.limit === null ? 'no spend limit' : `a spend limit of ${money({ usd: spend.limit })} (${money({ usd: spend.usd })} spent)`, builds.limit === null ? 'no build limit' : `a build limit of ${builds.limit} (${builds.used} used)`];
+  const run = () => {
+    if (busy || off) return;
+    setBusy(true);
+    setError(null);
+    api
+      .runGoal(v.goal.id)
+      .then((r) => setStarted(r.started))
+      .catch((e: unknown) => setError(daemonMessage(e)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="flex flex-col gap-2 lg:items-end lg:max-w-[46ch]" data-testid="run-goal">
+      <div className="stint-actions lg:justify-end">
+        <Button tone="primary" aria-disabled={busy || off !== null} aria-busy={busy || undefined} aria-describedby="run-goal-what" onClick={run} data-testid="run-goal-button">
+          {busy ? 'Starting autopilot' : `Run the goal's ${plural(open.length, 'task')}`}
+        </Button>
+      </div>
+      <p className="stint-field-help max-w-[60ch] lg:text-right" id="run-goal-what">
+        Puts the goal's {plural(open.length, 'open task')} on autopilot, in order: each is planned, built, tested and reviewed, then stops for your approval.
+        {waiting.length ? ` ${waiting.join(', ')} ${waiting.length === 1 ? 'starts' : 'start'} only once the tasks ${waiting.length === 1 ? 'it waits' : 'they wait'} on are merged.` : ''} The goal has {caps.join(' and ')}.
+        {off ? <span className="block mt-1 text-ink-2">{off}</span> : null}
+      </p>
+      {started ? (
+        <p role="status" className="text-small text-ink-2" data-testid="run-goal-started">
+          {started.length ? `On autopilot: ${started.join(', ')}.` : 'No open task to start.'}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="stint-field-error" data-testid="run-goal-error">
+          The tasks were not started: {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
