@@ -6,6 +6,7 @@ import { lockAcceptance } from './acceptance';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
 import { git, gitOk } from './git';
+import { goalTasks, inherited } from './goals';
 import { assign } from './lifecycle';
 import { walkChain } from './route';
 import { chooseLearned, recordsFor, workspaceRecords } from './routing';
@@ -36,6 +37,15 @@ export type Step =
 
 /** A task's goal with what all of the goal's tasks have used, so a build can be stopped at the goal's limits (R-064). */
 export type GoalLimits = { id: string; usage: { usd: number; builds: number }; limits: { usd: number | null; builds: number | null } };
+
+/** How every stop at the approval gate begins: autopilot went as far as it goes on its own. */
+const AT_GATE = 'Waiting for your approval.';
+
+/** Autopilot is off because it stopped at the approval gate, the last place it went on its own. */
+export function stoppedAtGate(events: StintEvent[]): boolean {
+  const last = events.findLast((e) => e.type === 'autopilot.started' || e.type === 'autopilot.stopped');
+  return last?.type === 'autopilot.stopped' && String(last.payload.reason ?? '').startsWith(AT_GATE);
+}
 
 /** The events since autopilot was last switched on, or null when it is off. */
 export function autopilotTail(events: StintEvent[]): StintEvent[] | null {
@@ -267,7 +277,7 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
       return { kind: 'adopt', candidate: String(picked.payload.pick) };
     }
     const preferred = candidate ? (tail[0]?.payload.implementer as string | undefined) : undefined;
-    return capped('build', { kind: 'build', ...(preferred ? { adapter: preferred } : {}), reason: s.testsFirst ? 'The acceptance tests are locked and fail.' : 'Nothing is built yet.' });
+    return capped('build', { kind: 'build', ...(preferred ? { adapter: preferred } : {}), reason: task.pendingAsk ? 'It was sent back with changes to make.' : s.testsFirst ? 'The acceptance tests are locked and fail.' : 'Nothing is built yet.' });
   }
   if (!last.endedBy) return { kind: 'wait', reason: `${last.run} has not finished` };
 
@@ -296,13 +306,13 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   const review = after.filter((e) => e.type === 'review.recorded').at(-1);
   if (!review) {
     const failed = after.some((e) => e.type === 'run.finished' && e.payload.endedBy === 'failed' && tail.some((s2) => s2.type === 'run.started' && s2.run === e.run && s2.payload.role === 'reviewer'));
-    if (failed) return { kind: 'stop', reason: 'Waiting for your approval. No reviewer could answer, so read the diff yourself.', needsYou: false };
+    if (failed) return { kind: 'stop', reason: `${AT_GATE} No reviewer could answer, so read the diff yourself.`, needsYou: false };
     const v = verification?.payload as { command?: string; passed?: number; failed?: number };
     return capped('work', { kind: 'review', verified: `${v.command ?? 'tests'} ${v.passed ?? 0}/${(v.passed ?? 0) + (v.failed ?? 0)} green` });
   }
   const r = review.payload.review as { verdict: string; findings?: Array<{ text: string }>; blockers?: string[] } | undefined;
   const verdict = (review.payload.verdict as string | undefined) ?? r?.verdict;
-  if (verdict === 'approve') return { kind: 'stop', reason: 'Waiting for your approval.', needsYou: false };
+  if (verdict === 'approve') return { kind: 'stop', reason: AT_GATE, needsYou: false };
   if (verdict === 'block') return { kind: 'stop', reason: `Needs you: the review blocked it: ${(r?.blockers ?? []).join('; ') || 'see the review'}`, needsYou: true };
   const ask = (r?.findings ?? []).map((f) => f.text).join('\n').slice(0, 2000) || 'Address the review.';
   return capped('changes', { kind: 'build', adapter: last.adapter ?? undefined, ask, reason: 'The review asked for changes.' });
@@ -360,9 +370,9 @@ export class Autopilot {
     const caps = { usd: goal?.limits?.usd ?? null, builds: goal?.limits?.builds ?? null };
     if (!goal || (caps.usd === null && caps.builds === null)) return this.sharpenFirst;
     const usage = { usd: 0, builds: 0 };
-    for (const id of new Set([...goal.tasks, task.id])) {
-      const events = await this.ctx.ws.readTask(id).then(() => this.ctx.ws.events(id).read(), () => []);
-      const u = taskUsage(events);
+    // the subtasks and candidates made from the goal's tasks carry its id, so their spend and builds count too
+    for (const t of await goalTasks(this.ctx, goal)) {
+      const u = taskUsage(await this.ctx.ws.events(t.id).read());
       usage.usd += u.usd;
       usage.builds += u.builds;
     }
@@ -431,7 +441,7 @@ export class Autopilot {
       case 'children':
         return 'build';
       case 'stop':
-        return task.status === 'awaiting_approval' || s.reason.startsWith('Waiting for your approval') ? 'approve' : 'idle';
+        return task.status === 'awaiting_approval' || s.reason.startsWith(AT_GATE) ? 'approve' : 'idle';
       case 'wait': {
         if (task.status === 'awaiting_approval') return 'approve';
         if (task.status === 'verifying') return 'verify';
@@ -555,7 +565,7 @@ export class Autopilot {
           await this.step(id, 'review', 'Asking the reviewer chain.');
           await reviewTask(this.ctx, id).catch(async (err: unknown) => {
             await ws.writeTask(id, { status: 'awaiting_approval' });
-            await this.stop(id, `Waiting for your approval. No reviewer could answer (${err instanceof Error ? err.message : String(err)}).`);
+            await this.stop(id, `${AT_GATE} No reviewer could answer (${err instanceof Error ? err.message : String(err)}).`);
           });
           continue;
         }
@@ -590,7 +600,7 @@ export class Autopilot {
           const chain = this.settings.implementers.filter((a) => this.ctx.adapters.some((x) => x.id === a));
           const candidates: string[] = [];
           for (let k = 1; k <= s.n; k++) {
-            const c = await ws.createTask({ title: `${task.title} (candidate ${k} of ${s.n})`.slice(0, 120), goal: task.goal, acceptance: task.acceptance, testCommand: task.testCommand, tags: [...(task.tags ?? []).filter((t) => t !== 'candidate'), 'candidate'] });
+            const c = await ws.createTask({ title: `${task.title} (candidate ${k} of ${s.n})`.slice(0, 120), goal: task.goal, acceptance: task.acceptance, testCommand: task.testCommand, tags: [...(task.tags ?? []).filter((t) => t !== 'candidate'), 'candidate'], ...inherited(task, s.n) });
             await ws.writeTask(c.id, { parent: id, baseCommit: task.baseCommit });
             if (plan) await ws.writePlan(c.id, plan);
             candidates.push(c.id);

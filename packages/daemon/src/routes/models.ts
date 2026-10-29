@@ -18,6 +18,7 @@ import { namedFiles } from '../paths';
 import { afterReview } from '../risk';
 import { lockPlanTests } from '../acceptance';
 import { git } from '../git';
+import { inherited } from '../goals';
 import { ChainExhaustedError, effectiveChain, walkChain } from '../route';
 import { skillsFor } from '../skills';
 import { sharpenBrief } from '../sharpen';
@@ -164,7 +165,7 @@ export async function decompose(ctx: DaemonContext, id: string, plan: Plan, run:
   const children: string[] = [];
   const edges: Array<[string, string]> = [];
   for (const [i, st] of (plan.subtasks ?? []).entries()) {
-    const child = await ctx.ws.createTask({ title: st.title, goal: st.goal, acceptance: st.acceptance, testCommand: parent.testCommand, tags: [...new Set([...(parent.tags ?? []), 'subtask'])] });
+    const child = await ctx.ws.createTask({ title: st.title, goal: st.goal, acceptance: st.acceptance, testCommand: parent.testCommand, tags: [...new Set([...(parent.tags ?? []), 'subtask'])], ...inherited(parent, plan.subtasks?.length ?? 1) });
     const deps = st.dependsOn.map((d) => children[d] as string);
     await ctx.ws.writeTask(child.id, { parent: id, dependsOn: deps });
     for (const d of deps) edges.push([child.id, d]);
@@ -359,10 +360,10 @@ export type PendingSkillProposal = { id: string; kind: 'skill'; task: string; sk
 export type PendingRenameMerge = { id: string; kind: 'rename-merge'; task: string; run: string; agent: string; from: string; to: string; commit: string; at: string };
 export type PendingQueueItem = PendingContradiction | PendingSkillProposal | PendingRenameMerge;
 
-/** The queue is a projection of the logs: a finding that contradicts a decision waits until a person settles it. */
-export async function pendingContradictions(ctx: DaemonContext): Promise<PendingContradiction[]> {
+/** The queue is a projection of the logs: a finding that contradicts a decision waits until a person settles it. `task` limits it to one task. */
+export async function pendingContradictions(ctx: DaemonContext, task?: string): Promise<PendingContradiction[]> {
   const out: PendingContradiction[] = [];
-  for (const t of await ctx.ws.listTasks()) {
+  for (const t of task ? [await ctx.ws.readTask(task)] : await ctx.ws.listTasks()) {
     const events = await ctx.ws.events(t.id).read();
     const settled = new Set(events.map((e) => e.payload.queue).filter((q): q is string => typeof q === 'string'));
     const decisions = new Map((await ctx.ws.decisions(t.id).read()).map((d) => [d.id, d.text]));

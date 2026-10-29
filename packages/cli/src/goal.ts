@@ -139,7 +139,57 @@ const listGoals = defineCommand({
   },
 });
 
+const runGoal = defineCommand({
+  meta: { name: 'run', description: 'Put every open task of the goal on autopilot; a task waits for the tasks it depends on to be merged' },
+  args: { goal: { type: 'positional', required: true, description: 'Goal id' }, json: { type: 'boolean', description: 'Machine-readable output' }, ...repoArg },
+  async run({ args }) {
+    const r = await postDaemon<{ started: string[]; running: string[]; queued: string[] }>(repoRoot(args.repo), `/api/goals/${args.goal}/run`, {});
+    if (args.json) process.stdout.write(`${JSON.stringify(r)}\n`);
+    else process.stdout.write(r.started.length ? `${args.goal}: ${r.started.join(', ')} on autopilot. Each stops at your approval, and a task waits for the tasks it depends on to be merged.\n` : `${args.goal}: every task is merged or abandoned, so there is nothing to start.\n`);
+  },
+});
+
+const goalLimits = defineCommand({
+  meta: { name: 'limits', description: "Show what a goal's tasks have spent and built against its limits, or change them" },
+  args: {
+    goal: { type: 'positional', required: true, description: 'Goal id' },
+    'max-usd': { type: 'string', description: 'Dollars all its tasks may spend together' },
+    'max-builds': { type: 'string', description: 'Builds all its tasks may start together' },
+    none: { type: 'string', description: 'Take a limit off: usd or builds (both with a comma)' },
+    json: { type: 'boolean', description: 'Machine-readable output' },
+    ...repoArg,
+  },
+  async run({ args }) {
+    const root = repoRoot(args.repo);
+    const none = args.none ? args.none.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const other = none.find((n) => n !== 'usd' && n !== 'builds');
+    if (other) {
+      process.stderr.write(`--none takes usd or builds for a goal, not ${other}\n`);
+      process.exit(2);
+    }
+    const change = limitsFromFlags(args, none);
+    const resumed = Object.keys(change).length ? (await postDaemon<{ resumed: string[] }>(root, `/api/goals/${args.goal}/limits`, change, 'PATCH')).resumed : [];
+    const { goal, outcome: o } = await getDaemon<View>(root, `/api/goals/${args.goal}`);
+    if (args.json) {
+      process.stdout.write(`${JSON.stringify({ limits: goal.limits ?? {}, spend: o.spend, builds: o.builds, resumed })}\n`);
+      return;
+    }
+    const lines = [`Spend         ${spend(o)}${o.spend.limit === null ? ', no limit' : ''}`, `Builds        ${o.builds.used}${o.builds.limit === null ? ', no limit' : ` of ${o.builds.limit}`}`];
+    if (resumed.length) lines.push(`Autopilot goes on with ${resumed.join(', ')}, which stopped at the limit you raised.`);
+    process.stdout.write(`${lines.join('\n')}\n`);
+  },
+});
+
+const abandonGoal = defineCommand({
+  meta: { name: 'abandon', description: 'Give up a goal: it is not split or run again, and its tasks stay as they are' },
+  args: { goal: { type: 'positional', required: true, description: 'Goal id' }, ...repoArg },
+  async run({ args }) {
+    const goal = await postDaemon<Goal>(repoRoot(args.repo), `/api/goals/${args.goal}/abandon`, {});
+    process.stdout.write(`${goal.id} is abandoned.\n`);
+  },
+});
+
 export const goalCommand = defineCommand({
-  meta: { name: 'goal', description: 'An outcome bigger than one task: make it, sharpen it, split it into tasks, see how it goes' },
-  subCommands: { new: newGoal, sharpen: sharpenGoal, plan: planGoal, show: showGoal, list: listGoals },
+  meta: { name: 'goal', description: 'An outcome bigger than one task: make it, sharpen it, split it into tasks, run them, see how it goes' },
+  subCommands: { new: newGoal, sharpen: sharpenGoal, plan: planGoal, run: runGoal, show: showGoal, list: listGoals, limits: goalLimits, abandon: abandonGoal },
 });

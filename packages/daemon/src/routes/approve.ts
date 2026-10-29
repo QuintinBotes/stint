@@ -5,11 +5,13 @@ import { canonicalJSON, latestMergedLine, runsFromEvents, sha256Hex, withLatestM
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import type { DaemonContext } from '../app';
+import { stoppedAtGate } from '../autopilot';
 import { DaemonError } from '../errors';
 import { ghOk, git, gitOk, identityArgs } from '../git';
 import { triggerLearn } from '../learn';
 import { releaseWorktrees } from '../lifecycle';
 import { prepareShadow, recordShadow, writeShadow } from '../risk';
+import { pendingContradictions } from './models';
 import { updateSkillStatuses } from '../skills';
 
 /** Skill statuses follow task outcomes; a status pass that fails is said out loud, never hidden. */
@@ -192,6 +194,13 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash }
     if (!v.commit) throw new DaemonError('verification_red', 'the latest green verification recorded no commit, so what it tested is unknown', 'run the tests again');
     const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
     if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
+    // a finding that would reverse a decision waits for a person; merging first would settle it without one (non-negotiable 7)
+    const pending = await pendingContradictions(ctx, id);
+    const first = pending[0];
+    if (first) {
+      const d = first.decision?.id ?? first.finding.contradictsDecision ?? 'a decision';
+      throw new DaemonError('decision_pending', `${first.finding.id} in the review would reverse ${d}${first.decision ? ` ("${first.decision.text}")` : ''}; keep ${d} or supersede it before you approve`, { queue: pending.map((p) => p.id) });
+    }
     const log = await ctx.ws.events(id).read();
     // a reject or a request for changes outranks the green verification before it: the person said this code is not ready
     const asked = log.findLastIndex((e) => e.type === 'approval.rejected');
@@ -243,6 +252,18 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash }
   }
 }
 
+/**
+ * A task sent back with an ask for its next run. When autopilot had stopped at the gate it goes on again and builds
+ * from the ask; otherwise the task is rejected, which puts it in the board's Needs you lane.
+ */
+async function sendBack(ctx: DaemonContext, id: string, ask: string): Promise<{ status: 'building' | 'rejected'; autopilot: boolean }> {
+  const autopilot = stoppedAtGate(await ctx.ws.events(id).read());
+  const status = autopilot ? 'building' : 'rejected';
+  await ctx.ws.writeTask(id, { status, pendingAsk: ask });
+  if (autopilot) await ctx.autopilot.start(id);
+  return { status, autopilot };
+}
+
 export function approveRoutes(app: Hono, ctx: DaemonContext): void {
   app.post('/api/tasks/:id/approve', async (c) => {
     const id = c.req.param('id');
@@ -263,8 +284,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by }, links: [{ kind: 'decision', ref: d.id }] });
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason, decision: d.id } });
     void ctx.otel.task(id).catch(() => undefined);
-    await ctx.ws.writeTask(id, { status: 'building', pendingAsk: reason });
-    const result = { status: 'building', decision: d.id };
+    const result = { ...(await sendBack(ctx, id, reason)), decision: d.id };
     await skillStatuses(ctx);
     triggerLearn(ctx, id);
     return c.json(result);
@@ -277,8 +297,10 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     // asking for changes is not approving: the shadow record counts it against the policy's would-approve
     await recordShadow(ctx, id, 'rejected').catch(() => undefined);
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason: text, changes: true } });
-    await ctx.ws.writeTask(id, { status: 'building', pendingAsk: text });
+    const result = await sendBack(ctx, id, text);
     await skillStatuses(ctx);
-    return c.json({ status: 'building' });
+    // the text is a rejection reason the learn step counts, as a reject's is
+    triggerLearn(ctx, id);
+    return c.json(result);
   });
 }

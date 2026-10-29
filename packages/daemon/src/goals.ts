@@ -1,6 +1,6 @@
 // Goals above tasks (R-064 Part 2): a goal's status, its split into tasks, and the tasks made from it.
 import { type Host, hostsFromConfig } from '@stint-dev/adapter-openai-compatible';
-import { type Goal, type GoalOutcome, GoalSplitSchema, type GoalStatus, type NewEvent, type ProposedTask, type SharpenState, type Task, type TaskLimits, goalOutcome } from '@stint-dev/core';
+import { type Goal, type GoalOutcome, GoalSplitSchema, type GoalStatus, type NewEvent, type ProposedTask, type SharpenState, type Task, type TaskLimits, type TaskProof, goalOutcome } from '@stint-dev/core';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
 import { git } from './git';
@@ -110,10 +110,38 @@ export function shareOf(limits: TaskLimits | undefined, n: number): TaskLimits |
   return out;
 }
 
+/** What each of the `n` subtasks or best-of candidates made from a task takes from it: its goal, the goal criteria it covers, and a share of its limits. */
+export function inherited(parent: Task, n: number): { goalId?: string; goalCriteria?: number[]; limits?: TaskLimits } {
+  const limits = shareOf(parent.limits, n);
+  return { ...(parent.goalId ? { goalId: parent.goalId, goalCriteria: parent.goalCriteria ?? [] } : {}), ...(limits ? { limits } : {}) };
+}
+
+/** Every task that spends on a goal: the goal's own tasks, and the subtasks and candidates made from them, which carry its id. */
+export async function goalTasks(ctx: DaemonContext, goal: Goal): Promise<Task[]> {
+  return (await ctx.ws.listTasks()).filter((t) => t.goalId === goal.id || goal.tasks.includes(t.id));
+}
+
+/**
+ * A proposed task's acceptance with each covered goal criterion that has a proof added as a line of its own, unless
+ * the task already has that line, and the proof on that line: the task's outcome then judges the criterion the way
+ * the goal said it is proven, and the goal's rollup reads that line.
+ */
+function carryProofs(goal: Goal, p: ProposedTask): { acceptance: string[]; proofs: TaskProof[] } {
+  const acceptance = [...p.acceptance];
+  const proofs: TaskProof[] = [];
+  for (const c of p.covers) {
+    const { text, proof } = goal.criteria[c - 1] ?? {};
+    if (!text || !proof) continue;
+    const at = acceptance.includes(text) ? acceptance.indexOf(text) : acceptance.push(text) - 1;
+    if (!proofs.some((x) => x.criterion === at + 1)) proofs.push({ criterion: at + 1, ...proof });
+  }
+  return { acceptance, proofs };
+}
+
 /**
  * Creates the tasks a person accepted, possibly edited, through the normal task creation path: each with the goal,
- * the goal criteria it covers, the tasks it waits for and its share of the goal's limits, and a ledger that starts
- * with the goal's decisions. The goal lists them, starts running and records `goal.tasks_created`.
+ * the goal criteria it covers and their proofs, the tasks it waits for and its share of the goal's limits, and a
+ * ledger that starts with the goal's decisions. The goal lists them, starts running and records `goal.tasks_created`.
  */
 export async function createGoalTasks(ctx: DaemonContext, id: string, proposed: ProposedTask[]): Promise<Task[]> {
   const goal = await ctx.ws.readGoal(id);
@@ -121,19 +149,28 @@ export async function createGoalTasks(ctx: DaemonContext, id: string, proposed: 
   const problem = splitProblem(proposed, goal.criteria.length);
   if (problem) throw new DaemonError('invalid', problem);
   if (goal.tasks.length + proposed.length > 50) throw new DaemonError('invalid', `a goal holds at most 50 tasks; ${id} has ${goal.tasks.length}`);
+  const carried = proposed.map((p) => carryProofs(goal, p));
+  // checked before any task is made, so a refused split makes none
+  const over = carried.findIndex((c) => c.acceptance.length > 12);
+  if (over >= 0) throw new DaemonError('invalid', `task ${over + 1} would have ${carried[over]?.acceptance.length} criteria once the goal's proven ones are added; a task holds at most 12`, 'cover fewer criteria with it, or drop some of its own acceptance lines');
   const decisions = standingGoalDecisions(goal.decisions, await sharpenStateOf(ctx, id));
   const limits = shareOf(goal.limits, proposed.length);
   const made: Task[] = [];
-  for (const p of proposed) {
-    const t = await ctx.ws.createTask({
+  for (const [i, p] of proposed.entries()) {
+    const { acceptance, proofs } = carried[i] as (typeof carried)[number];
+    let t = await ctx.ws.createTask({
       title: p.title,
       goal: p.goal,
-      acceptance: p.acceptance,
+      acceptance,
       goalId: id,
       goalCriteria: [...new Set(p.covers)].sort((a, b) => a - b),
       dependsOn: p.dependsOn.map((d) => (made[d] as Task).id),
       ...(limits ? { limits } : {}),
     });
+    if (proofs.length) {
+      t = await ctx.ws.writeTask(t.id, { proofs });
+      await ctx.ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'proofs.set', payload: { proofs, from: [], goal: id } });
+    }
     for (const d of decisions) {
       const entry = await ctx.ws.decisions(t.id).append({ text: d.text, by: 'goal', evidence: [`goal:${id}/${d.id}`] });
       await ctx.ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'decision.recorded', payload: { id: entry.id, text: entry.text, by: entry.by, goal: id }, links: [{ kind: 'decision', ref: entry.id }] });
@@ -153,6 +190,8 @@ export type GoalView = {
   outcome: GoalOutcome;
   /** Each task's title, for the goal page and `stint goal show`. */
   titles: Record<string, string>;
+  /** The goal's tasks in its order, each with its status and the tasks it waits for. */
+  tasks: Array<{ id: string; title: string; status: Task['status']; dependsOn: string[] }>;
   sharpen: SharpenState;
   /** The latest split no tasks were made from yet, or null. */
   proposal: ProposedTask[] | null;
@@ -161,15 +200,61 @@ export type GoalView = {
 /**
  * A goal as the page and the CLI read it: its rollup from each task's outcome record, its sharpen state and any split
  * waiting to be made into tasks. A draft that has become ready, or a running goal its rollup calls done, says so first.
+ * The subtasks and candidates under its tasks count towards its spend and builds, as its limits count them.
  */
 export async function goalView(ctx: DaemonContext, id: string): Promise<GoalView> {
   let goal = await settleGoal(ctx, id);
-  const tasks = (await Promise.all(goal.tasks.map((t) => ctx.ws.readTask(t).catch(() => null)))).filter((t): t is Task => !!t);
+  const all = await goalTasks(ctx, goal);
+  const tasks = goal.tasks.flatMap((t) => all.filter((x) => x.id === t));
   const outcomes = await Promise.all(tasks.map((t) => taskOutcome(ctx.ws, t.id)));
-  const outcome = goalOutcome(goal, outcomes, Object.fromEntries(tasks.map((t) => [t.id, t.goalCriteria ?? []])));
+  const under = await Promise.all(all.filter((t) => !goal.tasks.includes(t.id)).map((t) => taskOutcome(ctx.ws, t.id)));
+  const outcome = goalOutcome(goal, outcomes, Object.fromEntries(tasks.map((t) => [t.id, t.goalCriteria ?? []])), under);
   if (goal.status === 'running' && outcome.result === 'done') goal = await setGoalStatus(ctx, id, 'done');
   const events = await goalEvents(ctx.ws, id);
   const planned = events.findLastIndex((e) => e.type === 'goal.planned');
   const proposal = planned > events.findLastIndex((e) => e.type === 'goal.tasks_created') ? ((events[planned]?.payload.tasks as ProposedTask[] | undefined) ?? null) : null;
-  return { goal, outcome, titles: Object.fromEntries(tasks.map((t) => [t.id, t.title])), sharpen: await sharpenStateOf(ctx, id), proposal };
+  return {
+    goal,
+    outcome,
+    titles: Object.fromEntries(tasks.map((t) => [t.id, t.title])),
+    tasks: tasks.map((t) => ({ id: t.id, title: t.title, status: t.status, dependsOn: t.dependsOn ?? [] })),
+    sharpen: await sharpenStateOf(ctx, id),
+    proposal,
+  };
+}
+
+const CLOSED: Array<Task['status']> = ['done', 'approved', 'abandoned'];
+
+/**
+ * Puts every open task of the goal on autopilot, in the goal's order, which puts each task after the tasks it waits
+ * for; a task whose dependencies are not merged waits on autopilot until they are. Returns the tasks it started.
+ */
+export async function runGoal(ctx: DaemonContext, id: string): Promise<string[]> {
+  const goal = await ctx.ws.readGoal(id);
+  if (goal.status === 'abandoned') throw new DaemonError('invalid', `${id} is abandoned`);
+  if (!goal.tasks.length) throw new DaemonError('invalid', `${id} has no tasks yet`, `split it into tasks first: stint goal plan ${id}`);
+  const started: string[] = [];
+  for (const t of goal.tasks) {
+    const task = await ctx.ws.readTask(t).catch(() => null);
+    if (!task || CLOSED.includes(task.status)) continue;
+    await ctx.autopilot.start(t);
+    started.push(t);
+  }
+  return started;
+}
+
+/** Switches autopilot on again on each of the goal's tasks that it stopped at one of the goal's `raised` limits. */
+export async function resumeAtGoalLimit(ctx: DaemonContext, goal: Goal, raised: string[]): Promise<string[]> {
+  const resumed: string[] = [];
+  for (const t of await goalTasks(ctx, goal)) {
+    const events = await ctx.ws.events(t.id).read();
+    const stop = events.findLastIndex((e) => e.type === 'autopilot.started' || e.type === 'autopilot.stopped');
+    if (events[stop]?.type !== 'autopilot.stopped') continue;
+    const start = events.findLastIndex((e) => e.type === 'autopilot.started');
+    const hit = events.slice(start + 1, stop).findLast((e) => e.type === 'limit.reached' && e.payload.scope === 'goal');
+    if (!hit || !raised.includes(String(hit.payload.limit))) continue;
+    await ctx.autopilot.start(t.id);
+    resumed.push(t.id);
+  }
+  return resumed;
 }

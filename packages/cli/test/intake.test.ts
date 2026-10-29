@@ -89,14 +89,15 @@ test('A fake gh returning two issues creates two intake items, triage marks one 
         ['intake.triaged', 'github-42', 'M'],
       ]);
 
-      const accepted = (await (await post('/api/intake/github-42/accept', {})).json()) as { task: string };
-      const task = await d.ws.readTask(accepted.task);
+      const accepted = await stint(repo, 'intake', 'accept', 'github-42');
+      expect(accepted.out).toBe('github-42 is now T-0002.\n');
+      const task = await d.ws.readTask('T-0002');
       expect(task).toMatchObject({ title: 'Export audit log as CSV', source: { kind: 'github', ref: '42', url: 'https://example.invalid/acme/api/issues/42' }, tags: ['intake'] });
-      const events = await d.ws.events(accepted.task).read();
+      const events = await d.ws.events('T-0002').read();
       expect(events.filter((e) => e.type.startsWith('intake.')).map((e) => e.type)).toEqual(['intake.received', 'intake.triaged']);
 
       // the duplicate goes onto the task it duplicates, and nothing new is made
-      expect((await post('/api/intake/github-41/merge', { task: existing.id })).status).toBe(200);
+      expect((await stint(repo, 'intake', 'merge', 'github-41', '--into', existing.id)).out).toBe(`github-41 is merged into ${existing.id}.\n`);
       expect((await d.ws.events(existing.id).read()).find((e) => e.type === 'intake.received')?.payload).toMatchObject({ ref: '41', mergedInto: existing.id });
       expect((await d.ws.readTask(existing.id)).links.issueUrl).toBe('https://example.invalid/acme/api/issues/41');
       expect((await d.ws.listTasks()).length).toBe(2);
@@ -142,6 +143,8 @@ test('Linear issues come through GraphQL with the key from the named variable, a
           ['intake.received', 'linear-ENG-7', null, 'undefined'],
           ['intake.triaged', 'linear-ENG-7', null, 'string'],
         ]);
+        expect((await stint(repo, 'intake', 'dismiss', 'linear-ENG-7', '--reason', 'Not this quarter')).out).toBe('linear-ENG-7 is dismissed.\n');
+        expect((await (await fetch(`${d.url}/api/intake`)).json()) as unknown).toMatchObject([{ id: 'linear-ENG-7', state: 'dismissed', reason: 'Not this quarter' }]);
       } finally {
         await d.stop();
       }

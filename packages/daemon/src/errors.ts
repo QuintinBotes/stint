@@ -18,6 +18,7 @@ export type ErrorCode =
   | 'packet_too_large'
   | 'verification_red'
   | 'review_blocked'
+  | 'decision_pending'
   | 'skill_invalid'
   | 'skill_blocked'
   | 'skill_unacknowledged'
@@ -38,6 +39,7 @@ const STATUS: Record<ErrorCode, ContentfulStatusCode> = {
   packet_too_large: 422,
   verification_red: 409,
   review_blocked: 409,
+  decision_pending: 409,
   skill_invalid: 422,
   skill_blocked: 409,
   skill_unacknowledged: 409,

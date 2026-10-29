@@ -68,6 +68,18 @@ export async function reviewBeat(client: DemoClient, task: string, o: ReviewBeat
   return client.post(`/api/tasks/${task}/review`, { host: 'ollama' });
 }
 
+/**
+ * The person's decisions stand: each finding the review queued against a decision on the task is kept, so the
+ * approve that follows, which waits while one is queued, can merge.
+ */
+export async function keepDecisions(client: DemoClient, task: string, out: (line: string) => void): Promise<void> {
+  const queue = (await client.get('/api/graph/pending')) as Array<{ id: string; kind: string; task: string; decision?: { id: string } | null; finding?: { id: string } }>;
+  for (const q of queue.filter((x) => x.kind === 'contradiction' && x.task === task)) {
+    await client.post(`/api/graph/pending/${q.id}`, { action: 'keep' });
+    out(`Kept ${q.decision?.id ?? 'the decision'}: ${q.finding?.id ?? 'the finding'} would have reversed it, and it is not applied.`);
+  }
+}
+
 /** Waits for a line on stdin. The beats use it between beats unless --auto. One shared reader, so every pause works. */
 export async function promptEnter(message: string): Promise<void> {
   const { createInterface } = await import('node:readline');
@@ -212,6 +224,7 @@ export async function runLiveBeats(o: LiveBeatsOptions): Promise<LiveSummary> {
 
   // Beat 6: approve and merge, then learn.
   await pause('approve', 'Beat: approve and merge, then it learns. Press Enter. ');
+  await keepDecisions(o.client, 'T-0042', out);
   await o.client.post('/api/tasks/T-0042/approve', {});
   out('Approved T-0042.');
   const learned = await waitFor('T-0042', (es) => es.some((e) => e.type === 'skill.proposed' || e.type === 'learn.skipped'), 'the learn step');

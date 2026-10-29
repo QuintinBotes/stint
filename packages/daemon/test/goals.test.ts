@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
-import { LIMIT_DEFAULTS, type SharpenState, type StintEvent } from '@stint-dev/core';
+import { LIMIT_DEFAULTS, type SharpenState, type StintEvent, type Task } from '@stint-dev/core';
 import { type Workspace, costs } from '@stint-dev/core/node';
 import { nextStep } from '../src/autopilot';
-import { fakeModels, setup, stopped, until } from './autopilot.fixtures';
-import { auth, post, withFixtureRepo } from './helpers';
+import { fakeModels, setup, stopped, task, until } from './autopilot.fixtures';
+import { auth, fakeAdapter, makeApp, post, withFixtureRepo } from './helpers';
+import { plan, planner, writeConfig } from './plan.fixtures';
 
 const GOAL = { title: 'Webhooks survive a noisy tenant', outcome: 'One noisy tenant slows only itself.', criteria: ['429 with Retry-After', 'Other tenants are served as before'], nonGoals: ['Billing for extra webhooks'] };
 
@@ -152,6 +153,64 @@ test('A goal made, sharpened, answered and split into two tasks: the proposal cr
   }
 }, 60_000);
 
+/** A verification the daemon ran, red with the names that failed or green when none did, `secs` after a fixed start. */
+async function verified(ws: Workspace, task: string, run: string, secs: number, failing: string[] = []) {
+  const status = failing.length ? 'red' : 'green';
+  const at = new Date(Date.parse('2026-10-29T10:00:00Z') + secs * 1000).toISOString();
+  await ws.verification(task).write({ run, command: 'bun run test', exitCode: failing.length ? 1 : 0, passed: 3, failed: failing.length, durationMs: 100, runBy: 'daemon', status, outputRef: `verification/${run}.out.txt`, at });
+  await ws.events(task).append({ task, run, vendor: 'daemon', type: 'verification.ran', payload: { status, passed: 3, failed: failing.length, failing } });
+}
+
+test("A goal's proofs reach the tasks that cover it: split, each task merged with a green verification, and the goal is done", async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [], models);
+      const g = await ws.createGoal(GOAL);
+      const proofs = [
+        { criterion: 1, kind: 'test', ref: '429 with Retry-After' },
+        { criterion: 2, kind: 'human', ref: 'An operator watches a load test' },
+      ];
+      expect((await post(app, `/api/goals/${g.id}/proofs`, { proofs })).status).toBe(200);
+      const { tasks: proposal } = (await (await post(app, `/api/goals/${g.id}/plan`, {})).json()) as { tasks: unknown[] };
+      const { tasks } = (await (await post(app, `/api/goals/${g.id}/tasks`, { tasks: proposal })).json()) as { tasks: Array<{ id: string }> };
+      const [a, b] = (await Promise.all(tasks.map((t) => ws.readTask(t.id)))) as [Task, Task];
+      // the first task already says criterion 1 in its own words, so the proof goes on that line; the second gets the line added
+      expect([a.acceptance, a.proofs]).toEqual([['429 with Retry-After'], [{ criterion: 1, kind: 'test', ref: '429 with Retry-After' }]]);
+      expect([b.acceptance, b.proofs]).toEqual([['Other tenants get 200', 'Other tenants are served as before'], [{ criterion: 2, kind: 'human', ref: 'An operator watches a load test' }]]);
+      expect((await ws.events(b.id).read()).find((e) => e.type === 'proofs.set')?.payload).toEqual({ proofs: b.proofs, from: [], goal: g.id });
+
+      // the test fails first and passes after; the other task is green once; each is approved by a person and merged
+      await verified(ws, a.id, 'r1', 0, ['webhooks > 429 with Retry-After']);
+      await verified(ws, a.id, 'r2', 1);
+      await verified(ws, b.id, 'r1', 2);
+      for (const t of [a, b]) {
+        await ws.events(t.id).append({ task: t.id, vendor: 'human', type: 'approval.granted', payload: { by: 'human' } });
+        await ws.events(t.id).append({ task: t.id, vendor: 'daemon', type: 'merge.completed', payload: { branch: t.branch, into: 'main', commit: 'abc1234' } });
+        await ws.writeTask(t.id, { status: 'done' });
+      }
+      const view = (await (await app.request(`/api/goals/${g.id}`)).json()) as { goal: { status: string }; outcome: { result: string; met: number; criteria: Array<{ state: string; evidence: string }> } };
+      expect(view.outcome.criteria.map((c) => [c.state, c.evidence])).toEqual([
+        ['proven', `${a.id}: webhooks > 429 with Retry-After failed in r1 and passes in r2.`],
+        ['checked_by_you', `${b.id}: Checked by you at approval.`],
+      ]);
+      expect([view.outcome.result, view.outcome.met, view.goal.status]).toEqual(['done', 2, 'done']);
+
+      // proven criteria that would take a task past 12 acceptance lines refuse the split, and no task is made
+      const six = await ws.createGoal({ ...GOAL, criteria: Array.from({ length: 6 }, (_, i) => `criterion ${i + 1}`) });
+      await post(app, `/api/goals/${six.id}/proofs`, { proofs: Array.from({ length: 6 }, (_, i) => ({ criterion: i + 1, kind: 'check', ref: `c${i + 1}` })) });
+      const crowded = { title: 'Too much', goal: 'Everything at once.', acceptance: Array.from({ length: 8 }, (_, i) => `check ${i + 1}`), covers: [1, 2, 3, 4, 5, 6], dependsOn: [] };
+      const before = (await ws.listTasks()).length;
+      const refused = await post(app, `/api/goals/${six.id}/tasks`, { tasks: [{ ...crowded, covers: [1] }, crowded] });
+      expect(refused.status).toBe(400);
+      expect(((await refused.json()) as { error: { message: string } }).error.message).toBe("task 2 would have 14 criteria once the goal's proven ones are added; a task holds at most 12");
+      expect((await ws.listTasks()).length).toBe(before);
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
+
 /** A finished run with what it cost, written as the daemon writes one. */
 async function spent(ws: Workspace, task: string, run: string, role: 'planner' | 'implementer', usd: number) {
   await ws.events(task).append({ task, run, vendor: 'daemon', type: 'run.started', payload: { role } });
@@ -248,3 +307,111 @@ test('GET /api/goals/:id rolls the goal up from its tasks; once every task is me
     models.stop();
   }
 }, 60_000);
+
+test("The subtasks a goal task's plan splits it into keep the goal, its criteria and a share of its limits, and their spend counts against the goal's limits", async () => {
+  const subtasks = [
+    { title: 'Add the limiter', goal: 'A per-tenant limiter.', acceptance: ['limits a tenant'], dependsOn: [] },
+    { title: 'Read limits from config', goal: 'Limits through loadConfig().', acceptance: ['configurable'], dependsOn: [0] },
+  ];
+  const models = planner([plan({ subtasks })]);
+  try {
+    await withFixtureRepo(async (repo) => {
+      writeConfig(repo, models.url, { implementers: ['muse-code'], maxHops: 1, parallel: 2 });
+      const { app, ws } = await makeApp(repo, []);
+      const g = await ws.createGoal({ ...GOAL, limits: { usd: 3, builds: 6 } });
+      const [p, b] = await Promise.all([
+        ws.createTask({ title: 'Count webhooks per tenant', goal: 'Each tenant has its own counter.', acceptance: ['429 with Retry-After'], testCommand: 'true', goalId: g.id, goalCriteria: [1, 2], limits: { usd: 1.5, builds: 3 } }),
+        ws.createTask({ title: 'Serve the other tenants', goal: 'A tenant under its limit is served.', acceptance: ['Other tenants get 200'], testCommand: 'true', goalId: g.id, goalCriteria: [2] }),
+      ]);
+      await ws.updateGoal(g.id, () => ({ tasks: [p.id, b.id], status: 'running' }));
+      expect((await post(app, `/api/tasks/${p.id}/plan`, {})).status).toBe(200);
+      const children = (await ws.events(p.id).read()).find((e) => e.type === 'task.decomposed')?.payload.children as [string, string];
+      const kids = await Promise.all(children.map((c) => ws.readTask(c)));
+      expect(kids.map((k) => [k.parent, k.goalId, k.goalCriteria, k.limits])).toEqual([
+        [p.id, g.id, [1, 2], { usd: 0.75, builds: 1 }],
+        [p.id, g.id, [1, 2], { usd: 0.75, builds: 1 }],
+      ]);
+
+      // a subtask built for $2 and the other goal task planned for $1: the goal's $3 is spent, so the next build stops
+      await spent(ws, children[0], 'r1', 'implementer', 2);
+      await spent(ws, b.id, 'r1', 'planner', 1);
+      const view = (await (await app.request(`/api/goals/${g.id}`)).json()) as { outcome: { spend: { usd: number }; builds: { used: number }; tasks: Array<{ id: string }> } };
+      expect([view.outcome.spend.usd, view.outcome.builds.used, view.outcome.tasks.map((t) => t.id)]).toEqual([3, 1, [p.id, b.id]]);
+      await post(app, `/api/tasks/${b.id}/autopilot`, { on: true });
+      const events = await until(ws, b.id, stopped);
+      expect(events.find((e) => e.type === 'limit.reached')?.payload).toEqual({ limit: 'usd', used: 3, cap: 3, scope: 'goal', goal: g.id });
+      await Bun.sleep(200);
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
+
+test("The best-of candidates of a goal task keep the goal, its criteria and a share of its limits", async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }, { ...fakeAdapter('edit'), id: 'stint-agent' }], models, { implementers: ['muse-code', 'stint-agent'], maxHops: 0, parallel: 2, bestOf: 2 });
+      const g = await ws.createGoal({ ...GOAL, limits: { usd: 4, builds: 8 } });
+      const t = await ws.createTask({ ...task('true'), goalId: g.id, goalCriteria: [1], limits: { usd: 1, builds: 4 } });
+      await ws.updateGoal(g.id, () => ({ tasks: [t.id], status: 'running' }));
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped, 120_000);
+      const candidates = events.find((e) => e.type === 'bestofn.started')?.payload.candidates as string[];
+      const made = await Promise.all(candidates.map((c) => ws.readTask(c)));
+      expect(made.map((c) => [c.parent, c.goalId, c.goalCriteria, c.limits])).toEqual([
+        [t.id, g.id, [1], { usd: 0.5, builds: 2 }],
+        [t.id, g.id, [1], { usd: 0.5, builds: 2 }],
+      ]);
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);
+
+test("POST /api/goals/:id/run starts every open task in the goal's order; raising the goal limit a task stopped at resumes it; the view's task rows carry status and dependsOn", async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [{ ...fakeAdapter('edit'), id: 'muse-code' }], models, { implementers: ['muse-code'], maxHops: 0, parallel: 2 });
+      const g = (await (await post(app, '/api/goals', { ...GOAL, limits: { builds: 1 } })).json()) as { id: string };
+      expect((await post(app, `/api/goals/${g.id}/run`, {})).status).toBe(400);
+      const { tasks: proposal } = (await (await post(app, `/api/goals/${g.id}/plan`, {})).json()) as { tasks: unknown[] };
+      const { tasks } = (await (await post(app, `/api/goals/${g.id}/tasks`, { tasks: proposal })).json()) as { tasks: Array<{ id: string; title: string }> };
+      const [a, b] = tasks.map((t) => t.id) as [string, string];
+      type View = { tasks: Array<{ id: string; title: string; status: string; dependsOn: string[] }> };
+      const rows = async () => ((await (await app.request(`/api/goals/${g.id}`)).json()) as View).tasks.map((t) => [t.id, t.status, t.dependsOn]);
+      expect(await rows()).toEqual([
+        [a, 'planned', []],
+        [b, 'planned', [a]],
+      ]);
+
+      const run = (await (await post(app, `/api/goals/${g.id}/run`, {})).json()) as { started: string[] };
+      expect(run.started).toEqual([a, b]);
+      // the first reaches the gate; the second waits on autopilot for the first to be merged
+      expect((await until(ws, a, stopped)).find((e) => e.type === 'autopilot.stopped')?.payload.reason).toBe('Waiting for your approval.');
+      expect((await ws.events(b).read()).filter((e) => e.type === 'autopilot.step').at(-1)?.payload).toMatchObject({ step: 'wait', queued: true, blocked: [a] });
+
+      // merged, the second goes on and stops at the goal's one build
+      expect((await post(app, `/api/tasks/${a}/approve`, {})).status).toBe(200);
+      const atLimit = await until(ws, b, stopped);
+      expect(atLimit.find((e) => e.type === 'limit.reached')?.payload).toEqual({ limit: 'builds', used: 1, cap: 1, scope: 'goal', goal: g.id });
+
+      const patch = async (body: unknown) => (await (await app.request(`/api/goals/${g.id}/limits`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify(body) })).json()) as { resumed: string[] };
+      // a limit it did not stop at resumes nothing; raising the one it stopped at does
+      expect((await patch({ usd: 5 })).resumed).toEqual([]);
+      expect((await patch({ builds: 3 })).resumed).toEqual([b]);
+      const resumed = await until(ws, b, (ev) => ev.filter((e) => e.type === 'autopilot.stopped').length >= 2);
+      expect(resumed.filter((e) => e.type === 'autopilot.stopped').at(-1)?.payload.reason).toBe('Waiting for your approval.');
+      expect(await rows()).toEqual([
+        [a, 'done', []],
+        [b, 'awaiting_approval', [a]],
+      ]);
+      // what is merged is not started again
+      expect(((await (await post(app, `/api/goals/${g.id}/run`, {})).json()) as { started: string[] }).started).toEqual([b]);
+      await until(ws, b, (ev) => ev.filter((e) => e.type === 'autopilot.stopped').length >= 3);
+    });
+  } finally {
+    models.stop();
+  }
+}, 180_000);

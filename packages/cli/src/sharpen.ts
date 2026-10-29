@@ -1,4 +1,4 @@
-import type { SharpenState, Task, TaskProof } from '@stint-dev/core';
+import type { Goal, SharpenState, Task, TaskProof } from '@stint-dev/core';
 import { defineCommand } from 'citty';
 import { getDaemon, postDaemon } from './client';
 import { repoRoot } from './repo';
@@ -104,17 +104,20 @@ export function parseProof(s: string): TaskProof | null {
 }
 
 export const proofsCommand = defineCommand({
-  meta: { name: 'proofs', description: 'Show how each criterion is proven, or set it' },
+  meta: { name: 'proofs', description: "Show how each criterion of a task or a goal is proven, or set it" },
   args: {
-    task: { type: 'positional', required: true, description: 'Task id' },
+    task: { type: 'positional', required: true, description: 'Task id, or a goal id such as G-0001' },
     set: { type: 'string', description: 'A proof as <criterion>=<test|scenario|check|human>:<ref>, e.g. 1=test:"429 with Retry-After"; separate several with ";"' },
     json: { type: 'boolean', description: 'Machine-readable output' },
     ...repoArg,
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
-    const { task } = await getDaemon<{ task: Task }>(root, `/api/tasks/${args.task}`);
-    let accepted = task.proofs ?? [];
+    const base = `/api/${/^G-/.test(args.task) ? 'goals' : 'tasks'}/${args.task}`;
+    // a goal keeps each criterion's proof on the criterion; a task keeps them beside its acceptance
+    const subject = /^G-/.test(args.task) ? (await getDaemon<{ goal: Goal }>(root, base)).goal : (await getDaemon<{ task: Task }>(root, base)).task;
+    const criteria = 'criteria' in subject ? subject.criteria.map((c) => c.text) : subject.acceptance;
+    let accepted = 'criteria' in subject ? subject.criteria.flatMap((c, i) => (c.proof ? [{ criterion: i + 1, ...c.proof }] : [])) : (subject.proofs ?? []);
     const sets = (args.set ?? '').split(';').filter((s) => s.trim());
     if (sets.length) {
       const parsed = sets.map((s) => ({ s, p: parseProof(s) }));
@@ -125,14 +128,14 @@ export const proofsCommand = defineCommand({
       }
       // one proof per criterion: what is given replaces what was there, and the last one given wins
       const merged = new Map([...accepted, ...parsed.map((x) => x.p as TaskProof)].map((p) => [p.criterion, p]));
-      accepted = (await postDaemon<{ proofs: TaskProof[] }>(root, `/api/tasks/${args.task}/proofs`, { proofs: [...merged.values()] })).proofs;
+      accepted = (await postDaemon<{ proofs: TaskProof[] }>(root, `${base}/proofs`, { proofs: [...merged.values()] })).proofs;
     }
-    const st = await getDaemon<SharpenState>(root, `/api/tasks/${args.task}/sharpen`);
+    const st = await getDaemon<SharpenState>(root, `${base}/sharpen`);
     if (args.json) {
       process.stdout.write(`${JSON.stringify({ accepted, suggested: st.proofs.suggested, missing: st.proofs.missing })}\n`);
       return;
     }
-    const rows = task.acceptance.map((text, i) => {
+    const rows = criteria.map((text, i) => {
       const a = accepted.find((p) => p.criterion === i + 1);
       const s = st.proofs.suggested.find((p) => p.criterion === i + 1);
       const how = a ? `${a.kind}: ${a.ref}` : s ? `suggested ${s.kind}: ${s.ref} (not accepted; set it with --set ${i + 1}=${s.kind}:"${s.ref}")` : 'no proof yet';
