@@ -2,10 +2,10 @@ import { type SkillFinding, type SkillSource, type StintEvent, scanSkillBundle }
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { type Agent, DAEMON, YOU, agentOf, storyClock } from '../agents';
-import { type SkillEvalSide, type SkillRecord, api, subscribe } from '../api';
+import { type SkillEvalSide, type SkillRecord, api, daemonMessage, subscribe } from '../api';
 import { AddSkillDialog, Findings, exportedFiles } from '../components/AddSkill';
 import { shortName } from '../components/ApprovalGate';
-import { Button, type ChipTone, EmptyState, Explain, StatusChip, Who, cx, rev } from '../components/ui';
+import { Button, type ChipTone, EmptyState, Explain, type Shape, StatusChip, Who, cx, rev } from '../components/ui';
 import { money } from '../format';
 
 /** Where a skill came from, in plain words; the daemon's names stay as the filter's values and the row's data-origin. */
@@ -40,9 +40,13 @@ function Source({ source }: { source: SkillSource }) {
   );
 }
 
-/** Amber where a skill needs you (to approve it, or to settle its retirement); everything else is plain ink. Violet marks the learned origin, not the status. */
-const statusTone = (s: SkillRecord): ChipTone => (s.retireProposed || s.status === 'proposed' || s.status === 'unreviewed' ? 'warn' : s.status === 'retired' ? 'neutral' : 'active');
-const statusLabel = (s: SkillRecord) => (s.retireProposed ? 'retirement proposed' : (STATUS[s.status] ?? s.status));
+/** A skill's status as a label: amber with a triangle where it needs you (to approve it, or to settle its retirement), a dot while agents get it, a square once retired. Violet marks the learned origin, not the status. */
+function statusChip(s: SkillRecord): { label: string; tone: ChipTone; shape: Shape } {
+  if (s.retireProposed) return { label: 'retirement proposed', tone: 'warn', shape: 'attention' };
+  const label = STATUS[s.status] ?? s.status;
+  if (s.status === 'proposed' || s.status === 'unreviewed') return { label, tone: 'warn', shape: 'attention' };
+  return s.status === 'retired' ? { label, tone: 'neutral', shape: 'closed' } : { label, tone: 'active', shape: 'running' };
+}
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -167,10 +171,14 @@ function Revisions({ s }: { s: SkillRecord }) {
   );
 }
 
+type Act = 'approve' | 'reject' | 'retire' | 'keep';
+const ACTING: Record<Act, string> = { approve: 'Approving', reject: 'Rejecting', retire: 'Retiring', keep: 'Keeping' };
+
 function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => void; onEdit: () => void }) {
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Act | null>(null);
+  const [failed, setFailed] = useState<{ act: Act; message: string } | null>(null);
   const [acked, setAcked] = useState<ReadonlySet<number>>(new Set());
   const [scanned, setScanned] = useState<SkillFinding[] | null>(null);
   // the daemon scans what is imported; a folder that arrived on its own is scanned here, from its export
@@ -187,41 +195,53 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
   const blocked = (findings ?? []).some((f) => f.severity === 'block');
   const waiting = warns.some((i) => !acked.has(i));
   const hasFolder = s.status !== 'proposed';
-  const act = (fn: () => Promise<unknown>) => {
-    setError(null);
+  // one decision at a time: the others wait while it runs, and a refusal keeps the reason typed
+  const act = (what: Act, fn: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(what);
+    setFailed(null);
     fn()
       .then(onChange)
-      .catch((e: unknown) => setError(`That did not go through: ${e instanceof Error ? e.message : String(e)}`));
+      .catch((e: unknown) => setFailed({ act: what, message: daemonMessage(e) }))
+      .finally(() => setBusy(null));
   };
+  const label = (what: Act, words: string) => (busy === what ? ACTING[what] : words);
+  /** The refusal, beside the buttons that asked. */
+  const refusal = (acts: Act[]) =>
+    failed && acts.includes(failed.act) ? (
+      <p role="alert" className="stint-field-error" data-testid="skill-act-error">
+        That did not go through: {failed.message}
+      </p>
+    ) : null;
   const titleId = `skill-title-${s.id}`;
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-4 min-w-0 p-5 rounded-[5px] border border-rule bg-panel" data-testid="skill-row" data-skill={s.id} data-origin={s.origin}>
-      <div className="flex flex-col gap-2">
+    <section aria-labelledby={titleId} className="grid gap-5 min-w-0 p-5 rounded-[5px] border border-rule bg-panel" data-testid="skill-row" data-skill={s.id} data-origin={s.origin}>
+      <div className="grid gap-2">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h2 id={titleId} className="font-mono text-section break-all">
             {s.id}
           </h2>
           <span className="flex flex-wrap gap-2">
             {s.stale ? <StatusChip label="changed since approved" tone="warn" /> : null}
-            <StatusChip label={statusLabel(s)} tone={statusTone(s)} />
+            <StatusChip {...statusChip(s)} />
           </span>
         </div>
-        <p>{s.description}</p>
+        <p className="text-ink-2">{s.description}</p>
       </div>
       <dl className="m-0 grid grid-cols-[104px_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-small">
-        <dt className="text-ink-2">Where from</dt>
+        <dt className="text-ink-3">Where from</dt>
         <dd className={cx('m-0', s.origin === 'learn-loop' && 'text-violet')} data-testid="skill-origin">
           <span className="inline-block first-letter:uppercase">{ORIGIN[s.origin] ?? s.origin}</span>
         </dd>
         {s.source ? (
           <>
-            <dt className="text-ink-2">Source</dt>
+            <dt className="text-ink-3">Source</dt>
             <dd className="m-0" data-testid="skill-source">
               <Source source={s.source} />
             </dd>
           </>
         ) : null}
-        <dt className="text-ink-2">Given to</dt>
+        <dt className="text-ink-3">Given to</dt>
         <dd className="m-0">
           <span className="inline-block first-letter:uppercase">{s.roles.length ? s.roles.join(', ') : 'every role'}</span>
           {s.tags.length ? (
@@ -232,7 +252,7 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
         </dd>
         {s.evidence.length ? (
           <>
-            <dt className="text-ink-2">Learned from</dt>
+            <dt className="text-ink-3">Learned from</dt>
             <dd className="m-0 flex flex-col gap-1">
               {s.evidence.map((e) => (
                 <span key={e} className="flex flex-wrap items-baseline gap-x-2">
@@ -245,36 +265,37 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
             </dd>
           </>
         ) : null}
-        <dt className="text-ink-2">Track record</dt>
+        <dt className="text-ink-3">Track record</dt>
         <dd className="m-0 tabular" data-testid="skill-track">
           {/* sentence case on screen; the words stay as the tests name them */}
           <span className="inline-block first-letter:uppercase">
             {s.appliedIn.length ? `used in ${plural(s.appliedIn.length, 'run')}, helped ${plural(s.helped, 'task')}, hurt ${plural(s.hurt, 'task')}` : 'not used yet'}
           </span>
         </dd>
-        <dt className="text-ink-2">Tested</dt>
+        <dt className="text-ink-3">Tested</dt>
         <dd className="m-0 tabular" data-testid="skill-eval">
           <span className="inline-block first-letter:uppercase">{s.eval ? `with skill: ${side(s.eval.with)}; without: ${side(s.eval.without)}${s.eval.synthetic ? ' (example numbers, not a real run)' : ''}` : 'not tested yet'}</span>
         </dd>
       </dl>
       <Revisions s={s} />
       {s.retireProposed ? (
-        <div className="flex flex-col gap-2 pt-4 border-t border-rule" data-testid="retire-proposal">
+        <div className="grid gap-3 pt-4 border-t border-rule" data-testid="retire-proposal">
           <p>
             <span className="font-semibold text-amber">Retire it?</span> This skill hurt more tasks than it helped (helped {s.helped}, hurt {s.hurt}). Retiring stops agents getting it; keeping it clears this question until the record changes.
           </p>
-          <div className="flex gap-2">
-            <Button className={SMALL} tone="danger" onClick={() => act(() => api.retireSkill(s.id))} data-testid="retire-skill">
-              Retire
+          <div className="stint-actions">
+            <Button className={SMALL} tone="danger" disabled={!!busy} aria-busy={busy === 'retire' || undefined} onClick={() => act('retire', () => api.retireSkill(s.id))} data-testid="retire-skill">
+              {label('retire', 'Retire')}
             </Button>
-            <Button className={SMALL} onClick={() => act(() => api.keepSkill(s.id))} data-testid="keep-skill">
-              Keep
+            <Button className={SMALL} disabled={!!busy} aria-busy={busy === 'keep' || undefined} onClick={() => act('keep', () => api.keepSkill(s.id))} data-testid="keep-skill">
+              {label('keep', 'Keep')}
             </Button>
           </div>
+          {refusal(['retire', 'keep'])}
         </div>
       ) : null}
       {review ? (
-        <div className="flex flex-col gap-3" data-testid="skill-review">
+        <div className="grid gap-3" data-testid="skill-review">
           {s.updateProposed ? <p>An edit to this skill waits for your approval. Agents keep getting the approved version until then.</p> : null}
           {s.status === 'unreviewed' ? <p>This folder arrived without approval, by a merge, a pull or a copy. No agent gets it until you approve it.</p> : null}
           {findings ? (
@@ -290,54 +311,51 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
               }
             />
           ) : null}
+          {rejecting ? (
+            <form
+              className="flex flex-wrap gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                act('reject', () => api.rejectSkill(s.id, reason));
+              }}
+            >
+              <input
+                required
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                aria-label={`Why reject ${s.id}`}
+                placeholder="Why not? Stint will not propose it again from the same findings."
+                className="stint-input flex-1 min-w-[200px] w-auto"
+              />
+              <Button tone="danger" type="submit" disabled={!!busy} aria-busy={busy === 'reject' || undefined} data-testid="reject-skill">
+                {label('reject', 'Reject')}
+              </Button>
+              <Button disabled={!!busy} onClick={() => setRejecting(false)}>
+                Cancel
+              </Button>
+            </form>
+          ) : (
+            <div className="stint-actions">
+              <Button tone="primary" disabled={blocked || waiting || !!busy} aria-busy={busy === 'approve' || undefined} aria-describedby={blocked || waiting ? `approve-why-${s.id}` : undefined} onClick={() => act('approve', () => api.approveSkill(s.id, warnIds))} data-testid="approve-skill">
+                {label('approve', 'Approve and commit')}
+              </Button>
+              <Button disabled={!!busy} onClick={() => setRejecting(true)}>
+                Reject
+              </Button>
+              {blocked || waiting ? (
+                <span id={`approve-why-${s.id}`} className="stint-field-help" data-testid="approve-why">
+                  {blocked ? 'A blocking finding stops this skill. Fix its files, then add it again.' : 'Tick every warning above to approve.'}
+                </span>
+              ) : null}
+            </div>
+          )}
+          {refusal(['approve', 'reject'])}
         </div>
       ) : null}
-      {review ? (
-        rejecting ? (
-          <form
-            className="flex flex-wrap gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              act(() => api.rejectSkill(s.id, reason));
-            }}
-          >
-            <input
-              required
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              aria-label={`Why reject ${s.id}`}
-              placeholder="Why not? Stint will not propose it again from the same findings."
-              className="flex-1 min-w-[200px] h-9 rounded-[5px] border border-field bg-ground px-2.5 text-ink placeholder:text-ink-3"
-            />
-            <Button tone="danger" type="submit">
-              Reject
-            </Button>
-            <Button onClick={() => setRejecting(false)}>Cancel</Button>
-          </form>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button tone="primary" disabled={blocked || waiting} aria-describedby={blocked || waiting ? `approve-why-${s.id}` : undefined} onClick={() => act(() => api.approveSkill(s.id, warnIds))} data-testid="approve-skill">
-              Approve and commit
-            </Button>
-            <Button onClick={() => setRejecting(true)}>Reject</Button>
-            {blocked || waiting ? (
-              <span id={`approve-why-${s.id}`} className="text-small text-ink-2" data-testid="approve-why">
-                {blocked ? 'A blocking finding stops this skill. Fix its files, then add it again.' : 'Tick every warning above to approve.'}
-              </span>
-            ) : null}
-          </div>
-        )
-      ) : null}
-      <div className="flex flex-col gap-2 pt-3 border-t border-rule">
+      <div className="grid gap-2 pt-4 border-t border-rule">
         {hasFolder ? (
-          <span className="flex gap-2">
-            <a
-              href={api.exportSkillUrl(s.id)}
-              download={`${s.id}.zip`}
-              aria-label={`Download ${s.id} as a zip`}
-              className="inline-flex items-center h-8 px-2.5 rounded-[5px] border border-rule-strong text-small font-medium text-ink no-underline hover:border-ink-2 hover:bg-panel-2"
-              data-testid="download-skill"
-            >
+          <span className="stint-actions">
+            <a href={api.exportSkillUrl(s.id)} download={`${s.id}.zip`} aria-label={`Download ${s.id} as a zip`} className={cx('stint-button', SMALL)} data-testid="download-skill">
               Download
             </a>
             <Button className={SMALL} onClick={onEdit} aria-label={`Edit ${s.id}`} data-testid="edit-skill">
@@ -345,7 +363,7 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
             </Button>
           </span>
         ) : (
-          <span className="text-small text-ink-2">Download and Edit open once it is approved.</span>
+          <span className="stint-field-help">Download and Edit open once it is approved.</span>
         )}
         {review ? (
           <details className="text-small text-ink-2">
@@ -354,11 +372,6 @@ function SkillRow({ s, onChange, onEdit }: { s: SkillRecord; onChange: () => voi
           </details>
         ) : null}
       </div>
-      {error ? (
-        <p role="alert" className="text-red">
-          {error}
-        </p>
-      ) : null}
     </section>
   );
 }
@@ -368,13 +381,18 @@ const COLUMNS = 'grid grid-cols-[minmax(0,1fr)] min-[1000px]:grid-cols-[minmax(0
 
 export function Skills() {
   const [skills, setSkills] = useState<SkillRecord[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [params, setParams] = useSearchParams();
   const [adding, setAdding] = useState<{ edit: string | null } | null>(null);
+  // a failed read keeps the last list on screen, marked stale; it never reads as no skills
   const load = useCallback(() => {
     api
       .skills()
-      .then(setSkills)
-      .catch(() => setSkills([]));
+      .then((all) => {
+        setSkills(all);
+        setError(null);
+      })
+      .catch((e: unknown) => setError(daemonMessage(e)));
   }, []);
   useEffect(load, [load]);
   // a skill proposed, approved or retired anywhere (the queue, the CLI, autopilot) shows here without a reload
@@ -386,48 +404,55 @@ export function Skills() {
   const shown = sorted.filter((s) => (!origin || s.origin === origin) && (!status || s.status === status));
   // what needs a decision comes first, and is what the page opens on
   const selected = shown.find((s) => s.id === params.get('skill')) ?? shown[0] ?? null;
-  const setParam = (key: string, value: string) =>
+  const setParam = (changes: Record<string, string>) =>
     setParams(
       (p) => {
         const n = new URLSearchParams(p);
-        if (value) n.set(key, value);
-        else n.delete(key);
+        for (const [key, value] of Object.entries(changes)) value ? n.set(key, value) : n.delete(key);
         return n;
       },
       { replace: true },
     );
-  const pick = (id: string) => setParam('skill', id);
-  const select = 'h-9 rounded-[5px] border border-field bg-ground px-2 text-ink';
+  const pick = (id: string) => setParam({ skill: id });
   const learned = sorted.filter((s) => s.origin === 'learn-loop').length;
   return (
     <main className="relative flex-1 min-h-0 overflow-y-auto" data-testid="skills">
-      <div className="max-w-[1440px] mx-auto px-4 md:px-6 pt-5 pb-8 md:pt-7 md:pb-10 flex flex-col gap-6">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-col gap-1.5 max-w-[75ch] min-w-0">
-            <h1 className="text-title">Skills</h1>
-            <p>
-              {skills === null
-                ? 'Reading the skills.'
-                : `${sorted.length ? `${plural(sorted.length, 'skill')}, ${learned} learned from tasks. ` : ''}An agent gets a skill only after you approve it.`}
+      <div className="stint-page">
+        <header className="stint-page-header">
+          <div className="stint-page-heading">
+            <h1 className="stint-page-title">Skills</h1>
+            <p className="stint-page-summary">
+              {skills?.length ? `${plural(sorted.length, 'skill')}, ${learned} learned from tasks. ` : ''}An agent gets a skill only after you approve it.
             </p>
-            <Explain word="skill" />
-            <details className="text-small text-ink-2">
-              <summary className="w-fit leading-6 cursor-pointer underline decoration-dotted decoration-ink-3 underline-offset-4 hover:text-ink">How is a skill learned and given to agents?</summary>
-              <p className="mt-1">
-                Each skill is a folder in <span className="font-mono">.agents/skills/</span>. Before every run, Stint gives an agent the skills that match its role and the task's tags. When the review finds the same problem on two tasks, Stint drafts a skill from those findings and waits for your approval. A new skill starts on trial and is fully in use once it has helped three tasks; helped means a task that used it was approved without the same problem coming back. A skill that hurts more tasks than it helps is proposed for retirement. Drafted skills also wait in the queue on the Factory.
-              </p>
-            </details>
+            <div className="mt-2 grid gap-1">
+              <Explain word="skill" />
+              <details className="text-small text-ink-2">
+                <summary className="w-fit leading-6 cursor-pointer underline decoration-dotted decoration-ink-3 underline-offset-4 hover:text-ink">How is a skill learned and given to agents?</summary>
+                <p className="mt-1 max-w-[65ch]">
+                  Each skill is a folder in <span className="font-mono">.agents/skills/</span>. Before every run, Stint gives an agent the skills that match its role and the task's tags. When the review finds the same problem on two tasks, Stint drafts a skill from those findings and waits for your approval. A new skill starts on trial and is fully in use once it has helped three tasks; helped means a task that used it was approved without the same problem coming back. A skill that hurts more tasks than it helps is proposed for retirement. Drafted skills also wait in the queue on the Factory.
+                </p>
+              </details>
+            </div>
           </div>
-          <Button onClick={() => setAdding({ edit: null })} data-testid="add-skill">
-            Add skill
-          </Button>
+          <div className="stint-actions">
+            <Button onClick={() => setAdding({ edit: null })} data-testid="add-skill">
+              Add skill
+            </Button>
+          </div>
         </header>
-        {skills?.length === 0 ? <EmptyState>Skills appear here when you add one, or when the review finds the same problem on two tasks.</EmptyState> : null}
+        {error ? (
+          <div role="alert" className={cx('stint-notice', skills ? 'stint-notice--attention' : 'stint-notice--error')} data-testid={skills ? 'skills-stale' : 'skills-error'}>
+            <p className="min-w-0">{skills ? `Showing the skills as last read. The refresh failed: ${error}.` : `The skills did not load: ${error}.`}</p>
+            <Button onClick={load}>Try again</Button>
+          </div>
+        ) : null}
+        {skills === null && !error ? <p className="text-ink-3">Reading the skills.</p> : null}
+        {skills?.length === 0 ? <EmptyState testId="skills-empty">Skills appear here when you add one, or when the review finds the same problem on two tasks.</EmptyState> : null}
         {sorted.length ? (
-          <div role="group" aria-label="Filter the list" className="flex flex-wrap gap-4">
+          <div role="group" aria-label="Filter the list" className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-6">
             <label className="flex items-center gap-2 text-small text-ink-2">
               Where from
-              <select value={origin} onChange={(e) => setParam('origin', e.target.value)} className={select} data-testid="filter-origin">
+              <select value={origin} onChange={(e) => setParam({ origin: e.target.value })} className="stint-input w-auto min-h-9 py-1.5" data-testid="filter-origin">
                 <option value="">All</option>
                 {Object.entries(ORIGIN).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -438,7 +463,7 @@ export function Skills() {
             </label>
             <label className="flex items-center gap-2 text-small text-ink-2">
               Status
-              <select value={status} onChange={(e) => setParam('status', e.target.value)} className={select} data-testid="filter-status">
+              <select value={status} onChange={(e) => setParam({ status: e.target.value })} className="stint-input w-auto min-h-9 py-1.5" data-testid="filter-status">
                 <option value="">All</option>
                 {Object.entries(STATUS).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -449,14 +474,21 @@ export function Skills() {
             </label>
           </div>
         ) : null}
-        {sorted.length && !shown.length ? <EmptyState testId="skills-filter-empty">No skill matches these filters; set both to All to see every skill.</EmptyState> : null}
+        {sorted.length && !shown.length ? (
+          <div className="flex flex-wrap items-center gap-x-4" data-testid="skills-filtered-empty">
+            <EmptyState testId="skills-filter-empty">No skill matches these filters.</EmptyState>
+            <Button onClick={() => setParam({ origin: '', status: '' })} data-testid="clear-skill-filters">
+              Show every skill
+            </Button>
+          </div>
+        ) : null}
         {shown.length ? (
           <div className="grid gap-6 items-start min-[1000px]:grid-cols-[minmax(0,1fr)_440px]">
             <section aria-labelledby="skills-list-title" className="min-w-0 flex flex-col">
               <h2 id="skills-list-title" className="sr-only">
                 Skill list
               </h2>
-              <div aria-hidden="true" className={cx(COLUMNS, 'hidden min-[1000px]:grid px-3 pb-2 text-small text-ink-2 border-b border-rule-strong')}>
+              <div aria-hidden="true" className={cx(COLUMNS, 'hidden min-[1000px]:grid px-3 pb-2 text-small text-ink-3 border-b border-rule')}>
                 <span>Skill</span>
                 <span>Where from</span>
                 <span>Track record</span>
@@ -468,20 +500,20 @@ export function Skills() {
                       type="button"
                       aria-current={s.id === selected?.id ? 'true' : undefined}
                       onClick={() => pick(s.id)}
-                      className={cx(COLUMNS, 'w-full items-center min-h-[60px] px-3 py-2.5 border-b border-rule text-left', s.id === selected?.id ? 'bg-panel shadow-[inset_0_0_0_1px_var(--rule-strong)] forced-colors:outline' : 'hover:bg-panel')}
+                      className={cx(COLUMNS, 'w-full items-center min-h-[60px] px-3 py-3 border-b border-rule text-left', s.id === selected?.id ? 'bg-surface-selected shadow-[inset_0_0_0_1px_var(--rule-strong)] forced-colors:outline' : 'hover:bg-surface-hover')}
                     >
-                      <span className="flex flex-col gap-0.5 min-w-0">
+                      <span className="flex flex-col gap-1 min-w-0">
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-code break-all">{s.id}</span>
-                          <StatusChip label={statusLabel(s)} tone={statusTone(s)} />
+                          <span className="font-mono text-code text-ink break-all">{s.id}</span>
+                          <StatusChip {...statusChip(s)} />
                         </span>
-                        <span className="text-small text-ink-2 line-clamp-2">{s.description}</span>
+                        <span className="text-small text-ink-3 line-clamp-2">{s.description}</span>
                       </span>
-                      <span className={cx('text-small', s.stale ? 'text-amber' : s.origin === 'learn-loop' ? 'text-violet' : 'text-ink')}>
+                      <span className={cx('text-small', s.stale ? 'text-amber' : s.origin === 'learn-loop' ? 'text-violet' : 'text-ink-2')}>
                         <span className="inline-block first-letter:uppercase">{ORIGIN[s.origin] ?? s.origin}</span>
                         {s.stale ? ', changed since approved' : ''}
                       </span>
-                      <span className="text-small">
+                      <span className="text-small text-ink-2">
                         <Track s={s} />
                       </span>
                     </button>

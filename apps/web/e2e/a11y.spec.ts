@@ -67,6 +67,10 @@ test('The Add skill dialog, on each tab and with a preview, has no WCAG A or AA 
     const sideways = await dialog.evaluate((el) => el.scrollWidth - el.clientWidth);
     expect(sideways, tab).toBeLessThanOrEqual(0);
   }
+  // a file is chosen and text typed, so Escape asks before it drops them
   await page.keyboard.press('Escape');
+  await expect(dialog.getByTestId('dialog-discard')).toBeVisible();
+  expect(await axe(page)).toEqual([]);
+  await dialog.getByRole('button', { name: 'Discard' }).click();
   await expect(page.getByTestId('add-skill')).toBeFocused();
 });

@@ -1,7 +1,7 @@
 import type { MetricId, MetricValue, Metrics } from '@stint-dev/core';
 import type { ReactNode } from 'react';
 import { localDate } from '../format';
-import { Button, EmptyState, cx } from './ui';
+import { Button, StatusChip } from './ui';
 
 export const WINDOWS = [
   ['7d', '7 days'],
@@ -90,7 +90,7 @@ export const sample = (m: Pick<MetricValue, 'id' | 'n'>) => {
 function Measure({ m }: { m: MetricValue }) {
   const plain = PLAIN[m.id as MetricId];
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 py-2 border-b border-rule" data-testid="metric" data-metric={m.id}>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 py-2.5 border-b border-rule" data-testid="metric" data-metric={m.id}>
       <dt className="min-w-0">
         <a href={definitionUrl(m.id)} target="_blank" rel="noreferrer" className="inline-flex items-center min-h-6 no-underline hover:underline" data-testid="metric-link">
           {plain?.label ?? m.label}
@@ -98,19 +98,17 @@ function Measure({ m }: { m: MetricValue }) {
         </a>
       </dt>
       <dd className="m-0 row-span-2 flex flex-col items-end text-right tabular">
-        <span className={m.value === null ? 'text-small text-ink-2' : 'font-semibold'}>{metricValue(m)}</span>
-        {m.value === null ? null : (
-          <span className="text-small text-ink-2">{sample(m)}</span>
-        )}
-        {m.value !== null && m.p90 !== undefined && m.unit === 'ms' ? <span className="text-small text-ink-2">9 in 10 within {duration(m.p90)}</span> : null}
+        <span className={m.value === null ? 'text-small text-ink-3' : 'font-semibold'}>{metricValue(m)}</span>
+        {m.value === null ? null : <span className="text-small text-ink-3">{sample(m)}</span>}
+        {m.value !== null && m.p90 !== undefined && m.unit === 'ms' ? <span className="text-small text-ink-3">9 in 10 within {duration(m.p90)}</span> : null}
         {m.target ? (
-          // below target needs you, so amber; meeting one is not a verification, so it stays in ink
-          <span className={cx('text-small font-semibold', m.target.met ? 'text-ink' : 'text-amber')} data-testid="metric-target">
-            {m.target.met ? 'On target' : 'Below target'}
+          // below target needs you, so amber; meeting one is not a verification, so it keeps the neutral ink with its tick
+          <span className="mt-1" data-testid="metric-target">
+            {m.target.met ? <StatusChip label="On target" tone="neutral" shape="verified" /> : <StatusChip label="Below target" tone="warn" />}
           </span>
         ) : null}
       </dd>
-      {plain ? <dd className="m-0 text-small text-ink-2 max-w-[60ch]">{plain.means}</dd> : null}
+      {plain ? <dd className="m-0 text-small text-ink-3 max-w-[60ch]">{plain.means}</dd> : null}
     </div>
   );
 }
@@ -121,7 +119,7 @@ export function Measures({ data }: { data: Metrics }) {
     <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
       {GROUPS.map(([key, title]) => (
         <section key={key} className="min-w-0 flex flex-col" data-testid={`metrics-${key}`} aria-labelledby={`metrics-${key}-title`}>
-          <h4 id={`metrics-${key}-title`} className="font-semibold pb-1 border-b border-rule-strong">
+          <h4 id={`metrics-${key}-title`} className="font-semibold pb-1.5 border-b border-rule-strong">
             {title}
           </h4>
           <dl className="m-0 flex flex-col">
@@ -139,14 +137,15 @@ export function Measures({ data }: { data: Metrics }) {
 
 /**
  * R-061's panel: the window switch, the range it covers, and what the caller shows for that window (the figures row and
- * every measure). A small sample is said once, here, not beside each figure.
+ * every measure). A small sample is said once, here, not beside each figure. A window that fails to load keeps the last
+ * figures on screen and says which range they are.
  */
 export function MetricsPanel({ data, error, window, onWindow, children }: { data: Metrics | null; error: string | null; window: WindowName; onWindow: (w: WindowName) => void; children: ReactNode }) {
   const small = data !== null && Object.values(data.groups).some((g) => g.some((m) => m.value !== null && m.small));
   return (
-    <section className="flex flex-col gap-3 min-w-0" data-testid="panel-metrics" aria-labelledby="metrics-title">
+    <section className="stint-section" data-testid="panel-metrics" aria-labelledby="metrics-title">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 id="metrics-title" className="text-section">
+        <h2 id="metrics-title" className="stint-section-title">
           What the agents did
         </h2>
         <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Period">
@@ -157,10 +156,14 @@ export function MetricsPanel({ data, error, window, onWindow, children }: { data
           ))}
         </div>
       </div>
-      {error ? <EmptyState testId="metrics-error">The figures could not be read: {error}. Reload the page; if it stays, check Stint's log.</EmptyState> : null}
-      {!data && !error ? <p className="text-small text-ink-2">Reading the figures.</p> : null}
+      {error ? (
+        <p role="alert" className="stint-field-error" data-testid="metrics-error">
+          {data ? `The figures for that period could not be read: ${error}. These are still the ones below.` : `The figures could not be read: ${error}. Reload the page; if it stays, check Stint's log.`}
+        </p>
+      ) : null}
+      {!data && !error ? <p className="text-small text-ink-3">Reading the figures.</p> : null}
       {data ? (
-        <p className="text-small text-ink-2" data-testid="metrics-window">
+        <p className="text-small text-ink-3" data-testid="metrics-window">
           {data.window.from ? `${localDate(data.window.from)} to ${localDate(data.window.to)}` : `Everything up to ${localDate(data.window.to)}`}.
           {small ? ' Few tasks so far, so read these as a first look.' : ''}
         </p>
