@@ -55,7 +55,7 @@ const browser = await chromium.launch();
 try {
   // a 1536x864 layout drawn at 1.25x fills 1080p with text a quarter larger and still sharp
   // the recorder captures the page at its CSS size and never scales up: record 1536x864, and ffmpeg makes it 1920x1080
-  const context = await browser.newContext({ viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1.25, recordVideo: { dir: outDir, size: { width: 1536, height: 864 } } });
+  const context = await browser.newContext({ colorScheme: 'dark', viewport: { width: 1536, height: 864 }, deviceScaleFactor: 1.25, recordVideo: { dir: outDir, size: { width: 1536, height: 864 } } });
   const page = await context.newPage();
   // the daemon starts replaying as soon as it is up, so the board opens the moment its URL is printed
   const proc = spawn('bun', [join(root, 'packages', 'cli', 'bin', 'stint'), 'demo', '--speed', String(speed), '--keep'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });

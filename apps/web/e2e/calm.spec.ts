@@ -1,5 +1,8 @@
 import { type Page, expect, test } from '@playwright/test';
 
+// a route handler still serving a poll when a test ends would read a disposed response; drop them first
+test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 // T-0043 waits at the gate after the replay. Approve calls are answered here, so no test merges it for the others.
 const refuse = (page: Page, message: string, onCall?: () => void) =>
   page.route('**/api/tasks/T-0043/approve', (r) => {

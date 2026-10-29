@@ -8,12 +8,13 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: [['list']],
-  use: { trace: 'retain-on-failure' },
+  // the charcoal theme by default, so colour assertions are stable; the light theme has its own test (look.spec.ts)
+  use: { trace: 'retain-on-failure', colorScheme: 'dark' },
   projects: [
     // the demo recording played into a daemon: what the screens show
-    { name: 'chromium', testIgnore: 'flows/**', use: { ...devices['Desktop Chrome'], baseURL: `http://127.0.0.1:${port}` } },
+    { name: 'chromium', testIgnore: 'flows/**', use: { ...devices['Desktop Chrome'], colorScheme: 'dark', baseURL: `http://127.0.0.1:${port}` } },
     // a live daemon with fake agents and models: what a person does, end to end
-    { name: 'flows', testMatch: 'flows/**/*.spec.ts', use: { ...devices['Desktop Chrome'], baseURL: `http://127.0.0.1:${flowsPort}` } },
+    { name: 'flows', testMatch: 'flows/**/*.spec.ts', use: { ...devices['Desktop Chrome'], colorScheme: 'dark', baseURL: `http://127.0.0.1:${flowsPort}` } },
   ],
   webServer: [
     { command: 'bun e2e/serve.ts', url: `http://127.0.0.1:${port}/api/health`, reuseExistingServer: !process.env.CI, timeout: 60_000 },

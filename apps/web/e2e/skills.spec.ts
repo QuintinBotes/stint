@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+// a route handler still serving a poll when a test ends would read a disposed response; drop them first
+test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 test('The Skills page lists the learned skill with its evidence and the hand-written one with its origin', async ({ page }) => {
   await page.goto('/skills');
   const learned = page.locator('[data-skill="limiter-config-via-env"]');

@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+// a route handler still serving a poll when a test ends would read a disposed response; drop them first
+test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 test('A task waiting on its pull request sits in In progress, labelled in PR review with a ring, and is never counted as running', async ({ page }) => {
   await page.route('**/api/tasks', async (route) => {
     const res = await route.fetch();

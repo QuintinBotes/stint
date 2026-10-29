@@ -1,5 +1,8 @@
 import { type Page, expect, test } from '@playwright/test';
 
+// a route handler still serving a poll when a test ends would read a disposed response; drop them first
+test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 type Card = { task: Record<string, unknown>; lastRun: unknown; autopilot: unknown; summary: unknown; cost: Record<string, unknown>; lastEventAt: string; verification: unknown; agents: unknown };
 
 const run = (endedAt: string | null) => ({ run: 'r1', adapter: 'muse-code', vendor: 'meta', role: 'implementer', model: null, host: null, startedAt: '2026-10-29T10:00:00.000Z', endedAt, endedBy: endedAt ? 'completed' : null, cost: null, handoffFrom: null });

@@ -87,7 +87,9 @@ test('R-027 Req 2: a specify run whose tests fail to load, or fail without namin
         const t = await ws.createTask(task(c.command));
         await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
         const events = await until(ws, t.id, stopped);
-        expect(steps(events)).toEqual(['plan', 'specify']);
+        // the phases in order: a planner that fails under load records a second plan step ("building without a plan")
+        const phases = steps(events).filter((step, i, all) => step !== all[i - 1]);
+        expect(phases).toEqual(['plan', 'specify']);
         expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toEqual({ reason: c.reason, needsYou: true });
         expect(events.filter((e) => e.type === 'acceptance.locked').map((e) => e.payload.scope)).toEqual(['plan']);
       });

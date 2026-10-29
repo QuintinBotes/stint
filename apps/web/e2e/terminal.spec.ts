@@ -53,4 +53,6 @@ test('The terminal fills its pane, with the kill button visible while its run is
       return term.width >= pane.width - 24 && term.height >= 300 ? 1 : 0;
     })
     .toBe(1);
+  // the page polls the bundle; a poll still in the handler when the test ends would read a disposed response
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });

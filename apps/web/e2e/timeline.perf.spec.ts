@@ -1,5 +1,8 @@
 import { type Page, expect, test } from '@playwright/test';
 
+// a route handler still serving a poll when a test ends would read a disposed response; drop them first
+test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 const ID = 'T-5000';
 const N = 5000;
 const T0 = Date.parse('2026-10-26T15:00:00Z');

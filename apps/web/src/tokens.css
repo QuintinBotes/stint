@@ -65,7 +65,7 @@
 }
 
 /* A person who asks their system for more contrast gets brighter secondary text, lines and focus. */
-@media (prefers-contrast: more) {
+@media (prefers-color-scheme: dark) and (prefers-contrast: more) {
   :root {
     --ink-2: #e1e9f3;
     --ink-3: #cedbea;
@@ -73,5 +73,56 @@
     --rule-strong: #9aadc2;
     --field: #b0c2d6;
     --focus: #c3dcff;
+  }
+}
+
+/* The light theme, chosen by the system setting (R-067): paper surfaces, near-black ink, and state and vendor inks dark
+   enough to read on paper. Same names, so no component changes colour by name. The terminal stays dark in both themes.
+   Measured: every text ink 4.5:1 or better on every surface it sits on (green 4.87:1 on a selected row), ink-3 7.17:1, every mark 3:1; red and green
+   17.8 apart under protanopia and 17.1 under deuteranopia (CIEDE2000). */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --shell: #f2f4f7;
+    --ground: #fafbfc;
+    --panel: #ffffff;
+    --panel-2: #eef2f6;
+    --rule: #d9e0e8;
+    --rule-strong: #7f8d9e;
+    --field: #737f8f;
+    --ink: #0d1218;
+    --ink-2: #2b3644;
+    --ink-3: #455161;
+    --on-ink: #ffffff;
+    --meta: #1d6ad1;
+    --anthropic: #b0562a;
+    --openai: #10795a;
+    --local: #5a6879;
+    --amber: #8c5a00;
+    --green: #07745a;
+    --red: #8e1e1e;
+    --violet: #6847cf;
+    --amber-wash: rgb(255 190 30 / 16%);
+    --green-wash: rgb(20 170 115 / 11%);
+    --red-wash: rgb(225 60 50 / 9%);
+    --violet-wash: rgb(120 90 225 / 10%);
+    --focus: #1d6ad1;
+    --shadow: 0 18px 60px rgb(15 25 40 / 16%);
+    --shadow-pinned: 0 -12px 24px rgb(15 25 40 / 6%);
+    --surface-hover: #f2f5f9;
+    --surface-selected: #e6edf5;
+    --selection-bg: #cfe1ff;
+    --selection-ink: #0d1218;
+  }
+}
+
+@media (prefers-color-scheme: light) and (prefers-contrast: more) {
+  :root {
+    --ink-2: #1f2935;
+    --ink-3: #364250;
+    --rule: #a9b4c1;
+    --rule-strong: #5f6c7b;
+    --field: #56626f;
+    --focus: #1559b3;
   }
 }

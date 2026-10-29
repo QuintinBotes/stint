@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+// a route handler still serving a poll when a test ends would read a disposed response; drop them first
+test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 // The replay has no split task, so the board's task list gets one added: a parent and two subtasks, the second after the first.
 test('The board shows a split task with its subtasks in order and what each waits for, and each subtask names its parent', async ({ page }) => {
   await page.route('**/api/tasks', async (route) => {

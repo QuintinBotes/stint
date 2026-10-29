@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 
+// a route handler still serving a poll when a test ends would read a disposed response; drop them first
+test.afterEach(async ({ page }) => page.unrouteAll({ behavior: 'ignoreErrors' }));
+
 test('The T-0042 review card shows it ran on this machine and the finding routed to the queue against D3', async ({ page }) => {
   await page.goto('/t/T-0042?tab=review');
   const card = page.getByTestId('review-card');

@@ -110,6 +110,12 @@ Charcoal is the only look: near-black surfaces with a cool blue undertone, stepp
 - A recommendation is not a state. It uses an ink-outline label, not green.
 - **Red** is the owner's `#ffaaa2` deepened to the coral `#f2786f`. At the supplied value red and green were 9.3 apart under protanopia and 8.2 under deuteranopia (CIEDE2000); the coral takes them to 21.5 and 17.1, and red text still reads at 5.05:1 or better on every surface.
 
+### Light theme
+
+The system setting chooses the theme (R-067); there is no control. Light is paper and near-black ink on the same token names: shell `#f2f4f7`, ground `#fafbfc`, panel `#ffffff`, panel-2 `#eef2f6`, rule `#d9e0e8`, rule-strong `#7f8d9e`, field `#737f8f`, ink `#0d1218`, ink-2 `#2b3644`, ink-3 `#455161`; state inks amber `#8c5a00`, green `#07745a`, red `#8e1e1e`, violet `#6847cf`; vendor inks Meta `#1d6ad1`, Anthropic `#b0562a`, OpenAI `#10795a`, local `#5a6879`; focus `#1d6ad1`. The terminal stays dark in both themes.
+
+Measured from tokens.css: every text ink reads at 4.5:1 or better on every surface it sits on (the lowest is green on a selected row, 4.87:1), ink-3 at 7.17:1 or better on shell, ground and panel, and every mark at 3:1. Red and green are 17.8 apart under protanopia and 17.1 under deuteranopia (CIEDE2000); amber and green share a lightness, so with no colour at all only the shapes tell them apart. axe finds no WCAG A or AA violation on the board, a task's tabs, Goals, the Factory or Skills in either theme (`e2e/a11y.spec.ts`).
+
 ### Contrast
 
 Measured from tokens.css with `prefers-contrast` off:

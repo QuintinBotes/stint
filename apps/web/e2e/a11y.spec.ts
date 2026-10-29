@@ -12,13 +12,17 @@ for (const [name, path] of [
   ['factory', '/factory'],
   ['skills', '/skills'],
 ] as const) {
-  test(`The ${name} has no WCAG A or AA violations`, async ({ page }) => {
-    await page.goto(path);
-    await page.waitForLoadState('networkidle');
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
-    const found = results.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
-    expect(found, found.join('\n')).toEqual([]);
-  });
+  // in both themes (R-067), so contrast is measured on the rendered page each way
+  for (const scheme of ['dark', 'light'] as const) {
+    test(`The ${name} has no WCAG A or AA violations in the ${scheme} theme`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(path);
+      await page.waitForLoadState('networkidle');
+      const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+      const found = results.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
+      expect(found, found.join('\n')).toEqual([]);
+    });
+  }
 }
 
 const axe = async (page: import('@playwright/test').Page) => {
