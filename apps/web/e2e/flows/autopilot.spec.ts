@@ -25,5 +25,5 @@ test('Autopilot from the task header carries a task to Needs you; pressing a mer
   expect((merged?.payload.trailers as Record<string, string>)['Stint-Task']).toBe(t.id);
   expect((await d.task(t.id)).status).toBe('done');
   await page.goto('/');
-  await expect(page.getByTestId('lane-done').locator(`[data-task="${t.id}"]`)).toBeVisible();
+  await expect(page.getByTestId('lane-closed').locator(`[data-task="${t.id}"]`)).toBeVisible();
 });

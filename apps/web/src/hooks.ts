@@ -1,6 +1,6 @@
 import type { StintEvent } from '@stint-dev/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { type GoalListItem, type GoalView, type Health, type TaskBundle, type TaskCardData, api, subscribe } from './api';
+import { type GoalListItem, type GoalView, type Health, type PendingItem, type TaskBundle, type TaskCardData, api, subscribe } from './api';
 
 export type Loadable<T> = { data: T | null; error: string | null; loading: boolean; reload: () => void };
 
@@ -73,6 +73,17 @@ export function useHealth(): Loadable<Health> {
     return () => clearInterval(t);
   }, [reload]);
   return h;
+}
+
+/** Decisions that wait on a task: the memory queue less proposed skills, read every 5 s. A failed read keeps the last list and says so in `error`. */
+export function useDecisions(): Loadable<PendingItem[]> {
+  const d = useLoad(() => api.pending().then((p) => p.filter((x) => x.kind !== 'skill')), []);
+  const { reload } = d;
+  useEffect(() => {
+    const t = setInterval(reload, 5000);
+    return () => clearInterval(t);
+  }, [reload]);
+  return d;
 }
 
 /** The board: refetched when anything happens on any task. */

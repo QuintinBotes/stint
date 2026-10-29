@@ -33,3 +33,26 @@ test('On a merged task, the palette offers its views and no gate or autopilot ac
   await expect(list.getByText('Put on autopilot')).toHaveCount(0);
   await expect(list.getByText('Run the tests', { exact: true })).toHaveCount(0);
 });
+
+test('Looking back on a task, the palette offers Return to latest in place of Approve and every change; the views keep the moment, and Return to latest clears it', async ({ page }) => {
+  // T-0043 waits at the gate, so Approve is offered at the latest moment and must not be while looking back
+  const { events } = (await (await page.request.get('/api/tasks/T-0043/events')).json()) as { events: Array<{ seq: number; ts: string }> };
+  const early = events[2] as { seq: number; ts: string };
+  await page.goto(`/t/T-0043?asOf=${encodeURIComponent(early.ts)}&at=${early.seq}`);
+  await page.keyboard.press('Meta+k');
+  const list = page.getByRole('listbox');
+  await expect(list.getByRole('option', { name: 'Return to latest' })).toBeVisible();
+  for (const name of [/^Approve and merge/, /^Request changes/, /^Reject/, /^Run the tests/, /^Hand to another agent/, /^Put on autopilot/, /^Take off autopilot/, /^Assign to/, /^Stop the live run/]) await expect(list.getByRole('option', { name })).toHaveCount(0);
+  await list.getByRole('option', { name: /^Show the packet/ }).click();
+  await expect(page).toHaveURL(/tab=packet/);
+  await expect(page).toHaveURL(/asOf=/);
+
+  await page.keyboard.press('Meta+k');
+  await page.getByRole('listbox').getByRole('option', { name: 'Return to latest' }).click();
+  await expect(page).not.toHaveURL(/asOf=|[?&]at=/);
+  await expect(page).toHaveURL(/tab=packet/);
+  await page.keyboard.press('Meta+k');
+  await expect(page.getByRole('listbox').getByRole('option', { name: /^Approve and merge/ })).toBeVisible();
+  await expect(page.getByRole('listbox').getByRole('option', { name: 'Return to latest' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+});

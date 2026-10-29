@@ -27,28 +27,15 @@ test('The board shows a split task with its subtasks in order and what each wait
   await expect(child.getByTestId('task-family')).toContainText('after T-0091 (merged)');
 });
 
-test('The board sentence links each task, names the decision that waits on T-0042, and a card says how many tests passed', async ({ page }) => {
+test('The board summary names the decision that waits on T-0042 apart from the task counts, and a card says how many tests passed', async ({ page }) => {
   await page.goto('/');
-  const sentence = page.getByTestId('board-sentence');
-  await expect(sentence).toContainText('T-0043 needs you. 1 decision waits on T-0042.');
+  const summary = page.getByTestId('board-summary');
+  const decisions = summary.locator('[data-count="decisions"]');
+  await expect(decisions).toContainText('Decisions waiting');
+  await expect(decisions.locator('b')).toHaveText('1');
   await expect(page.locator('[data-task="T-0043"]').getByTestId('card-tests')).toHaveText('36 tests passed');
-  // an empty lane keeps its place in the order and says what will appear in it; other tests may have filled some lanes
-  const empty: Record<string, string> = {
-    planned: 'A new task waits here for an agent.',
-    building: 'A task is here while an agent works on it.',
-    verifying: 'A task is here while Stint runs its tests.',
-    reviewing: 'A task is here while a second model reviews it.',
-  };
-  let checked = 0;
-  for (const [id, text] of Object.entries(empty)) {
-    const lane = page.getByTestId(`lane-${id}`);
-    if ((await lane.getByTestId('task-card').count()) > 0) continue;
-    await expect(lane).toContainText(text);
-    checked++;
-  }
-  expect(checked).toBeGreaterThan(0);
-  // the task that needs you is one link in the sentence: focus it and press Enter
-  await sentence.getByRole('link', { name: 'T-0043' }).focus();
+  // the task the decision waits on is one link in the summary: focus it and press Enter
+  await decisions.getByRole('link', { name: 'T-0042' }).focus();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/\/t\/T-0043/);
+  await expect(page).toHaveURL(/\/t\/T-0042/);
 });

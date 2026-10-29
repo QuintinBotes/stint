@@ -1,6 +1,6 @@
 import { type Limits, type TaskLimits, weekOf } from '@stint-dev/core';
 import { Command } from 'cmdk';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { ADAPTER_NAMES } from '../agents';
 import { type CostRow, type DemoStatus, type Health, type TaskCardData, api, daemonMessage } from '../api';
@@ -10,7 +10,7 @@ import { useTasks } from '../hooks';
 import { setSingleKeys, useSingleKeys } from '../shortcuts';
 import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
 import { StatusMenu } from './StatusMenu';
-import { Button, Explain, Kbd, cx, trapTab } from './ui';
+import { Button, Explain, Kbd, trapTab } from './ui';
 
 /** This week's spend, Monday 00:00 to Sunday 24:00 local time, from the daemon's week rows (the same weekOf as the daemon); zero when nothing has ended this week. */
 function useWeekCost(): CostRow | null {
@@ -48,58 +48,62 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
     { to: '/factory', label: 'Factory', on: pathname.startsWith('/factory') },
     { to: '/skills', label: 'Skills', on: pathname.startsWith('/skills') },
   ];
+  const replay = health?.mode === 'replay';
   return (
-    <header className="shrink-0 flex flex-wrap items-center gap-x-5 gap-y-2 min-h-[52px] px-4 md:px-6 py-2 bg-shell border-b border-rule">
-      <div className="flex items-baseline gap-2.5 min-w-0">
-        <Link to="/" className="inline-flex items-center min-h-6 text-section tracking-[-0.01em] no-underline">
+    <header className="stint-topbar shrink-0">
+      <div className="stint-brand-group max-sm:gap-2.5">
+        <Link to="/" className="stint-brand">
           Stint
         </Link>
         {health?.repo ? (
-          <span data-testid="repo-name" className="font-mono text-small text-ink-2 truncate">
+          <span data-testid="repo-name" className="stint-project font-mono max-sm:max-w-[80px]" title={health.repo}>
             {health.repo}
           </span>
         ) : null}
       </div>
-      <nav aria-label="Main" className="flex gap-1">
+      <nav aria-label="Main" className="stint-nav">
         {nav.map((n) => (
-          <Link
-            key={n.to}
-            to={n.to}
-            aria-current={n.on ? 'page' : undefined}
-            className={cx('inline-flex items-center h-9 px-2.5 rounded-[3px] font-medium no-underline hover:bg-panel hover:text-ink', n.on ? 'text-ink shadow-[inset_0_-2px_0_var(--ink)] forced-colors:border-b-2' : 'text-ink-2')}
-          >
+          <Link key={n.to} to={n.to} aria-current={n.on ? 'page' : undefined} className="stint-nav-link">
             {n.label}
           </Link>
         ))}
       </nav>
-      <div className="flex-1" />
-      <button
-        type="button"
-        onClick={onPalette}
-        data-testid="palette-button"
-        className="inline-flex shrink-0 items-center gap-2.5 h-9 px-2.5 md:min-w-[240px] rounded-[5px] border border-field bg-ground text-ink-2 text-left hover:border-ink-2"
-      >
-        <span className="hidden md:inline flex-1">Search or run a command</span>
-        <span className="md:hidden">Search</span>
-        <Kbd>⌘K</Kbd>
-      </button>
-      <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0 text-small text-ink-2">
+      <div className="stint-utilities">
+        <button
+          type="button"
+          onClick={onPalette}
+          aria-keyshortcuts="Meta+K"
+          data-testid="palette-button"
+          className="inline-flex shrink-0 items-center gap-2.5 h-9 px-2.5 lg:min-w-[220px] rounded-md border border-field bg-ground text-ink-2 text-left hover:border-ink-2 hover:text-ink"
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16" className="size-4 sm:hidden">
+            <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M10.4 10.4 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span className="hidden lg:inline flex-1">Search or run a command</span>
+          <span className="max-sm:sr-only lg:hidden">Search</span>
+          <span className="max-sm:hidden">
+            <Kbd>⌘K</Kbd>
+          </span>
+        </button>
         <span
           className="whitespace-nowrap"
           data-testid="week-cost"
           title={
-            health?.mode === 'replay'
-              ? `What the replayed runs cost when they were recorded${health.replay?.recordedAt ? ` on ${localDate(health.replay.recordedAt)}` : ''}; replaying costs nothing.`
+            replay
+              ? `What the replayed runs cost when they were recorded${health?.replay?.recordedAt ? ` on ${localDate(health.replay.recordedAt)}` : ''}; replaying costs nothing.`
               : 'What every model call cost from Monday 00:00 to Sunday 24:00 local time: runs, and the learn step, packet quiz, digest, autopilot pick, board summaries and triage.'
           }
         >
-          {health?.mode === 'replay' ? 'Replayed spend' : 'This week'} <b className="text-ink font-semibold">{week === null ? 'not known yet' : money(week)}</b>
+          {/* the words stay for screen readers at every width; a phone shows the figure, with the words in its title */}
+          <span className="max-sm:sr-only">{replay ? 'Replayed spend' : 'This week'} </span>
+          <b className="text-ink font-semibold tabular">{week === null ? 'not known yet' : money(week)}</b>
           {week?.unpriced ? `, ${week.unpriced} not priced` : ''}
         </span>
         <StatusMenu health={health} unreachable={unreachable} credits={credits} />
-        <button type="button" onClick={onHelp} aria-keyshortcuts="?" data-testid="help-button" className="inline-flex items-center h-9 px-2.5 rounded-[5px] font-medium text-ink hover:bg-panel">
+        <Button tone="ghost" onClick={onHelp} aria-keyshortcuts="?" data-testid="help-button" className="px-2.5 max-sm:px-2 text-ink">
           Help
-        </button>
+        </Button>
       </div>
     </header>
   );
@@ -121,17 +125,19 @@ export function ReplayStrip({ health }: { health: Health | null }) {
   const r = health.replay;
   const clock = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
   return (
-    <div data-testid="replay-strip" className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 px-4 md:px-6 py-1.5 border-b border-rule text-small text-ink-2">
+    <div data-testid="replay-strip" className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 px-4 md:px-8 py-2 bg-shell border-b border-rule text-small text-ink-2">
       {/* honest about what it is (ADR-0011): a hand-written story, or a recording of a live run with its date */}
-      <span className="inline-flex items-center h-6 px-2 rounded-[3px] bg-panel-2 font-medium">{r.live ? 'Replay' : 'Replay, hand-written'}</span>
-      <span>{r.live ? `A recording of a live run on ${localDate(r.recordedAt)}. Nothing runs and nothing is charged.` : 'A hand-written demo story, played back. Nothing runs and nothing is charged.'}</span>
+      <span className="inline-flex items-center min-h-6 px-2 rounded-sm border border-rule-strong font-medium text-ink">{r.live ? 'Replay' : 'Replay, hand-written'}</span>
+      <span className="min-w-0">
+        {r.live ? `A recording of a live run on ${localDate(r.recordedAt)}.` : 'A hand-written demo story, played back.'} Nothing runs and nothing is charged, so actions that start an agent are off here.
+      </span>
       {status ? (
-        <span className="hidden sm:inline whitespace-nowrap">
-          {status.playing ? (status.paused ? 'paused' : 'playing') : status.done ? 'finished' : 'stopped'}, {clock(status.at)} of {clock(status.total)}
+        <span className="hidden sm:inline whitespace-nowrap tabular">
+          {status.playing ? (status.paused ? 'Paused' : 'Playing') : status.done ? 'Finished' : 'Stopped'}, {clock(status.at)} of {clock(status.total)}
         </span>
       ) : null}
       {status?.done ? (
-        <Link to="/factory#any-harness" className="hidden sm:inline ml-auto text-ink underline decoration-rule-strong hover:decoration-ink" data-testid="replay-close">
+        <Link to="/factory#any-harness" className="hidden sm:inline ml-auto text-ink underline decoration-rule-strong underline-offset-4 hover:decoration-ink" data-testid="replay-close">
           Any harness, any model, one packet.
         </Link>
       ) : null}
@@ -148,8 +154,14 @@ function report(promise: Promise<unknown>, done: string): void {
 }
 
 /** Actions on the task that is open, each with the command that does the same from a terminal; a closed task only offers its views. */
-function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: string) => void, health: Health | null): Action[] {
-  const tab = (t: string) => () => navigate(`/t/${id}?tab=${t}`);
+function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: string) => void, health: Health | null, search: string): Action[] {
+  const params = new URLSearchParams(search);
+  // looking back (R-065 4.3): the moment travels with a view, so choosing one keeps the clock where it is
+  const moment = (q: URLSearchParams) => {
+    for (const k of ['asOf', 'at']) if (params.has(k)) q.set(k, params.get(k) as string);
+    return q;
+  };
+  const tab = (t: string) => () => navigate(`/t/${id}?${moment(new URLSearchParams({ tab: t }))}`);
   const closed = card ? ['approved', 'done', 'rejected', 'abandoned'].includes(card.task.status) : false;
   const atGate = card?.task.status === 'awaiting_approval';
   const onAutopilot = !!card?.autopilot?.on;
@@ -181,6 +193,14 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
     { id: 'autopilot-off', label: 'Take off autopilot', cli: `stint run ${id} --stop`, run: () => report(api.autopilot(id, false), `${id} is off autopilot`) },
     ...assign,
   ];
+  if (params.has('asOf')) {
+    // nothing acts on a task seen as it was: the views stay, and Return to latest stands in for every change
+    const latest = new URLSearchParams(params);
+    latest.delete('asOf');
+    latest.delete('at');
+    const back: Action = { id: 'return-to-latest', label: 'Return to latest', cli: '', run: () => navigate(`/t/${id}${latest.toString() ? `?${latest}` : ''}`) };
+    return [back, ...actions.filter((a) => views.has(a.id))];
+  }
   return actions.filter((a) => (closed ? views.has(a.id) : a.id !== (onAutopilot ? 'autopilot-on' : 'autopilot-off')));
 }
 
@@ -210,9 +230,9 @@ export function Palette({ open, onClose, actions: global, health }: { open: bool
     ...(tasks ?? []).map((c) => ({ id: `task-${c.task.id}`, label: `${c.task.id}, ${c.task.title}`, cli: `/t/${c.task.id}`, run: () => navigate(`/t/${c.task.id}`) })),
   ];
   const replay = health?.mode === 'replay' ? ' (not in the replay)' : '';
-  const here = taskId ? taskActions(taskId, tasks?.find((c) => c.task.id === taskId), navigate, health) : [];
+  const here = taskId ? taskActions(taskId, tasks?.find((c) => c.task.id === taskId), navigate, health, location.search) : [];
   const groups: Array<[string, Action[]]> = [
-    [taskId ?? 'This task', here],
+    [taskId ? `${taskId}${new URLSearchParams(location.search).has('asOf') ? ', as it was' : ''}` : 'This task', here],
     ['Actions', global.filter((a) => a.group === 'actions').map((a) => (a.id === 'run-all' ? { ...a, label: `${a.label}${replay}` } : a))],
     ['Go to', [...global.filter((a) => a.group === 'go'), ...go]],
     ['Settings', global.filter((a) => a.group === 'settings')],
@@ -359,71 +379,136 @@ const LIMIT_FIELDS: Array<{ k: keyof Limits; label: string; hint: string; min: n
   { k: 'minutes', label: 'Agent minutes', hint: 'Time agents spend running on it.', min: 1, max: 1440, step: 1 },
 ];
 
+/** A create dialog's form: whether anything is typed, the request in flight, and what the daemon said when it refused. Cleared when the dialog closes. */
+function useDraft(open: boolean) {
+  const [dirty, setDirty] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const busy = useRef(false);
+  useEffect(() => {
+    if (open) return;
+    setDirty(false);
+    setPending(false);
+    setError(null);
+    busy.current = false;
+  }, [open]);
+  return {
+    dirty,
+    pending,
+    error,
+    setError,
+    onChange: (e: FormEvent<HTMLFormElement>) => setDirty([...new FormData(e.currentTarget).values()].some((v) => typeof v === 'string' && v.trim() !== '')),
+    /** Sends once: a second press while the first is in flight does nothing, and a refusal keeps the form as typed. */
+    send<T>(call: () => Promise<T>, done: (v: T) => void, refused: string) {
+      if (busy.current) return;
+      busy.current = true;
+      setPending(true);
+      setError(null);
+      call()
+        .then(done)
+        .catch((err: unknown) => setError(`${refused}: ${daemonMessage(err)}`))
+        .finally(() => {
+          busy.current = false;
+          setPending(false);
+        });
+    },
+  };
+}
+
+/** A labelled field; its hint sits under it and is read with it through aria-describedby on the control. */
+function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="stint-field-group">
+      <label htmlFor={id} className="stint-field-label">
+        {label}
+      </label>
+      {children}
+      {hint ? (
+        <p id={`${id}-hint`} className="stint-field-help">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** The footer of a create dialog: the daemon's message beside the action when it refused, and the action, which says when it is working. */
+function CreateFooter({ form, pending, error, label, working }: { form: string; pending: boolean; error: string | null; label: string; working: string }) {
+  return (
+    <>
+      {error ? (
+        <p role="alert" className="stint-field-error basis-full">
+          {error}
+        </p>
+      ) : null}
+      <Button tone="primary" type="submit" form={form} aria-disabled={pending} aria-busy={pending}>
+        {pending ? working : label}
+      </Button>
+    </>
+  );
+}
+
+const lines = (v: FormDataEntryValue | null) =>
+  String(v ?? '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
 export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  const id = useId();
+  const draft = useDraft(open);
   const [defaults, setDefaults] = useState<Limits | null>(null);
   useEffect(() => {
     if (open) void api.limitDefaults().then(setDefaults).catch(() => undefined);
   }, [open]);
-  const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 text-ink placeholder:text-ink-3';
-  const label = 'flex flex-col gap-1.5 font-medium';
   return (
-    <Dialog title="New task" open={open} onClose={onClose}>
+    <Dialog title="New task" open={open} onClose={onClose} dirty={draft.dirty} footer={<CreateFooter form={`${id}-form`} pending={draft.pending} error={draft.error} label="Create task" working="Creating task" />}>
       <form
-        className="flex flex-col gap-3"
+        id={`${id}-form`}
+        className="grid gap-5"
+        onChange={draft.onChange}
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
-          const acceptance = String(f.get('acceptance') ?? '')
-            .split('\n')
-            .map((s) => s.trim())
-            .filter(Boolean);
           // a limit left empty takes the default
           const limits: TaskLimits = {};
           for (const { k } of LIMIT_FIELDS) if (f.get(k)) limits[k] = Number(f.get(k));
-          setError(null);
-          api
-            .createTask({ title: String(f.get('title')), goal: String(f.get('goal')), acceptance, ...(f.get('test') ? { testCommand: String(f.get('test')) } : {}), ...(Object.keys(limits).length ? { limits } : {}) })
-            .then((t) => {
+          draft.send(
+            () => api.createTask({ title: String(f.get('title')), goal: String(f.get('goal')), acceptance: lines(f.get('acceptance')), ...(f.get('test') ? { testCommand: String(f.get('test')) } : {}), ...(Object.keys(limits).length ? { limits } : {}) }),
+            (t) => {
               onClose();
               // the task view starts the round itself, so its questions arrive where they are answered (R-064)
               navigate(`/t/${t.id}${f.get('sharpen') ? '?sharpen=1' : ''}`);
-            })
-            .catch((err: unknown) => setError(`The task was not created: ${err instanceof Error ? err.message : String(err)}`));
+            },
+            'The task was not created',
+          );
         }}
       >
-        <p className="text-small text-ink-2 -mt-2">Describe the work. It waits in Planned until you give it to an agent or turn on autopilot.</p>
-        <label className={label}>
-          Title
-          <input name="title" required maxLength={120} className={field} />
-        </label>
-        <label className={label}>
-          Goal
-          <textarea name="goal" required rows={3} className={field} />
-        </label>
-        <label className={label}>
-          How you will know it is done, one check per line
-          <textarea name="acceptance" required rows={3} className={field} />
-        </label>
-        <label className={label}>
-          Command that runs the tests
-          <input name="test" placeholder="bun test" aria-describedby="test-hint" className={cx(field, 'font-mono')} />
-          <span id="test-hint" className="text-small font-normal text-ink-2">
-            Stint runs it itself to check the work. Leave it empty to use the one in this project's settings.
-          </span>
-        </label>
-        <details data-testid="new-task-limits" className="rounded-[5px] border border-rule">
-          <summary className="min-h-9 px-3 py-2 rounded-[5px] font-medium cursor-pointer hover:bg-panel-2">Limits</summary>
-          <div className="flex flex-col gap-3 px-3 pb-3">
-            <p className="text-small text-ink-2">Autopilot stops and asks you before the task goes past one. Leave a field empty for the default shown in it.</p>
-            <div className="grid grid-cols-1 min-[440px]:grid-cols-2 gap-3">
-              {LIMIT_FIELDS.map(({ k, label: text, hint, min, max, step }) => {
+        <p className="stint-field-help">Describe the work. It waits in Planned until you give it to an agent or turn on autopilot.</p>
+        <Field id={`${id}-title`} label="Title">
+          <input id={`${id}-title`} name="title" required maxLength={120} className="stint-input" />
+        </Field>
+        <Field id={`${id}-goal`} label="Goal">
+          <textarea id={`${id}-goal`} name="goal" required rows={3} className="stint-input" />
+        </Field>
+        <Field id={`${id}-acceptance`} label="How you will know it is done, one check per line">
+          <textarea id={`${id}-acceptance`} name="acceptance" required rows={3} className="stint-input" />
+        </Field>
+        <Field id={`${id}-test`} label="Command that runs the tests" hint="Stint runs it itself to check the work. Leave it empty to use the one in this project's settings.">
+          <input id={`${id}-test`} name="test" placeholder="bun test" aria-describedby={`${id}-test-hint`} className="stint-input font-mono" />
+        </Field>
+        <details data-testid="new-task-limits" className="rounded-md border border-rule">
+          <summary className="min-h-10 px-3 py-2.5 rounded-md font-medium cursor-pointer hover:bg-surface-hover">Limits</summary>
+          <div className="grid gap-4 px-3 pt-1 pb-4">
+            <p className="stint-field-help">Autopilot stops and asks you before the task goes past one. Leave a field empty for the default shown in it.</p>
+            <div className="grid grid-cols-1 min-[440px]:grid-cols-2 gap-4">
+              {LIMIT_FIELDS.map(({ k, label, hint, min, max, step }) => {
                 const d = defaults?.[k];
                 return (
-                  <label key={k} className={label}>
-                    {text}
+                  <Field key={k} id={`${id}-${k}`} label={label} hint={hint}>
                     <input
+                      id={`${id}-${k}`}
                       name={k}
                       type="number"
                       min={min}
@@ -431,38 +516,24 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
                       step={step}
                       inputMode={step < 1 ? 'decimal' : 'numeric'}
                       placeholder={d === undefined ? '' : d === null ? 'No limit' : k === 'usd' ? d.toFixed(2) : String(d)}
-                      aria-describedby={`limit-${k}-hint`}
-                      className={cx(field, 'tabular')}
+                      aria-describedby={`${id}-${k}-hint`}
+                      className="stint-input tabular"
                     />
-                    <span id={`limit-${k}-hint`} className="text-small font-normal text-ink-2">
-                      {hint}
-                    </span>
-                  </label>
+                  </Field>
                 );
               })}
             </div>
             <Explain word="limit" />
           </div>
         </details>
-        <div className="flex flex-col gap-1">
-          <label className="flex items-center gap-2.5 min-h-6 font-medium">
-            <input type="checkbox" name="sharpen" aria-describedby="sharpen-hint" />
+        <div className="grid gap-1.5">
+          <label className="inline-flex items-center gap-2.5 min-h-6 w-fit stint-field-label">
+            <input type="checkbox" name="sharpen" aria-describedby={`${id}-sharpen-hint`} />
             Sharpen it first
           </label>
-          <span id="sharpen-hint" className="text-small text-ink-2">
+          <p id={`${id}-sharpen-hint`} className="stint-field-help">
             Before any agent starts, Stint asks the few questions whose answers change what gets built, and recommends an answer to each.
-          </span>
-        </div>
-        {error ? (
-          <p role="alert" className="text-red">
-            {error}
           </p>
-        ) : null}
-        <div className="flex gap-2 justify-end">
-          <Button onClick={onClose}>Cancel</Button>
-          <Button tone="primary" type="submit">
-            Create task
-          </Button>
         </div>
       </form>
     </Dialog>
@@ -472,18 +543,14 @@ export function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () =>
 /** A new goal (R-064): an outcome, its criteria and non-goals one per line, and limits for all its tasks. */
 export function NewGoalDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-  const field = 'w-full rounded-[5px] border border-field bg-ground px-3 py-2 text-ink placeholder:text-ink-3';
-  const label = 'flex flex-col gap-1.5 font-medium';
-  const lines = (v: FormDataEntryValue | null) =>
-    String(v ?? '')
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
+  const id = useId();
+  const draft = useDraft(open);
   return (
-    <Dialog title="New goal" open={open} onClose={onClose}>
+    <Dialog title="New goal" open={open} onClose={onClose} dirty={draft.dirty} footer={<CreateFooter form={`${id}-form`} pending={draft.pending} error={draft.error} label="Create goal" working="Creating goal" />}>
       <form
-        className="flex flex-col gap-3"
+        id={`${id}-form`}
+        className="grid gap-5"
+        onChange={draft.onChange}
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
@@ -493,67 +560,47 @@ export function NewGoalDialog({ open, onClose }: { open: boolean; onClose: () =>
           const nonGoals = lines(f.get('nonGoals'));
           const criteria = lines(f.get('criteria'));
           // said before the daemon has to: the schema's own bounds, in words
-          if (criteria.length < 1 || criteria.length > 12) return setError(`A goal takes 1 to 12 criteria, one per line; this has ${criteria.length}.`);
-          if (criteria.some((c) => c.length > 300)) return setError('Each criterion fits in 300 characters.');
-          if (nonGoals.length > 8) return setError(`A goal takes at most 8 non-goals; this has ${nonGoals.length}.`);
-          setError(null);
-          api
-            .createGoal({ title: String(f.get('title')), outcome: String(f.get('outcome')), criteria, ...(nonGoals.length ? { nonGoals } : {}), ...(Object.keys(limits).length ? { limits } : {}) })
-            .then((g) => {
+          if (criteria.length < 1 || criteria.length > 12) return draft.setError(`A goal takes 1 to 12 criteria, one per line; this has ${criteria.length}.`);
+          if (criteria.some((c) => c.length > 300)) return draft.setError('Each criterion fits in 300 characters.');
+          if (nonGoals.length > 8) return draft.setError(`A goal takes at most 8 non-goals; this has ${nonGoals.length}.`);
+          draft.send(
+            () => api.createGoal({ title: String(f.get('title')), outcome: String(f.get('outcome')), criteria, ...(nonGoals.length ? { nonGoals } : {}), ...(Object.keys(limits).length ? { limits } : {}) }),
+            (g) => {
               onClose();
               navigate(`/goals/${g.id}`);
-            })
-            .catch((err: unknown) => setError(`The goal was not created: ${daemonMessage(err)}`));
+            },
+            'The goal was not created',
+          );
         }}
       >
-        <p className="text-small text-ink-2 -mt-2">Describe an outcome bigger than one task. Stint can sharpen it with you, then split it into tasks you check before any is created.</p>
-        <label className={label}>
-          Title
-          <input name="title" required maxLength={120} className={field} />
-        </label>
-        <label className={label}>
-          Outcome: what is true once it is met
-          <textarea name="outcome" required maxLength={2000} rows={3} className={field} />
-        </label>
-        <label className={label}>
-          Success criteria, one per line
-          <textarea name="criteria" required rows={3} className={field} />
-        </label>
-        <label className={label}>
-          Not in scope, one per line
-          <textarea name="nonGoals" rows={2} aria-describedby="non-goals-hint" className={field} />
-          <span id="non-goals-hint" className="text-small font-normal text-ink-2">
-            Optional. What the goal leaves out, so no task takes it on.
-          </span>
-        </label>
-        <details data-testid="new-goal-limits" className="rounded-[5px] border border-rule">
-          <summary className="min-h-9 px-3 py-2 rounded-[5px] font-medium cursor-pointer hover:bg-panel-2">Limits</summary>
-          <div className="flex flex-col gap-3 px-3 pb-3">
-            <p className="text-small text-ink-2">Counted across all the goal's tasks. Autopilot stops a build that would go past one, and each task takes its share. Leave a field empty for no limit.</p>
-            <div className="grid grid-cols-1 min-[440px]:grid-cols-2 gap-3">
-              <label className={label}>
-                Spend in dollars
-                <input name="usd" type="number" min={0.01} max={1000} step={0.01} inputMode="decimal" placeholder="No limit" className={cx(field, 'tabular')} />
-              </label>
-              <label className={label}>
-                Builds
-                <input name="builds" type="number" min={1} max={50} step={1} inputMode="numeric" placeholder="No limit" className={cx(field, 'tabular')} />
-              </label>
+        <p className="stint-field-help">Describe an outcome bigger than one task. Stint can sharpen it with you, then split it into tasks you check before any is created.</p>
+        <Field id={`${id}-title`} label="Title">
+          <input id={`${id}-title`} name="title" required maxLength={120} className="stint-input" />
+        </Field>
+        <Field id={`${id}-outcome`} label="Outcome: what is true once it is met">
+          <textarea id={`${id}-outcome`} name="outcome" required maxLength={2000} rows={3} className="stint-input" />
+        </Field>
+        <Field id={`${id}-criteria`} label="Success criteria, one per line">
+          <textarea id={`${id}-criteria`} name="criteria" required rows={3} className="stint-input" />
+        </Field>
+        <Field id={`${id}-non-goals`} label="Not in scope, one per line" hint="Optional. What the goal leaves out, so no task takes it on.">
+          <textarea id={`${id}-non-goals`} name="nonGoals" rows={2} aria-describedby={`${id}-non-goals-hint`} className="stint-input min-h-[72px]" />
+        </Field>
+        <details data-testid="new-goal-limits" className="rounded-md border border-rule">
+          <summary className="min-h-10 px-3 py-2.5 rounded-md font-medium cursor-pointer hover:bg-surface-hover">Limits</summary>
+          <div className="grid gap-4 px-3 pt-1 pb-4">
+            <p className="stint-field-help">Counted across all the goal's tasks. Autopilot stops a build that would go past one, and each task takes its share. Leave a field empty for no limit.</p>
+            <div className="grid grid-cols-1 min-[440px]:grid-cols-2 gap-4">
+              <Field id={`${id}-usd`} label="Spend in dollars">
+                <input id={`${id}-usd`} name="usd" type="number" min={0.01} max={1000} step={0.01} inputMode="decimal" placeholder="No limit" className="stint-input tabular" />
+              </Field>
+              <Field id={`${id}-builds`} label="Builds">
+                <input id={`${id}-builds`} name="builds" type="number" min={1} max={50} step={1} inputMode="numeric" placeholder="No limit" className="stint-input tabular" />
+              </Field>
             </div>
             <Explain word="limit" />
           </div>
         </details>
-        {error ? (
-          <p role="alert" className="text-red">
-            {error}
-          </p>
-        ) : null}
-        <div className="flex gap-2 justify-end">
-          <Button onClick={onClose}>Cancel</Button>
-          <Button tone="primary" type="submit">
-            Create goal
-          </Button>
-        </div>
       </form>
     </Dialog>
   );

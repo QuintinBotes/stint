@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { BrowserRouter, Link, Route, Routes } from 'react-router';
 import { Dialog, NewGoalDialog, NewTaskDialog, Palette, ReplayStrip, TopBar, usePaletteActions } from './components/Shell';
 import { Notifier } from './components/Notifier';
 import { Kbd } from './components/ui';
@@ -12,7 +12,7 @@ import { Board } from './routes/Board';
 const Goals = lazy(() => import('./routes/Goals').then((m) => ({ default: m.Goals })));
 const Factory = lazy(() => import('./routes/Factory').then((m) => ({ default: m.Factory })));
 const Skills = lazy(() => import('./routes/Skills').then((m) => ({ default: m.Skills })));
-import { Placeholder, TaskView } from './routes/TaskView';
+import { TaskView } from './routes/TaskView';
 
 const KEYS: Array<[string, string]> = [
   ['⌘K', 'Search or run a command'],
@@ -30,6 +30,31 @@ const KEYS: Array<[string, string]> = [
   ['⌘.', 'Stop the run that is going'],
   ['?', 'This help'],
 ];
+
+/** What a page that is still loading says, in the page's own frame. */
+function Opening({ what }: { what: string }) {
+  return (
+    <main className="relative flex-1 min-h-0 overflow-y-auto">
+      <p role="status" className="stint-page text-ink-2">
+        Opening {what}.
+      </p>
+    </main>
+  );
+}
+
+function NotFound() {
+  return (
+    <main className="relative flex-1 min-h-0 overflow-y-auto">
+      <div className="stint-page">
+        <h1 className="stint-page-title">Not found</h1>
+        <p className="stint-page-summary">There is nothing at this address. It may be a task or a goal that was never made, or a link that is out of date.</p>
+        <Link to="/" className="stint-button mt-6 no-underline">
+          Go to the Board
+        </Link>
+      </div>
+    </main>
+  );
+}
 
 export function App() {
   const health = useHealth();
@@ -76,14 +101,14 @@ export function App() {
         <ReplayStrip health={health.data} />
         <Notifier />
         <Routes>
-          <Route path="/" element={<Board onNewTask={openNewTask} />} />
+          <Route path="/" element={<Board onNewTask={openNewTask} health={health.data} />} />
           <Route path="/t/:id" element={<TaskView />} />
           {['/goals', '/goals/:id'].map((path) => (
             <Route
               key={path}
               path={path}
               element={
-                <Suspense fallback={<p className="p-6 text-ink-2">Opening Goals.</p>}>
+                <Suspense fallback={<Opening what="Goals" />}>
                   <Goals onNewGoal={openNewGoal} />
                 </Suspense>
               }
@@ -92,7 +117,7 @@ export function App() {
           <Route
             path="/factory"
             element={
-              <Suspense fallback={<p className="p-6 text-ink-2">Opening the Factory.</p>}>
+              <Suspense fallback={<Opening what="the Factory" />}>
                 <Factory />
               </Suspense>
             }
@@ -100,40 +125,44 @@ export function App() {
           <Route
             path="/skills"
             element={
-              <Suspense fallback={<p className="p-6 text-ink-2">Opening Skills.</p>}>
+              <Suspense fallback={<Opening what="Skills" />}>
                 <Skills />
               </Suspense>
             }
           />
-          <Route path="*" element={<Placeholder title="Not found">There is nothing at this address. The board is at the top left.</Placeholder>} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
         <Palette open={palette} onClose={() => setPalette(false)} actions={actions} health={health.data} />
         <NewTaskDialog open={newTask} onClose={() => setNewTask(false)} />
         <NewGoalDialog open={newGoal} onClose={() => setNewGoal(false)} />
-        <Dialog title="Help" open={help} onClose={() => setHelp(false)}>
-          <p className="text-ink-2 mb-5">Stint gives coding work to AI agents, checks it with your tests, and waits for you to approve before anything is merged.</p>
-          <h3 className="font-semibold mb-2">Words used here</h3>
-          <dl className="flex flex-col gap-2.5 mb-6" data-testid="glossary">
-            {Object.values(GLOSSARY).map((g) => (
-              <div key={g.word}>
-                <dt className="font-medium">{g.word}</dt>
-                <dd className="text-ink-2">{g.plain}</dd>
-              </div>
-            ))}
-          </dl>
-          <h3 className="font-semibold mb-2">Keys</h3>
-          <p className="text-small text-ink-2 mb-2">Single keys work when you are not typing in a field. You can turn them off from the command search.</p>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
-            {KEYS.map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt>
-                  <Kbd>{k}</Kbd>
-                  <span className="sr-only">{k}</span>
-                </dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
+        <Dialog title="Help" open={help} onClose={() => setHelp(false)} width={720}>
+          <p className="text-ink-2 max-w-[65ch]">Stint gives coding work to AI agents, checks it with your tests, and waits for you to approve before anything is merged.</p>
+          <section className="stint-section">
+            <h3 className="stint-section-title">Words used here</h3>
+            <dl className="grid gap-3" data-testid="glossary">
+              {Object.values(GLOSSARY).map((g) => (
+                <div key={g.word} className="grid gap-0.5">
+                  <dt className="font-medium text-ink">{g.word}</dt>
+                  <dd className="text-ink-2 max-w-[65ch]">{g.plain}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+          <section className="stint-section">
+            <h3 className="stint-section-title">Keys</h3>
+            <p className="stint-field-help">Single keys work when you are not typing in a field. You can turn them off from the command search.</p>
+            <dl className="grid grid-cols-[minmax(56px,auto)_1fr] gap-x-4 gap-y-2.5">
+              {KEYS.map(([k, v]) => (
+                <div key={k} className="contents">
+                  <dt>
+                    <Kbd>{k}</Kbd>
+                    <span className="sr-only">{k}</span>
+                  </dt>
+                  <dd className="text-ink-2">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
         </Dialog>
       </div>
     </BrowserRouter>

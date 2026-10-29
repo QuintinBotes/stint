@@ -1,25 +1,21 @@
 import { expect, test } from '@playwright/test';
 
-test('The board has an In review lane between Reviewing and Done once a task waits on a pull request, and none before', async ({ page }) => {
-  // the replay has no pull request, so the lane stays out of the way
-  await page.goto('/');
-  await expect(page.getByTestId('lane-reviewing')).toBeVisible();
-  await expect(page.getByTestId('lane-in-review')).toHaveCount(0);
-
+test('A task waiting on its pull request sits in In progress, labelled in PR review with a ring, and is never counted as running', async ({ page }) => {
   await page.route('**/api/tasks', async (route) => {
     const res = await route.fetch();
-    const body = (await res.json()) as { tasks: Array<{ task: Record<string, unknown> }> };
-    const base = body.tasks[0] as { task: Record<string, unknown> };
-    body.tasks.push({ ...base, task: { ...base.task, id: 'T-0091', title: 'Waiting on its pull request', status: 'in_review' } });
+    const body = (await res.json()) as { tasks: Array<{ task: Record<string, unknown>; lastRun: unknown }> };
+    const base = body.tasks[0] as { task: Record<string, unknown>; lastRun: unknown };
+    body.tasks = [{ ...base, task: { ...base.task, id: 'T-0091', title: 'Waiting on its pull request', status: 'in_review' }, lastRun: null }];
     await route.fulfill({ response: res, json: body });
   });
-  await page.reload();
-  const lane = page.getByTestId('lane-in-review');
-  await expect(lane.getByRole('heading', { name: /In review/ })).toBeVisible();
-  await expect(lane.locator('[data-task="T-0091"]')).toBeVisible();
-  const order = await page.locator('[data-testid^="lane-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
-  expect(order.indexOf('lane-in-review')).toBe(order.indexOf('lane-reviewing') + 1);
-  expect(order.indexOf('lane-done')).toBe(order.indexOf('lane-in-review') + 1);
+  await page.goto('/');
+  const card = page.getByTestId('lane-in-progress').locator('[data-task="T-0091"]');
+  await expect(card).toBeVisible();
+  const label = card.locator('.stint-status');
+  await expect(label).toHaveText('in PR review');
+  await expect(label.locator('svg')).toHaveAttribute('data-shape', 'waiting');
+  await expect(page.getByTestId('board-summary').locator('[data-count="running"] b')).toHaveText('0');
+  await expect(page.getByTestId('lane-in-progress').getByRole('heading', { name: 'In progress' })).toBeVisible();
 });
 
 test('The Factory Outcomes panel shows merged, reverted and followed up per agent', async ({ page }) => {
