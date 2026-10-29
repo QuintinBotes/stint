@@ -48,7 +48,10 @@ export function endedBy(o: { terminal: { kind: string; reason: string | null } |
 
 async function museVersion(): Promise<string | null> {
   try {
-    const p = Bun.spawn(['muse', '--version'], { stdout: 'pipe', stderr: 'ignore' });
+    // found the way enrich finds it, on the PATH as it is now, so availability and the run never disagree on which muse
+    const bin = Bun.which('muse', { PATH: process.env.PATH ?? '' });
+    if (!bin) return null;
+    const p = Bun.spawn([bin, '--version'], { stdout: 'pipe', stderr: 'ignore' });
     const out = await new Response(p.stdout).text();
     return (await p.exited) === 0 ? out.trim() : null;
   } catch {

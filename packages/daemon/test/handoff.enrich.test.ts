@@ -44,8 +44,7 @@ test('D-060: asking a leaving Muse Code session for the packet is metered as cos
       const { app, ws } = await makeApp(repo, [muse]);
       const t = await ws.createTask(newTask);
       await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'muse-code', role: 'implementer' });
-      // the packet follows the daemon's own verification of the run, which takes longer on a CI runner than here
-      for (let i = 0; i < 1800 && (await ws.handoffs(t.id).names()).length === 0; i++) await Bun.sleep(50);
+      for (let i = 0; i < 400 && (await ws.handoffs(t.id).names()).length === 0; i++) await Bun.sleep(50);
       const recorded = (await ws.events(t.id).read()).filter((e) => e.type === 'cost.recorded').map((e) => e.payload);
       // 7220 fresh at $1.25, 11200 cached at $0.15 and 390 out at $5 per million on meta-api/muse-spark-1.3
       expect(recorded).toEqual([{ for: 'enrich', run: 'r1', host: 'meta-api', model: 'muse-spark-1.3', cost: { inputTokens: 18420, cachedTokens: 11200, outputTokens: 390, usd: 0.0127 } }]);
@@ -57,4 +56,4 @@ test('D-060: asking a leaving Muse Code session for the packet is metered as cos
     process.env.PATH = path;
     cleanup();
   }
-}, 120_000);
+}, 60_000);
