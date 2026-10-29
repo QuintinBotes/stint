@@ -291,6 +291,8 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     await ctx.ws.events(id).append({ task: id, vendor: 'human', type: 'approval.rejected', payload: { reason: text, changes: true } });
     const result = await sendBack(ctx, id, text);
     await skillStatuses(ctx);
+    // the text is a rejection reason the learn step counts, as a reject's is
+    triggerLearn(ctx, id);
     return c.json(result);
   });
 }

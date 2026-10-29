@@ -20,13 +20,15 @@ test('Reject off autopilot writes the decision, sets rejected so the board shows
   });
 }, 120_000);
 
-test('request-changes off autopilot sets rejected with the text as the ask and records no decision', async () => {
+test('request-changes off autopilot sets rejected with the text as the ask, records no decision, and runs the learn step as a reject does', async () => {
   await withFixtureRepo(async (repo) => {
     const { app, ws, t } = await builtTask(repo);
     const res = await post(app, `/api/tasks/${t.id}/request-changes`, { text: 'Add a test for two tenants' });
     expect(await res.json()).toEqual({ status: 'rejected', autopilot: false });
     expect(await ws.readTask(t.id)).toMatchObject({ status: 'rejected', pendingAsk: 'Add a test for two tenants' });
     expect((await ws.decisions(t.id).read()).length).toBe(0);
+    const learned = await until(ws, t.id, (ev) => ev.some((e) => e.type.startsWith('learn.') || e.type === 'skill.proposed'), 10_000);
+    expect(learned.filter((e) => e.type.startsWith('learn.') || e.type === 'skill.proposed').map((e) => [e.type, e.payload.reason])).toEqual([['learn.skipped', 'no recurrence']]);
   });
 }, 120_000);
 
