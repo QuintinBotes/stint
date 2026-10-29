@@ -1,4 +1,4 @@
-import { type Draft, type DraftAnswer, type DraftKind, type DraftScenario, mergeAnswers } from '@stint-dev/core';
+import { type Draft, type DraftAnswer, type DraftKind, type DraftProof, type DraftScenario, mergeAnswers } from '@stint-dev/core';
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { api } from '../api';
@@ -22,6 +22,9 @@ const fileField = 'text-small text-ink-2 file:mr-3 file:h-8 file:px-3 file:round
 // a list field keeps its blank lines while it is typed in, so Enter starts a new line; tidy drops them before a send
 const asLines = (v: string) => v.split('\n').map((s) => s.slice(0, 300));
 const sc = (i: number) => `SC-${String(i + 1).padStart(3, '0')}`;
+// the page and what should be seen there share the proof's 200 characters, joined by " :: "
+const PAGE_MAX = 60;
+const SEEN_MAX = 136;
 
 /** The draft as the daemon takes it: text trimmed, blank lines gone, the success criteria numbered again. */
 function tidy(d: Draft): Draft {
@@ -30,7 +33,7 @@ function tidy(d: Draft): Draft {
     ...d,
     title: d.title.trim(),
     summary: d.summary.trim(),
-    stories: d.stories.map((s) => ({ ...s, title: s.title.trim(), scenarios: s.scenarios.map((x) => ({ given: x.given.trim(), when: x.when.trim(), then: x.then.trim() })) })),
+    stories: d.stories.map((s) => ({ ...s, title: s.title.trim(), scenarios: s.scenarios.map((x) => ({ ...x, given: x.given.trim(), when: x.when.trim(), then: x.then.trim(), ...(x.proof?.kind === 'visual' && x.proof.ref ? { proof: { kind: 'visual' as const, ref: x.proof.ref.trim() } } : {}) })) })),
     success: keep(d.success.map((s) => s.text)).map((text, i) => ({ id: sc(i), text })),
     nonGoals: keep(d.nonGoals),
     assumptions: keep(d.assumptions),
@@ -315,6 +318,42 @@ function QuestionCard({ q, answer, onAnswer }: { q: Question; answer?: DraftAnsw
   );
 }
 
+/** A visual proof's page and what should be seen there, split at the first " :: " so either part can be typed while the other is empty. */
+function pageAndSeen(ref: string): [string, string] {
+  const at = ref.indexOf(' :: ');
+  return at < 0 ? [ref, ''] : [ref.slice(0, at), ref.slice(at + 4)];
+}
+
+/** How a task's scenario is proven: a held-out test the agent cannot see, or what a page shows, with the page and what should be seen there. */
+function ProofField({ scenario: x, onChange }: { scenario: DraftScenario; onChange: (proof: DraftProof) => void }) {
+  const visual = x.proof?.kind === 'visual' ? pageAndSeen(x.proof.ref ?? '') : null;
+  const look = (page: string, seen: string) => onChange({ kind: 'visual', ref: `${page} :: ${seen}` });
+  return (
+    <>
+      <label className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-3">
+        <span className="text-small text-ink-2">Proof</span>
+        <select value={visual ? 'visual' : 'scenario'} onChange={(e) => (e.target.value === 'visual' ? look('/', x.then.slice(0, SEEN_MAX)) : onChange({ kind: 'scenario' }))} className="stint-input">
+          <option value="scenario">A test the agent cannot see</option>
+          <option value="visual">It looks right</option>
+        </select>
+      </label>
+      {visual ? (
+        <div className="grid gap-2 sm:pl-[60px] sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <label className="grid gap-1">
+            <span className="text-small text-ink-2">Page</span>
+            <input value={visual[0]} onChange={(e) => look(e.target.value, visual[1])} required pattern="/\S*" title="A path on the app, starting with /, such as /admin" placeholder="/admin" maxLength={PAGE_MAX} spellCheck={false} className="stint-input font-mono" />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-small text-ink-2">What should be seen there</span>
+            <input value={visual[1]} onChange={(e) => look(visual[0], e.target.value)} required maxLength={SEEN_MAX} className="stint-input" />
+          </label>
+          <p className="stint-field-help sm:col-span-2">After the tests pass, Stint opens this page and checks that this is what is on screen.</p>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /** Step 3: the draft as fields, the task or goal switch with the reason for the one preselected, and the stories with their scenarios. */
 function DraftForm({ id, draft: d, edit, onSubmit }: { id: string; draft: Draft; edit: (fn: (d: Draft) => Draft) => void; onSubmit: (e: FormEvent) => void }) {
   const set = (patch: Partial<Draft>) => edit((now) => ({ ...now, ...patch }));
@@ -376,6 +415,7 @@ function DraftForm({ id, draft: d, edit, onSubmit }: { id: string; draft: Draft;
                     <input value={x[part]} onChange={(e) => setScenario(i, j, { [part]: e.target.value })} required maxLength={300} className="stint-input" />
                   </label>
                 ))}
+                {d.kind === 'task' ? <ProofField scenario={x} onChange={(proof) => setScenario(i, j, { proof })} /> : null}
               </fieldset>
             ))}
           </fieldset>

@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { type Config, type Scorecard, type ScorecardAttempt, ScorecardAttemptSchema, ScorecardSchema, type ScorecardShare } from '../packages/core/src/index';
+import { type Config, type Scorecard, type ScorecardAttempt, ScorecardAttemptSchema, ScorecardSchema, type ScorecardShare, scorecardRows } from '../packages/core/src/index';
 import { type VerificationRecord, runsFromEvents } from '../packages/core/src/node';
 import { replayAdapter, startDaemon } from '../packages/daemon/src/index';
 import { keepAwake } from '../packages/cli/src/awake';
@@ -127,30 +127,10 @@ export function buildScorecard(input: { attempts: ScorecardAttempt[]; relays: Ar
 // ---------------------------------------------------------------------------------------------------------------
 // The renderer: a markdown table for docs/proofs.md
 
-const pct = (s: { value: number | null }) => (s.value === null ? 'none yet' : `${Math.round(s.value * 100)}%`);
-const of = (s: { value: number | null; n: number }) => (s.value === null ? 'none yet' : `${Math.round(s.value * s.n)} of ${s.n} (${pct(s)})`);
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
 export function renderScorecard(card: Scorecard): string {
-  const rows: Array<[string, string, string]> = [];
-  for (const t of card.tasks) {
-    rows.push([`pass^1, ${t.id}`, of(t.pass1), plural(t.pass1.n, 'graded attempt')]);
-    if (card.k > 1) rows.push([`pass^${card.k}, ${t.id}`, t.passK.value === null ? 'not yet' : t.passK.value === 1 ? `yes, all ${card.k} green` : `no, ${t.green} of ${t.pass1.n} green`, plural(t.passK.n, 'graded attempt')]);
-  }
-  rows.push(['pass^1, all tasks', of(card.overall.pass1), plural(card.overall.pass1.n, 'graded attempt')]);
-  if (card.k > 1) rows.push([`pass^${card.k}, all tasks`, of(card.overall.passK), `${plural(card.overall.passK.n, 'task')} with ${card.k} graded attempts`]);
-  rows.push(['Hand-off success: continued runs that went green', of(card.handoff), `${plural(card.handoff.n, 'continued run')} in ${plural(card.handoff.relays.length, 'relay')}`]);
-  rows.push(['Bad patches stopped by the tests alone', of(card.badPatches.byTests), plural(card.badPatches.n, 'attempt') + ' the hidden tests failed']);
-  rows.push(['Bad patches stopped by the tests or the review', of(card.badPatches.byTestsAndReview), plural(card.badPatches.n, 'attempt') + ' the hidden tests failed']);
-  const r = card.review;
-  rows.push(['Review caught: asked for changes, hidden tests red', String(r.caught), plural(r.n, 'reviewed attempt')]);
-  rows.push(['Review missed: approved, hidden tests red', String(r.missed), plural(r.n, 'reviewed attempt')]);
-  rows.push(['Review false alarm: asked for changes, hidden tests green', String(r.falseAlarm), plural(r.n, 'reviewed attempt')]);
-  rows.push(['Review agreed: approved, hidden tests green', String(r.agreed), plural(r.n, 'reviewed attempt')]);
-  const usd = card.perGreen.usd;
-  rows.push(['Cost per green attempt', usd.value === null ? 'none yet' : `$${usd.value.toFixed(4)}`, `${plural(usd.n, 'green attempt')}${usd.unpriced ? `, ${usd.unpriced} unpriced left out` : ''}`]);
-  const wall = card.perGreen.wallMs;
-  rows.push(['Wall time per green attempt', wall.value === null ? 'none yet' : `${(wall.value / 60_000).toFixed(1)} min`, plural(wall.n, 'green attempt')]);
+  const rows = scorecardRows(card);
   const who = (source: 'attempts' | 'relays') =>
     card.models
       .filter((m) => m.source === source)

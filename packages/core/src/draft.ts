@@ -2,7 +2,7 @@
 // the model; which questions a person sees and what gets created is decided here.
 import type { Draft, DraftAnswer, DraftOutput, DraftScenario, DraftStory } from './schemas/draft';
 import type { ProposedTask } from './schemas/goal';
-import type { TaskProof } from './schemas/task';
+import { type TaskProof, visualRef } from './schemas/task';
 import { sharpenRound } from './sharpen';
 
 /** A draft asks at most two rounds of questions; after that, what is still open is listed as assumed. */
@@ -33,10 +33,13 @@ export function draftFromOutput(out: DraftOutput, before: DraftBefore, maxQuesti
     { criteria: out.success.length, maxQuestions, firstQuestion: before.questions.length + 1, firstAssumed: before.assumed.length + 1 },
   );
   const kind = before.kind ?? out.kind;
+  // a visual proof that names no page cannot be checked, so its scenario keeps the held-out test, as Sharpen does
+  const stories = out.stories.map((s) => ({ ...s, scenarios: s.scenarios.map(({ proof, ...x }) => (proof && (proof.kind !== 'visual' || visualRef(proof.ref ?? '')) ? { ...x, proof } : x)) }));
   const draft: Draft = {
     version: 'stint.draft/1',
     input: before.input,
     ...out,
+    stories,
     kind,
     kindReason: before.kindReason ?? (kind === out.kind ? out.kindReason : `You asked for a ${kind}.`),
     questions: [...before.questions, ...asked.questions.map((q) => ({ ...q, round }))],
@@ -62,9 +65,19 @@ export function answerProblem(d: Pick<Draft, 'questions' | 'answers'>): string |
   return null;
 }
 
-/** Why a draft cannot be created as it is, or null: its answers fit, and a goal has a success criterion. */
+/** The first scenario of a task whose visual proof names no page, in words, or null. A goal's tasks take no proofs from the draft. */
+function proofProblem(d: Draft): string | null {
+  if (d.kind !== 'task') return null;
+  for (const [i, s] of d.stories.entries()) {
+    const j = s.scenarios.findIndex((x) => x.proof?.kind === 'visual' && !visualRef(x.proof.ref ?? ''));
+    if (j >= 0) return `story ${i + 1} scenario ${j + 1} is proven by what a page shows but names no page; write it as "<path> :: <what should be seen>", such as "/admin :: a 429 banner saying try again in 60 s"`;
+  }
+  return null;
+}
+
+/** Why a draft cannot be created as it is, or null: its answers fit, a goal has a success criterion, and a task's page proofs name a page. */
 export function draftProblem(d: Draft): string | null {
-  return answerProblem(d) ?? (d.kind === 'goal' && d.success.length === 0 ? 'a goal needs at least one success criterion (SC-001)' : null);
+  return answerProblem(d) ?? (d.kind === 'goal' && d.success.length === 0 ? 'a goal needs at least one success criterion (SC-001)' : null) ?? proofProblem(d);
 }
 
 export const scenarioLine = (s: DraftScenario): string => `Given ${s.given}, when ${s.when}, then ${s.then}`.slice(0, 300);
@@ -79,7 +92,8 @@ const prose = (parts: string[]) => parts.filter(Boolean).join('\n\n').slice(0, 2
 const ACCEPTANCE_MAX = 12;
 
 /**
- * A task from a draft: one acceptance line per scenario, P1 first, each proven by its scenario. Lines past the task's
+ * A task from a draft: one acceptance line per scenario, P1 first, each proven by its held-out scenario or by what a
+ * page shows, as its proof says. Lines past the task's
  * twelve go into the goal text with the requirements and what is not in scope, since a task has no field for either.
  */
 export function taskFromDraft(d: Draft): { title: string; goal: string; acceptance: string[]; proofs: TaskProof[] } {
@@ -90,7 +104,7 @@ export function taskFromDraft(d: Draft): { title: string; goal: string; acceptan
     title: d.title,
     goal: prose([d.summary, section('Requirements', requirements), section('Not in scope', d.nonGoals)]),
     acceptance: kept.map(scenarioLine),
-    proofs: kept.map((s, i) => ({ criterion: i + 1, kind: 'scenario', ref: s.then.slice(0, 200) })),
+    proofs: kept.map((s, i) => (s.proof?.kind === 'visual' && s.proof.ref ? { criterion: i + 1, kind: 'visual', ref: s.proof.ref } : { criterion: i + 1, kind: 'scenario', ref: s.then.slice(0, 200) })),
   };
 }
 

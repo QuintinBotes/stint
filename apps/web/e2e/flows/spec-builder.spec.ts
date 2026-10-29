@@ -76,7 +76,7 @@ async function answer(page: Page, words: string, next: 'Continue' | 'Refine' = '
   return dialog;
 }
 
-test('A sentence becomes a task: one question answered, the recommendation for the rest, a scenario edited, and the task view shows the acceptance lines and the decisions', async ({ page, request }) => {
+test('A sentence becomes a task: one question answered, the recommendation for the rest, a scenario edited, its proof switched between a hidden test and what a page shows, and the task view shows the acceptance lines and the decisions', async ({ page, request }) => {
   const d = daemon(request);
   await page.goto('/');
   await page.keyboard.press('n');
@@ -91,6 +91,18 @@ test('A sentence becomes a task: one question answered, the recommendation for t
   await expect(dialog.getByTestId('builder-kind-why')).toHaveText('One agent can build and verify it in one run.');
   await expect(dialog.getByLabel('Title', { exact: true }).first()).toHaveValue('Flow: add a health endpoint from the builder');
   await dialog.getByTestId('builder-story-1').getByLabel('Then').fill('it answers 200 with ok');
+  // the draft proposed a page proof for the scenario about what a person sees; the person proves the first scenario by its page too, and the second by a hidden test
+  const one = dialog.getByTestId('builder-story-1');
+  const two = dialog.getByTestId('builder-story-2');
+  await expect(two.getByLabel('Proof')).toHaveValue('visual');
+  await expect(two.getByLabel('Page')).toHaveValue('/');
+  await expect(two.getByLabel('What should be seen there')).toHaveValue('a message that says why it failed');
+  await expect(one.getByLabel('Proof')).toHaveValue('scenario');
+  await one.getByLabel('Proof').selectOption({ label: 'It looks right' });
+  await expect(one.getByLabel('What should be seen there')).toHaveValue('it answers 200 with ok');
+  await one.getByLabel('Page').fill('/health');
+  await two.getByLabel('Proof').selectOption({ label: 'A test the agent cannot see' });
+  await expect(two.getByLabel('Page')).toHaveCount(0);
 
   // Escape with a draft asks first, and Escape on the question keeps the draft as edited
   await page.keyboard.press('Escape');
@@ -106,7 +118,8 @@ test('A sentence becomes a task: one question answered, the recommendation for t
   expect(file.suggestedFilename()).toBe('spec.md');
   const md = readFileSync(await file.path(), 'utf8');
   expect(md).toContain('# Feature Specification: Flow: add a health endpoint from the builder');
-  expect(md).toContain('1. **Given** the service is running, **When** a person uses the change, **Then** it answers 200 with ok');
+  expect(md).toContain('1. **Given** the service is running, **When** a person uses the change, **Then** it answers 200 with ok\n   - **It looks right**: /health :: it answers 200 with ok\n');
+  expect(md).not.toContain('a message that says why it failed');
 
   // a double press makes one task, and the button says it is working while the daemon answers
   const held = await holdRequests(page, '**/api/drafts/create');
@@ -117,7 +130,7 @@ test('A sentence becomes a task: one question answered, the recommendation for t
   expect(held.count()).toBe(1);
   const id = /\/t\/(T-\d+)/.exec(page.url())?.[1] as string;
 
-  const lines = ['Given the service is running, when a person uses the change, then it answers 200 with ok', 'Given the change cannot run, when a person uses it, then they see why it failed'];
+  const lines = ['Given the service is running, when a person uses the change, then it answers 200 with ok', 'Given the change cannot run, when a person opens the home page, then they see why it failed'];
   const proofs = page.getByTestId('sharpen-proofs');
   for (const l of lines) await expect(proofs).toContainText(l);
   await expect(page.getByTestId('sharpen-answered-Q1')).toContainText('Anyone on the team');
@@ -127,7 +140,7 @@ test('A sentence becomes a task: one question answered, the recommendation for t
   const task = (await d.task(id)) as unknown as { title: string; acceptance: string[]; proofs: unknown[] };
   expect(task).toMatchObject({ title: 'Flow: add a health endpoint from the builder', acceptance: lines });
   expect(task.proofs).toEqual([
-    { criterion: 1, kind: 'scenario', ref: 'it answers 200 with ok' },
+    { criterion: 1, kind: 'visual', ref: '/health :: it answers 200 with ok' },
     { criterion: 2, kind: 'scenario', ref: 'they see why it failed' },
   ]);
   const answered = (await d.events(id)).filter((e) => e.type === 'sharpen.answered').map((e) => e.payload);

@@ -16,6 +16,7 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import type { z } from 'zod';
 import { type Draft, DraftSchema, type DraftStory } from './schemas/draft';
+import { visualRef } from './schemas/task';
 import type { ProposedTask } from './schemas/goal';
 
 export type SpecKitResult = { ok: true; draft: Draft } | { ok: false; problems: string[] };
@@ -29,6 +30,8 @@ const bullets = (lines: string[]) => lines.flatMap((l) => (/^[-*]\s+/.test(l) ? 
 const paragraph = (lines: string[]) => lines.filter((l) => l && l !== '---').join(' ').trim();
 const MARKER = /\[NEEDS CLARIFICATION:\s*([^\]]+?)\s*\]/g;
 const STORY = /^User Story\s+\d+\s*[-:\u2013\u2014]\s*(.+?)\s*\(Priority:\s*(P\d+)\)/i;
+/** Stint's note under a scenario proven by what a page shows; Spec Kit has no field for a proof. */
+const LOOKS = /^[-*]\s+\*\*It looks right\*\*:\s*(.+)$/;
 const SCENARIO = [/^\d+[.)]\s+\*\*Given\*\*\s+(.+?),?\s+\*\*When\*\*\s+(.+?),?\s+\*\*Then\*\*\s+(.+?)\s*$/i, /^\d+[.)]\s+Given\s+(.+?),?\s+when\s+(.+?),?\s+then\s+(.+?)\s*$/i];
 
 /** Text without HTML comments, split into lines; an unclosed comment is a problem. */
@@ -78,6 +81,11 @@ function story(b: Block, n: number, problems: string[]): DraftStory | null {
       const s = SCENARIO.map((r) => r.exec(l)).find(Boolean);
       if (s) scenarios.push({ given: s[1] as string, when: s[2] as string, then: s[3] as string });
       else problems.push(`User story ${n} has "${l.slice(0, 80)}", which is not a Given, When, Then scenario.`);
+    } else if (LOOKS.test(l)) {
+      const ref = l.replace(LOOKS, '$1').trim();
+      const at = scenarios.at(-1);
+      if (at && visualRef(ref)) at.proof = { kind: 'visual', ref };
+      else problems.push(`User story ${n} has "${l.slice(0, 80)}"; write it under its scenario as - **It looks right**: /path :: what should be seen.`);
     } else if (/^\*\*Why this priority\*\*:/i.test(l)) why = l.replace(/^\*\*Why this priority\*\*:\s*/i, '');
     else if (l && l !== '---' && !/^\*\*(Independent Test|Acceptance Scenarios)\*\*:/i.test(l)) said.push(l);
   }
@@ -223,7 +231,7 @@ export function toSpecKit(d: Draft): string {
     '',
     '**Acceptance Scenarios**:',
     '',
-    ...s.scenarios.map((x, n) => `${n + 1}. **Given** ${oneLine(x.given)}, **When** ${oneLine(x.when)}, **Then** ${oneLine(x.then)}`),
+    ...s.scenarios.flatMap((x, n) => [`${n + 1}. **Given** ${oneLine(x.given)}, **When** ${oneLine(x.when)}, **Then** ${oneLine(x.then)}`, ...(x.proof?.kind === 'visual' && x.proof.ref ? [`   - **It looks right**: ${oneLine(x.proof.ref)}`] : [])]),
     '',
     '---',
     '',

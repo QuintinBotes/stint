@@ -118,6 +118,49 @@ test('The Factory shows the benchmark the fixture was measured with: transcript,
   await expect(bench).toContainText(`commit ${plain.commit.slice(0, 7)}`);
 });
 
+test('The Factory shows the scorecard: pass^1 and pass^3 per task and overall, hand-off, review agreement, cost and time per green attempt, who ran, each with its run count, and an empty state where none was run (R-070)', async ({ page }) => {
+  const fixture = readFileSync(join(import.meta.dirname, '..', '..', '..', 'packages', 'core', 'schemas', 'examples', 'scorecard.json'), 'utf8');
+  await page.route('**/api/scorecard', (r) => r.fulfill({ contentType: 'application/json', body: fixture }));
+  await page.goto('/factory');
+  const panel = page.getByTestId('panel-scorecard');
+  await panel.locator(':scope > summary').click();
+  const cells = async (testId: string) => Promise.all((await panel.getByTestId(testId).all()).map((row) => row.locator('td').allInnerTexts()));
+  expect(await cells('scorecard-row')).toEqual([
+    ['pass^1, ms-unit-option', 'none yet', '0 graded attempts'],
+    ['pass^3, ms-unit-option', 'not yet', '0 graded attempts'],
+    ['pass^1, negotiator-preferred', '1 of 3 (33%)', '3 graded attempts'],
+    ['pass^3, negotiator-preferred', 'no, 1 of 3 green', '3 graded attempts'],
+    ['pass^1, all tasks', '1 of 3 (33%)', '3 graded attempts'],
+    ['pass^3, all tasks', '0 of 1 (0%)', '1 task with 3 graded attempts'],
+    ['Hand-off success: continued runs that went green', '1 of 2 (50%)', '2 continued runs in 1 relay'],
+    ['Bad patches stopped by the tests alone', '1 of 2 (50%)', '2 attempts the hidden tests failed'],
+    ['Bad patches stopped by the tests or the review', '2 of 2 (100%)', '2 attempts the hidden tests failed'],
+    ['Review caught: asked for changes, hidden tests red', '1', '2 reviewed attempts'],
+    ['Review missed: approved, hidden tests red', '0', '2 reviewed attempts'],
+    ['Review false alarm: asked for changes, hidden tests green', '0', '2 reviewed attempts'],
+    ['Review agreed: approved, hidden tests green', '1', '2 reviewed attempts'],
+    ['Cost per green attempt', '$0.2811', '1 green attempt'],
+    ['Wall time per green attempt', '8.5 min', '1 green attempt'],
+  ]);
+  expect(await cells('scorecard-model')).toEqual([
+    ['The scorecard attempts', 'Muse Spark Open', 'Baseten', 'Stint agent', 'builds', '3'],
+    ['The scorecard attempts', 'Muse Glimmer 30B', 'Ollama on this machine', 'openai-compatible', 'reviews', '2'],
+    ['The relays', 'Muse Spark 1.3', 'local CLI', 'Muse Code', 'builds', '1'],
+    ['The relays', 'Muse Glimmer 30B', 'Ollama on this machine', 'Claude Code', 'builds', '1'],
+    ['The relays', 'Muse Spark 1.3', 'Meta Model API', 'Codex', 'builds', '1'],
+  ]);
+  await expect(panel.getByTestId('scorecard-scope')).toHaveText(
+    'Measured live on October 30: 4 attempts on 2 seeded tasks in 2 repositories, each from a fresh clone, graded by hidden tests the agent never saw, for $0.82, part unpriced. It shows what the tests and the review caught on these tasks and what a green attempt cost; it does not show how an agent does on other work, and each figure rests only on the runs beside it.',
+  );
+
+  // a repository the scorecard was never run on says so, and is not an error
+  await page.route('**/api/scorecard', (r) => r.fulfill({ status: 404, json: { error: { code: 'not_found', message: 'no scorecard yet' } } }));
+  await page.reload();
+  await panel.locator(':scope > summary').click();
+  await expect(panel.getByTestId('scorecard-empty')).toHaveText('The scorecard appears here once one has been run on this repository, with the hidden tests that grade it.');
+  await expect(panel.getByTestId('panel-error')).toHaveCount(0);
+});
+
 test('The Factory shows what the agents did: every measure by group behind one disclosure, a window switch that changes the window, and each label linked to its definition (R-061)', async ({ page }) => {
   await page.goto('/factory');
   const panel = page.getByTestId('panel-metrics');

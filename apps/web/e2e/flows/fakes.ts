@@ -99,7 +99,8 @@ const draft = (prompt: string) => {
     summary: `${title}, so a person can rely on it.`,
     stories: [
       { title: 'The main path', priority: 'P1', why: 'It is what the person asked for.', scenarios: [{ given: 'the service is running', when: 'a person uses the change', then: 'it does what was asked' }] },
-      { title: 'When it fails', priority: 'P2', why: 'A failure must say what went wrong.', scenarios: [{ given: 'the change cannot run', when: 'a person uses it', then: 'they see why it failed' }] },
+      // a scenario about what a person sees on a page proposes a visual proof
+      { title: 'When it fails', priority: 'P2', why: 'A failure must say what went wrong.', scenarios: [{ given: 'the change cannot run', when: 'a person opens the home page', then: 'they see why it failed', proof: { kind: 'visual', ref: '/ :: a message that says why it failed' } }] },
     ],
     requirements: [{ id: 'FR-001', text: `The system MUST do what was asked: ${title}.`.slice(0, 300) }],
     success: [{ id: 'SC-001', text: 'Both stories pass their scenarios.' }],

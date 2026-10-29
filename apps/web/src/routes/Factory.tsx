@@ -1,4 +1,4 @@
-import { type LearningCurve, type Metrics, learningCurve, weekOf } from '@stint-dev/core';
+import { type LearningCurve, type Metrics, type Scorecard, learningCurve, scorecardRows, weekOf } from '@stint-dev/core';
 import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ADAPTER_NAMES, type Agent, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, hostMark, hostName, markColor, modelName } from '../agents';
@@ -204,6 +204,75 @@ function Benchmark({ data }: { data: BenchData }) {
       <p className={PROSE}>
         {data.synthetic ? 'Synthetic rows, ' : data.replay ? 'Rebuilt from recorded runs, ' : `Measured live on ${new Date(data.startedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}, `}
         {tasks} tasks from commit <span className="font-mono">{data.commit.slice(0, 7)}</span>: {ADAPTER_NAMES[data.implementer] ?? data.implementer} is stopped at the same step each time, then the Stint agent on {modelName(data.models[data.continuer] ?? null)} continues and Stint runs the tests. Averages per run, one run per task.
+      </p>
+    </div>
+  );
+}
+
+const SOURCES = { attempts: 'The scorecard attempts', relays: 'The relays' } as const;
+
+/**
+ * The scorecard (R-070): what the tests and the review caught on seeded tasks with hidden tests, each figure with the
+ * runs it rests on, in the words of the table in docs/proofs.md; then who ran, and what it does and does not show.
+ */
+function ScorecardPanel({ card }: { card: Scorecard }) {
+  const repos = new Set(card.tasks.map((t) => t.repo)).size;
+  const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+  return (
+    <div data-testid="scorecard" className="flex flex-col gap-3">
+      <Scroller label="Scorecard">
+        <table className="stint-table min-w-[640px]">
+          <thead>
+            <tr>
+              {['Figure', 'Result', 'Rests on'].map((h) => (
+                <th key={h} scope="col">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="tabular">
+            {scorecardRows(card).map(([figure, result, restsOn]) => (
+              <tr key={figure} data-testid="scorecard-row">
+                <td>{figure}</td>
+                <td className="font-semibold text-ink">{result}</td>
+                <td>{restsOn}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Scroller>
+      <Scroller label="Who ran the scorecard">
+        <table className="stint-table min-w-[640px]">
+          <thead>
+            <tr>
+              {['Ran in', 'Model', 'Ran on', 'Through', 'Role'].map((h) => (
+                <th key={h} scope="col">
+                  {h}
+                </th>
+              ))}
+              <th scope="col" className={NUM}>
+                Runs
+              </th>
+            </tr>
+          </thead>
+          <tbody className="tabular">
+            {card.models.map((m) => (
+              <tr key={`${m.source}/${m.role}/${m.adapter}/${m.host}/${m.model}`} data-testid="scorecard-model">
+                <td>{SOURCES[m.source]}</td>
+                <td className="font-semibold text-ink">{modelName(m.model)}</td>
+                <td>{hostName(m.host)}</td>
+                <td>{ADAPTER_NAMES[m.adapter] ?? m.adapter}</td>
+                <td>{ROLE_NAMES[m.role] ?? m.role}</td>
+                <td className={NUM}>{m.runs}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Scroller>
+      <p className={PROSE} data-testid="scorecard-scope">
+        {card.live ? 'Measured live' : 'A dry run on fake models, not live'} on {new Date(card.generatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}: {n(card.attempts.length, 'attempt', 'attempts')} on {n(card.tasks.length, 'seeded task', 'seeded tasks')} in {n(repos, 'repository', 'repositories')}, each from a fresh clone, graded by hidden tests the agent never saw, for ${card.spend.usd.toFixed(2)}
+        {card.spend.estimated ? ', part unpriced' : ''}. It shows what the tests and the review caught on these tasks and what a green attempt cost; it does not show how an agent does on other work, and each figure rests only on the runs beside it.
       </p>
     </div>
   );
@@ -849,6 +918,7 @@ export function Factory() {
   const gates = useLoad(() => api.phaseGates(), []);
   // no results yet is the panel's empty state, not a failure
   const bench = useLoad(() => api.bench().catch((e: unknown) => (e instanceof DaemonError && e.status === 404 ? false : Promise.reject(e))), []);
+  const scorecard = useLoad(() => api.scorecard().catch((e: unknown) => (e instanceof DaemonError && e.status === 404 ? false : Promise.reject(e))), []);
   const [logs, setLogs] = useState<Loaded<FromLogs>>({ data: null, error: null });
   // one response for the figures row and the panel, for the window the panel shows (R-061)
   const [span, setSpan] = useState<WindowName>('30d');
@@ -1107,6 +1177,17 @@ export function Factory() {
         </Group>
 
         <Group title="Results and approvals">
+          <Panel title="Scorecard on seeded tasks" aside="What the tests and the review caught, graded by hidden tests, with the runs each figure rests on" collapsed testId="panel-scorecard">
+            <WhenRead v={scorecard} what="the scorecard">
+              {(d) =>
+                d ? (
+                  <ScorecardPanel card={d} />
+                ) : (
+                  <EmptyState testId="scorecard-empty">The scorecard appears here once one has been run on this repository, with the hidden tests that grade it.</EmptyState>
+                )
+              }
+            </WhenRead>
+          </Panel>
           <Panel title="What happened after merge" collapsed testId="panel-outcomes">
             <WhenRead v={fromLogs} what="what happened after merge">
               {(d) => <Outcomes rows={d.outcomes} />}

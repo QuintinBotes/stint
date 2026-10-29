@@ -8,8 +8,16 @@ const text = (max: number) => z.string().min(1).max(max);
 export const DraftKindSchema = z.enum(['task', 'goal']);
 export type DraftKind = z.infer<typeof DraftKindSchema>;
 
-/** One acceptance scenario in Spec Kit's Given/When/Then shape, each part without its keyword. */
-export const DraftScenarioSchema = z.strictObject({ given: text(300), when: text(300), then: text(300) });
+/**
+ * How a scenario is proven once it is a task's acceptance line: a held-out scenario the agent cannot see, which is
+ * also what no proof means, or what a page shows, with `ref` as `<path> :: <what should be seen>` (R-068). Flat, as the
+ * other shapes a model writes are; a visual proof whose ref names no page is checked in code (`draftProblem`).
+ */
+export const DraftProofSchema = z.strictObject({ kind: z.enum(['scenario', 'visual']), ref: text(200).optional() });
+export type DraftProof = z.infer<typeof DraftProofSchema>;
+
+/** One acceptance scenario in Spec Kit's Given/When/Then shape, each part without its keyword, and how it is proven. */
+export const DraftScenarioSchema = z.strictObject({ given: text(300), when: text(300), then: text(300), proof: DraftProofSchema.optional() });
 export type DraftScenario = z.infer<typeof DraftScenarioSchema>;
 
 export const DraftStorySchema = z.strictObject({

@@ -22,6 +22,7 @@ const SHAPE = `Write the spec in the shape of GitHub Spec Kit's spec template:
 - title: a few words; summary: what and why, in two or three sentences;
 - kind: "goal" when the work has more than one independently shippable story or is too big for one agent run, otherwise "task"; kindReason: one sentence saying why;
 - stories: 1 to 6 user stories, ordered by importance as user journeys, P1 the most critical. Each is independently testable: built alone, it still delivers value. Give each a title, a priority (P1, P2 or P3), why it has that priority, and 1 to 6 acceptance scenarios, each as given (the initial state), when (the action) and then (the expected outcome), without the words Given, When and Then;
+- proof on a scenario: {"kind":"visual","ref":"<path> :: <what should be seen>"} only when the scenario names a page of the app (a path such as /admin) and what a person sees there, as in "/admin :: a 429 banner saying try again in 60 s"; Stint opens that page after the tests pass and judges what is on screen. Leave proof out of every other scenario, and it becomes a held-out test the agent cannot see;
 - requirements: functional requirements with ids FR-001, FR-002 and on, each a sentence such as "System MUST ..." or "Users MUST be able to ...";
 - success: measurable, technology-agnostic success criteria with ids SC-001 and on;
 - edgeCases: boundary conditions and error scenarios, as questions such as "What happens when ...?";
