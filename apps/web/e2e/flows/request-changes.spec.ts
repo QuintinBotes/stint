@@ -54,7 +54,9 @@ test('A refused send keeps focus on the button that was pressed, with the daemon
   await d.until(t.id, (ev) => ev.some((e) => e.type === 'approval.requested'));
   await page.goto(`/t/${t.id}`);
   await page.route(`**/api/tasks/${t.id}/reject`, (r) => r.fulfill({ status: 500, json: { error: { code: 'internal', message: 'the decision could not be written' } } }));
+  await expect(page.getByTestId('approval-gate')).toHaveAttribute('data-open', 'true');
   await page.keyboard.press('x');
+  await expect(page.locator('#gate-text')).toBeFocused();
   await page.keyboard.type('Wrong file');
   const send = page.getByTestId('approval-gate').getByRole('button', { name: 'Reject' });
   await send.click();

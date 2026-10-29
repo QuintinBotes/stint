@@ -243,14 +243,25 @@ export function useFocusRescue(): void {
       const dialog = lost.closest<HTMLElement>('[aria-modal]');
       if (dialog ? !dialog.isConnected : document.querySelector('[aria-modal]')) return;
       const removal = records.find((r) => [...r.removedNodes].some((n) => n === lost || n.contains(lost)));
+      // where the control stood: after the sibling before it, or at the start of its parent
+      const before = removal?.previousSibling ?? null;
+      const follows = (c: Node) => {
+        const at = (before ?? (removal?.target as Node)).compareDocumentPosition(c);
+        return before ? !!(at & Node.DOCUMENT_POSITION_FOLLOWING) && !(at & Node.DOCUMENT_POSITION_CONTAINED_BY) : !!(at & (Node.DOCUMENT_POSITION_FOLLOWING | Node.DOCUMENT_POSITION_CONTAINED_BY));
+      };
+      // focus stays where the person was; the view does not move, so a scroll the press began (Jump to latest) is kept
+      const take = (c: HTMLElement) => {
+        c.focus({ preventScroll: true });
+        return document.activeElement === c;
+      };
       for (let at = removal?.target instanceof Element ? removal.target : null; at?.isConnected && at !== document.body; at = at.parentElement) {
-        for (const next of at.querySelectorAll<HTMLElement>(FOCUSABLE)) {
-          next.focus();
-          if (document.activeElement === next) return;
-        }
+        // the nearest control after where it stood, else the nearest before it
+        const all = [...at.querySelectorAll<HTMLElement>(FOCUSABLE)];
+        const after = all.filter(follows);
+        if (after.some(take) || all.filter((c) => !follows(c)).reverse().some(take)) return;
         if (at.matches('main, aside, [aria-modal]')) break;
       }
-      if (dialog) dialog.focus();
+      if (dialog) dialog.focus({ preventScroll: true });
       else focusMain();
     });
     document.addEventListener('focusin', onFocus);
