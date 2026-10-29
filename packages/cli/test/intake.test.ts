@@ -79,6 +79,14 @@ test('A fake gh returning two issues creates two intake items, triage marks one 
         ['triage', 'github-41', 'ollama', 50],
         ['triage', 'github-42', 'ollama', 50],
       ]);
+      // R-041 Req 1 and 2: the pull itself records each item's arrival and its triage, in the workspace log
+      const arrived = (await d.ws.workspaceEvents().read()).filter((e) => e.type.startsWith('intake.'));
+      expect(arrived.map((e) => [e.type, e.payload.item, e.payload.ref ?? (e.payload.triage as { size: string }).size])).toEqual([
+        ['intake.received', 'github-41', '41'],
+        ['intake.triaged', 'github-41', 'S'],
+        ['intake.received', 'github-42', '42'],
+        ['intake.triaged', 'github-42', 'M'],
+      ]);
 
       const accepted = (await (await post('/api/intake/github-42/accept', {})).json()) as { task: string };
       const task = await d.ws.readTask(accepted.task);
@@ -127,6 +135,12 @@ test('Linear issues come through GraphQL with the key from the named variable, a
         const items = (await (await fetch(`${d.url}/api/intake`)).json()) as Array<{ id: string; triage: unknown; triageError?: string; labels: string[] }>;
         expect(items[0]).toMatchObject({ id: 'linear-ENG-7', triage: null, labels: ['perf'] });
         expect(items[0]?.triageError).toBeTruthy();
+        // a triage nobody answered is still recorded, with no triage and the reason
+        const arrived = (await d.ws.workspaceEvents().read()).filter((e) => e.type.startsWith('intake.'));
+        expect(arrived.map((e) => [e.type, e.payload.item, e.payload.triage ?? null, typeof e.payload.error])).toEqual([
+          ['intake.received', 'linear-ENG-7', null, 'undefined'],
+          ['intake.triaged', 'linear-ENG-7', null, 'string'],
+        ]);
       } finally {
         await d.stop();
       }
