@@ -14,6 +14,7 @@ const KINDS: Array<{ kind: TaskProof['kind']; name: string; hint: string }> = [
   { kind: 'test', name: 'A test', hint: 'The test name, or part of it' },
   { kind: 'scenario', name: 'A scenario', hint: 'The held-out scenario name' },
   { kind: 'check', name: 'A check', hint: 'The check name, such as typecheck' },
+  { kind: 'visual', name: 'It looks right', hint: '/path :: what should be seen there' },
   { kind: 'human', name: 'You check it', hint: 'What you look at before you approve' },
 ];
 const field = 'stint-input min-h-9 h-9 py-0 px-3';

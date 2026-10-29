@@ -15,6 +15,7 @@ const NOTABLE = new Set([
   'file.changed',
   'decision.recorded',
   'verification.ran',
+  'visual.checked',
   'review.recorded',
   'rule.blocked',
   'run.refused',
@@ -101,6 +102,13 @@ export function describe(e: StintEvent): ReactNode {
       return (
         <>
           <span className="font-semibold">{str(p.id)}</span> decided: {str(p.text)}
+        </>
+      );
+    case 'visual.checked':
+      return (
+        <>
+          Muse Spark looked at {str(p.ref).split(' :: ')[0]}: {p.holds ? 'it looks right' : `looks wrong, ${str(p.problem)}`}
+          {p.marked ? '; SAM 3.1 marked it' : ''}
         </>
       );
     case 'verification.ran':
