@@ -25,6 +25,8 @@ export { CRITERION_STATE_LABELS, durationWords, outcome, outcomeLine, visualChec
 export type { OutcomeInput, VisualCall, VisualCheck } from './project/outcome';
 export { goalOutcome, isMerged } from './project/goalOutcome';
 export type { GoalOutcome } from './project/goalOutcome';
+export { learningCurve, learningWords } from './project/learning';
+export type { LearningApproval, LearningCurve, LearningPoint } from './project/learning';
 export { renderHandoff, parseHandoffPrompt, HANDOFF_PREAMBLE, HEADINGS } from './render';
 export type { ParsedHandoffPrompt, RenderOptions } from './render';
 export { countTokens } from './tokens';
