@@ -185,7 +185,7 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
     ...(run ? [{ id: 'stop', label: `Stop the live run, ${run}`, key: '⌘.', cli: '', run: () => report(api.stopRun(id, run), `${run} stopped`) }] : []),
     // approving is offered only at the gate; asking for changes or rejecting works on any open task
     ...(atGate ? [{ id: 'approve', label: 'Approve and merge', key: 'a', cli: `stint approve ${id}`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'approve' })) }] : []),
-    { id: 'changes', label: 'Request changes', key: 'r', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },
+    { id: 'changes', label: 'Request changes', key: 'r', cli: `stint changes ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },
     { id: 'reject', label: 'Reject', key: 'x', cli: `stint reject ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'reject' })) },
     { id: 'verify', label: 'Run the tests', cli: '', run: () => report(api.verify(id), `${id}: tests run by Stint`) },
     { id: 'hand', label: 'Hand to another agent', cli: `stint hand ${id} <agent>`, run: tab('packet') },
@@ -614,7 +614,7 @@ export function usePaletteActions(extra: { newTask: () => void; newGoal: () => v
     () => [
       { id: 'new', label: 'New task', key: 'n', cli: 'stint new "..."', group: 'go' as const, run: extra.newTask },
       { id: 'new-goal', label: 'New goal', cli: 'stint goal new "..." --outcome "..." --criterion "..."', group: 'go' as const, run: extra.newGoal },
-      { id: 'run-all', label: 'Run all planned tasks on autopilot', cli: 'stint run <task>', group: 'actions' as const, run: () => report(api.autopilotAll(true), 'Planned tasks are on autopilot') },
+      { id: 'run-all', label: 'Run all planned tasks on autopilot', cli: 'stint run --all', group: 'actions' as const, run: () => report(api.autopilotAll(true), 'Planned tasks are on autopilot') },
       {
         id: 'notifications',
         label: 'Turn on desktop notifications',

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { StintEvent } from '@stint-dev/core';
+import type { StintEvent, Task } from '@stint-dev/core';
 import { defineCommand } from 'citty';
 import { getDaemon, postDaemon } from './client';
 import { limitArgs, limitsFromFlags } from './limits';
@@ -124,13 +124,23 @@ export const assignTask = defineCommand({
 export const runTask = defineCommand({
   meta: { name: 'run', description: 'Put a task on autopilot: plan, build, verify and review, stopping at your approval' },
   args: {
-    task: { type: 'positional', required: true, description: 'Task id' },
+    task: { type: 'positional', required: false, description: 'Task id' },
+    all: { type: 'boolean', description: 'Every planned task, queued past the parallel limit; with --stop, every task' },
     stop: { type: 'boolean', description: 'Take the task off autopilot (a live run keeps going)' },
     wait: { type: 'boolean', description: 'Stay until autopilot stops; exit 0 at your approval, 3 when it needs you' },
     ...repoArg,
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
+    if (args.all) {
+      const all = await postDaemon<{ tasks: string[] }>(root, '/api/autopilot', { on: !args.stop });
+      process.stdout.write(args.stop ? 'Every task is off autopilot.\n' : all.tasks.length ? `${all.tasks.join(', ')} on autopilot. Each stops at your approval.\n` : 'No task is planned, so nothing went on autopilot.\n');
+      return;
+    }
+    if (!args.task) {
+      process.stderr.write('Name a task, or give --all for every planned task: stint run T-0001\n');
+      process.exit(2);
+    }
     const r = await postDaemon<{ running: string[]; queued: string[] }>(root, `/api/tasks/${args.task}/autopilot`, { on: !args.stop });
     if (args.stop) {
       process.stdout.write(`${args.task} is off autopilot.\n`);
@@ -142,6 +152,17 @@ export const runTask = defineCommand({
     process.stdout.write(`${args.task}: ${stop.reason}\n`);
     // approval is the person's: waiting ends at the gate and never passes it
     process.exit(stop.needsYou ? 3 : 0);
+  },
+});
+
+export const listTasks = defineCommand({
+  meta: { name: 'list', description: 'Every task with its status and title' },
+  args: { json: { type: 'boolean', description: 'Machine-readable output: each task as task.json has it' }, ...repoArg },
+  async run({ args }) {
+    const { tasks } = await getDaemon<{ tasks: Array<{ task: Task }> }>(repoRoot(args.repo), '/api/tasks');
+    if (args.json) process.stdout.write(`${JSON.stringify(tasks.map((c) => c.task))}\n`);
+    else if (!tasks.length) process.stdout.write('No tasks yet. Make one with: stint new "<title>"\n');
+    else for (const { task: t } of tasks) process.stdout.write(`${t.id}  ${t.status.padEnd(17)}  ${t.title}\n`);
   },
 });
 

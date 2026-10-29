@@ -26,6 +26,15 @@ export const reject = defineCommand({
   },
 });
 
+export const changes = defineCommand({
+  meta: { name: 'changes', description: "Ask for changes: what should change becomes the next run's ask, with no decision recorded" },
+  args: { task: { type: 'positional', required: true, description: 'Task id' }, reason: { type: 'string', required: true, description: 'What should change' }, ...repoArg },
+  async run({ args }) {
+    const r = await postDaemon<{ autopilot: boolean }>(repoRoot(args.repo), `/api/tasks/${args.task}/request-changes`, { text: args.reason });
+    process.stdout.write(`${args.task} ${r.autopilot ? 'is back on autopilot' : 'is sent back and waits for you'}; what should change is the next run's ask.\n`);
+  },
+});
+
 /** The task, runs and packet a merge commit came from, read from its trailers. */
 export async function showCommit(root: string, commit: string): Promise<string> {
   const p = Bun.spawnSync(['git', 'log', '-1', '--format=%B', commit], { cwd: root, stdout: 'pipe', stderr: 'pipe' });
