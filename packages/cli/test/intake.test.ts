@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type Config, DEFAULT_CONFIG } from '@stint-dev/core';
-import { startDaemon } from '@stint-dev/daemon';
-import { tempDir, withFixtureRepo } from '../../daemon/test/helpers';
+import { daemonContext, startDaemon } from '@stint-dev/daemon';
+import { listItems, scheduledPull } from '../../daemon/src/intake';
+import { makeApp, tempDir, withFixtureRepo } from '../../daemon/test/helpers';
 
 const CLI = join(import.meta.dir, '..', 'bin', 'stint');
 const tmp = tempDir('stint-intake-');
@@ -149,5 +150,32 @@ test('Linear issues come through GraphQL with the key from the named variable, a
     linear.stop(true);
     delete process.env.STINT_LINEAR_URL;
     delete process.env.STINT_TEST_LINEAR_KEY;
+  }
+}, 60_000);
+
+test('R-041 Req 3: the scheduled pull reads each source config.intake sets up, with its repo and label, and nothing without it', async () => {
+  const own = tempDir('stint-gh-');
+  writeFileSync(join(own.dir, 'gh'), `#!/bin/sh\nprintf '%s\\n' "$@" >> "${own.dir}/argv"\necho '[{"number":7,"title":"Paginate the tenants list","body":"It is slow.","url":"https://example.invalid/acme/api/issues/7","labels":[]}]'\n`);
+  chmodSync(join(own.dir, 'gh'), 0o755);
+  process.env.PATH = `${own.dir}:${bin}:${path}`;
+  try {
+    await withFixtureRepo(async (repo) => {
+      config(repo);
+      const { app, ws } = await makeApp(repo);
+      const ctx = daemonContext(app);
+      await scheduledPull(ctx);
+      expect([existsSync(join(own.dir, 'argv')), await listItems(ctx)]).toEqual([false, []]);
+
+      ws.config.intake = { github: { repo: 'acme/api', label: 'stint' } };
+      await scheduledPull(ctx);
+      expect((await listItems(ctx)).map((i) => [i.id, i.state, i.triage?.size])).toEqual([['github-7', 'open', 'M']]);
+      expect(readFileSync(join(own.dir, 'argv'), 'utf8').split('\n').filter(Boolean)).toEqual(['issue', 'list', '--json', 'number,title,body,url,labels', '--state', 'open', '--limit', '50', '--repo', 'acme/api', '--label', 'stint']);
+      // the next tick finds nothing new
+      await scheduledPull(ctx);
+      expect((await listItems(ctx)).length).toBe(1);
+    });
+  } finally {
+    process.env.PATH = `${bin}:${path}`;
+    own.cleanup();
   }
 }, 60_000);
