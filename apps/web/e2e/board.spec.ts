@@ -53,6 +53,8 @@ test('The board gathers the statuses into four groups in order, and the summary 
   await page.route('**/api/graph/pending', (route) => route.fulfill({ json: [contradiction('q1'), contradiction('q2'), { id: 'q3', kind: 'skill', task: 'T-0101', skill: 's', run: 'r2', agent: 'glimmer', at: '2026-10-29T10:04:00.000Z' }] }));
   await page.goto('/');
 
+  // the lanes draw once the tasks are read; wait for them rather than read an empty list
+  await expect(page.locator('[data-testid^="lane-"]')).toHaveCount(4);
   const order = await page.locator('[data-testid^="lane-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
   expect(order).toEqual(['lane-needs-you', 'lane-planned', 'lane-in-progress', 'lane-closed']);
   const ids = (id: string) => lane(page, id).getByTestId('task-card').evaluateAll((els) => els.map((e) => e.getAttribute('data-task')));
