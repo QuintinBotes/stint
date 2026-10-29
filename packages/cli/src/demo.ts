@@ -5,7 +5,7 @@ import { DEFAULT_RECORDING, formatClock, loadRecording, parseClock, startDaemon 
 import { defineCommand } from 'citty';
 import { BEATS, type Beat, runLiveDemo } from './demo/live';
 import { recordWorkspace } from './demo/record';
-import { seedDemo } from './demo/seed';
+import { seedDemo, seedDemoConfig } from './demo/seed';
 import { repoRoot } from './repo';
 import { readSSE } from './sse';
 import { keepAwake } from './awake';
@@ -110,6 +110,7 @@ export const demo = defineCommand({
     else out(`${rec.header.live ? `Replay of a live run on ${rec.header.recordedAt.slice(0, 10)}` : 'Replay, hand-written'}: ${rec.header.title}`);
 
     const root = freshFixture();
+    await seedDemoConfig(root);
     const d = await startDaemon({ root, quiet: true, handleSignals: Boolean(args.keep) });
     if (!args.json) out(`Watch it at ${d.url}`);
     if (args.open) {
