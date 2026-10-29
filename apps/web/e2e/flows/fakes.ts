@@ -220,7 +220,7 @@ export function flowConfig(modelsPort: number): Config {
   const appPort = freePort();
   const fixture = join(import.meta.dir, '..', '..', '..', '..', 'bench', 'visual', 'fixture');
   config.visual = { serve: `bun ${join(fixture, 'serve.ts')} ${appPort} ${join(fixture, 'site')}`, url: `http://127.0.0.1:${appPort}` };
-  for (const route of ['planner', 'reviewer', 'learn', 'summary', 'quiz', 'recall'] as const) config.routes[route] = ['ollama/fake'];
+  for (const route of ['planner', 'reviewer', 'learn', 'summary', 'quiz', 'recall', 'draft'] as const) config.routes[route] = ['ollama/fake'];
   config.prices['ollama/fake'] = { input: 0.1, cached: 0.05, output: 0.4 };
   config.prices['muse-code/muse-spark-1.3'] = { input: 0.6, cached: 0.15, output: 2.4 };
   // green once the task's own file exists, with a summary line the verifier can count

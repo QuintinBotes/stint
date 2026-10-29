@@ -92,6 +92,8 @@ export async function setup(repo: string, adapters: Adapter[], models: { url: st
   const config = structuredClone(DEFAULT_CONFIG);
   config.hosts.ollama = { ...(config.hosts.ollama as NonNullable<Config['hosts']['ollama']>), baseURL: models.url, models: { fake: 'fake' } };
   config.routes.planner = ['ollama/fake'];
+  // the spec builder drafts on its own route (R-066); a test never reaches a real host
+  config.routes.draft = ['ollama/fake'];
   config.routes.reviewer = ['ollama/fake'];
   config.prices['ollama/fake'] = { input: 0, cached: 0, output: 0 };
   if (autopilot) config.autopilot = autopilot;

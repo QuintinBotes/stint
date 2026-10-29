@@ -17,7 +17,7 @@ async function ask(ctx: DaemonContext, prompt: string, step: 'draft' | 'refine')
   if (ctx.replayer.loaded) throw new DaemonError('forbidden', 'a replay calls no model, so it cannot draft a spec', 'open a Spec Kit spec, or write the task yourself');
   const r = await walkChain<{ value: DraftOutput }>({
     role: 'planner',
-    chain: effectiveChain('planner', ctx.ws.config.routes),
+    chain: ctx.ws.config.routes.draft ?? effectiveChain('planner', ctx.ws.config.routes),
     hosts: hostsFromConfig(ctx.ws.config) as Record<string, Host>,
     call: (h, model, c) => h.complete(DraftOutputSchema, prompt, { model, timeoutMs: c.timeoutMs, maxTokens: ctx.ws.config.budgets.planner, emit: c.emit }),
   }).catch((err: unknown) => {

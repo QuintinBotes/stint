@@ -4,7 +4,7 @@ import type { Config, HostConfig } from '@stint-dev/core';
 export type ModelHealth = { host: string; model: string; roles: string[]; ready: boolean; reason: string | null; offline: boolean; structuredOutput: HostConfig['structuredOutput'] | null; latencyMs: number | null };
 export type ChainEntry = { entry: string; ready: boolean; reason: string | null };
 
-const ROLE_OF: Record<string, string> = { planner: 'plans', reviewer: 'reviews', agent: 'builds', learn: 'learns', summary: 'summarises', quiz: 'checks packets', recall: 'checks packets' };
+const ROLE_OF: Record<string, string> = { planner: 'plans', reviewer: 'reviews', agent: 'builds', learn: 'learns', summary: 'summarises', quiz: 'checks packets', recall: 'checks packets', sharpen: 'asks questions', draft: 'drafts specs' };
 
 let cache: { at: number; key: string; value: ModelHealth[] } | null = null;
 

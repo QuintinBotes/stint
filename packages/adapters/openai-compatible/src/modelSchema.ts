@@ -29,6 +29,11 @@ function stripNode(node: unknown): unknown {
       if (kept.length > 0) out[key] = kept.map(stripNode);
       continue;
     }
+    // under properties the keys are field names, not keywords: a field may be called then (a scenario's Given/When/Then)
+    if ((key === 'properties' || key === 'patternProperties' || key === '$defs' || key === 'definitions') && value && typeof value === 'object' && !Array.isArray(value)) {
+      out[key] = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([name, sub]) => [name, stripNode(sub)]));
+      continue;
+    }
     out[key] = stripNode(value);
   }
   return out;

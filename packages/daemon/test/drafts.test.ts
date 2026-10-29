@@ -277,3 +277,21 @@ test('A replay refuses drafting and refining with a plain reason, and still open
     models.stop();
   }
 }, 120_000);
+
+test('The spec builder drafts on routes.draft before the planner chain, so a fast model leads while a person waits', async () => {
+  const models = fakeDrafter();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const { app, ws } = await setup(repo, [], models);
+      // the planner chain points nowhere; only the draft route can answer
+      ws.config.routes.planner = ['modal/muse-spark-open'];
+      ws.config.routes.draft = ['ollama/fake'];
+      const res = await post(app, '/api/drafts', { input: 'Operators can tell the service is up.' });
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as Draft).title).toBe('Health check');
+      expect(models.prompts.length).toBe(1);
+    });
+  } finally {
+    models.stop();
+  }
+});

@@ -101,6 +101,8 @@ export const ConfigSchema = z.strictObject({
     recall: z.array(HostModelRef).optional(),
     /** Who asks the questions before work starts; unset, the planner chain (R-064). */
     sharpen: z.array(HostModelRef).optional(),
+    /** Who drafts a spec for the spec builder (R-066): a person waits at the dialog, so a fast model leads; unset, the planner chain. */
+    draft: z.array(HostModelRef).optional(),
   }),
   /** USD per million tokens, keyed by `host/model`. */
   prices: z.record(z.string(), PriceSchema),
@@ -293,6 +295,8 @@ export const DEFAULT_CONFIG: Config = {
   },
   routes: {
     planner: ['meta-api/muse-wonder-1.0', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
+    // measured 30 Oct on the same draft: Muse Spark 1.3 in 23 s, Muse Wonder in 130 s; someone is waiting at the dialog
+    draft: ['meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'meta-api/muse-wonder-1.0', 'ollama/muse-glimmer:30b-mlx'],
     reviewer: ['ollama/muse-glimmer:30b-mlx', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'meta-api/muse-spark-1.3'],
     learn: ['baseten/muse-spark-open', 'meta-api/muse-spark-1.3', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'],
     summary: ['ollama/muse-glimmer:30b-mlx', 'meta-api/muse-spark-1.3', 'baseten/muse-spark-open'],
