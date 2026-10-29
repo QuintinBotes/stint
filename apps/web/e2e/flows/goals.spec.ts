@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { daemon } from './daemon';
+import { holdRequests } from './pending';
 
 type Goal = { id: string; status: string; tasks: string[]; decisions: Array<{ id: string }> };
 
@@ -151,4 +152,76 @@ test("A task stopped at its goal's build limit says so and sends you to the goal
   await page.getByTestId('abandon-goal').click();
   await expect(page.getByTestId('goal-page')).toContainText(/abandoned/i);
   await expect(page.getByTestId('abandon-goal')).toHaveCount(0);
+});
+
+test("Create tasks runs once however often it is pressed, and a refusal keeps the edited rows with the daemon's words beside the buttons", async ({ page, request }) => {
+  const d = daemon(request);
+  const g = await d.post<{ id: string }>('/api/goals', { title: 'Flow: a split pressed twice', outcome: 'It splits once.', criteria: ['The first part', 'The second part'] });
+  const tasks = `**/api/goals/${g.id}/tasks`;
+  await page.goto(`/goals/${g.id}`);
+  await page.getByTestId('split-goal').click();
+  const first = page.getByTestId('proposed-1');
+  await first.getByLabel('Title').fill('Flow: the edited first part');
+
+  await page.route(tasks, (r) => r.fulfill({ status: 409, json: { error: { code: 'conflict', message: 'the goal changed while you were editing', hint: 'Split it again' } } }));
+  await page.getByTestId('create-goal-tasks').click();
+  await expect(page.getByTestId('split-error')).toHaveText('The tasks were not created: the goal changed while you were editing. Split it again');
+  await expect(first.getByLabel('Title')).toHaveValue('Flow: the edited first part');
+  await expect(page.getByTestId('create-goal-tasks')).toBeEnabled();
+  await page.unroute(tasks);
+
+  const held = await holdRequests(page, tasks);
+  await page.getByTestId('create-goal-tasks').dblclick();
+  await expect(page.getByTestId('create-goal-tasks')).toHaveText('Creating tasks');
+  await expect(page.getByTestId('create-goal-tasks')).toBeDisabled();
+  held.release();
+  await expect(page.getByTestId('goal-tasks').locator('tbody tr')).toHaveCount(2);
+  await expect(page.getByTestId('goal-tasks')).toContainText('Flow: the edited first part');
+  expect(held.count()).toBe(1);
+  expect((await d.get<{ goal: Goal }>(`/api/goals/${g.id}`)).goal.tasks).toHaveLength(2);
+});
+
+test('Saving the limits and abandoning each send one request however often they are pressed, and say they are working', async ({ page, request }) => {
+  const d = daemon(request);
+  const g = await d.post<{ id: string }>('/api/goals', { title: 'Flow: limits and abandon pressed twice', outcome: 'Each runs once.', criteria: ['It runs once'], limits: { builds: 4 } });
+  await page.goto(`/goals/${g.id}`);
+  const limits = page.getByTestId('goal-limits');
+  await limits.getByText("Change the goal's limits").click();
+  await limits.getByLabel('Builds').fill('7');
+  const saving = await holdRequests(page, `**/api/goals/${g.id}/limits`, 'PATCH');
+  await page.getByTestId('save-goal-limits').dblclick();
+  await expect(page.getByTestId('save-goal-limits')).toHaveText('Saving');
+  saving.release();
+  await expect(page.getByTestId('meter-goal-builds')).toContainText('Builds 0 of 7');
+  expect(saving.count()).toBe(1);
+
+  const abandoning = await holdRequests(page, `**/api/goals/${g.id}/abandon`);
+  await page.getByTestId('abandon-goal').click();
+  await page.getByTestId('abandon-goal').dblclick();
+  await expect(page.getByTestId('abandon-goal')).toHaveText('Abandoning');
+  abandoning.release();
+  await expect(page.getByTestId('abandon-goal')).toHaveCount(0);
+  expect(abandoning.count()).toBe(1);
+  expect((await d.get<{ goal: Goal }>(`/api/goals/${g.id}`)).goal.status).toBe('abandoned');
+});
+
+test('A refresh that fails keeps the goals on screen with a stale warning, and a first load that fails says so with a retry, never that there are no goals', async ({ page, request }) => {
+  const d = daemon(request);
+  const g = await d.post<{ id: string }>('/api/goals', { title: 'Flow: a goal that stays on screen', outcome: 'It stays.', criteria: ['It stays'] });
+  await page.goto('/goals');
+  await expect(page.getByTestId(`goal-row-${g.id}`)).toBeVisible();
+  await page.route('**/api/goals', (r) => r.fulfill({ status: 500, json: { error: { code: 'internal', message: 'the goals could not be read' } } }));
+  // anything that happens refreshes the list
+  await d.create('Flow: an event that refreshes the goals');
+  await expect(page.getByTestId('goals-stale')).toHaveText(/^Showing the goals as last read\. The refresh failed: the goals could not be read\./);
+  await expect(page.getByTestId(`goal-row-${g.id}`)).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByTestId('goals-error')).toHaveText(/^The goals did not load: the goals could not be read\./);
+  await expect(page.getByTestId('goals-empty')).toHaveCount(0);
+  await expect(page.getByTestId('goal-list')).toHaveCount(0);
+  await page.unroute('**/api/goals');
+  await page.getByTestId('goals-error').getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByTestId(`goal-row-${g.id}`)).toBeVisible();
+  await expect(page.getByTestId('goals-error')).toHaveCount(0);
 });
