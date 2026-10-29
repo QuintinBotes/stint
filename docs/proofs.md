@@ -38,6 +38,8 @@ No skill was learned live, because nothing recurred. The sequence was built so t
 
 ### The scorecard
 
+The Factory shows the same table under Results and approvals (`GET /api/scorecard`), in the same words, and so does the judge page.
+
 `bun scripts/scorecard.ts` ran the same three relay tasks as single runs, with no hand-off: the Stint agent on Muse Spark Open, on Baseten, three attempts per task. Glimmer reviewed each green build offline. Then a second daemon verification added the hidden tests and graded it, because the daemon reviews only a green verification (D-085). The table is `bun scripts/scorecard.ts --render` over `bench/scorecard.json`, as printed, and each attempt's task folder is in `bench/scorecard/`.
 
 Scorecard (live): k 3, 9 attempts on 3 seeded tasks, spend $4.8932, generated 2026-10-29.
