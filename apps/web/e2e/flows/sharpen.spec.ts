@@ -72,9 +72,9 @@ test('The Sharpen panel and the New task dialog have no WCAG A or AA violations,
   const d = daemon(request);
   const t = await d.create('Flow: sharpen for the accessibility check', ['the task file exists', 'the log says so']);
   const axe = async () => {
-    // a toast from another flow's task can be fading in; contrast is judged once it is fully shown, as a person reads it
-    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity));
-    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+    // this check is about the panel and the dialog; a toast from another flow's task can arrive mid-fade at any moment,
+    // and toasts have their own accessibility test (toasts.spec.ts), so the toast region is left out here
+    const results = await new AxeBuilder({ page }).exclude('[data-sonner-toaster]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
     return results.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map((n) => n.target.join(' ')).join(' | ')}`);
   };
   await page.goto(`/t/${t.id}`);

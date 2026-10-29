@@ -46,6 +46,9 @@ test('A low-risk task is assessed low and shadow-recorded; with the lane off not
       expect((await post(app, `/api/tasks/${t.id}/approve`, {})).status).toBe(200);
       const after = await ws.events(t.id).read();
       expect(after.find((e) => e.type === 'autoapprove.shadow')?.payload).toMatchObject({ tier: 'low', wouldApprove: true, humanDecision: 'approved' });
+      // the shadow lands before merge.completed, so a reader that follows the merge (the sign-off, the Factory) already sees it
+      const seqOf = (type: string) => after.find((e) => e.type === type)?.seq ?? Number.POSITIVE_INFINITY;
+      expect(seqOf('autoapprove.shadow')).toBeLessThan(seqOf('merge.completed'));
       expect(after.find((e) => e.type === 'approval.granted')?.payload.by).toBe('you');
     });
   } finally {

@@ -10,7 +10,7 @@ import { DaemonError } from '../errors';
 import { ghOk, git, gitOk, identityArgs } from '../git';
 import { triggerLearn } from '../learn';
 import { releaseWorktrees } from '../lifecycle';
-import { prepareShadow, recordShadow, writeShadow } from '../risk';
+import { type PreparedShadow, prepareShadow, recordShadow, writeShadow } from '../risk';
 import { pendingContradictions } from './models';
 import { updateSkillStatuses } from '../skills';
 
@@ -180,7 +180,7 @@ const approving = new Set<string>();
  * unexplained tamper, the verified commit only. A person approves through the route; the auto-approve lane
  * (R-039) calls this with by 'policy' and is held to exactly the same checks.
  */
-export async function approveTask(ctx: DaemonContext, id: string, { by, squash }: { by: string; squash: boolean }): Promise<Record<string, unknown>> {
+export async function approveTask(ctx: DaemonContext, id: string, { by, squash, shadow }: { by: string; squash: boolean; shadow?: PreparedShadow | null }): Promise<Record<string, unknown>> {
   const key = `${ctx.ws.root}:${id}`;
   // a double click or a retry must never merge twice
   if (approving.has(key)) throw new DaemonError('run_active', `${id} is already being approved`);
@@ -229,6 +229,8 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash }
     const at = new Date().toISOString();
     const events = ctx.ws.events(id);
     await events.append({ task: id, vendor: by === 'policy' ? 'daemon' : 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
+    // the shadow decision lands with the approval, before merge.completed, so whatever follows the merge already sees it
+    if (shadow) await writeShadow(ctx, id, shadow).catch(() => undefined);
     await events.append({ task: id, vendor: 'daemon', type: 'merge.completed', payload: { branch: task.branch, into: base, commit, squash, trailers } });
     void ctx.otel.task(id).catch(() => undefined);
     await writeJsonAtomic(join(await ctx.ws.taskDir(id), 'signoff.json'), { by, at, verificationHash: `sha256:${sha256Hex(canonicalJSON(v))}`, commit });
@@ -270,9 +272,7 @@ export function approveRoutes(app: Hono, ctx: DaemonContext): void {
     const body = ApproveBody.parse(await c.req.json().catch(() => ({})));
     // what the auto-approve policy would have done, beside what the person does (R-039): written once it lands
     const shadow = await prepareShadow(ctx, id, 'approved').catch(() => null);
-    const result = await approveTask(ctx, id, { by: body.by ?? 'you', squash: body.squash ?? false });
-    if (shadow) await writeShadow(ctx, id, shadow).catch(() => undefined);
-    return c.json(result);
+    return c.json(await approveTask(ctx, id, { by: body.by ?? 'you', squash: body.squash ?? false, shadow }));
   });
 
   app.post('/api/tasks/:id/reject', async (c) => {
