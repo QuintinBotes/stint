@@ -1,0 +1,58 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 1,
+      "path": "lib/wait-on.js",
+      "removed": 0,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 1078912,
+    "inputTokens": 1184553,
+    "outputTokens": 53350,
+    "usd": 0.5206
+  },
+  "createdAt": "2026-10-29T17:37:14.026Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "3274b94371d17b305d956ea9b810a1cdc9e8de65",
+    "head": "e53670f99df229253c1685d456c3cc525fb30a0b"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "stint-agent",
+    "endedBy": "capped",
+    "host": "baseten",
+    "model": "muse-spark-open",
+    "role": "implementer",
+    "run": "r1",
+    "vendor": "meta"
+  },
+  "hash": "sha256:ded035594def671bdd91c9929e53eab49365ec6dc28e60d4bf974c0a4b4cfcee",
+  "leftOut": [],
+  "open": [],
+  "refusals": [
+    {
+      "action": "node -e \" const Joi = require('joi'); const schema = Joi.object({ a: Joi.string() }); console.log('validate unknown default:', schema.validate({a:'hi', b:'extra'})); console.log('validate with unkn...",
+      "by": "stint-rules",
+      "reason": "// is outside the worktree"
+    }
+  ],
+  "risks": [],
+  "summary": "stint-agent capped after 58 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm test",
+    "durationMs": 74336,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

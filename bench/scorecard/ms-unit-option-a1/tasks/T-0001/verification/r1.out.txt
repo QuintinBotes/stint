@@ -1,0 +1,38 @@
+
+> ms@4.0.0 test:nodejs
+> jest --env node
+
+PASS src/unit.test.ts
+PASS src/index.test.ts
+PASS src/parse.test.ts
+PASS src/format.test.ts
+PASS src/parse-strict.test.ts
+----------|---------|----------|---------|---------|-------------------
+File      | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+----------|---------|----------|---------|---------|-------------------
+All files |     100 |      100 |     100 |     100 |                   
+ index.ts |     100 |      100 |     100 |     100 |                   
+----------|---------|----------|---------|---------|-------------------
+
+Test Suites: 5 passed, 5 total
+Tests:       183 passed, 183 total
+Snapshots:   0 total
+Time:        0.483 s, estimated 1 s
+Ran all test suites.
+
+> ms@4.0.0 test:edge
+> jest --env @edge-runtime/jest-environment --no-coverage
+
+PASS src/unit.test.ts
+PASS src/index.test.ts
+PASS src/format.test.ts
+PASS src/parse.test.ts
+PASS src/parse-strict.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       183 passed, 183 total
+Snapshots:   0 total
+Time:        0.354 s, estimated 1 s
+Ran all test suites.
+
+=== held-out scenarios: 1 passed, 0 failed (src/holdout-unit.test.ts) ===

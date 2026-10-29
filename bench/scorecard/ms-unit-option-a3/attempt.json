@@ -1,0 +1,26 @@
+{
+  "task": "ms-unit-option",
+  "repo": "ms",
+  "attempt": 3,
+  "live": true,
+  "stintTask": "T-0001",
+  "run": "r1",
+  "adapter": "stint-agent",
+  "model": "muse-spark-open",
+  "host": "baseten",
+  "endedBy": "capped",
+  "tests": "red",
+  "hidden": "red",
+  "scenarios": {
+    "passed": 0,
+    "failed": 1
+  },
+  "review": null,
+  "usd": 0.5617,
+  "estimated": false,
+  "wallMs": 289271,
+  "retried": [],
+  "outcome": "graded red by the hidden tests; the run ended capped and its own tests were red",
+  "startedAt": "2026-10-29T18:11:55.741Z",
+  "finishedAt": "2026-10-29T18:17:04.534Z"
+}

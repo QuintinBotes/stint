@@ -1,0 +1,82 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 27,
+      "path": "README.md",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 15,
+      "path": "index.js",
+      "removed": 12,
+      "run": "r1"
+    },
+    {
+      "added": 31,
+      "path": "lib/charset.js",
+      "removed": 4,
+      "run": "r1"
+    },
+    {
+      "added": 42,
+      "path": "lib/language.js",
+      "removed": 5,
+      "run": "r1"
+    },
+    {
+      "added": 43,
+      "path": "lib/mediaType.js",
+      "removed": 4,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 887168,
+    "inputTokens": 961886,
+    "outputTokens": 75560,
+    "usd": 0.5476
+  },
+  "createdAt": "2026-10-29T17:30:19.513Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "e8581dd90180164a91f10621b617073992194315",
+    "head": "362d065364532bcfe9430691fff64bd8fc9c877a"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "stint-agent",
+    "endedBy": "capped",
+    "host": "baseten",
+    "model": "muse-spark-open",
+    "role": "implementer",
+    "run": "r1",
+    "vendor": "meta"
+  },
+  "hash": "sha256:c185e7af0098f5e2e2d862215b47a4903bde8622560c480d04c7b61c3e5d03cc",
+  "leftOut": [],
+  "open": [],
+  "refusals": [
+    {
+      "action": "node - <<'JS' var Negotiator = require('./'); function assertEqual(actual, expected, msg){ var ok = JSON.stringify(actual)===JSON.stringify(expected); console.log((ok?'PASS':'FAIL')+': '+msg); if(!...",
+      "by": "stint-rules",
+      "reason": "// is outside the worktree"
+    }
+  ],
+  "risks": [],
+  "summary": "stint-agent capped after 44 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm test",
+    "durationMs": 344,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

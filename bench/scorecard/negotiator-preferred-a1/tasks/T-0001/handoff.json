@@ -1,0 +1,87 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 67,
+      "path": "check.js",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 15,
+      "path": "index.js",
+      "removed": 12,
+      "run": "r1"
+    },
+    {
+      "added": 45,
+      "path": "lib/charset.js",
+      "removed": 4,
+      "run": "r1"
+    },
+    {
+      "added": 48,
+      "path": "lib/language.js",
+      "removed": 4,
+      "run": "r1"
+    },
+    {
+      "added": 48,
+      "path": "lib/mediaType.js",
+      "removed": 4,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 1411840,
+    "inputTokens": 1476724,
+    "outputTokens": 91049,
+    "usd": 0.6798
+  },
+  "createdAt": "2026-10-29T17:19:10.157Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "651cc8fb2b225ad4638a7081d623b4cd6227f3c9",
+    "head": "e6fb7cda0d035d236d7b91d1b93824b63a6c6557"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "stint-agent",
+    "endedBy": "capped",
+    "host": "baseten",
+    "model": "muse-spark-open",
+    "role": "implementer",
+    "run": "r1",
+    "vendor": "meta"
+  },
+  "hash": "sha256:e838b9e049150034a7f16749fa4db0e209b610742d8e6e038d68e35af13a378b",
+  "leftOut": [],
+  "open": [],
+  "refusals": [
+    {
+      "action": "node -e \" var Negotiator = require('./'); function test(name, fn){ try{fn(); console.log('PASS',name)} catch(e){console.log('FAIL',name,e.message); console.log(e.stack)}} function assertEq(a,b){ if...",
+      "by": "stint-rules",
+      "reason": "// is outside the worktree"
+    },
+    {
+      "action": "write_file /tmp/check.js",
+      "by": "stint-rules",
+      "reason": "/tmp/check.js is outside the worktree"
+    }
+  ],
+  "risks": [],
+  "summary": "stint-agent capped after 55 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm test",
+    "durationMs": 360,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

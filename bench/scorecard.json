@@ -1,0 +1,439 @@
+{
+  "version": "stint.scorecard/1",
+  "live": true,
+  "k": 3,
+  "generatedAt": "2026-10-29T18:17:04.542Z",
+  "models": [
+    {
+      "source": "attempts",
+      "role": "implementer",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "runs": 9
+    },
+    {
+      "source": "attempts",
+      "role": "reviewer",
+      "adapter": "openai-compatible",
+      "model": "muse-glimmer:30b-mlx",
+      "host": "ollama",
+      "runs": 8
+    },
+    {
+      "source": "relays",
+      "role": "implementer",
+      "adapter": "muse-code",
+      "model": "muse-spark-1.3",
+      "host": "local-cli",
+      "runs": 5
+    },
+    {
+      "source": "relays",
+      "role": "implementer",
+      "adapter": "claude-code",
+      "model": "muse-glimmer:30b-mlx",
+      "host": "ollama",
+      "runs": 5
+    },
+    {
+      "source": "relays",
+      "role": "implementer",
+      "adapter": "codex",
+      "model": "muse-spark-1.3",
+      "host": "meta-api",
+      "runs": 5
+    }
+  ],
+  "tasks": [
+    {
+      "id": "ms-unit-option",
+      "repo": "ms",
+      "attempts": 3,
+      "green": 1,
+      "pass1": {
+        "value": 0.3333,
+        "n": 3
+      },
+      "passK": {
+        "value": 0,
+        "n": 3
+      }
+    },
+    {
+      "id": "negotiator-preferred",
+      "repo": "negotiator",
+      "attempts": 3,
+      "green": 2,
+      "pass1": {
+        "value": 0.6667,
+        "n": 3
+      },
+      "passK": {
+        "value": 0,
+        "n": 3
+      }
+    },
+    {
+      "id": "wait-on-expect-body",
+      "repo": "wait-on",
+      "attempts": 3,
+      "green": 0,
+      "pass1": {
+        "value": 0,
+        "n": 3
+      },
+      "passK": {
+        "value": 0,
+        "n": 3
+      }
+    }
+  ],
+  "overall": {
+    "pass1": {
+      "value": 0.3333,
+      "n": 9
+    },
+    "passK": {
+      "value": 0,
+      "n": 3
+    }
+  },
+  "handoff": {
+    "value": 0.4,
+    "n": 10,
+    "green": 4,
+    "relays": [
+      "ms",
+      "ms-2",
+      "negotiator",
+      "negotiator-2",
+      "wait-on"
+    ]
+  },
+  "review": {
+    "n": 8,
+    "caught": 0,
+    "missed": 5,
+    "falseAlarm": 0,
+    "agreed": 3
+  },
+  "badPatches": {
+    "n": 6,
+    "byTests": {
+      "value": 0.1667,
+      "n": 6
+    },
+    "byTestsAndReview": {
+      "value": 0.1667,
+      "n": 6
+    }
+  },
+  "perGreen": {
+    "usd": {
+      "value": 0.4895,
+      "n": 3,
+      "unpriced": 0
+    },
+    "wallMs": {
+      "value": 358211,
+      "n": 3
+    }
+  },
+  "spend": {
+    "usd": 4.8932,
+    "estimated": false
+  },
+  "attempts": [
+    {
+      "task": "ms-unit-option",
+      "repo": "ms",
+      "attempt": 1,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "completed",
+      "tests": "green",
+      "hidden": "green",
+      "scenarios": {
+        "passed": 1,
+        "failed": 0
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.5292,
+      "estimated": false,
+      "wallMs": 423962,
+      "retried": [],
+      "outcome": "graded green by the hidden tests; the run ended completed and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T17:56:54.067Z",
+      "finishedAt": "2026-10-29T18:04:20.588Z"
+    },
+    {
+      "task": "ms-unit-option",
+      "repo": "ms",
+      "attempt": 2,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "capped",
+      "tests": "green",
+      "hidden": "red",
+      "scenarios": {
+        "passed": 0,
+        "failed": 1
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.6196,
+      "estimated": false,
+      "wallMs": 433996,
+      "retried": [],
+      "outcome": "graded red by the hidden tests; the run ended capped and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T18:04:20.598Z",
+      "finishedAt": "2026-10-29T18:11:55.731Z"
+    },
+    {
+      "task": "ms-unit-option",
+      "repo": "ms",
+      "attempt": 3,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "capped",
+      "tests": "red",
+      "hidden": "red",
+      "scenarios": {
+        "passed": 0,
+        "failed": 1
+      },
+      "review": null,
+      "usd": 0.5617,
+      "estimated": false,
+      "wallMs": 289271,
+      "retried": [],
+      "outcome": "graded red by the hidden tests; the run ended capped and its own tests were red",
+      "startedAt": "2026-10-29T18:11:55.741Z",
+      "finishedAt": "2026-10-29T18:17:04.534Z"
+    },
+    {
+      "task": "negotiator-preferred",
+      "repo": "negotiator",
+      "attempt": 1,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "capped",
+      "tests": "green",
+      "hidden": "red",
+      "scenarios": {
+        "passed": 0,
+        "failed": 1
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.6798,
+      "estimated": false,
+      "wallMs": 452289,
+      "retried": [],
+      "outcome": "graded red by the hidden tests; the run ended capped and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T17:12:32.521Z",
+      "finishedAt": "2026-10-29T17:20:15.282Z"
+    },
+    {
+      "task": "negotiator-preferred",
+      "repo": "negotiator",
+      "attempt": 2,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "completed",
+      "tests": "green",
+      "hidden": "green",
+      "scenarios": {
+        "passed": 1,
+        "failed": 0
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.3918,
+      "estimated": false,
+      "wallMs": 282730,
+      "retried": [],
+      "outcome": "graded green by the hidden tests; the run ended completed and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T17:20:15.294Z",
+      "finishedAt": "2026-10-29T17:25:10.097Z"
+    },
+    {
+      "task": "negotiator-preferred",
+      "repo": "negotiator",
+      "attempt": 3,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "capped",
+      "tests": "green",
+      "hidden": "green",
+      "scenarios": {
+        "passed": 1,
+        "failed": 0
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.5476,
+      "estimated": false,
+      "wallMs": 367942,
+      "retried": [],
+      "outcome": "graded green by the hidden tests; the run ended capped and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T17:25:10.109Z",
+      "finishedAt": "2026-10-29T17:31:22.741Z"
+    },
+    {
+      "task": "wait-on-expect-body",
+      "repo": "wait-on",
+      "attempt": 1,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "capped",
+      "tests": "green",
+      "hidden": "red",
+      "scenarios": {
+        "passed": 0,
+        "failed": 1
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.5206,
+      "estimated": false,
+      "wallMs": 366100,
+      "retried": [],
+      "outcome": "graded red by the hidden tests; the run ended capped and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T17:31:22.751Z",
+      "finishedAt": "2026-10-29T17:40:05.263Z"
+    },
+    {
+      "task": "wait-on-expect-body",
+      "repo": "wait-on",
+      "attempt": 2,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "capped",
+      "tests": "green",
+      "hidden": "red",
+      "scenarios": {
+        "passed": 0,
+        "failed": 1
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.511,
+      "estimated": false,
+      "wallMs": 368531,
+      "retried": [],
+      "outcome": "graded red by the hidden tests; the run ended capped and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T17:40:05.274Z",
+      "finishedAt": "2026-10-29T17:48:47.792Z"
+    },
+    {
+      "task": "wait-on-expect-body",
+      "repo": "wait-on",
+      "attempt": 3,
+      "live": true,
+      "stintTask": "T-0001",
+      "run": "r1",
+      "adapter": "stint-agent",
+      "model": "muse-spark-open",
+      "host": "baseten",
+      "endedBy": "capped",
+      "tests": "green",
+      "hidden": "red",
+      "scenarios": {
+        "passed": 0,
+        "failed": 1
+      },
+      "review": {
+        "verdict": "approve",
+        "findings": [],
+        "adapter": "openai-compatible",
+        "model": "muse-glimmer:30b-mlx",
+        "host": "ollama",
+        "offline": true
+      },
+      "usd": 0.5319,
+      "estimated": false,
+      "wallMs": 334833,
+      "retried": [],
+      "outcome": "graded red by the hidden tests; the run ended capped and its own tests were green; the review answered approve",
+      "startedAt": "2026-10-29T17:48:47.802Z",
+      "finishedAt": "2026-10-29T17:56:54.054Z"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-29T17:20:15.256Z",
+  "checks": [
+    {
+      "durationMs": 362,
+      "exitCode": 0,
+      "failed": 0,
+      "kind": "test",
+      "name": "tests",
+      "passed": 1,
+      "status": "green"
+    }
+  ],
+  "command": "npm test",
+  "commit": "e6fb7cda0d035d236d7b91d1b93824b63a6c6557",
+  "coverage": null,
+  "durationMs": 362,
+  "exitCode": 0,
+  "failed": 0,
+  "outputRef": "verification/r1.out.txt",
+  "passed": 1,
+  "reason": "scenarios",
+  "run": "r1",
+  "runBy": "daemon",
+  "scenarios": {
+    "failed": 1,
+    "names": [
+      "test/holdout-preferred.js"
+    ],
+    "passed": 0
+  },
+  "status": "red"
+}

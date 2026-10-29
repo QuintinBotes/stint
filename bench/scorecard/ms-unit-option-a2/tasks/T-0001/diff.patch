@@ -1,0 +1,435 @@
+diff --git a/src/index.ts b/src/index.ts
+index d50e3c7..c06ecdb 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -36,6 +36,12 @@ interface Options {
+    * Set to `true` to use verbose formatting. Defaults to `false`.
+    */
+   long?: boolean;
++  /**
++   * Unit to use for conversion. When formatting, the value is expressed in this
++   * unit. When parsing a string without a unit, this unit is assumed.
++   * Accepts any spelling and case that the parser accepts (e.g. 'm', 'Minutes', 'MINS', 'hrs').
++   */
++  unit?: UnitAnyCase;
+ }
+ 
+ /**
+@@ -52,7 +58,7 @@ export function ms(
+   options?: Options,
+ ): number | string {
+   if (typeof value === 'string') {
+-    return parse(value);
++    return parse(value, options);
+   } else if (typeof value === 'number') {
+     return format(value, options);
+   }
+@@ -61,19 +67,139 @@ export function ms(
+   );
+ }
+ 
++const msPerUnit: Record<string, number> = {
++  years: y,
++  year: y,
++  yrs: y,
++  yr: y,
++  y: y,
++  months: mo,
++  month: mo,
++  mo: mo,
++  weeks: w,
++  week: w,
++  w: w,
++  days: d,
++  day: d,
++  d: d,
++  hours: h,
++  hour: h,
++  hrs: h,
++  hr: h,
++  h: h,
++  minutes: m,
++  minute: m,
++  mins: m,
++  min: m,
++  m: m,
++  seconds: s,
++  second: s,
++  secs: s,
++  sec: s,
++  s: s,
++  milliseconds: 1,
++  millisecond: 1,
++  msecs: 1,
++  msec: 1,
++  ms: 1,
++};
++
++const shortForUnit: Record<string, string> = {
++  years: 'y',
++  year: 'y',
++  yrs: 'y',
++  yr: 'y',
++  y: 'y',
++  months: 'mo',
++  month: 'mo',
++  mo: 'mo',
++  weeks: 'w',
++  week: 'w',
++  w: 'w',
++  days: 'd',
++  day: 'd',
++  d: 'd',
++  hours: 'h',
++  hour: 'h',
++  hrs: 'h',
++  hr: 'h',
++  h: 'h',
++  minutes: 'm',
++  minute: 'm',
++  mins: 'm',
++  min: 'm',
++  m: 'm',
++  seconds: 's',
++  second: 's',
++  secs: 's',
++  sec: 's',
++  s: 's',
++  milliseconds: 'ms',
++  millisecond: 'ms',
++  msecs: 'ms',
++  msec: 'ms',
++  ms: 'ms',
++};
++
++const longNameForUnit: Record<string, string | null> = {
++  years: 'year',
++  year: 'year',
++  yrs: 'year',
++  yr: 'year',
++  y: 'year',
++  months: 'month',
++  month: 'month',
++  mo: 'month',
++  weeks: 'week',
++  week: 'week',
++  w: 'week',
++  days: 'day',
++  day: 'day',
++  d: 'day',
++  hours: 'hour',
++  hour: 'hour',
++  hrs: 'hour',
++  hr: 'hour',
++  h: 'hour',
++  minutes: 'minute',
++  minute: 'minute',
++  mins: 'minute',
++  min: 'minute',
++  m: 'minute',
++  seconds: 'second',
++  second: 'second',
++  secs: 'second',
++  sec: 'second',
++  s: 'second',
++  milliseconds: null,
++  millisecond: null,
++  msecs: null,
++  msec: null,
++  ms: null,
++};
++
+ /**
+  * Parse the given string and return milliseconds.
+  *
+  * @param str - A string to parse to milliseconds
++ * @param options - Options for the conversion
+  * @returns The parsed value in milliseconds, or `NaN` if the string can't be
+  * parsed
+  */
+-export function parse(str: string): number {
++export function parse(str: string, options?: Options): number {
+   if (typeof str !== 'string' || str.length === 0 || str.length > 100) {
+     throw new Error(
+       `Value provided to ms.parse() must be a string with length between 1 and 99. value=${JSON.stringify(str)}`,
+     );
+   }
++  if (options?.unit !== undefined) {
++    const lower = options.unit.toLowerCase();
++    if (msPerUnit[lower] === undefined) {
++      throw new Error(
++        `Unknown unit "${options.unit}" provided to ms.parse(). value=${JSON.stringify(str)}`,
++      );
++    }
++  }
+   const match =
+     /^(?<value>-?\d*\.?\d+) *(?<unit>milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|months?|mo|years?|yrs?|y)?$/i.exec(
+       str,
+@@ -85,14 +211,23 @@ export function parse(str: string): number {
+ 
+   // Named capture groups need to be manually typed today.
+   // https://github.com/microsoft/TypeScript/issues/32098
+-  const { value, unit = 'ms' } = match.groups as {
++  const { value, unit } = match.groups as {
+     value: string;
+     unit: string | undefined;
+   };
+ 
+   const n = parseFloat(value);
+ 
+-  const matchUnit = unit.toLowerCase() as Lowercase<Unit>;
++  let effectiveUnit: string;
++  if (unit !== undefined) {
++    effectiveUnit = unit;
++  } else if (options?.unit !== undefined) {
++    effectiveUnit = options.unit;
++  } else {
++    effectiveUnit = 'ms';
++  }
++
++  const matchUnit = effectiveUnit.toLowerCase() as Lowercase<Unit>;
+ 
+   /* istanbul ignore next - istanbul doesn't understand, but thankfully the TypeScript the exhaustiveness check in the default case keeps us type safe here */
+   switch (matchUnit) {
+@@ -150,11 +285,12 @@ export function parse(str: string): number {
+  * Parse the given StringValue and return milliseconds.
+  *
+  * @param value - A typesafe StringValue to parse to milliseconds
++ * @param options - Options for the conversion
+  * @returns The parsed value in milliseconds, or `NaN` if the string can't be
+  * parsed
+  */
+-export function parseStrict(value: StringValue): number {
+-  return parse(value);
++export function parseStrict(value: StringValue, options?: Options): number {
++  return parse(value, options);
+ }
+ 
+ /**
+@@ -226,7 +362,28 @@ export function format(ms: number, options?: Options): string {
+   if (typeof ms !== 'number' || !Number.isFinite(ms)) {
+     throw new Error('Value provided to ms.format() must be of type number.');
+   }
+-
++  if (options?.unit !== undefined) {
++    const lower = options.unit.toLowerCase();
++    const divisor = msPerUnit[lower];
++    if (divisor === undefined) {
++      throw new Error(
++        `Unknown unit "${options.unit}" provided to ms.format(). value=${JSON.stringify(ms)}`,
++      );
++    }
++    const short = shortForUnit[lower];
++    const longName = longNameForUnit[lower];
++    const value = Math.round(ms / divisor);
++    if (options.long) {
++      if (longName === null) {
++        return `${value} ms`;
++      }
++      const msAbs = Math.abs(ms);
++      const isPlural = msAbs >= divisor * 1.5;
++      return `${value} ${longName}${isPlural ? 's' : ''}` as StringValue;
++    } else {
++      return `${value}${short}` as StringValue;
++    }
++  }
+   return options?.long ? fmtLong(ms) : fmtShort(ms);
+ }
+ 
+diff --git a/src/unit.test.ts b/src/unit.test.ts
+new file mode 100644
+index 0000000..44edc91
+--- /dev/null
++++ b/src/unit.test.ts
+@@ -0,0 +1,191 @@
++import { describe, expect, it } from '@jest/globals';
++import { format, ms, parse, parseStrict } from './index';
++
++describe('format with unit option', () => {
++  it('should format 5400000 in minutes short', () => {
++    expect(format(5400000, { unit: 'm' })).toBe('90m');
++  });
++  it('should format 5400000 in minutes long', () => {
++    expect(format(5400000, { unit: 'minutes', long: true })).toBe('90 minutes');
++  });
++  it('should handle case insensitivity for unit option in format', () => {
++    expect(format(5400000, { unit: 'M' })).toBe('90m');
++    expect(format(5400000, { unit: 'Minutes' })).toBe('90m');
++    expect(format(5400000, { unit: 'MINS' })).toBe('90m');
++    expect(format(5400000, { unit: 'hrs' })).toBe('2h');
++    expect(format(5400000, { unit: 'HRS' })).toBe('2h');
++    expect(format(5400000, { unit: 'Hrs' })).toBe('2h');
++  });
++  it('should round to whole number of that unit', () => {
++    // 1499 ms in seconds should round to 1s, 1500 to 2s
++    expect(format(1499, { unit: 's' })).toBe('1s');
++    expect(format(1500, { unit: 's' })).toBe('2s');
++    expect(format(1499, { unit: 'seconds', long: true })).toBe('1 second');
++    expect(format(1500, { unit: 'seconds', long: true })).toBe('2 seconds');
++  });
++  it('should handle all unit types short', () => {
++    expect(format(31557600000, { unit: 'y' })).toBe('1y');
++    expect(format(31557600000, { unit: 'years' })).toBe('1y');
++    expect(format(2629800000, { unit: 'mo' })).toBe('1mo');
++    expect(format(2629800000, { unit: 'months' })).toBe('1mo');
++    expect(format(604800000, { unit: 'w' })).toBe('1w');
++    expect(format(86400000, { unit: 'd' })).toBe('1d');
++    expect(format(3600000, { unit: 'h' })).toBe('1h');
++    expect(format(60000, { unit: 'm' })).toBe('1m');
++    expect(format(1000, { unit: 's' })).toBe('1s');
++    expect(format(100, { unit: 'ms' })).toBe('100ms');
++    expect(format(100, { unit: 'milliseconds' })).toBe('100ms');
++  });
++  it('should handle all unit types long singular and plural', () => {
++    expect(format(31557600000, { unit: 'y', long: true })).toBe('1 year');
++    expect(format(31557600000 * 2, { unit: 'y', long: true })).toBe('2 years');
++    expect(format(2629800000, { unit: 'mo', long: true })).toBe('1 month');
++    expect(format(2629800000 * 2, { unit: 'mo', long: true })).toBe('2 months');
++    expect(format(604800000, { unit: 'w', long: true })).toBe('1 week');
++    expect(format(604800000 * 2, { unit: 'w', long: true })).toBe('2 weeks');
++    expect(format(86400000, { unit: 'd', long: true })).toBe('1 day');
++    expect(format(86400000 * 2, { unit: 'd', long: true })).toBe('2 days');
++    expect(format(3600000, { unit: 'h', long: true })).toBe('1 hour');
++    expect(format(3600000 * 2, { unit: 'h', long: true })).toBe('2 hours');
++    expect(format(60000, { unit: 'm', long: true })).toBe('1 minute');
++    expect(format(60000 * 2, { unit: 'm', long: true })).toBe('2 minutes');
++    expect(format(1000, { unit: 's', long: true })).toBe('1 second');
++    expect(format(1000 * 2, { unit: 's', long: true })).toBe('2 seconds');
++    expect(format(500, { unit: 'ms', long: true })).toBe('500 ms');
++    expect(format(1, { unit: 'ms', long: true })).toBe('1 ms');
++  });
++  it('should handle negative and zero', () => {
++    expect(format(-5400000, { unit: 'm' })).toBe('-90m');
++    expect(format(-5400000, { unit: 'minutes', long: true })).toBe('-90 minutes');
++    expect(format(0, { unit: 's' })).toBe('0s');
++    // 0 with long in explicit unit uses the same pluralization logic as auto: 0 < 1 *1.5 -> singular
++    expect(format(0, { unit: 's', long: true })).toBe('0 second');
++  });
++  it('should throw for unknown unit in format', () => {
++    expect(() => format(1000, { unit: 'invalid' as any })).toThrow('invalid');
++    expect(() => format(1000, { unit: 'invalid' as any })).toThrow(/Unknown unit/);
++    expect(() => format(1000, { unit: 'lightyears' as any })).toThrow('lightyears');
++  });
++  it('should handle long for milliseconds correctly (no pluralization)', () => {
++    expect(format(100, { unit: 'milliseconds', long: true })).toBe('100 ms');
++    expect(format(1, { unit: 'ms', long: true })).toBe('1 ms');
++  });
++  it('should handle singular vs plural threshold for unit', () => {
++    // threshold is divisor*1.5: for 'm', 60000*1.5=90000
++    // 60000 should be singular, 90000 plural
++    expect(format(60000, { unit: 'm', long: true })).toBe('1 minute');
++    expect(format(90000, { unit: 'm', long: true })).toBe('2 minutes');
++    expect(format(89000, { unit: 'm', long: true })).toBe('1 minute');
++  });
++});
++
++describe('parse with unit option', () => {
++  it('should parse number without unit using given unit', () => {
++    expect(parse('90', { unit: 's' })).toBe(90000);
++    expect(parse('90', { unit: 'm' })).toBe(5400000);
++    expect(parse('1', { unit: 'h' })).toBe(3600000);
++  });
++  it('should let unit in string win', () => {
++    expect(parse('2m', { unit: 's' })).toBe(120000);
++    expect(parse('1h', { unit: 's' })).toBe(3600000);
++    expect(parse('1d', { unit: 's' })).toBe(86400000);
++  });
++  it('should without option still default to ms', () => {
++    expect(parse('100')).toBe(100);
++    expect(parse('100', {})).toBe(100);
++  });
++  it('should handle any spelling and case', () => {
++    expect(parse('1', { unit: 'm' })).toBe(60000);
++    expect(parse('1', { unit: 'Minutes' })).toBe(60000);
++    expect(parse('1', { unit: 'MINS' })).toBe(60000);
++    expect(parse('1', { unit: 'hrs' })).toBe(3600000);
++    expect(parse('1', { unit: 'hrs' as any })).toBe(3600000);
++    expect(parse('1', { unit: 'HRS' as any })).toBe(3600000);
++    expect(parse('1', { unit: 'Hours' as any })).toBe(3600000);
++    expect(parse('1', { unit: 'y' })).toBe(31557600000);
++    expect(parse('1', { unit: 'years' })).toBe(31557600000);
++    expect(parse('1', { unit: 'yrs' })).toBe(31557600000);
++    expect(parse('1', { unit: 'yr' })).toBe(31557600000);
++    expect(parse('1', { unit: 'year' })).toBe(31557600000);
++    expect(parse('1', { unit: 'months' })).toBe(2629800000);
++    expect(parse('1', { unit: 'month' })).toBe(2629800000);
++    expect(parse('1', { unit: 'mo' })).toBe(2629800000);
++    expect(parse('1', { unit: 'weeks' })).toBe(604800000);
++    expect(parse('1', { unit: 'week' })).toBe(604800000);
++    expect(parse('1', { unit: 'w' })).toBe(604800000);
++    expect(parse('1', { unit: 'days' })).toBe(172800000/2);
++    expect(parse('1', { unit: 'day' })).toBe(86400000);
++    expect(parse('1', { unit: 'd' })).toBe(86400000);
++    expect(parse('1', { unit: 'hours' })).toBe(3600000);
++    expect(parse('1', { unit: 'hour' })).toBe(3600000);
++    expect(parse('1', { unit: 'hr' })).toBe(3600000);
++    expect(parse('1', { unit: 'h' })).toBe(3600000);
++    expect(parse('1', { unit: 'minutes' })).toBe(60000);
++    expect(parse('1', { unit: 'minute' })).toBe(60000);
++    expect(parse('1', { unit: 'mins' })).toBe(60000);
++    expect(parse('1', { unit: 'min' })).toBe(60000);
++    expect(parse('1', { unit: 'm' })).toBe(60000);
++    expect(parse('1', { unit: 'seconds' })).toBe(1000);
++    expect(parse('1', { unit: 'second' })).toBe(1000);
++    expect(parse('1', { unit: 'secs' })).toBe(1000);
++    expect(parse('1', { unit: 'sec' })).toBe(1000);
++    expect(parse('1', { unit: 's' })).toBe(1000);
++    expect(parse('1', { unit: 'milliseconds' })).toBe(1);
++    expect(parse('1', { unit: 'millisecond' })).toBe(1);
++    expect(parse('1', { unit: 'msecs' })).toBe(1);
++    expect(parse('1', { unit: 'msec' })).toBe(1);
++    expect(parse('1', { unit: 'ms' })).toBe(1);
++  });
++  it('should throw for unknown unit and name it', () => {
++    expect(() => parse('90', { unit: 'invalid' as any })).toThrow('invalid');
++    expect(() => parse('90', { unit: 'invalid' as any })).toThrow(/Unknown unit/);
++    expect(() => parse('2m', { unit: 'invalid' as any })).toThrow('invalid');
++    expect(() => parse('90', { unit: 'lightyears' as any })).toThrow('lightyears');
++  });
++  it('should handle decimals and negatives with unit option', () => {
++    expect(parse('1.5', { unit: 'h' })).toBe(5400000);
++    expect(parse('-1.5', { unit: 'h' })).toBe(-5400000);
++    expect(parse('.5', { unit: 's' })).toBe(500);
++    expect(parse('-.5', { unit: 's' })).toBe(-500);
++  });
++  it('should handle spaces with unit option', () => {
++    expect(parse('1', { unit: 's' })).toBe(1000);
++    // leading/trailing spaces are not allowed - should be NaN
++    expect(Number.isNaN(parse(' 1 ' as any, { unit: 's' } as any))).toBe(true);
++    // but multiple spaces between number and unit are allowed and string unit wins
++    expect(parse('1   s', { unit: 'm' })).toBe(1000);
++  });
++  it('should return NaN for invalid strings even with unit option', () => {
++    expect(Number.isNaN(parse('☃', { unit: 's' as any }))).toBe(true);
++    expect(Number.isNaN(parse('foo', { unit: 's' as any }))).toBe(true);
++  });
++});
++
++describe('ms with unit option', () => {
++  it('should format via ms() with unit', () => {
++    expect(ms(5400000, { unit: 'm' })).toBe('90m');
++    expect(ms(5400000, { unit: 'minutes', long: true })).toBe('90 minutes');
++  });
++  it('should parse via ms() with unit', () => {
++    expect(ms('90', { unit: 's' })).toBe(90000);
++    expect(ms('2m', { unit: 's' } as any)).toBe(120000);
++  });
++  it('should handle case insensitivity via ms()', () => {
++    expect(ms('1', { unit: 'M' } as any)).toBe(60000);
++    expect(ms(60000, { unit: 'M' } as any)).toBe('1m');
++  });
++  it('should throw for unknown unit via ms()', () => {
++    expect(() => ms('10', { unit: 'bad' as any })).toThrow('bad');
++    expect(() => ms(1000, { unit: 'bad' as any })).toThrow('bad');
++  });
++});
++
++describe('parseStrict with unit option', () => {
++  it('should parse with unit', () => {
++    expect(parseStrict('90', { unit: 's' })).toBe(90000);
++    expect(parseStrict('2m', { unit: 's' } as any)).toBe(120000);
++  });
++  it('should throw for unknown unit', () => {
++    expect(() => parseStrict('10', { unit: 'bad' as any })).toThrow('bad');
++  });
++});

@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-29T18:11:55.704Z",
+  "checks": [
+    {
+      "durationMs": 2199,
+      "exitCode": 0,
+      "failed": 0,
+      "kind": "test",
+      "name": "tests",
+      "passed": 1,
+      "status": "green"
+    }
+  ],
+  "command": "npm run test:nodejs && npm run test:edge",
+  "commit": "c971ebe9bef9fac5689b74730ea277d6f6296e16",
+  "coverage": null,
+  "durationMs": 2199,
+  "exitCode": 0,
+  "failed": 0,
+  "outputRef": "verification/r1.out.txt",
+  "passed": 1,
+  "reason": "scenarios",
+  "run": "r1",
+  "runBy": "daemon",
+  "scenarios": {
+    "failed": 1,
+    "names": [
+      "src/holdout-unit.test.ts"
+    ],
+    "passed": 0
+  },
+  "status": "red"
+}

@@ -1,0 +1,33 @@
+{
+  "task": "wait-on-expect-body",
+  "repo": "wait-on",
+  "attempt": 2,
+  "live": true,
+  "stintTask": "T-0001",
+  "run": "r1",
+  "adapter": "stint-agent",
+  "model": "muse-spark-open",
+  "host": "baseten",
+  "endedBy": "capped",
+  "tests": "green",
+  "hidden": "red",
+  "scenarios": {
+    "passed": 0,
+    "failed": 1
+  },
+  "review": {
+    "verdict": "approve",
+    "findings": [],
+    "adapter": "openai-compatible",
+    "model": "muse-glimmer:30b-mlx",
+    "host": "ollama",
+    "offline": true
+  },
+  "usd": 0.511,
+  "estimated": false,
+  "wallMs": 368531,
+  "retried": [],
+  "outcome": "graded red by the hidden tests; the run ended capped and its own tests were green; the review answered approve",
+  "startedAt": "2026-10-29T17:40:05.274Z",
+  "finishedAt": "2026-10-29T17:48:47.792Z"
+}

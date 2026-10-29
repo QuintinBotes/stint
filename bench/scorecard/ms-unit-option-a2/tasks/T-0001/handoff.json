@@ -1,0 +1,58 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 164,
+      "path": "src/index.ts",
+      "removed": 7,
+      "run": "r1"
+    },
+    {
+      "added": 191,
+      "path": "src/unit.test.ts",
+      "removed": 0,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 706176,
+    "inputTokens": 806743,
+    "outputTokens": 91279,
+    "usd": 0.6196
+  },
+  "createdAt": "2026-10-29T18:10:33.070Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "03d68bef5b71e95e0859cd78ca8693e7c39edd3b",
+    "head": "c971ebe9bef9fac5689b74730ea277d6f6296e16"
+  },
+  "done": [
+    "Verification by the daemon: 1 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "stint-agent",
+    "endedBy": "capped",
+    "host": "baseten",
+    "model": "muse-spark-open",
+    "role": "implementer",
+    "run": "r1",
+    "vendor": "meta"
+  },
+  "hash": "sha256:4156e58d8e3482f1358cdc9cc3b39e9128742057afbe826b912eeb76f39d6d96",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "stint-agent capped after 36 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "npm run test:nodejs && npm run test:edge",
+    "durationMs": 1884,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 1,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

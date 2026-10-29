@@ -1,0 +1,12 @@
+diff --git a/lib/wait-on.js b/lib/wait-on.js
+index 7bcec22..4359872 100644
+--- a/lib/wait-on.js
++++ b/lib/wait-on.js
+@@ -44,6 +44,7 @@ const WAIT_ON_SCHEMA = Joi.object({
+   window: Joi.number().integer().min(0).default(750),
+   tcpTimeout: Joi.number().integer().min(0).default(300),
+   commandTimeout: Joi.number().integer().min(0).default(0), // per-attempt kill for command: resources, 0 = no limit
++  expectBody: Joi.alternatives().try(Joi.string().allow(''), Joi.object().instance(RegExp)),
+ 
+   // http/https options
+   ca: [Joi.string(), Joi.binary()],

@@ -1,0 +1,33 @@
+{
+  "task": "ms-unit-option",
+  "repo": "ms",
+  "attempt": 1,
+  "live": true,
+  "stintTask": "T-0001",
+  "run": "r1",
+  "adapter": "stint-agent",
+  "model": "muse-spark-open",
+  "host": "baseten",
+  "endedBy": "completed",
+  "tests": "green",
+  "hidden": "green",
+  "scenarios": {
+    "passed": 1,
+    "failed": 0
+  },
+  "review": {
+    "verdict": "approve",
+    "findings": [],
+    "adapter": "openai-compatible",
+    "model": "muse-glimmer:30b-mlx",
+    "host": "ollama",
+    "offline": true
+  },
+  "usd": 0.5292,
+  "estimated": false,
+  "wallMs": 423962,
+  "retried": [],
+  "outcome": "graded green by the hidden tests; the run ended completed and its own tests were green; the review answered approve",
+  "startedAt": "2026-10-29T17:56:54.067Z",
+  "finishedAt": "2026-10-29T18:04:20.588Z"
+}
