@@ -1,4 +1,3 @@
-import { type FSWatcher, watch } from 'node:fs';
 import { mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type Config, ConfigSchema, DEFAULT_CONFIG } from '../schemas/config';
@@ -309,26 +308,6 @@ export class Workspace {
   async writeDoc(id: string, name: string, value: unknown): Promise<void> {
     if (!/^[a-z][a-z0-9-]*\.json$/.test(name)) throw new StoreError('invalid', `bad document name ${name}`);
     await writeJsonAtomic(join(await this.taskDir(id), name), value);
-  }
-
-  /** Best-effort change feed for one task (fs.watch, 50 ms debounce); the SSE route also polls. */
-  watch(taskId: string, cb: () => void): () => void {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let watcher: FSWatcher | null = null;
-    void this.taskDir(taskId).then((dir) => {
-      try {
-        watcher = watch(dir, { recursive: true }, () => {
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(cb, 50);
-        });
-      } catch {
-        watcher = null;
-      }
-    }, () => undefined);
-    return () => {
-      if (timer) clearTimeout(timer);
-      watcher?.close();
-    };
   }
 
   private dirCache = new Map<string, string>();
