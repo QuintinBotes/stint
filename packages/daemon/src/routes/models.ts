@@ -360,10 +360,10 @@ export type PendingSkillProposal = { id: string; kind: 'skill'; task: string; sk
 export type PendingRenameMerge = { id: string; kind: 'rename-merge'; task: string; run: string; agent: string; from: string; to: string; commit: string; at: string };
 export type PendingQueueItem = PendingContradiction | PendingSkillProposal | PendingRenameMerge;
 
-/** The queue is a projection of the logs: a finding that contradicts a decision waits until a person settles it. */
-export async function pendingContradictions(ctx: DaemonContext): Promise<PendingContradiction[]> {
+/** The queue is a projection of the logs: a finding that contradicts a decision waits until a person settles it. `task` limits it to one task. */
+export async function pendingContradictions(ctx: DaemonContext, task?: string): Promise<PendingContradiction[]> {
   const out: PendingContradiction[] = [];
-  for (const t of await ctx.ws.listTasks()) {
+  for (const t of task ? [await ctx.ws.readTask(task)] : await ctx.ws.listTasks()) {
     const events = await ctx.ws.events(t.id).read();
     const settled = new Set(events.map((e) => e.payload.queue).filter((q): q is string => typeof q === 'string'));
     const decisions = new Map((await ctx.ws.decisions(t.id).read()).map((d) => [d.id, d.text]));

@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { DEFAULT_CONFIG } from '@stint-dev/core';
 import { Workspace } from '@stint-dev/core/node';
 import { createApp } from '../src/index';
-import { TOKEN, auth, newTask, withFixtureRepo } from './helpers';
+import { gitOk } from '../src/git';
+import { TOKEN, auth, builtTask, newTask, post, withFixtureRepo } from './helpers';
 
 const review = {
   version: 'stint.review/1',
@@ -67,3 +68,20 @@ test('A review fixture with one finding contradictsDecision D3 leaves decisions.
     ollama.stop();
   }
 }, 60_000);
+
+test('approve refuses with decision_pending while a review finding would reverse a decision, names the decision, merges nothing, and merges once the decision is kept', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { app, ws, t } = await builtTask(repo);
+    const d = await ws.decisions(t.id).append({ text: 'Limits come from config, never the environment', by: 'you' });
+    await ws.events(t.id).append({ task: t.id, run: 'r1', adapter: 'openai-compatible', vendor: 'meta', type: 'review.recorded', payload: { verdict: 'approve', contradictions: 1, review: { model: 'ollama/fake', findings: [{ id: 'F2', severity: 'note', text: 'Read the limit from the environment', contradictsDecision: d.id }] } } });
+    const head = (await gitOk(repo, ['rev-parse', 'HEAD'])).trim();
+    const refused = await post(app, `/api/tasks/${t.id}/approve`, {});
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: { code: 'decision_pending', message: 'F2 in the review would reverse D1 ("Limits come from config, never the environment"); keep D1 or supersede it before you approve', hint: { queue: [`contradiction-${t.id}-F2`] } } });
+    expect((await gitOk(repo, ['rev-parse', 'HEAD'])).trim()).toBe(head);
+
+    expect((await post(app, `/api/graph/pending/contradiction-${t.id}-F2`, { action: 'keep' })).status).toBe(200);
+    expect((await post(app, `/api/tasks/${t.id}/approve`, {})).status).toBe(200);
+    expect((await ws.readTask(t.id)).status).toBe('done');
+  });
+}, 120_000);

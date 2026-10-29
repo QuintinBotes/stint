@@ -73,6 +73,8 @@ async function seeded(repo: string, modelUrl: string, recording = DEFAULT_RECORD
 
 /** Approves T-0042 through the route and waits for the learn pass it triggered to land an event. */
 async function approveAndLearn(made: Awaited<ReturnType<typeof seeded>>) {
+  // the review's F2 would reverse D3 and waits in the queue; approve waits for it, so the person keeps D3 first, as the demo does
+  expect((await post(made.app, '/api/graph/pending/contradiction-T-0042-F2', { action: 'keep' })).status).toBe(200);
   const res = await post(made.app, '/api/tasks/T-0042/approve', {});
   expect(res.status).toBe(200);
   let event = null as null | { type: string; payload: Record<string, unknown> };

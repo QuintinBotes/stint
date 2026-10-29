@@ -11,6 +11,7 @@ import { ghOk, git, gitOk, identityArgs } from '../git';
 import { triggerLearn } from '../learn';
 import { releaseWorktrees } from '../lifecycle';
 import { prepareShadow, recordShadow, writeShadow } from '../risk';
+import { pendingContradictions } from './models';
 import { updateSkillStatuses } from '../skills';
 
 /** Skill statuses follow task outcomes; a status pass that fails is said out loud, never hidden. */
@@ -193,6 +194,13 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash }
     if (!v.commit) throw new DaemonError('verification_red', 'the latest green verification recorded no commit, so what it tested is unknown', 'run the tests again');
     const review = await ctx.ws.readDoc<{ verdict: string }>(id, 'review.json');
     if (review?.verdict === 'block') throw new DaemonError('review_blocked', 'the latest review blocks this change', 'request changes, then review again');
+    // a finding that would reverse a decision waits for a person; merging first would settle it without one (non-negotiable 7)
+    const pending = await pendingContradictions(ctx, id);
+    const first = pending[0];
+    if (first) {
+      const d = first.decision?.id ?? first.finding.contradictsDecision ?? 'a decision';
+      throw new DaemonError('decision_pending', `${first.finding.id} in the review would reverse ${d}${first.decision ? ` ("${first.decision.text}")` : ''}; keep ${d} or supersede it before you approve`, { queue: pending.map((p) => p.id) });
+    }
     const log = await ctx.ws.events(id).read();
     // a reject or a request for changes outranks the green verification before it: the person said this code is not ready
     const asked = log.findLastIndex((e) => e.type === 'approval.rejected');
