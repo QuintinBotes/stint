@@ -68,8 +68,12 @@ function taskOf(args: Json): string {
 const prop = (type: string, description: string, extra: Json = {}) => ({ type, description, ...extra });
 const taskProp = prop('string', 'Task id such as T-0042; inside a Stint run, defaults to the run\'s task');
 
+/** Tools a run's own token is refused on: a new task is outside its task, and hand and verify wait for its run to end. */
+const OUTSIDE_A_RUN = new Set(['stint_new_task', 'stint_hand', 'stint_verify']);
+
+/** Stint's tools; inside a run (STINT_RUN_TOKEN set) only the ones its token can call, so none of them always fails. */
 export function tools(root: string): Tool[] {
-  return [
+  const all: Tool[] = [
     {
       name: 'stint_status',
       description: 'The board: every task with its status, who holds it, its cost and its autopilot step.',
@@ -219,6 +223,7 @@ export function tools(root: string): Tool[] {
       },
     },
   ];
+  return process.env.STINT_RUN_TOKEN ? all.filter((t) => !OUTSIDE_A_RUN.has(t.name)) : all;
 }
 
 /** One JSON-RPC exchange: the reply to a request, or nothing for a notification. */

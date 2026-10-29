@@ -117,8 +117,9 @@ function tokenMatches(header: string | undefined, token: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// what an agent's own process calls while it runs, the hooks and `stint mcp` (R-014, R-028): all a run token reaches
-const AGENT_ROUTE = /^\/api\/tasks\/([^/]+)\/(?:runs\/([^/]+)\/inflight|handoff|decisions|hand|autopilot|verify)$/;
+// what an agent's own process calls while it runs, the hooks and `stint mcp` (R-014, R-028): all a run token reaches.
+// Not hand or verify: both refuse while the task has a live run, and the caller's own run is that live run.
+const AGENT_ROUTE = /^\/api\/tasks\/([^/]+)\/(?:runs\/([^/]+)\/inflight|handoff|decisions|autopilot)$/;
 
 /** A run token is good only on its own task's agent routes and for its own run; anything else is forbidden (R-040). */
 async function agentMayCall(c: Context, live: ActiveRun): Promise<void> {

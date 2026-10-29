@@ -202,6 +202,10 @@ test('a run token reaches only its own run\'s agent routes, answers 403 elsewher
     expect(await code(await post(app, `/api/tasks/${t.id}/decisions`, { text: 'Keep the limiter in memory', by: 'agent r1' }, as))).toEqual([201, 'ok']);
     expect(await code(await post(app, `/api/tasks/${t.id}/runs/r2/inflight`, { tool: 'bash' }, as))).toEqual([403, 'forbidden']);
     expect(await code(await post(app, `/api/tasks/${t.id}/handoff`, { run: 'r2' }, as))).toEqual([403, 'forbidden']);
+    // hand and verify wait for the live run to end, and the caller's own run is that live run
+    expect(await code(await post(app, `/api/tasks/${t.id}/verify`, {}, as))).toEqual([403, 'forbidden']);
+    expect(await code(await post(app, `/api/tasks/${t.id}/hand`, { adapter: 'fake' }, as))).toEqual([403, 'forbidden']);
+    expect(await code(await post(app, `/api/tasks/${t.id}/autopilot`, { on: false }, as))).toEqual([200, 'ok']);
     expect(await code(await post(app, `/api/tasks/${other.id}/decisions`, { text: 'x' }, as))).toEqual([403, 'forbidden']);
     expect(await code(await post(app, `/api/tasks/${t.id}/approve`, {}, as))).toEqual([403, 'forbidden']);
     expect(await code(await post(app, '/api/skills/import', {}, as))).toEqual([403, 'forbidden']);
