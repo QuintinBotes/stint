@@ -338,6 +338,7 @@ export const api = {
   keepSkill: (id: string) => post<unknown>(`/api/skills/${id}/keep`),
   phaseGates: () => request<PhaseGates>('/api/phase-gates'),
   bench: () => request<BenchData>('/api/bench'),
+  scorecard: () => request<import('@stint-dev/core').Scorecard>('/api/scorecard'),
   relay: () => request<import('./components/Relay').RelayData>('/api/relay'),
   metrics: (window: '7d' | '30d' | '90d' | 'all') => request<import('@stint-dev/core').Metrics>(`/api/metrics?window=${window}`),
   outcome: (id: string) => request<import('@stint-dev/core').Outcome>(`/api/tasks/${id}/outcome`),
