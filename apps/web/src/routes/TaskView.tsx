@@ -382,7 +382,10 @@ export function TaskView() {
             <span className="stint-task-id mr-2.5 text-[15px] align-[2px]">{t.id}</span>
             {t.title}
           </h1>
-          <p className="text-ink-2">{t.goal}</p>
+          {/* a drafted goal carries its requirements and what is out of scope as lines */}
+          <p className="text-ink-2 whitespace-pre-line" data-testid="task-description">
+            {t.goal}
+          </p>
           {t.goalId || t.dependsOn?.length ? (
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-small text-ink-2" data-testid="task-links">
               <GoalOf task={t} />

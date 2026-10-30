@@ -129,6 +129,8 @@ test('A sentence becomes a task: one question answered, the recommendation for t
   await expect(page).toHaveURL(/\/t\/T-\d+$/);
   expect(held.count()).toBe(1);
   const id = /\/t\/(T-\d+)/.exec(page.url())?.[1] as string;
+  // the requirements read as lines under the title, not run together
+  expect(await page.getByTestId('task-description').innerText()).toMatch(/\nRequirements:\n- FR-001: The system MUST do what was asked/);
 
   const lines = ['Given the service is running, when a person uses the change, then it answers 200 with ok', 'Given the change cannot run, when a person opens the home page, then they see why it failed'];
   const proofs = page.getByTestId('sharpen-proofs');
