@@ -32,3 +32,20 @@ test('A run still going stays on the lane it started on', () => {
     ['r4', 'ollama/muse-glimmer:30b-mlx'],
   ]);
 });
+
+test('Lanes of one role follow the order the agents first worked, so a relay reads from the top down', () => {
+  const relay = relayFromEvents([
+    {
+      task: 'T-0001',
+      events: [
+        ev(1, 'r1', 'muse-code', 'run.started', '2026-10-29T14:10:32Z', { role: 'implementer', model: 'muse-spark-1.3', host: 'local-cli' }),
+        ev(2, 'r1', 'muse-code', 'run.finished', '2026-10-29T14:10:51Z', { endedBy: 'killed', model: 'muse-spark-1.3', host: 'local-cli' }),
+        ev(3, 'r2', 'claude-code', 'run.started', '2026-10-29T14:13:20Z', { role: 'implementer', host: 'local-cli' }),
+        ev(4, 'r2', 'claude-code', 'run.finished', '2026-10-29T14:28:20Z', { endedBy: 'killed', model: 'muse-glimmer:30b-mlx', host: 'ollama' }),
+        ev(5, 'r3', 'codex', 'run.started', '2026-10-29T14:30:49Z', { role: 'implementer', host: 'local-cli' }),
+        ev(6, 'r3', 'codex', 'run.finished', '2026-10-29T14:33:29Z', { endedBy: 'completed', model: 'muse-spark-1.3', host: 'meta-api' }),
+      ],
+    },
+  ]);
+  expect(relay.lanes.map((l) => l.id)).toEqual(['muse-code:muse-spark-1.3', 'claude-code:muse-glimmer:30b-mlx', 'codex:muse-spark-1.3']);
+});

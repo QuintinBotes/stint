@@ -21,12 +21,10 @@ const BAR_H = 22;
 const MIN_BAR = 78;
 const TOP = 28;
 
-const AGENT: Record<string, string> = { 'muse-code': 'Muse Code', 'stint-agent': 'Stint agent', replay: 'Replay' };
-
 function laneTitle(l: Lane): { name: string; detail: string } {
   if (l.human) return { name: 'You', detail: 'approve, decide, merge' };
   const model = l.model ? modelName(l.model) : 'its model';
-  if (l.adapter && l.adapter !== 'openai-compatible') return { name: AGENT[l.adapter] ?? l.adapter, detail: `${model}${l.host ? `, ${hostName(l.host)}` : ''}` };
+  if (l.adapter && l.adapter !== 'openai-compatible') return { name: agentOf(l.adapter, l.host, l.model).name, detail: `${model}${l.host ? `, ${hostName(l.host)}` : ''}` };
   const did = l.roles.map((r) => ({ planner: 'plans', reviewer: 'reviews', implementer: 'builds' })[r] ?? r).join(', ');
   return { name: model, detail: `${did} on ${l.host === 'ollama' ? 'this machine' : hostName(l.host)}` };
 }

@@ -103,7 +103,9 @@ export function relayFromEvents(byTask: Array<{ task: string; events: StintEvent
   // a lane's roles are its runs' roles, and a lane every run moved off is not drawn
   for (const l of lanes.values()) l.roles = [...new Set(runs.filter((r) => r.lane === l.id && r.role).map((r) => r.role as string))];
   const order = (l: RelayLane) => (l.roles.includes('planner') ? 0 : l.roles.includes('implementer') ? 1 : l.roles.includes('reviewer') ? 2 : 3);
-  const sorted = [...lanes.values()].filter((l) => runs.some((r) => r.lane === l.id)).sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id));
+  // within a role, lanes follow the order the agents first worked, so a relay reads from the top down
+  const first = (l: RelayLane) => Math.min(...runs.filter((r) => r.lane === l.id).map((r) => r.start));
+  const sorted = [...lanes.values()].filter((l) => runs.some((r) => r.lane === l.id)).sort((a, b) => order(a) - order(b) || first(a) - first(b) || a.id.localeCompare(b.id));
   if (marks.length) sorted.push({ id: 'you', adapter: null, model: null, host: null, roles: [], human: true });
   return { lanes: sorted, runs, links, marks, from: times.length ? Math.min(...times) : 0, to: times.length ? Math.max(...times) : 0, replay };
 }
