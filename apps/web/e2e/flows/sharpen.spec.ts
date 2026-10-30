@@ -95,3 +95,20 @@ test('The Sharpen panel and the New task dialog have no WCAG A or AA violations,
   await expect(page.getByRole('dialog', { name: 'New task' }).getByLabel('Sharpen it first')).toBeVisible();
   expect(await axe()).toEqual([]);
 });
+
+test('A merged task asks nothing more: its Sharpen questions are gone once it is done', async ({ page, request }) => {
+  const d = daemon(request);
+  const t = await d.create('Flow: sharpen, then merge');
+  await d.post(`/api/tasks/${t.id}/sharpen`);
+  await page.goto(`/t/${t.id}`);
+  await expect(page.getByTestId('sharpen-card-Q1')).toBeVisible();
+  await page.route(`**/api/tasks/${t.id}`, async (route) => {
+    const res = await route.fetch();
+    const bundle = (await res.json()) as { task: Record<string, unknown> };
+    bundle.task.status = 'done';
+    await route.fulfill({ response: res, json: bundle });
+  });
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Flow: sharpen, then merge');
+  await expect(page.getByTestId('sharpen-panel')).toHaveCount(0);
+});

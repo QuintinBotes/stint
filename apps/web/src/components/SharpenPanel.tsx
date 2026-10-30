@@ -27,6 +27,8 @@ export type SharpenSubject = { noun: 'task' | 'goal'; id: string; criteria: stri
 export function SharpenPanel({ bundle, events }: { bundle: TaskBundle; events: StintEvent[] }) {
   const task = bundle.task;
   const st = useMemo(() => sharpenState(events, task), [events, task]);
+  // a merged or abandoned task asks nothing more; its answers stay on as its decisions
+  if (task.status === 'done' || task.status === 'abandoned') return null;
   return <Sharpen subject={{ noun: 'task', id: task.id, criteria: task.acceptance, started: bundle.runs.length > 0 }} st={st} />;
 }
 
