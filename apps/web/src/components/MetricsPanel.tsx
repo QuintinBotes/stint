@@ -123,7 +123,9 @@ export function Measures({ data }: { data: Metrics }) {
             {title}
           </h4>
           <dl className="m-0 flex flex-col">
-            {[...data.groups[key]]
+            {data.groups[key]
+              // money shows only against a spend limit (R-074); the API and stint metrics keep these
+              .filter((m) => m.unit !== 'usd')
               .sort((a, b) => Number(a.value === null) - Number(b.value === null))
               .map((m) => (
                 <Measure key={m.id} m={m} />

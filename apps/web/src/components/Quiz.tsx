@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { modelName } from '../agents';
 import type { StintEvent } from '@stint-dev/core';
 import { DaemonError, type QuizResult, api } from '../api';
-import { money } from '../format';
 import { useHold } from './Scrubber';
 import { Button, StateMark, StatusChip } from './ui';
 
@@ -57,7 +56,7 @@ export function QuizPanel({ taskId, name, events }: { taskId: string; name: stri
               </ul>
             ) : null}
             <p className="text-small text-ink-3">
-              Statements by {modelName(recorded.writer.model)} ({money(recorded.writer.cost)}), answered by {modelName(recorded.answerer.model)} ({recorded.answerer.host === 'ollama' ? 'on this machine, free' : money(recorded.answerer.cost)}).
+              Statements by {modelName(recorded.writer.model)}, answered by {modelName(recorded.answerer.model)}{recorded.answerer.host === 'ollama' ? ' on this machine' : ''}.
             </p>
           </>
         ) : null}

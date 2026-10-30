@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { agentOf } from '../agents';
 import { type PendingPermission, type TaskCardData, api } from '../api';
 import { age } from '../format';
-import { CostMeter, StateMark, StatusChip, Who, cx } from './ui';
+import { StateMark, StatusChip, Who, cx } from './ui';
 
 type CardTask = TaskCardData['task'];
 
@@ -159,8 +159,6 @@ export function TaskCard({ card, all, asks }: { card: TaskCardData; all?: Map<st
   const summary = modelSummary ?? card.summary;
   const tests = card.verification ?? null;
   const blocked = task.status === 'planned' ? waitsFor(task, tasks) : [];
-  // a task that never ran claims no cost; a priced zero after a run is real, and an unpriced one says unpriced
-  const showCost = !!lastRun || card.cost.usd !== 0;
   // one line under the label: what holds the task up, else what was last said about it, labelled as such, else its goal
   const line = asks ? (
     <p className="stint-task-description" data-testid="card-blocker">
@@ -250,10 +248,7 @@ export function TaskCard({ card, all, asks }: { card: TaskCardData; all?: Map<st
           )}
           {card.autopilot?.on ? <span>, on autopilot</span> : null}
         </span>
-        <span className="flex items-baseline gap-3">
-          <span>{when(card, live)}</span>
-          {showCost ? <CostMeter cost={card.cost} className={card.cost.usd ? 'text-ink-2' : undefined} /> : null}
-        </span>
+        <span>{when(card, live)}</span>
       </div>
       {gate ? (
         <Link to={`/t/${task.id}`} className="stint-button stint-button--primary relative z-10 self-start min-h-8 no-underline">

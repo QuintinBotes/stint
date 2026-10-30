@@ -1,7 +1,6 @@
 import { type VisualCheck, visualChecks, visualRef } from '@stint-dev/core';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import { money } from '../format';
 import { StatusChip } from './ui';
 
 /**
@@ -66,7 +65,7 @@ export function VisualChecks({ taskId, run, at }: { taskId: string; run: string;
             ) : null}
             <p className="text-small text-ink-3 tabular">
               {c.marked && !c.holds ? `SAM 3.1 marked the ${c.element ?? 'element'}. ` : !c.holds && c.element ? `SAM 3.1 could not find the ${c.element} to mark. ` : ''}
-              {c.mark ? 'Judged and marked' : 'Judged'} for {money(c.cost)}.{' '}
+              {c.mark ? 'Judged and marked.' : 'Judged.'}{' '}
               {c.clip ? (
                 <a href={api.visualFile(taskId, run, c.clip)} className="underline underline-offset-4 hover:text-ink">
                   The page loading, as a short clip

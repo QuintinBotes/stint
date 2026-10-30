@@ -3,11 +3,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { ROLE_NAMES, agentOf, hostName, markColor, modelName, storyClock } from '../agents';
-import { type RunSummary, api } from '../api';
+import { api } from '../api';
 import { duration, localTime, money } from '../format';
 import { useHealth } from '../hooks';
 import { useHold } from './Scrubber';
-import { Button, type ChipTone, CostMeter, EmptyState, StateMark, StatusChip, Who, cx } from './ui';
+import { Button, type ChipTone, EmptyState, StateMark, StatusChip, Who, cx } from './ui';
 
 /** What raises attention on the rail when collapsed: what the agent did, what changed, what was decided or refused. */
 const NOTABLE = new Set([
@@ -37,16 +37,16 @@ const NOTABLE = new Set([
 ]);
 
 type Block =
-  | { kind: 'segment'; run: string; summary: RunSummary | undefined; events: StintEvent[]; started: StintEvent }
+  | { kind: 'segment'; run: string; events: StintEvent[]; started: StintEvent }
   | { kind: 'joint'; event: StintEvent }
   | { kind: 'row'; event: StintEvent };
 
-function blocks(events: StintEvent[], runs: RunSummary[]): Block[] {
+function blocks(events: StintEvent[]): Block[] {
   const out: Block[] = [];
   let open: Extract<Block, { kind: 'segment' }> | null = null;
   for (const e of events) {
     if (e.type === 'run.started' && e.run) {
-      open = { kind: 'segment', run: e.run, summary: runs.find((r) => r.run === e.run), events: [], started: e };
+      open = { kind: 'segment', run: e.run, events: [], started: e };
       out.push(open);
       continue;
     }
@@ -193,7 +193,7 @@ export function describe(e: StintEvent): ReactNode {
     case 'cost.recorded':
       return (
         <>
-          {modelName(str(p.model))} {p.for === 'digest' ? 'read the diff to write the packet' : `answered (${str(p.for)})`}, {money(p.cost as Parameters<typeof money>[0])}
+          {modelName(str(p.model))} {p.for === 'digest' ? 'read the diff to write the packet' : `answered (${str(p.for)})`}
         </>
       );
     case 'escalation.triggered':
@@ -255,9 +255,9 @@ type Item =
   | { kind: 'checkpoint'; key: string; seg: Seg; commit: string };
 
 /** The rail as one flat list, so it can be windowed: a segment is its header, its rows, its notes and its checkpoint. */
-function items(events: StintEvent[], runs: RunSummary[], showAll: boolean): Item[] {
+function items(events: StintEvent[], showAll: boolean): Item[] {
   const out: Item[] = [];
-  for (const b of blocks(events, runs)) {
+  for (const b of blocks(events)) {
     if (b.kind === 'segment') {
       const finished = b.events.find((e) => e.type === 'run.finished');
       const live = !finished;
@@ -364,7 +364,6 @@ export function permissionTier(gate: string | null | undefined, risk: string | n
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk?: string | null }) {
-  const s = seg.summary;
   const finished = seg.events.find((e) => e.type === 'run.finished');
   const host = str(seg.started.payload.host);
   const model = str(seg.started.payload.model);
@@ -395,7 +394,7 @@ function SegmentHead({ seg, gate, risk }: { seg: Seg; gate?: string | null; risk
             , <span data-testid="segment-model">{modelName(model)}</span>
           </>
         )}
-        , {took}, <CostMeter cost={s?.cost ?? (finished?.payload.cost as never)} />
+        , {took}
       </p>
       <p className="mt-0.5 text-small text-ink-2">
         Approval: <span data-testid="permission-tier">{tier.label}</span>
@@ -481,7 +480,6 @@ function Checkpoint({ seg, commit }: { seg: Seg; commit: string }) {
 
 export function Rail({
   events,
-  runs,
   showAll,
   selected,
   onSelect,
@@ -489,7 +487,6 @@ export function Rail({
   rewound = false,
 }: {
   events: StintEvent[];
-  runs: RunSummary[];
   showAll: boolean;
   selected: number | null;
   onSelect: (seq: number) => void;
@@ -497,7 +494,7 @@ export function Rail({
   /** The view shows an earlier moment, so the newest events are not on the rail yet. */
   rewound?: boolean;
 }) {
-  const list = useMemo(() => items(events, runs, showAll), [events, runs, showAll]);
+  const list = useMemo(() => items(events, showAll), [events, showAll]);
   const { data: health } = useHealth();
   const gates = useMemo(() => new Map((health?.adapters ?? []).map((a) => [a.id, a.gate])), [health]);
   const risk = useMemo(() => {

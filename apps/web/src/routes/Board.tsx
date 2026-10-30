@@ -93,24 +93,15 @@ function Summary({ cards, decisions, asks }: { cards: TaskCardData[]; decisions:
 }
 
 /**
- * What the planned tasks' limits allow, for the Run all confirmation: the most builds any may use and which have no
- * spend limit, so their model calls are not capped. Null limits are no limit.
+ * What the planned tasks' limits allow, for the Run all confirmation: the most builds any may use, and the spend cap
+ * once every one has a spend limit. Null limits are no limit.
  */
 export function limitsLine(limits: Limits[]): string {
-  const n = limits.length;
   const builds = limits.map((l) => l.builds);
   const most = builds.every((b) => b !== null) ? Math.max(...(builds as number[])) : null;
   const buildWords = most === null ? 'Some have no build limit.' : `Each stops after at most ${most} build${most === 1 ? '' : 's'}.`;
-  const open = limits.filter((l) => l.usd === null).length;
-  const spend =
-    open === n
-      ? n === 1
-        ? 'It has no spend limit, so its model calls are not capped.'
-        : 'None has a spend limit, so their model calls are not capped.'
-      : open
-        ? `${open} of ${n} have no spend limit, so their model calls are not capped.`
-        : `Spend is capped at ${money({ usd: limits.reduce((sum, l) => sum + (l.usd ?? 0), 0) })} across them.`;
-  return `${buildWords} ${spend}`;
+  if (limits.some((l) => l.usd === null)) return buildWords;
+  return `${buildWords} Spend is capped at ${money({ usd: limits.reduce((sum, l) => sum + (l.usd ?? 0), 0) })} across them.`;
 }
 
 const list = (ids: string[]) => (ids.length > 1 ? `${ids.slice(0, -1).join(', ')} and ${ids.at(-1)}` : (ids[0] ?? ''));

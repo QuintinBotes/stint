@@ -107,7 +107,7 @@ Copy is the product's own: task, run, packet, decision, finding, skill, verify, 
 
 Charcoal is the dark theme, and the system setting picks light or dark (the light set is below). Charcoal is near-black surfaces with a cool blue undertone, stepped up in lightness from shell to panel-2, near-white ink, and borders that carry a little blue. The palette is the owner's (29 Oct brief), with one change: red.
 
-- **Vendor inks** mark who did the work, on rail segments, run blocks, revision cells, and spend bars. They are small marks, never text, and always paired with a name.
+- **Vendor inks** mark who did the work, on rail segments, run blocks and revision cells. They are small marks, never text, and always paired with a name.
 - **State inks** carry meaning only: amber means it needs you or waits for approval, mint green means verified evidence and nothing else, red means failed or stopped, violet means a skill was learned. Merged, approved and other closed outcomes are neutral ink.
 - A recommendation is not a state. It uses an ink-outline label, not green.
 - **Red** is the owner's `#ffaaa2` deepened to the coral `#f2786f`. At the supplied value red and green were 9.3 apart under protanopia and 8.2 under deuteranopia (CIEDE2000); the coral takes them to 21.5 and 17.1, and red text still reads at 5.05:1 or better on every surface.
@@ -123,7 +123,7 @@ Measured from tokens.css: every text ink reads at 4.5:1 or better on every surfa
 Measured from tokens.css with `prefers-contrast` off:
 - Every text ink passes 4.5:1 on every surface it sits on. ink is 12.4:1 or better, ink-2 8.9:1, ink-3 6.9:1 (7:1 or better everywhere but the selected row), amber, green and violet 8.5:1, and red 5.05:1 at its lowest, on the selected row. term-ink is 15.8:1 on the terminal.
 - Every mark passes 3:1: rule-strong 3.04:1 at its lowest (selected row) and 3.38:1 on panel-2, field 3.69:1, focus 8.2:1, and each vendor ink 6.4:1 or better. rule is decoration only, never the edge a person must find.
-- On-ink is 12.4:1 or better on ink, ink-2 and every vendor ink, so a primary button and a label on a spend bar read.
+- On-ink is 12.4:1 or better on ink, ink-2 and every vendor ink, so a primary button and a label on a run bar read.
 - `prefers-contrast: more` raises ink-2, ink-3, rule, rule-strong, field and focus.
 - In Windows High Contrast (`forced-colors: active`), focus is a system-coloured outline, cards, tables, dialogs, inputs, status labels, buttons and notices keep a CanvasText border, the current page keeps a Highlight underline, and an attention edge becomes Highlight.
 
@@ -142,7 +142,6 @@ Colour repeats what words or shapes already say (WCAG 1.4.1), so the screen read
 - a reached limit says ", reached" beside its bar;
 - the diff marks each changed line with + or -, not only its wash;
 - in the memory graph a decision is a square, a finding a diamond, a file a ring, a skill a named pill, and the rest are dots, with the same marks in the legend; a contradiction is a dashed line;
-- a spend bar draws its parts in the legend's order with a gap between them, planning and review calls are a hollow box, and the cost legend says each host's spend in words;
 - a vendor ink always sits beside the agent's or model's name.
 
 ## Typography
@@ -163,7 +162,7 @@ Nothing is set below 12px.
 
 The spacing scale is 4, 8, 12, 16, 20, 24, 32 and 40px, and controls are 36px high. A page (`stint-page`) is at most 1440px wide and centred, with 40px gutters. Its header (`stint-page-header`) puts the title (26px) and a one-line summary, at most 75 characters wide, on the left, and the page's actions on the right.
 
-- **Top bar** (`stint-topbar`, 64px): the Stint wordmark and the project name (cut short, with the full name in its title), then Board, Goals, Factory and Skills, the current one marked by an ink underline and `aria-current="page"`. Search, spend, the status button and Help sit on the right. Below 768px the nav takes its own row, so the bar fits a phone in two rows.
+- **Top bar** (`stint-topbar`, 64px): the Stint wordmark and the project name (cut short, with the full name in its title), then Board, Goals, Factory and Skills, the current one marked by an ink underline and `aria-current="page"`. Search, the status button and Help sit on the right. Below 768px the nav takes its own row, so the bar fits a phone in two rows.
 - **Board** (`stint-board`): a sentence that says what needs you, the counts, then four groups in order: Needs you, Planned, In progress, Closed. Four columns from 1200px, two from 768px, one below.
 - **Task view:** the title block across the top, then the runs (340px from 1180px, 320px from 760px) beside the work area. Memory, 360px, opens as a third column on request (the Memory button, or m). Below 1180px memory drops under the work. Below 760px everything stacks, with the gate and the tabs before the runs.
 - **Goals, Factory and Skills:** the same page header, then sections 32px apart, each with a 16px section title. The Factory keeps its figures at ordinary size, and its groups open on request.
@@ -196,13 +195,13 @@ The `stint-*` classes in `styles.css` sit in Tailwind's components layer, so a u
 - **Button** (`Button` in `ui.tsx`, `stint-button`): `primary` is filled near-white with ground text, `quiet` (the default) is outlined in rule-strong, `danger` is outlined and written in red, with a red wash on hover, and `ghost` has no border. A toggle shows its state through `aria-pressed` or `aria-selected` with the selected fill. `aria-disabled` stops the click as well as saying the state, and `aria-busy` marks a request in flight.
 - **Status label** (`StatusChip`, `stint-status`): one word and its shape, 24px high, on the state's wash: attention (amber), verified (green), failed (red), learned (violet), active, recommend (an ink outline, since a recommendation is not a state), or neutral.
 - **Notice** (`stint-notice`): a sentence and its action, with a left edge; attention and error variants carry the amber or red wash. It says why something is stopped, stale or looking back.
-- **Task card** (`stint-task-card`): the title first with a small mono id, one status label, one summary or blocker line, the daemon's test result, then who, how long and what it cost. A card that needs you has one action.
+- **Task card** (`stint-task-card`): the title first with a small mono id, one status label, one summary or blocker line, the daemon's test result, then who and how long. A card that needs you has one action.
 - **Table**: an ordinary table is quiet, with a header row on panel and a rule between rows (`rev.table`, `stint-table`), figures right-aligned in tabular digits. `rev.block` is the heavy revision block, kept for history, provenance and approval.
 - **Dialog** (`Dialog` in `Shell.tsx`): a header with the title and a visible Close, a body that scrolls, and a footer for its actions. Focus moves in, stays in, and returns where it was. With typed text, Escape, Close or a click outside turns the footer into "Discard this draft?" with Keep editing focused first.
 - **Tabs**: ink-2 at rest, ink with a 2px ink underline when chosen.
 - **Forms** (`stint-input`, `stint-field-*`): 38px fields with a label above, help or an error below, and `aria-invalid` drawn in red.
 - **The run rail:** a 4px vendor-inked axis per run, which pulses while the run is live, with the square packet joint between runs showing the packet's token count.
-- **The title block:** the task's id and title on one line, the state and the one next action on the right, then spend, runs, branch and the limit meters. A meter is used of cap with a bar, and turns amber with a triangle once its limit is reached.
+- **The title block:** the task's id and title on one line, the state and the one next action on the right, then runs, branch and the limit meters, spend only once the task has a spend limit. A meter is used of cap with a bar, and turns amber with a triangle once its limit is reached.
 
 Motion is small and carries meaning: a live run's axis pulses, a memory node fades over 220ms as the clock passes it, and hover colours change over 140ms. Each of these stops under `prefers-reduced-motion`.
 

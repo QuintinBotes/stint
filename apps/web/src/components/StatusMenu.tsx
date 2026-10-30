@@ -5,8 +5,6 @@ import type { Health, ModelHealth } from '../api';
 import { localTime } from '../format';
 import { StateMark, cx } from './ui';
 
-export type Credit = { host: string; left: number };
-
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 function Dot({ color }: { color: string }) {
@@ -60,7 +58,7 @@ function modelRows(models: ModelHealth[]) {
  * The daemon, the agents and the models behind one button. The bar says whether things are ready; the panel says
  * which, and why one is not. It holds any number of agents and models without crowding the bar.
  */
-export function StatusMenu({ health, unreachable, credits }: { health: Health | null; unreachable: boolean; credits: Credit[] }) {
+export function StatusMenu({ health, unreachable }: { health: Health | null; unreachable: boolean }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -185,15 +183,8 @@ export function StatusMenu({ health, unreachable, credits }: { health: Health | 
               ))}
             </Group>
           ) : null}
-          {credits.length ? (
-            <Group title="Credits left, from metered spend against the balance you set">
-              {credits.map((c) => (
-                <Row key={c.host} dot="var(--rule-strong)" name={hostName(c.host)} detail={`about $${c.left.toFixed(2)}`} />
-              ))}
-            </Group>
-          ) : null}
           <Link to="/factory" onClick={() => setOpen(false)} className="mt-3 block text-ink underline decoration-rule-strong underline-offset-4 hover:decoration-ink">
-            Cost and models in the Factory
+            Models in the Factory
           </Link>
         </div>
       ) : null}

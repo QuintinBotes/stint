@@ -174,7 +174,7 @@ export type PendingItem = PendingContradictionItem | PendingSkillItem | PendingR
 export type DiffBlameFile = { path: string; added: number; removed: number; hunks?: Array<{ start: number; end: number; run: string }> };
 export type PermissionOptionData = { optionId: string; name: string; kind: string };
 export type PendingPermission = { task: string; run: string; requestId: string; tool: string; title: string; options: PermissionOptionData[] };
-export type CostRow = Cost & { key: string; runs: number; roles?: string[]; creditsLeft?: number; derived?: true; /** Runs and calls in the row with no price. */ unpriced?: number };
+export type CostRow = Cost & { key: string; runs: number; roles?: string[]; derived?: true; /** Runs and calls in the row with no price. */ unpriced?: number };
 export type DemoStatus = { playing: boolean; paused: boolean; at: number; total: number; title: string | null; live: boolean | null; recordedAt: string | null; done: boolean };
 /** The board card summary: a local model's line when there is one, else the last agent message. */
 export type TaskSummary = { summary: string; seq: number; source: 'model' | 'agent.message' | 'none'; host?: string; model?: string };

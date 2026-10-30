@@ -1,7 +1,5 @@
-import type { Cost } from '@stint-dev/core';
 import type { ComponentProps, KeyboardEvent, ReactNode } from 'react';
 import { type Agent, markColor } from '../agents';
-import { money, tokens } from '../format';
 import { GLOSSARY, type Word } from '../glossary';
 
 /** Keeps Tab inside a modal: past the last control it wraps to the first, and Shift+Tab the other way. */
@@ -127,22 +125,6 @@ export function StatusChip({ status, label, tone, shape }: { status?: string; la
       {mark ? <StateMark shape={mark} /> : null}
       {/* sentence case on screen; the words stay as the daemon and the tests name them */}
       <span className="inline-block first-letter:uppercase">{label ?? s?.label ?? status}</span>
-    </span>
-  );
-}
-
-/** Money and tokens with tabular figures, so a live meter does not jitter. */
-export function CostMeter({ cost, detail = false, className }: { cost: Cost | null | undefined; detail?: boolean; className?: string }) {
-  if (!cost) return <span className={cx('tabular text-ink-3', className)}>no cost yet</span>;
-  return (
-    <span className={cx('tabular', className)} title={`${cost.inputTokens} input tokens (${cost.cachedTokens} cached), ${cost.outputTokens} output`}>
-      {money(cost)}
-      {detail ? (
-        <span className="text-ink-3">
-          {' '}
-          {tokens(cost.inputTokens)} tokens in, {tokens(cost.outputTokens)} out
-        </span>
-      ) : null}
     </span>
   );
 }

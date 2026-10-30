@@ -4,7 +4,7 @@ import { JsonView, darkStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
 import { Link } from 'react-router';
 import { agentOf, hostName, modelName } from '../agents';
-import { type ChipTone, CostMeter, EmptyState, Explain, Section, StateMark, StatusChip, Who, cx, rev, tabClass, tabKeys } from './ui';
+import { type ChipTone, EmptyState, Explain, Section, StateMark, StatusChip, Who, cx, rev, tabClass, tabKeys } from './ui';
 
 function List({ items, empty }: { items: string[]; empty: string }) {
   if (items.length === 0) return <p className="text-ink-3">{empty}</p>;
@@ -187,7 +187,7 @@ export function HandoffCard({ handoff, status, name }: { handoff: Handoff | null
               <p data-testid="ask-of-next">{handoff.askOfNext}</p>
             </section>
             <details className="pt-3 border-t border-rule text-small">
-              <summary className={summaryClass}>Decisions, files, tests and cost</summary>
+              <summary className={summaryClass}>Decisions, files and tests</summary>
               <dl className="mt-2 grid grid-cols-1 gap-y-1 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] sm:gap-x-4 sm:gap-y-3 [&>dd]:mb-2 sm:[&>dd]:mb-0">
                 <dt className="text-ink-2">Decisions</dt>
                 <dd>
@@ -230,10 +230,6 @@ export function HandoffCard({ handoff, status, name }: { handoff: Handoff | null
                     : stopped
                       ? 'Not run: the run stopped before Stint could test it.'
                       : 'Not run yet.'}
-                </dd>
-                <dt className="text-ink-2">Cost so far</dt>
-                <dd>
-                  <CostMeter cost={handoff.cost} detail />
                 </dd>
                 <dt className="text-ink-2">Refused actions</dt>
                 <dd className="text-ink-2">{refusals.length ? refusals.map((r) => `${r.action} (${r.reason ?? r.by})`).join('; ') : 'None.'}</dd>
@@ -295,11 +291,6 @@ export function ReviewCard({ review, decisions = [], status }: { review: Review 
           {review.offline ? <StatusChip label="on this machine" tone="neutral" /> : null}
           <span className="text-ink-2">
             {review.lens === 'combined' ? 'combined from the reviews below' : modelName(review.model)}
-            {review.cost ? (
-              <>
-                , <CostMeter cost={review.cost} />
-              </>
-            ) : null}
           </span>
         </p>
         <Explain word="review" />

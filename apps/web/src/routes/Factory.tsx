@@ -1,21 +1,17 @@
-import { type LearningCurve, type Metrics, type Scorecard, learningCurve, scorecardRows, weekOf } from '@stint-dev/core';
-import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
+import { type LearningCurve, type Metrics, type Scorecard, learningCurve, scorecardRows } from '@stint-dev/core';
+import { type ReactNode, useEffect, useId, useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { ADAPTER_NAMES, type Agent, type Mark, ROLE_NAMES, TEAM_NAMES, agentOf, hostMark, hostName, markColor, modelName } from '../agents';
+import { ADAPTER_NAMES, type Agent, ROLE_NAMES, agentOf, hostName, markColor, modelName } from '../agents';
 import { type BenchData, type BenchMode, type CostRow, DaemonError, type Gardening, type Health, type PhaseGates, type RiskState, type ScoreRow, type TaskBundle, api, daemonMessage } from '../api';
 import { LearningChart } from '../components/LearningChart';
 import { Queue, WorkspaceMemory } from '../components/MemoryPanel';
 import { Measures, MetricsPanel, type WindowName, metricValue, sample } from '../components/MetricsPanel';
 import { Relay } from '../components/Relay';
 import { Button, EmptyState, Explain, StatusChip, Who, cx } from '../components/ui';
-import { money, tokens } from '../format';
+import { tokens } from '../format';
 import { useHealth, useTasks } from '../hooks';
 
 const isMeta = (model: string) => /(^|\/)(muse-|llama)/i.test(model);
-
-/** A host's spend takes its vendor's ink: local for this machine, Meta's models wherever they are served. */
-const hostColour = (host: string) => markColor[hostMark(host)];
-const MARKS = Object.keys(markColor) as Mark[];
 
 const SMALL = 'h-8 px-2.5 text-small';
 const NOTE = 'text-small text-ink-3';
@@ -31,15 +27,15 @@ function Scroller({ label, children }: { label: string; children: ReactNode }) {
     </div>
   );
 }
-/** One bar row, as the design sets the loops and the spend: label, track, figure. */
+/** One bar row, as the design sets the loops: label, track, figure. */
 const BAR_ROW = 'grid grid-cols-[96px_minmax(0,1fr)_64px] sm:grid-cols-[150px_minmax(0,1fr)_64px] items-center gap-3 min-h-[30px] text-small';
 const TRACK = 'flex h-3.5 overflow-hidden bg-panel-2';
 
-/** A vendor's ink square and its name, for a legend; a hollow square is the spend that is no vendor's run. */
-function Key({ colour, children }: { colour: string | null; children: ReactNode }) {
+/** An ink square and its name, for a legend. */
+function Key({ colour, children }: { colour: string; children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden="true" className={cx('size-2.5 shrink-0', colour === null && 'border border-ink-3')} style={colour === null ? undefined : { background: colour }} />
+      <span aria-hidden="true" className="size-2.5 shrink-0" style={{ background: colour }} />
       {children}
     </span>
   );
@@ -85,7 +81,7 @@ function WhenRead<T>({ v, what, children }: { v: Loaded<T>; what: string; childr
   );
 }
 
-/** Which model did the work, where it ran, what it did and what it cost. Meta's models first. */
+/** Which model did the work, where it ran and what it did. Meta's models first. */
 function ModelsAtWork({ rows }: { rows: CostRow[] }) {
   const models = rows
     .map((r) => {
@@ -112,7 +108,7 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
                   {h}
                 </th>
               ))}
-              {['Tokens read', 'From cache', 'Tokens written', 'Runs', 'Cost'].map((h) => (
+              {['Tokens read', 'From cache', 'Tokens written', 'Runs'].map((h) => (
                 <th key={h} scope="col" className={NUM}>
                   {h}
                 </th>
@@ -131,7 +127,6 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
                 <td className={NUM}>{m.inputTokens ? `${Math.round((m.cachedTokens / m.inputTokens) * 100)}%` : 'none'}</td>
                 <td className={NUM}>{tokens(m.outputTokens)}</td>
                 <td className={NUM}>{m.runs}</td>
-                <td className={cx(NUM, 'font-semibold text-ink')}>{m.host === 'ollama' ? 'free, local' : money(m)}</td>
               </tr>
             ))}
           </tbody>
@@ -141,10 +136,9 @@ function ModelsAtWork({ rows }: { rows: CostRow[] }) {
   );
 }
 
-const BENCH_COLUMNS: Array<{ name: string; value: (m: BenchMode) => number | null; show: (n: number) => string }> = [
+const BENCH_COLUMNS: Array<{ name: string; value: (m: BenchMode) => number; show: (n: number) => string }> = [
   { name: 'Note to the next agent', value: (m) => m.meanPromptTokens, show: (n) => `${Math.round(n).toLocaleString('en-US')} tokens` },
   { name: 'Tokens read by the next run', value: (m) => m.meanInputTokens, show: (n) => Math.round(n).toLocaleString('en-US') },
-  { name: 'Cost per run', value: (m) => m.meanUsd, show: (n) => `$${n.toFixed(4)}` },
 ];
 
 /** The packet benchmark: each measure is its own column with its own scale, so no two scales share an axis. The transcript is called the full session log on screen. */
@@ -183,12 +177,12 @@ function Benchmark({ data }: { data: BenchData }) {
                 </td>
                 {BENCH_COLUMNS.map((c) => {
                   const v = c.value(l.m);
-                  const max = Math.max(...lines.map((x) => c.value(x.m) ?? 0));
+                  const max = Math.max(...lines.map((x) => c.value(x.m)));
                   return (
                     <td key={c.name} className={NUM}>
-                      {v === null ? <span className="text-ink-3">not priced</span> : c.show(v)}
+                      {c.show(v)}
                       <div className="mt-1 h-1.5 bg-panel-2">
-                        <div className="h-full" style={{ width: `${v === null || max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
+                        <div className="h-full" style={{ width: `${max === 0 ? 0 : (v / max) * 100}%`, background: colour(l.base) }} />
                       </div>
                     </td>
                   );
@@ -232,13 +226,16 @@ function ScorecardPanel({ card }: { card: Scorecard }) {
             </tr>
           </thead>
           <tbody className="tabular">
-            {scorecardRows(card).map(([figure, result, restsOn]) => (
-              <tr key={figure} data-testid="scorecard-row">
-                <td>{figure}</td>
-                <td className="font-semibold text-ink">{result}</td>
-                <td>{restsOn}</td>
-              </tr>
-            ))}
+            {/* docs/proofs.md keeps the cost row; the screen shows money only against a spend limit */}
+            {scorecardRows(card)
+              .filter(([figure]) => figure !== 'Cost per green attempt')
+              .map(([figure, result, restsOn]) => (
+                <tr key={figure} data-testid="scorecard-row">
+                  <td>{figure}</td>
+                  <td className="font-semibold text-ink">{result}</td>
+                  <td>{restsOn}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </Scroller>
@@ -271,8 +268,7 @@ function ScorecardPanel({ card }: { card: Scorecard }) {
         </table>
       </Scroller>
       <p className={PROSE} data-testid="scorecard-scope">
-        {card.live ? 'Measured live' : 'A dry run on fake models, not live'} on {new Date(card.generatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}: {n(card.attempts.length, 'attempt', 'attempts')} on {n(card.tasks.length, 'seeded task', 'seeded tasks')} in {n(repos, 'repository', 'repositories')}, each from a fresh clone, graded by hidden tests the agent never saw, for ${card.spend.usd.toFixed(2)}
-        {card.spend.estimated ? ', part unpriced' : ''}. It shows what the tests and the review caught on these tasks and what a green attempt cost; it does not show how an agent does on other work, and each figure rests only on the runs beside it.
+        {card.live ? 'Measured live' : 'A dry run on fake models, not live'} on {new Date(card.generatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}: {n(card.attempts.length, 'attempt', 'attempts')} on {n(card.tasks.length, 'seeded task', 'seeded tasks')} in {n(repos, 'repository', 'repositories')}, each from a fresh clone, graded by hidden tests the agent never saw. It shows what the tests and the review caught on these tasks; it does not show how an agent does on other work, and each figure rests only on the runs beside it.
       </p>
     </div>
   );
@@ -318,69 +314,6 @@ function Loops({ counts }: { counts: Record<string, number> }) {
   );
 }
 
-function CostByDay({ rows }: { rows: CostRow[] }) {
-  const days = new Map<string, Map<string, number>>();
-  for (const r of rows) {
-    const [day, host] = r.key.split('|') as [string, string];
-    const m = days.get(day) ?? new Map<string, number>();
-    m.set(host, (m.get(host) ?? 0) + (r.usd ?? 0));
-    days.set(day, m);
-  }
-  const list = [...days.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-7);
-  const max = Math.max(0.01, ...list.map(([, m]) => [...m.values()].reduce((s, v) => s + v, 0)));
-  // the legend says each host's spend in words, since two hosts of one model maker share an ink
-  const spent = new Map<string, number>();
-  for (const [, m] of list) for (const [h, v] of m) spent.set(h, (spent.get(h) ?? 0) + v);
-  const hosts = [...new Set(rows.map((r) => r.key.split('|')[1] as string))];
-  if (list.length === 0) return <EmptyState>Cost per day appears once a run ends.</EmptyState>;
-  return (
-    <div data-testid="cost-by-day" className="flex flex-col gap-3">
-      <div className="flex items-end gap-3 h-32">
-        {list.map(([day, m]) => {
-          const total = [...m.values()].reduce((s, v) => s + v, 0);
-          return (
-            <div key={day} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-              <span className="text-small tabular text-ink-2">${total.toFixed(2)}</span>
-              <div className="w-full max-w-10 flex flex-col-reverse gap-px overflow-hidden" style={{ height: `${(total / max) * 88}px` }}>
-                {[...m.entries()].map(([h, v]) => (
-                  <span key={h} style={{ height: `${(v / Math.max(total, 0.0001)) * 100}%`, background: hostColour(h) }} title={`${hostName(h)}: $${v.toFixed(2)}`} />
-                ))}
-              </div>
-              <span className="text-small text-ink-2 tabular">{new Date(`${day}T00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className={cx(NOTE, 'flex flex-wrap gap-x-4 gap-y-1')} data-testid="cost-legend">
-        {hosts.map((h) => (
-          <Key key={h} colour={hostColour(h)}>
-            {hostName(h)} ${(spent.get(h) ?? 0).toFixed(2)}
-          </Key>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Credits left per host (R-054): the balance a person entered minus metered spend, so the figure carries ≈. */
-function CreditsLeft({ rows }: { rows: CostRow[] }) {
-  const left = rows.filter((r) => typeof r.creditsLeft === 'number');
-  if (left.length === 0) return <EmptyState>Credits left appear here once a host balance is entered in the config.</EmptyState>;
-  return (
-    <div data-testid="credits-left" className="flex flex-col gap-3">
-      <ul className="flex flex-col">
-        {left.map((r) => (
-          <li key={r.key} className="flex items-baseline justify-between gap-2 py-2 border-b border-rule" data-testid="credits-row" data-host={r.key}>
-            <span className="text-ink-2">{hostName(r.key)}</span>
-            <span className="tabular font-semibold">≈ ${(r.creditsLeft as number).toFixed(2)} left</span>
-          </li>
-        ))}
-      </ul>
-      <p className={PROSE}>Derived from metered spend, not read from the provider.</p>
-    </div>
-  );
-}
-
 type Helped = { skill: string; appliedIn: string[]; approvedAfter: number };
 type Pair = { skill: string; before: TaskBundle; after: TaskBundle };
 
@@ -393,7 +326,7 @@ const runsLine = (b: TaskBundle) => {
 const agentsOf = (b: TaskBundle): Agent[] => [...new Map(b.runs.map((r) => agentOf(r.adapter, r.host, r.model)).map((a) => [a.name, a])).values()];
 
 /** The learn loop's proof: the task a skill was learned from, next to the first task it was applied to, side by side. */
-function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<string, CostRow> }) {
+function ItLearned({ helped }: { helped: Helped[] }) {
   const [pairs, setPairs] = useState<Loaded<Pair[]>>({ data: null, error: null });
   const { data: cards } = useTasks();
   useEffect(() => {
@@ -422,10 +355,10 @@ function ItLearned({ helped, costByTask }: { helped: Helped[]; costByTask: Map<s
       live = false;
     };
   }, [helped, cards]);
-  return <WhenRead v={pairs} what="the skills learned and used">{(list) => <Pairs pairs={list} costByTask={costByTask} />}</WhenRead>;
+  return <WhenRead v={pairs} what="the skills learned and used">{(list) => <Pairs pairs={list} />}</WhenRead>;
 }
 
-function Pairs({ pairs, costByTask }: { pairs: Pair[]; costByTask: Map<string, CostRow> }) {
+function Pairs({ pairs }: { pairs: Pair[] }) {
   if (pairs.length === 0) return <EmptyState>When a skill learned from one task is applied to the next, the two appear here side by side.</EmptyState>;
   return (
     <div className="flex flex-col gap-5" data-testid="it-learned">
@@ -463,7 +396,6 @@ function Pairs({ pairs, costByTask }: { pairs: Pair[]; costByTask: Map<string, C
           ],
           // a verdict is a recommendation, not a state, so it takes the outline chip
           ['Review', (b) => (b.review ? <StatusChip label={b.review.verdict.replace('_', ' ')} tone="recommend" /> : 'Not reviewed')],
-          ['Cost', (b) => <span className="tabular">{money(costByTask.get(b.task.id) ?? null)}</span>],
         ];
         return (
           <div key={p.skill} className="flex flex-col gap-2">
@@ -601,7 +533,7 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
             <thead>
               <tr>
                 <th scope="col">Agent</th>
-                {['Runs tested', 'Passed', 'Passed the last 3', 'Cost per merged task', 'Reverted'].map((h) => (
+                {['Runs tested', 'Passed', 'Passed the last 3', 'Reverted'].map((h) => (
                   <th key={h} scope="col" className={NUM}>
                     {h}
                   </th>
@@ -620,7 +552,6 @@ function Scoreboard({ data }: { data: { rows: ScoreRow[]; routing: { mode: strin
                   <td className={NUM}>{r.attempts}</td>
                   <td className={cx(NUM, 'font-semibold text-ink')}>{pct(r.passRate)}</td>
                   <td className={NUM}>{r.pass3 === null ? 'fewer than 3' : r.pass3 ? 'yes' : 'no'}</td>
-                  <td className={NUM}>{r.costPerResolved === null ? (r.resolved ? 'not priced' : 'none merged') : money({ usd: r.costPerResolved })}</td>
                   <td className={cx(NUM, r.reverts > 0 && 'text-red font-semibold')}>{r.reverts}</td>
                 </tr>
               ))}
@@ -644,8 +575,7 @@ function PhaseGatePanel({ gates }: { gates: PhaseGates }) {
     <div data-testid="phase-gates" className="flex flex-col gap-3">
       {gates.golden ? (
         <p className="tabular font-semibold" data-testid="golden-line">
-          {gates.golden.tasks} sample tasks, {gates.golden.k} tries each: {gatePct(gates.golden.passAt1)} of tries passed, {gatePct(gates.golden.passPowK)} of tasks passed every try
-          {gates.golden.usd !== null ? `, $${gates.golden.usd.toFixed(2)} in all` : ''}.
+          {gates.golden.tasks} sample tasks, {gates.golden.k} tries each: {gatePct(gates.golden.passAt1)} of tries passed, {gatePct(gates.golden.passPowK)} of tasks passed every try.
         </p>
       ) : (
         <p className={PROSE}>
@@ -856,60 +786,13 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-type TaskSpend = { task: string; total: number; vendors: Array<[Mark, number]> };
-
-/** Spend by task, split by the vendor of each run's agent; the rest of a task's total is planning and review calls. */
-function SpendByTask({ rows }: { rows: TaskSpend[] }) {
-  if (rows.length === 0) return <EmptyState>Spend by task appears once a run ends.</EmptyState>;
-  const max = Math.max(0.0001, ...rows.map((r) => r.total));
-  const other = (r: TaskSpend) => Math.max(0, r.total - r.vendors.reduce((s, [, usd]) => s + usd, 0));
-  // every bar and the legend in one vendor order, so the nth part of a bar is the nth name under it
-  const order = (list: Array<[Mark, number]>) => list.toSorted(([a], [b]) => MARKS.indexOf(a) - MARKS.indexOf(b));
-  const vendors = new Map<Mark, number>();
-  for (const r of rows) for (const [m, usd] of r.vendors) vendors.set(m, (vendors.get(m) ?? 0) + usd);
-  const others = rows.reduce((s, r) => s + other(r), 0);
-  return (
-    <div data-testid="spend-by-task" className="flex flex-col gap-3">
-      <ul className="flex flex-col">
-        {rows.map((r) => (
-          <li key={r.task} className={BAR_ROW}>
-            <Link to={`/t/${r.task}`} className="font-mono no-underline hover:underline">
-              {r.task}
-            </Link>
-            <span className={cx(TRACK, 'gap-px')} role="img" aria-label={`${r.task}: ${[...order(r.vendors).map(([m, usd]) => `${TEAM_NAMES[m]} $${usd.toFixed(2)}`), ...(other(r) > 0.005 ? [`other calls $${other(r).toFixed(2)}`] : [])].join(', ') || 'no run cost'}`}>
-              {order(r.vendors).map(([m, usd]) => (
-                // a run that cost nothing still shows its vendor, as a sliver
-                <span key={m} style={{ width: `${(Math.max(usd, max * 0.01) / max) * 100}%`, background: markColor[m] }} />
-              ))}
-              {other(r) > 0.005 ? <span style={{ width: `${(other(r) / max) * 100}%` }} className="border border-ink-3" /> : null}
-            </span>
-            <span className="text-right tabular">${r.total.toFixed(2)}</span>
-          </li>
-        ))}
-      </ul>
-      <div className={cx(NOTE, 'flex flex-wrap gap-x-4 gap-y-1')}>
-        {order([...vendors.entries()]).map(([m, usd]) => (
-          <Key key={m} colour={markColor[m]}>
-            {TEAM_NAMES[m]} ${usd.toFixed(2)}
-          </Key>
-        ))}
-        {others > 0.005 ? <Key colour={null}>Planning and review calls ${others.toFixed(2)}</Key> : null}
-      </div>
-    </div>
-  );
-}
-
-/** What the Factory works out from every task's log and the workspace log: the stage funnel, spend by task, skills learned, findings over time, and what happened after merge. */
-type FromLogs = { funnel: Record<string, number>; spend: TaskSpend[]; learned: number; merged: number; outcomes: OutcomeRow[]; learning: LearningCurve };
+/** What the Factory works out from every task's log and the workspace log: the stage funnel, skills learned, findings over time, and what happened after merge. */
+type FromLogs = { funnel: Record<string, number>; learned: number; merged: number; outcomes: OutcomeRow[]; learning: LearningCurve };
 
 export function Factory() {
   const { data: cards, error: cardsError } = useTasks();
   const { data: health, error: healthError } = useHealth();
   const byModel = useLoad(() => api.costs('model'), []);
-  const byDayHost = useLoad(() => api.costs('day-host'), []);
-  const byHost = useLoad(() => api.costs('host'), []);
-  const byTask = useLoad(() => api.costs('task'), []);
-  const byWeek = useLoad(() => api.costs('week'), []);
   const helped = useLoad(() => api.graphQuery<Helped>({ q: 'skills-helped' }), []);
   const scores = useLoad(() => api.scoreboard(), []);
   const [riskVersion, setRiskVersion] = useState(0);
@@ -960,22 +843,6 @@ export function Factory() {
             else if (e.type === 'task.status' && typeof e.payload.to === 'string') enter(e.payload.to, task);
           }
         }
-        // what each task cost, by the vendor of the agent whose run spent it
-        const spend = all.flatMap((events, i) => {
-          const card = cards[i];
-          if (!card) return [];
-          const vendor = new Map<string, Mark>();
-          const byVendor = new Map<Mark, number>();
-          for (const e of events) {
-            if (e.type === 'run.started' && e.run) vendor.set(e.run, agentOf(e.adapter, typeof e.payload.host === 'string' ? e.payload.host : null, typeof e.payload.model === 'string' ? e.payload.model : null).mark);
-            const usd = e.type === 'run.finished' && e.run ? Number((e.payload.cost as { usd?: unknown } | undefined)?.usd) || 0 : 0;
-            const mark = e.run ? vendor.get(e.run) : undefined;
-            // a run that cost nothing still shows its vendor, as a sliver
-            if (e.type === 'run.finished' && mark) byVendor.set(mark, (byVendor.get(mark) ?? 0) + usd);
-          }
-          const total = card.cost.usd ?? [...byVendor.values()].reduce((s, v) => s + v, 0);
-          return total > 0 || byVendor.size ? [{ task: card.task.id, total, vendors: [...byVendor.entries()] }] : [];
-        });
         const rows = new Map<string, OutcomeRow>();
         const rowFor = (adapter: string) => {
           let row = rows.get(adapter);
@@ -1000,7 +867,6 @@ export function Factory() {
         setLogs({
           data: {
             funnel: Object.fromEntries([...entered.entries()].map(([state, tasks]) => [state, tasks.size])),
-            spend: spend.sort((a, b) => b.total - a.total),
             // learned means proposed by the learn step and approved by a person, not written by hand
             learned: new Set(all.flat().filter((e) => e.type === 'skill.approved').map((e) => String(e.payload.id ?? e.payload.skill))).size,
             // merged as the Tasks merged figure counts it: a task whose log has its merge, over all time
@@ -1029,9 +895,6 @@ export function Factory() {
     target?.scrollIntoView({ block: 'start' });
   }, [hash, cards, health]);
 
-  const costByTask = useMemo(() => new Map((byTask.data ?? []).map((r) => [r.key, r])), [byTask.data]);
-  // this week's row, Monday 00:00 to Sunday 24:00 local time, the same figure as the top bar
-  const thisWeek = (byWeek.data ?? []).find((r) => r.key === weekOf(new Date()));
   /** A share's figure and its "1 of 2 tasks" line, or what fills it in when there is nothing to count yet. */
   const share = (m: typeof firstPass, none: string): [string, string] => (m?.value != null ? [metricValue(m), `${Math.round(m.value * m.n)} of ${sample(m)}`] : ['none yet', none]);
   const [firstValue, firstDetail] = share(firstPass, "after a task's first tested run");
@@ -1048,7 +911,7 @@ export function Factory() {
           <div className="stint-page-heading">
             <h1 className="stint-page-title">Factory</h1>
             <p className="stint-page-summary" data-testid="factory-headline">
-              How the agents are doing, and what it costs. {lead}
+              How the agents are doing. {lead}
             </p>
           </div>
         </header>
@@ -1056,13 +919,8 @@ export function Factory() {
         <MetricsPanel data={metrics.data} error={metrics.error} window={span} onWindow={setSpan}>
           {metrics.data ? (
             <>
-              <dl className="m-0 grid grid-cols-2 min-[900px]:grid-cols-4 gap-px overflow-hidden rounded-[5px] border border-rule bg-rule" data-testid="kpis">
+              <dl className="m-0 grid grid-cols-1 min-[560px]:grid-cols-3 gap-px overflow-hidden rounded-[5px] border border-rule bg-rule" data-testid="kpis">
                 <Figure label="Tasks merged" value={String(merges?.value ?? 0)} detail={hops?.value != null ? `${metricValue(hops)} build ${hops.value === 1 ? 'run' : 'runs'} each` : 'none in this period yet'} />
-                <Figure
-                  label="Spend this week"
-                  value={byWeek.data ? money(thisWeek ?? { usd: 0 }) : 'not read'}
-                  detail={!byWeek.data ? (byWeek.error ?? 'reading') : thisWeek?.runs ? `${thisWeek.runs} run${thisWeek.runs === 1 ? '' : 's'}${thisWeek.unpriced ? `, ${thisWeek.unpriced} not priced` : ''}, at list prices` : 'nothing has ended this week'}
-                />
                 <Figure label="Passed the tests first time" value={firstValue} detail={firstDetail} />
                 <Figure label="Hand-offs that passed" value={handoffValue} detail={handoffDetail} />
               </dl>
@@ -1101,7 +959,7 @@ export function Factory() {
               {(d) => <Loops counts={d.funnel} />}
             </WhenRead>
           </Panel>
-          <Panel title="Packet against full log" aside="What the next agent reads, whether it passes, and what it costs" collapsed testId="panel-bench">
+          <Panel title="Packet against full log" aside="What the next agent reads, and whether it passes" collapsed testId="panel-bench">
             <WhenRead v={bench} what="the benchmark">
               {(d) =>
                 d ? (
@@ -1121,12 +979,7 @@ export function Factory() {
           </Panel>
         </Group>
 
-        <Group title="Spend">
-          <Panel title="Spend by task" aside="Split by model maker, at list prices" collapsed testId="panel-spend">
-            <WhenRead v={fromLogs} what="what each task cost">
-              {(d) => <SpendByTask rows={d.spend} />}
-            </WhenRead>
-          </Panel>
+        <Group title="Models">
           <Panel title="Meta models at work" collapsed testId="panel-models">
             <WhenRead v={byModel} what="the models at work">
               {(rows) => {
@@ -1143,22 +996,12 @@ export function Factory() {
               }}
             </WhenRead>
           </Panel>
-          <Panel title="Cost per day" collapsed testId="panel-cost-day">
-            <WhenRead v={byDayHost} what="the cost per day">
-              {(rows) => <CostByDay rows={rows} />}
-            </WhenRead>
-          </Panel>
-          <Panel title="Credits left" collapsed testId="panel-credits">
-            <WhenRead v={byHost} what="the credits left">
-              {(rows) => <CreditsLeft rows={rows} />}
-            </WhenRead>
-          </Panel>
         </Group>
 
         <Group title="Learning and upkeep">
           <Panel title="What it learned" aside="A skill learned on one task, and the next task that used it" collapsed testId="panel-it-learned">
             <WhenRead v={helped} what="the skills that helped">
-              {(h) => <ItLearned helped={h} costByTask={costByTask} />}
+              {(h) => <ItLearned helped={h} />}
             </WhenRead>
           </Panel>
           <Panel title="Review findings per task" aside="Each task's last review, in the order reviewed, and where each skill was approved" collapsed testId="panel-learning">
@@ -1206,7 +1049,7 @@ export function Factory() {
         </Group>
 
         <footer className={cx(NOTE, 'flex flex-wrap justify-between gap-2 mt-10')}>
-          <span className="max-w-[60ch]">Every figure comes from the task logs in .stint/tasks/, priced at the list prices in config.json.</span>
+          <span className="max-w-[60ch]">Every figure comes from the task logs in .stint/tasks/.</span>
           <span>Built on Meta's Muse models</span>
         </footer>
       </div>

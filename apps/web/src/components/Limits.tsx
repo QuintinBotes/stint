@@ -114,8 +114,8 @@ export function Limits({ taskId, events, closed = false, onHand }: { taskId: str
     <div data-testid="limits" className="flex flex-col gap-3 min-w-0 basis-full min-[760px]:basis-auto">
       {/* two meters a line on a phone; one row from 760 px */}
       <ul aria-label="Limits" className="grid grid-cols-2 gap-y-1.5 min-[760px]:flex min-[760px]:flex-wrap min-[760px]:items-center gap-x-3 text-small text-ink-2">
-        {/* spend with no cap and nothing unpriced is the title block's Spent already */}
-        {METERS.filter(({ k }) => k !== 'usd' || caps.usd !== null || used.unpriced > 0).map(({ k, word }, i) => {
+        {/* spend shows only against a spend limit */}
+        {METERS.filter(({ k }) => k !== 'usd' || caps.usd !== null).map(({ k, word }, i) => {
           const c = caps[k];
           return (
             <Meter

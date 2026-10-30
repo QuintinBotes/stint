@@ -38,14 +38,14 @@ test("A goal's tasks name it and link to it, a task waiting on an unmerged one s
   await expect(page.getByTestId('goal-task-result').locator('.stint-status')).toHaveText(['planned', 'planned']);
   await expect(page.getByTestId('goal-task-waits')).toHaveText(`Waits for ${a.id} to be merged`);
   await expect(page.locator('#run-goal-what')).toHaveText(
-    `Puts the goal's 2 open tasks on autopilot, in order: each is planned, built, tested and reviewed, then stops for your approval. ${b.id} starts only once the tasks it waits on are merged. The goal has a spend limit of $3.00 ($0.00 spent) and no build limit.`,
+    `Puts the goal's 2 open tasks on autopilot, in order: each is planned, built, tested and reviewed, then stops for your approval. ${b.id} starts only once the tasks it waits on are merged. The goal has a spend limit of $3.00 and no build limit.`,
   );
   expect(await axe()).toEqual([]);
   // the first press only asks: it names what starts now and what waits, the goal's limits, and that nothing merges without you
   const held = await holdRequests(page, `**/api/goals/${g.id}/run`);
   await page.getByTestId('run-goal-button').click();
   await expect(page.getByTestId('run-goal-ask')).toHaveText(
-    `Autopilot plans, builds, tests and reviews ${a.id} now, and ${b.id} once the tasks it waits on are merged, then stops for your approval. Nothing is merged without you. The goal has a spend limit of $3.00 ($0.00 spent) and no build limit.`,
+    `Autopilot plans, builds, tests and reviews ${a.id} now, and ${b.id} once the tasks it waits on are merged, then stops for your approval. Nothing is merged without you. The goal has a spend limit of $3.00 and no build limit.`,
   );
   await expect(page.getByTestId('run-goal-confirm')).toBeFocused();
   expect(held.count()).toBe(0);

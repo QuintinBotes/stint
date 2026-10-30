@@ -1,46 +1,18 @@
-import { type Limits, type TaskLimits, weekOf } from '@stint-dev/core';
+import type { Limits, TaskLimits } from '@stint-dev/core';
 import { Command } from 'cmdk';
 import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { ADAPTER_NAMES } from '../agents';
-import { type CostRow, type DemoStatus, type Health, type TaskCardData, api, daemonMessage } from '../api';
+import { type DemoStatus, type Health, type TaskCardData, api, daemonMessage } from '../api';
 import { toast } from 'sonner';
-import { localDate, money } from '../format';
+import { localDate } from '../format';
 import { useGoals, useTasks } from '../hooks';
 import { setSingleKeys, useSingleKeys } from '../shortcuts';
 import { enableDesktopNotifications, setSound, soundOn } from './Notifier';
 import { StatusMenu } from './StatusMenu';
 import { Button, Explain, Kbd, trapTab } from './ui';
 
-/** This week's spend, Monday 00:00 to Sunday 24:00 local time, from the daemon's week rows (the same weekOf as the daemon); zero when nothing has ended this week. */
-function useWeekCost(): CostRow | null {
-  const [rows, setRows] = useState<CostRow[] | null>(null);
-  useEffect(() => {
-    const load = () => void api.costs('week').then(setRows).catch(() => undefined);
-    load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, []);
-  if (!rows) return null;
-  const key = weekOf(new Date());
-  return rows.find((r) => r.key === key) ?? { key, inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0, runs: 0, unpriced: 0 };
-}
-
-/** What the hosted credits have left, derived from metered spend; only hosts with a balance entered appear. */
-function useCredits(): Array<{ host: string; left: number }> {
-  const [rows, setRows] = useState<CostRow[] | null>(null);
-  useEffect(() => {
-    api
-      .costs('host')
-      .then(setRows)
-      .catch(() => setRows([]));
-  }, []);
-  return (rows ?? []).filter((r) => typeof r.creditsLeft === 'number').map((r) => ({ host: r.key, left: r.creditsLeft as number }));
-}
-
 export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Health | null; unreachable: boolean; onPalette: () => void; onHelp: () => void }) {
-  const week = useWeekCost();
-  const credits = useCredits();
   const { pathname } = useLocation();
   const nav = [
     { to: '/', label: 'Board', on: pathname === '/' || pathname.startsWith('/t/') },
@@ -48,7 +20,6 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
     { to: '/factory', label: 'Factory', on: pathname.startsWith('/factory') },
     { to: '/skills', label: 'Skills', on: pathname.startsWith('/skills') },
   ];
-  const replay = health?.mode === 'replay';
   return (
     <header className="stint-topbar shrink-0">
       <div className="stint-brand-group max-sm:gap-2.5">
@@ -86,21 +57,7 @@ export function TopBar({ health, unreachable, onPalette, onHelp }: { health: Hea
             <Kbd>⌘K</Kbd>
           </span>
         </button>
-        <span
-          className="whitespace-nowrap"
-          data-testid="week-cost"
-          title={
-            replay
-              ? `What the replayed runs cost when they were recorded${health?.replay?.recordedAt ? ` on ${localDate(health.replay.recordedAt)}` : ''}; replaying costs nothing.`
-              : 'What every model call cost from Monday 00:00 to Sunday 24:00 local time: runs, and the learn step, packet quiz, digest, autopilot pick, board summaries and triage.'
-          }
-        >
-          {/* the words stay for screen readers at every width; a phone shows the figure, with the words in its title */}
-          <span className="max-sm:sr-only">{replay ? 'Replayed spend' : 'This week'} </span>
-          <b className="text-ink font-semibold tabular">{week === null ? 'not known yet' : money(week)}</b>
-          {week?.unpriced ? `, ${week.unpriced} not priced` : ''}
-        </span>
-        <StatusMenu health={health} unreachable={unreachable} credits={credits} />
+        <StatusMenu health={health} unreachable={unreachable} />
         <Button tone="ghost" onClick={onHelp} aria-keyshortcuts="?" data-testid="help-button" className="px-2.5 max-sm:px-2 text-ink">
           Help
         </Button>

@@ -1,4 +1,4 @@
-import { CRITERION_STATE_LABELS, type CriterionState, type Outcome, outcomeLine } from '@stint-dev/core';
+import { CRITERION_STATE_LABELS, type CriterionState, type Outcome, durationWords } from '@stint-dev/core';
 import { useEffect, useState } from 'react';
 import { type TaskBundle, api } from '../api';
 import { localDate } from '../format';
@@ -27,8 +27,15 @@ function tally(o: Outcome): string {
   return parts.join(', ');
 }
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** "3 builds, 1 hand-off, 14 min to green": core's outcomeLine without its spend, which the CLI keeps. */
+function loopsLine(o: Outcome): string {
+  return `${plural(o.loops.builds, 'build')}, ${plural(o.loops.handoffs, 'hand-off')}, ${o.timeToFirstGreen === undefined ? 'not green yet' : `${durationWords(o.timeToFirstGreen)} to green`}`;
+}
+
 /**
- * How it went (R-063): each acceptance criterion with its state in words, and one line of loops, spend and time to green.
+ * How it went (R-063): each acceptance criterion with its state in words, and one line of loops and time to green.
  * At the gate the criteria fold under one line, so Approve stays in view; they open by themselves when one fails or
  * waits for you. With `after`, the task view of a merged, rejected or abandoned task: the result and what happened after merge.
  */
@@ -75,7 +82,7 @@ export function HowItWent({ bundle, after = false }: { bundle: TaskBundle; after
   const proof = o.criteria.some((c) => c.state === 'passing') ? <Explain word="proof" className="mt-1" /> : null;
   const line = (
     <p className="mt-1.5 tabular" data-testid="outcome-line">
-      {outcomeLine(o)}.
+      {loopsLine(o)}.
     </p>
   );
   if (!after) {

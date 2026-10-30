@@ -8,7 +8,7 @@ This page is for whoever presents at the live judging on 9 November: the run ord
 2. **T-0042, Muse Code building on Muse Spark (0:10):** kill it. "The daemon builds the packet from the log and the diff: 412 tokens."
 3. **The Stint agent continues (0:25):** it picks up from the packet on Muse Spark. "The daemon, not the agent, runs the tests: green."
 4. **Glimmer reviews on the laptop, offline (0:40):** a finding that would reverse a decision goes to the queue. Approve. A real merge with trailers.
-5. **Factory, at `/factory` (0:50):** which Muse model did what, what it cost, and the skill it learned. "Every model is Meta's; the benchmark is in the repository."
+5. **Factory, at `/factory` (0:50):** which Muse model did what, and the skill it learned. "Every model is Meta's; the benchmark is in the repository."
 
 ## Questions to expect
 
@@ -48,7 +48,7 @@ Four things:
 - **Limits you set.** Each task has limits on builds, hand-offs, review rounds, spend and agent time, and autopilot stops and asks you before it would pass one. A goal sets them across all of its tasks.
 - **Sharpen first.** Before work starts, Stint asks the few questions whose answers change what gets built, recommends an answer to each, and records yours as decisions every later run keeps.
 - **How it went.** Each acceptance criterion says whether it was proven or only passes; a passing test proves it only if that test failed before the change. The gate says "Passes, but no test showed it failing first" when that is all there is.
-- **Run all asks first.** Starting every planned task names which start now and which wait, the most builds any may use, how many have no spend limit, and that nothing merges without you.
+- **Run all asks first.** Starting every planned task names which start now and which wait, the most builds any may use, the spend cap across them when every one has a spend limit, and that nothing merges without you.
 
 **What did you build during the event?**
 All of it, from 26 October; see [`timeline.md`](timeline.md) and `PROGRESS.md`. The build kit and the first specs were the plan, written before the event; the later specs were written during it, and the timeline says which. Parts of the code were written by Muse Code on Muse Wonder Full from a brief. Until 27 October those commits carried a `Model:` trailer; since then commits carry only a `Spec:` trailer, and the spec's row in `PROGRESS.md` names the model.

@@ -133,9 +133,9 @@ The Agents table on the Factory shows how each agent and model has done, overall
 - **Runs tested:** runs the daemon verified.
 - **Passed:** how many of those were green.
 - **Passed the last 3:** whether all of the last three passed.
-- **Cost per merged task**, and **Reverted**, the merges reverted later.
+- **Reverted:** the merges reverted later.
 
-`GET /api/scoreboard` returns the same rows.
+`GET /api/scoreboard` returns the same rows, with the cost per merged task as well.
 
 By default autopilot picks agents in the order of `autopilot.implementers`. With `"routing": { "mode": "learned", "explore": 0.1 }` it picks from the results instead.
 - For each available agent, it draws once from that agent's record on tasks with the same tags. Agents with more passes draw higher more often, and the highest draw wins.

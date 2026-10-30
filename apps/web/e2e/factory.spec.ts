@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
-test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost bars with a legend, the learned pair and the queue', async ({ page }) => {
+test('The Factory view renders KPIs, Meta models at work, tasks by stage, the learned pair and the queue', async ({ page }) => {
   await page.goto('/factory');
-  await expect(page.getByTestId('kpis')).toContainText('Spend this week');
+  await expect(page.getByTestId('kpis')).toContainText('Tasks merged');
   // the cache share moved from the figures to the models it describes
   await expect(page.getByTestId('panel-models')).toContainText('Read from cache overall');
   const models = page.getByTestId('model-row');
@@ -12,7 +12,6 @@ test('The Factory view renders KPIs, Meta models at work, tasks by stage, cost b
   await expect(page.getByTestId('models-at-work')).toContainText('Muse Glimmer 30B');
   await expect(page.getByTestId('models-at-work')).toContainText('Meta Model API');
   await expect(page.getByTestId('loops')).toContainText('Needs you');
-  await expect(page.getByTestId('cost-legend')).toContainText('Meta Model API');
   await expect(page.getByTestId('it-learned')).toContainText('limiter-config-via-env');
   await expect(page.getByTestId('queue-row').first()).toContainText('would reverse D3');
 });
@@ -38,14 +37,6 @@ test('The Factory shows the workspace graph with its scrubber, the transcript-sh
   await expect(loops).toBeVisible();
   await expect(loops.locator('li').filter({ hasText: 'Done' }).locator('span').last()).not.toHaveText(/^0 /);
   await expect(loops.locator('li').filter({ hasText: 'Planned' }).locator('span').last()).not.toHaveText(/^0 /);
-});
-
-test('The Factory shows credits left per host with the derived mark (R-054)', async ({ page }) => {
-  await page.goto('/factory');
-  const credits = page.getByTestId('credits-left');
-  await expect(credits.locator('[data-testid="credits-row"][data-host="baseten"]')).toContainText('≈');
-  await expect(credits.locator('[data-testid="credits-row"][data-host="baseten"]')).toContainText('left');
-  await expect(credits).toContainText('Derived from metered spend, not read from the provider.');
 });
 
 test('The Factory shows the phase gates with their reasons', async ({ page }) => {
@@ -118,7 +109,7 @@ test('The Factory shows the benchmark the fixture was measured with: transcript,
   await expect(bench).toContainText(`commit ${plain.commit.slice(0, 7)}`);
 });
 
-test('The Factory shows the scorecard: pass^1 and pass^3 per task and overall, hand-off, review agreement, cost and time per green attempt, who ran, each with its run count, and an empty state where none was run (R-070)', async ({ page }) => {
+test('The Factory shows the scorecard: pass^1 and pass^3 per task and overall, hand-off, review agreement, time per green attempt, who ran, each with its run count, and an empty state where none was run (R-070)', async ({ page }) => {
   const fixture = readFileSync(join(import.meta.dirname, '..', '..', '..', 'packages', 'core', 'schemas', 'examples', 'scorecard.json'), 'utf8');
   await page.route('**/api/scorecard', (r) => r.fulfill({ contentType: 'application/json', body: fixture }));
   await page.goto('/factory');
@@ -139,7 +130,6 @@ test('The Factory shows the scorecard: pass^1 and pass^3 per task and overall, h
     ['Review missed: approved, hidden tests red', '0', '2 reviewed attempts'],
     ['Review false alarm: asked for changes, hidden tests green', '0', '2 reviewed attempts'],
     ['Review agreed: approved, hidden tests green', '1', '2 reviewed attempts'],
-    ['Cost per green attempt', '$0.2811', '1 green attempt'],
     ['Wall time per green attempt', '8.5 min', '1 green attempt'],
   ]);
   expect(await cells('scorecard-model')).toEqual([
@@ -150,7 +140,7 @@ test('The Factory shows the scorecard: pass^1 and pass^3 per task and overall, h
     ['The relays', 'Muse Spark 1.3', 'Meta Model API', 'Codex', 'builds', '1'],
   ]);
   await expect(panel.getByTestId('scorecard-scope')).toHaveText(
-    'Measured live on October 30: 4 attempts on 2 seeded tasks in 2 repositories, each from a fresh clone, graded by hidden tests the agent never saw, for $0.82, part unpriced. It shows what the tests and the review caught on these tasks and what a green attempt cost; it does not show how an agent does on other work, and each figure rests only on the runs beside it.',
+    'Measured live on October 30: 4 attempts on 2 seeded tasks in 2 repositories, each from a fresh clone, graded by hidden tests the agent never saw. It shows what the tests and the review caught on these tasks; it does not show how an agent does on other work, and each figure rests only on the runs beside it.',
   );
 
   // a repository the scorecard was never run on says so, and is not an error
@@ -199,7 +189,7 @@ test('A Factory panel whose read fails says so in the daemon\'s words, never tha
   await expect(page.getByTestId('kpis')).toContainText('Tasks merged');
 });
 
-test('The Factory lead counts merges as the Tasks merged figure does, one build run is singular, and a cost per merged task under a cent keeps its digits', async ({ page }) => {
+test('The Factory lead counts merges as the Tasks merged figure does, and one build run is singular', async ({ page }) => {
   // two tasks marked done, one of them with its merge in the log
   await page.route('**/api/tasks', async (route) => {
     const res = await route.fetch();
@@ -222,9 +212,8 @@ test('The Factory lead counts merges as the Tasks merged figure does, one build 
     route.fulfill({ json: { rows: [{ tag: '*', agent: 'muse-code', model: null, runs: 1, attempts: 1, passed: 1, passRate: 1, pass3: null, resolved: 1, costPerResolved: 0.0042, reverts: 0 }], routing: { mode: 'chains', explore: 0 } } }),
   );
   await page.goto('/factory');
-  await expect(page.getByTestId('factory-headline')).toHaveText('How the agents are doing, and what it costs. It has merged one task so far.');
+  await expect(page.getByTestId('factory-headline')).toHaveText('How the agents are doing. It has merged one task so far.');
   await expect(page.getByTestId('kpis')).toContainText('1 build run each');
-  await expect(page.getByTestId('score-row').locator('td').nth(4)).toHaveText('$0.0042');
 });
 
 test('The Factory charts review findings per task from the replay, marks where limiter-config-via-env was approved, and says it in words (R-070)', async ({ page }) => {

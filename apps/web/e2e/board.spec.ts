@@ -179,7 +179,7 @@ test('Run all planned says what it would start and under which limits, starts no
   await runAll.click();
   const ask = page.getByTestId('run-all-ask');
   await expect(ask).toHaveText(
-    'Autopilot plans, builds, tests and reviews T-0105 and T-0107 now, and T-0106 once the tasks it waits on are merged, then stops for your approval. Nothing is merged without you. Each stops after at most 8 builds. 2 of 3 have no spend limit, so their model calls are not capped.',
+    'Autopilot plans, builds, tests and reviews T-0105 and T-0107 now, and T-0106 once the tasks it waits on are merged, then stops for your approval. Nothing is merged without you. Each stops after at most 8 builds.',
   );
   const start = page.getByTestId('run-all-confirm');
   await expect(start).toHaveText('Start 3 tasks');

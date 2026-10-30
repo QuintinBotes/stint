@@ -22,10 +22,9 @@ test('the board says in words what needs you, each task with its reason, the fir
 
 const limits = (builds: number | null, usd: number | null): Limits => ({ builds, handoffs: 2, reviewRounds: 1, usd, minutes: null });
 
-test('Run all says what the planned tasks may use: the most builds, and which have no spend limit', () => {
-  expect(limitsLine([limits(8, null), limits(3, 2)])).toBe('Each stops after at most 8 builds. 1 of 2 have no spend limit, so their model calls are not capped.');
-  expect(limitsLine([limits(8, null), limits(8, null)])).toBe('Each stops after at most 8 builds. None has a spend limit, so their model calls are not capped.');
-  expect(limitsLine([limits(1, null)])).toBe('Each stops after at most 1 build. It has no spend limit, so its model calls are not capped.');
+test('Run all says what the planned tasks may use: the most builds, and the spend cap only when every one has a spend limit', () => {
+  expect(limitsLine([limits(8, null), limits(3, 2)])).toBe('Each stops after at most 8 builds.');
+  expect(limitsLine([limits(1, null)])).toBe('Each stops after at most 1 build.');
   expect(limitsLine([limits(8, 2), limits(null, 1.5)])).toBe('Some have no build limit. Spend is capped at $3.50 across them.');
 });
 

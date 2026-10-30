@@ -19,7 +19,7 @@ test('T-0043 at the gate shows How it went above Approve, a state in words per c
     await expect(row.getByRole('cell')).toHaveText('Passes, but no test showed it failing first');
     await expect(row.getByRole('cell')).toHaveClass(/text-ink(?!-)/);
   }
-  await expect(block.getByTestId('outcome-line')).toHaveText(/^1 build, 0 hand-offs, \$0\.13, (under 1|\d+) s to green\.$/);
+  await expect(block.getByTestId('outcome-line')).toHaveText(/^1 build, 0 hand-offs, (under 1|\d+) s to green\.$/);
   await block.getByText('What is a proof?').click();
   await expect(block.getByText('a test that failed before the change and passes after')).toBeVisible();
   const above = await block.boundingBox();
@@ -43,7 +43,7 @@ test('T-0042 after merge shows How it went under the title block, with the after
   await summary.click();
   await expect(block.getByTestId('outcome-criterion')).toHaveCount(3);
   // r3 started from r2's packet: one hand-off, as the meter and the runs list say
-  await expect(block.getByTestId('outcome-line')).toHaveText(/^2 builds, 1 hand-off, \$0\.63, (under 1|\d+) s to green\.$/);
+  await expect(block.getByTestId('outcome-line')).toHaveText(/^2 builds, 1 hand-off, (under 1|\d+) s to green\.$/);
   const after = block.getByTestId('outcome-after-merge');
   for (const [row, value] of [['Reverted', 'No'], ['Follow-ups', 'None'], ['CI', 'No failure recorded'], ['Incidents', 'None']]) {
     await expect(after.getByRole('row', { name: new RegExp(`^${row} `) })).toContainText(value as string);

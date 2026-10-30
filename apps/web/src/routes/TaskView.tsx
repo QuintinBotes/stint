@@ -22,8 +22,7 @@ import { GoalOf, waitsFor } from '../components/TaskCard';
 import { Terminal } from '../components/Terminal';
 import { VerificationTab } from '../components/Verification';
 import { WhoContinues } from '../components/WhoContinues';
-import { Button, type ChipTone, CostMeter, EmptyState, Explain, Kbd, type Shape, StateMark, StatusChip, cx, tabClass, tabKeys } from '../components/ui';
-import { money } from '../format';
+import { Button, type ChipTone, EmptyState, Explain, Kbd, type Shape, StateMark, StatusChip, cx, tabClass, tabKeys } from '../components/ui';
 import { useDecisions, useEvents, useTask, useTasks } from '../hooks';
 import { singleKey } from '../shortcuts';
 
@@ -331,7 +330,6 @@ export function TaskView() {
   const packetLabel = shownName ?? (asOf ? stopName : latestName);
   // the run going now, which the stop control acts on wherever focus is (Cmd+. or Ctrl+.)
   const liveNow = bundle.runs.find((r) => !r.endedAt)?.run ?? null;
-  const spentThen = then.runs.reduce((sum, r) => sum + (r.endedAt ? (r.cost?.usd ?? 0) : 0), 0);
   // a count beside a tab: files changed, plan steps, review findings, tests passed
   const counts: Partial<Record<Tab, string>> = {
     diff: diffFiles.length ? String(diffFiles.length) : undefined,
@@ -427,19 +425,6 @@ export function TaskView() {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-small text-ink-2">
         <dl data-testid="task-summary" className="flex flex-wrap items-center gap-x-5 gap-y-2 min-w-0">
           <div className={fact}>
-            <dt>Spent</dt>
-            <dd className="font-semibold text-ink" data-testid="task-cost">
-              {/* a task nothing has run on says so, rather than a $0.00 that reads like a run */}
-              {then.runs.length === 0 && !(bundle.cost?.usd ?? 0) ? (
-                <span className="font-normal text-ink-3">nothing yet</span>
-              ) : asOf ? (
-                <span className="tabular">{money({ usd: spentThen })}</span>
-              ) : (
-                <CostMeter cost={bundle.cost} />
-              )}
-            </dd>
-          </div>
-          <div className={fact}>
             <dt>Runs</dt>
             <dd className="font-semibold text-ink tabular">{then.runs.length}</dd>
           </div>
@@ -513,7 +498,7 @@ export function TaskView() {
         <Scrubber events={events} live={!!liveNow} asOf={asOf} atSeq={atSeq} reading={momentLabel} onAsOf={setMoment} />
       </div>
       <div data-testid="rail-scroller" className="relative min-h-0 overflow-y-auto max-h-[60vh] min-[760px]:max-h-[45vh] min-[1180px]:max-h-none min-[1180px]:flex-1 border-t border-rule">
-        <Rail events={visible} runs={bundle.runs} showAll={showAll} selected={selected} onSelect={(s) => setParam('ev', String(s))} onOpenPacket={openPacket} rewound={!!asOf} />
+        <Rail events={visible} showAll={showAll} selected={selected} onSelect={(s) => setParam('ev', String(s))} onOpenPacket={openPacket} rewound={!!asOf} />
       </div>
     </aside>
   );

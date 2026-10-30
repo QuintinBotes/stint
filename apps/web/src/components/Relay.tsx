@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { agentOf, hostName, markColor, modelName } from '../agents';
 import { api } from '../api';
-import { money } from '../format';
 import { useWidth } from '../hooks';
 import { EmptyState } from './ui';
 
 type Lane = { id: string; adapter: string | null; model: string | null; host: string | null; roles: string[]; human: boolean };
-type Run = { task: string; run: string; lane: string; role: string | null; start: number; end: number | null; endedBy: string | null; usd: number | null; verified: 'green' | 'red' | null };
+type Run = { task: string; run: string; lane: string; role: string | null; start: number; end: number | null; endedBy: string | null; verified: 'green' | 'red' | null };
 type Link =
   | { kind: 'packet'; task: string; from: string; to: string | null; name: string; tokens: number | null; at: number }
   | { kind: 'skill'; skill: string; fromTask: string; from: string; toTask: string; to: string; at: number };
@@ -165,7 +164,7 @@ export function Relay() {
           const lines = [
             `${r.task} ${r.run}, ${r.role ?? 'run'}`,
             `${r.endedBy ? `ended ${r.endedBy}` : 'running'}${r.end ? `, ${clock(r.end - r.start)}` : ''}`,
-            `${r.usd === null ? 'not priced' : money({ usd: r.usd })}${r.verified ? `, tests ${r.verified === 'green' ? 'passed' : 'failed'}` : ''}`,
+            ...(r.verified ? [`tests ${r.verified === 'green' ? 'passed' : 'failed'}`] : []),
           ];
           return (
             <g

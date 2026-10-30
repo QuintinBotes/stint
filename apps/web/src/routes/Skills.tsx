@@ -6,7 +6,6 @@ import { type SkillEvalSide, type SkillRecord, api, daemonMessage, subscribe } f
 import { AddSkillDialog, Findings, exportedFiles } from '../components/AddSkill';
 import { shortName } from '../components/ApprovalGate';
 import { Button, type ChipTone, EmptyState, Explain, type Shape, StatusChip, Who, cx, rev } from '../components/ui';
-import { money } from '../format';
 
 /** Where a skill came from, in plain words; the daemon's names stay as the filter's values and the row's data-origin. */
 const ORIGIN: Record<string, string> = { 'learn-loop': 'learned from a task', human: 'written by you', import: 'imported' };
@@ -60,8 +59,8 @@ function Track({ s }: { s: SkillRecord }) {
   );
 }
 
-/** One side of the skill's test: what the review found and how many tests passed, with the cost. */
-const side = (x: SkillEvalSide) => `${plural(x.findings, 'finding')}, ${plural(x.passed, 'test')} passed, ${money({ usd: x.usd })}`;
+/** One side of the skill's test: what the review found and how many tests passed. */
+const side = (x: SkillEvalSide) => `${plural(x.findings, 'finding')}, ${plural(x.passed, 'test')} passed`;
 
 const HISTORY = new Set(['skill.proposed', 'skill.imported', 'skill.edit_proposed', 'skill.unreviewed', 'skill.approved', 'skill.rejected', 'skill.status', 'skill.retire_proposed']);
 
@@ -81,10 +80,9 @@ function changeOf(e: StintEvent): string {
   const scan = findings ? `, ${plural(findings, 'finding')}` : '';
   switch (e.type) {
     case 'skill.proposed': {
-      const cost = (p.cost as { usd?: number } | undefined)?.usd;
       // T-0042/r4#F1 names a finding in T-0042's review; the sentence names the tasks
       const tasks = Array.isArray(p.evidence) ? [...new Set(p.evidence.map((r) => String(r).split('/')[0]))].join(' and ') : '';
-      return `Drafted from ${tasks ? `findings in ${tasks}` : 'a review'}${typeof cost === 'number' ? `, ${money({ usd: cost })}` : ''}`;
+      return `Drafted from ${tasks ? `findings in ${tasks}` : 'a review'}`;
     }
     case 'skill.imported':
       return `Added from ${source ? `${KIND[source.kind] ?? source.kind} ${source.ref}` : 'a file'}${scan}`;

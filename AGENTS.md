@@ -11,7 +11,7 @@ Three layers, one product:
 | Layer | What it is | What the user sees |
 |---|---|---|
 | Task and handoff | `.stint/tasks/<id>/` as source of truth; the packet; a four-method adapter contract; Muse Code, Stint agent and OpenAI-compatible (Meta API, Fireworks, Baseten, Modal, Ollama) adapters; worktree per run; the daemon as the only writer | One timeline per task, a segment per run coloured by vendor; the handoff card; a real `git diff`; a verification card the daemon fills |
-| The factory | States planned, building, verifying, reviewing, awaiting_approval, approved, rejected, done, abandoned, enforced by the daemon; budgets per role; a learn step | A board by state with a "Needs you" lane first; a cost meter on every run; a skill proposal with evidence; the next task running with that skill |
+| The factory | States planned, building, verifying, reviewing, awaiting_approval, approved, rejected, done, abandoned, enforced by the daemon; budgets per role; a learn step | A board by state with a "Needs you" lane first; a spend meter wherever a spend limit is set; a skill proposal with evidence; the next task running with that skill |
 | The memory | A bitemporal graph projected from `events.jsonl` and `decisions.md`; three queries; an adjudication queue | A memory panel with a time scrubber; "why is this code like this" answered with the decision and the run |
 
 What it is **not**: not a chat UI, not an agent framework, not a model router, not an issue tracker, not hosted, not "run N agents at once". It sits above those tools and makes them interchangeable.
@@ -158,7 +158,7 @@ Models by role, as fallback chains the daemon walks in order (a 429, a 5xx or a 
 - Meta models are used in the roles Meta documents: Wonder plans, Spark builds (Muse Code), Glimmer reviews, and Muse Spark Open (Meta's open-weight model) plans, reviews and learns on the two hosts Meta's own deployment page lists, Baseten and Fireworks. Every model Stint calls at runtime is a Meta model (organizer ruling, 26 October): Muse Code and the Stint agent both run Muse models, so the continue beat is a different agent, not a different vendor.
 - Open source, public repo, 3-minute video, teams of two at most. Licence decided after the IP clause is read on 26 October; until then no `LICENSE` file.
 - `Built with Muse Spark Open` attribution is required, since hosted Spark Open legs are part of the product. Keys never in the repo. Nothing from the author's employer or clients.
-- Hackathon partner credits (Baseten $100 and 2M TPM, Fireworks $25, Modal $100) are claimed by the human before day 3 and recorded in `PROGRESS.md`; the cost meter's "credits left" starts from those figures.
+- Hackathon partner credits (Baseten $100 and 2M TPM, Fireworks $25, Modal $100) are claimed by the human before day 3 and recorded in `PROGRESS.md`.
 
 ## 9. Glossary
 

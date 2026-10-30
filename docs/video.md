@@ -9,7 +9,7 @@ Footage from the replay instead of a live take: `bun apps/web/scripts/capture-vi
 | 0:00 | The Board, then the spec builder: one sentence typed into "What do you want done?", the questions with their recommended answers, the draft | "I'm going to kill a coding agent halfway through a task, and another agent is going to finish it. This is Stint, a software factory on your own machine, built on Meta's Muse models. A task starts as one sentence. Muse Spark asks only the questions that change what gets built, and drafts the spec." |
 | 0:22 | Muse Wonder's plan arrives; Memory (press m) shows the earlier task as similar | "Muse Wonder plans it, and Stint's memory finds the earlier task that hit the same problem." |
 | 0:32 | Muse Code building on Muse Spark, the kill, the packet card with its size, the Stint agent continuing, the Tests tab green | "Muse Code builds on Muse Spark, in its own git worktree, and every token is priced. Now I kill it. Mid-edit. The daemon doesn't ask the dead agent anything: it builds a packet of a few hundred tokens from the log and the diff. A different agent, the Stint agent, picks it up from the packet alone, and the daemon, not the agent, runs the tests: 31 passed." |
-| 0:56 | Wi-Fi off; Glimmer's review: "On this machine", $0.00 | "Review runs on the laptop with the network off: Muse Glimmer, about a minute, for nothing." |
+| 0:56 | Wi-Fi off; Glimmer's review: "On this machine" | "Review runs on the laptop with the network off: Muse Glimmer, about a minute, for nothing." |
 | 1:06 | Approve; "Merged" in the header; "Approved by you and merged into main as" its commit | "I approve. That's a real merge, and the commit says which task, which runs and which packet." |
 | 1:16 | The Skills page of the replay, its "Replay, hand-written" strip in frame: the learned skill, the two findings it came from, its with and without line | "When the same finding shows up on two tasks, Stint proposes a rule with the evidence and measures it with and without. This take had nothing to learn, so this is the replay; the measurement is from a live run on 27 October." |
 | 1:32 | A terminal: `stint list`, `stint packet T-0042 --as prompt`, `stint costs --by task` | "It all works from the terminal: the board, the packet any agent can read, and what each task cost." |
@@ -23,7 +23,7 @@ The cut of 30 October runs 2:41. Every beat but one is the live take of that day
 
 ## Captions
 
-Captions are the voiceover lines, at most two lines on screen at a time. Numbers on screen must match the run being shown, so read them from that run's packet card and cost meter, not from this script. The relay beat's numbers are the ones in the table on screen, which names the file each comes from; say no number the table does not show.
+Captions are the voiceover lines, at most two lines on screen at a time. Numbers on screen must match the run being shown, so read them from that run's packet card, not from this script. The relay beat's numbers are the ones in the table on screen, which names the file each comes from; say no number the table does not show.
 
 ## Checklist before recording
 

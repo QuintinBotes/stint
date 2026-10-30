@@ -33,10 +33,10 @@ The live runner runs these beats in order. Press Enter to move to the next one, 
 |---|---|---|---|
 | 0:00 | The folder is the task | seeds the tasks, starts the daemon, prints the URL | three tasks, plain JSON and markdown in `.stint/tasks/` |
 | 0:12 | Plan the task | plans T-0042 with the planner chain | Muse Wonder's plan streams in; Memory (press m) shows T-0040 as similar |
-| 0:40 | Muse Code builds | assigns Muse Code as r2 | the worktree, the live diff, the cost meter, decisions land in `decisions.md` |
+| 0:40 | Muse Code builds | assigns Muse Code as r2 | the worktree, the live diff, decisions land in `decisions.md` |
 | 1:05 | Kill it | once a `src/` file has changed plus `--kill-after` seconds (6 by default), stops r2 through the daemon | a red notice says the run was killed; the packet appears anyway: size and tokens, in-flight step unknown |
 | 1:20 | A different agent finishes | hands T-0042 to the Stint agent and waits for its verification by the daemon | it checks the unknown step first; the verification card on the Tests tab goes green: "33 passed, tests unchanged, run by Stint" |
-| 1:45 | Review offline | checks that the network is off (it asks, and refuses while online unless `--allow-online`), then reviews on Ollama | $0.00; a finding that contradicts a decision goes to the queue |
+| 1:45 | Review offline | checks that the network is off (it asks, and refuses while online unless `--allow-online`), then reviews on Ollama | a finding that contradicts a decision goes to the queue |
 | 2:05 | Approve and merge | keeps D3 against the queued finding, since approve waits while a finding that would reverse a decision is queued, then approves T-0042 through the gate | one merge commit with `Stint-Task: T-0042` |
 | 2:15 | It learned | waits for the learn step, measures the proposed skill on T-0042 with it and without (two short runs on fresh copies; `--no-eval` skips this), approves it, then assigns T-0043, verifies and reviews it, and stops at awaiting approval | the skill card's eval line, "with skill: N findings, without: M"; `skill.applied` on T-0043; the review finds nothing on what was flagged before |
 | 2:35 | Close | prints the per-task cost, the T-0042 packet tokens and hash, the URL, and the repository path to record from | the "One packet, any agent" panel on the Factory (`/factory`): every configured agent and model host |

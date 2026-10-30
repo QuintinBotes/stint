@@ -96,9 +96,6 @@ function GoalList({ onNewGoal }: { onNewGoal: () => void }) {
                     {h}
                   </th>
                 ))}
-                <th scope="col" className="stint-table-number">
-                  Spend
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -114,7 +111,6 @@ function GoalList({ onNewGoal }: { onNewGoal: () => void }) {
                   </td>
                   <td className="tabular">{met(o)}</td>
                   <td className="tabular">{plural(o.tasks.length, 'task')}</td>
-                  <td className="stint-table-number">{spend(o)}</td>
                 </tr>
               ))}
             </tbody>
@@ -271,7 +267,7 @@ function TaskLinks({ ids }: { ids: string[] }) {
   );
 }
 
-/** The goal's spend and builds against its limits, with the Limits meters, and a fold to change the limits. */
+/** The goal's builds against its limits with the Limits meters, its spend too once it has a spend limit, and a fold to change the limits. */
 function GoalLimits({ v, onChange }: { v: GoalView; onChange: () => void }) {
   const { goal, outcome: o } = v;
   const [error, setError] = useState<string | null>(null);
@@ -292,9 +288,9 @@ function GoalLimits({ v, onChange }: { v: GoalView; onChange: () => void }) {
   const cap = { usd: o.spend.limit, builds: o.builds.limit };
   return (
     <section aria-label="Goal limits" className="stint-section gap-3">
-      <ul aria-label="Spend and builds across the goal's tasks" className="grid grid-cols-1 gap-y-1.5 min-[760px]:flex min-[760px]:flex-wrap min-[760px]:items-center gap-x-3 text-small text-ink-2">
-        <Meter id="goal-usd" word="Spend" used={o.spend.usd} cap={cap.usd} reached={cap.usd !== null && o.spend.usd >= cap.usd} value={spend(o)} note={o.spend.unpriced ? `, ${o.spend.unpriced} not priced` : ''} />
-        <Meter id="goal-builds" word="Builds" dot used={o.builds.used} cap={cap.builds} reached={cap.builds !== null && o.builds.used >= cap.builds} value={`${o.builds.used}${cap.builds === null ? '' : ` of ${cap.builds}`}`} />
+      <ul aria-label="Limits across the goal's tasks" className="grid grid-cols-1 gap-y-1.5 min-[760px]:flex min-[760px]:flex-wrap min-[760px]:items-center gap-x-3 text-small text-ink-2">
+        {cap.usd === null ? null : <Meter id="goal-usd" word="Spend" used={o.spend.usd} cap={cap.usd} reached={o.spend.usd >= cap.usd} value={spend(o)} note={o.spend.unpriced ? `, ${o.spend.unpriced} not priced` : ''} />}
+        <Meter id="goal-builds" word="Builds" dot={cap.usd !== null} used={o.builds.used} cap={cap.builds} reached={cap.builds !== null && o.builds.used >= cap.builds} value={`${o.builds.used}${cap.builds === null ? '' : ` of ${cap.builds}`}`} />
       </ul>
       <details className="w-fit max-w-full rounded-[5px] border border-rule" data-testid="goal-limits">
         <summary className="min-h-9 px-3 py-2 rounded-[5px] font-medium cursor-pointer hover:bg-surface-hover">Change the goal's limits</summary>
@@ -448,7 +444,7 @@ function RunGoal({ v, replay }: { v: GoalView; replay: boolean }) {
   const waiting = open.filter((t) => t.dependsOn.some((d) => v.tasks.find((x) => x.id === d)?.status !== 'done')).map((t) => t.id);
   const now = open.filter((t) => !waiting.includes(t.id)).map((t) => t.id);
   const { spend, builds } = v.outcome;
-  const caps = [spend.limit === null ? 'no spend limit' : `a spend limit of ${money({ usd: spend.limit })} (${money({ usd: spend.usd })} spent)`, builds.limit === null ? 'no build limit' : `a build limit of ${builds.limit} (${builds.used} used)`];
+  const caps = [spend.limit === null ? 'no spend limit' : `a spend limit of ${money({ usd: spend.limit })}`, builds.limit === null ? 'no build limit' : `a build limit of ${builds.limit} (${builds.used} used)`];
   const close = () => {
     setAsking(false);
     requestAnimationFrame(() => opener.current?.focus());
