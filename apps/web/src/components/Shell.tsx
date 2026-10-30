@@ -182,7 +182,7 @@ function taskActions(id: string, card: TaskCardData | undefined, navigate: (to: 
     { id: 'packet', label: 'Show the packet', key: 'h', cli: `stint packet ${id} --as prompt`, run: tab('packet') },
     { id: 'memory', label: 'Show the memory', key: 'm', cli: '', run: () => window.dispatchEvent(new CustomEvent('stint:memory')) },
     { id: 'terminal', label: 'Open the terminal in the worktree', key: 't', cli: `cd .stint/worktrees/${id}-${card?.lastRun?.run ?? 'r1'}`, run: tab('terminal') },
-    ...(run ? [{ id: 'stop', label: `Stop the live run, ${run}`, key: '⌘.', cli: '', run: () => report(api.stopRun(id, run), `${run} stopped`) }] : []),
+    ...(run ? [{ id: 'stop', label: `Stop the live run, ${run}`, key: '⌘.', cli: `stint stop ${id}`, run: () => report(api.stopRun(id, run), `${run} stopped`) }] : []),
     // approving is offered only at the gate; asking for changes or rejecting works on any open task
     ...(atGate ? [{ id: 'approve', label: 'Approve and merge', key: 'a', cli: `stint approve ${id}`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'approve' })) }] : []),
     { id: 'changes', label: 'Request changes', key: 'r', cli: `stint changes ${id} --reason "..."`, run: () => window.dispatchEvent(new CustomEvent('stint:gate', { detail: 'changes' })) },

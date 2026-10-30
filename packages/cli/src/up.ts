@@ -114,6 +114,7 @@ export const up = defineCommand({
     port: { type: 'string', description: 'Port (0 picks a free one)', default: '0' },
     open: { type: 'boolean', description: 'Copy the URL to the clipboard' },
     check: { type: 'boolean', description: 'Start, print health, stop' },
+    review: { type: 'boolean', default: true, description: "Review a person's finished build on its own; --no-review leaves it to stint review" },
     repo: { type: 'string', description: 'Repository root (default: the git top level)' },
     json: { type: 'boolean', description: 'Machine-readable output' },
   },
@@ -122,7 +123,7 @@ export const up = defineCommand({
     // where each key came from, by name and source only; the daemon reads the values from the environment
     const keys = keyReport(root);
     for (const [name, value] of Object.entries(keys.values)) if (!process.env[name]) process.env[name] = value;
-    const d = await startDaemon({ root, port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check, autoReview: !args.check });
+    const d = await startDaemon({ root, port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check, autoReview: !args.check && args.review });
     const report = await upReport(await readConfig(root));
     const reportLines = () => {
       if (report.warming) process.stdout.write(`${report.warming}\n`);

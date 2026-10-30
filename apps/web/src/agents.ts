@@ -1,3 +1,5 @@
+import { modelName } from '@stint-dev/core';
+
 /**
  * Who did the work, and whose ink marks it. Stint's defaults run Meta's models; a person can also bring another agent or
  * model, which carries its own vendor's ink. A model served on this machine is local, whoever made it, because what it
@@ -5,19 +7,7 @@
  */
 export type Mark = 'meta' | 'anthropic' | 'openai' | 'local' | 'other';
 
-const MODEL_NAMES: Record<string, string> = {
-  'muse-wonder-1.0': 'Muse Wonder 1.0',
-  'muse-spark-1.3': 'Muse Spark 1.3',
-  'muse-spark-1.2': 'Muse Spark 1.2',
-  'muse-spark-open': 'Muse Spark Open',
-  'muse-glimmer:30b-mlx': 'Muse Glimmer 30B',
-};
-
-export function modelName(model: string | null | undefined): string {
-  if (!model) return 'model unknown';
-  const short = model.includes('/') ? (model.split('/').at(-1) as string) : model;
-  return MODEL_NAMES[short] ?? short;
-}
+export { modelName };
 
 export type Agent = { name: string; mark: Mark };
 

@@ -14,6 +14,7 @@ export * from './schemas/goal';
 export * from './schemas/draft';
 export * from './schemas/scorecard';
 export { scorecardRows } from './scorecard';
+export { modelName } from './names';
 export type { ScorecardRow } from './scorecard';
 export { DRAFT_ROUNDS, answerProblem, closeOpen, draftFromOutput, draftProblem, goalFromDraft, mergeAnswers, nextRound, scenarioLine, taskFromDraft } from './draft';
 export type { DraftBefore } from './draft';

@@ -29,6 +29,11 @@ test('stint draft prints the draft and its questions, answers them from a saved 
         expect(lines).toContain('  A) Only an admin: A person with admin rights changes it. (recommended: It is the smaller change.)');
         expect(printed.stdout).not.toContain('Which file holds the change?');
 
+        // the model would make a goal of this; --task keeps it one task, as the switch in the web UI does
+        const asked = await out(stint(repo, ['draft', 'Ship the health goal', '--task']));
+        expect(asked.code, asked.stderr).toBe(0);
+        expect(asked.stdout.split('\n')[0]).toStartWith('Task: ');
+
         const saved = await out(stint(repo, ['draft', 'Add a health check endpoint', '--json']));
         const draftFile = join(repo, 'draft.json');
         writeFileSync(draftFile, saved.stdout);

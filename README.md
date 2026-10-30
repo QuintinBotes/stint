@@ -165,15 +165,15 @@ Merged T-0001 into main as 3f2a9c1.
 
 | Command | What it does |
 |---|---|
-| `stint up` | Start the daemon and the UI for this repository |
+| `stint up` | Start the daemon and the UI for this repository; it reviews a build you started once Stint's tests pass, unless you start it with `--no-review` |
 | `stint doctor` | Check the machine and repository, with a fix for each problem |
 | `stint draft "<what you want>"`, `stint new "<title>" --accept "<criteria>"` | Draft a spec from a sentence and answer its questions (`--from spec.md` opens a Spec Kit spec, `--create` makes the task), or create a task yourself |
 | `stint list` | Every task with its status and title |
 | `stint run <task> --wait`, `stint run --all` | Plan, build, verify and review, stopping at your approval or a limit you set (`stint limits <task>`); `--all` starts every planned task |
-| `stint hand <task> <agent>`, `stint packet <task>` | Hand the task to another agent from its packet; show the packet the next agent reads |
+| `stint watch <task>`, `stint stop <task>`, `stint hand <task> <agent>`, `stint packet <task>` | Follow a task as it happens: each run, edit, packet, test run, review and merge; stop the run that is going, and Stint builds its packet from the log and the diff; hand the task to another agent from that packet; show the packet |
 | `stint sharpen <task>`, `stint proofs <task>` | Answer the few questions that change what gets built, before work starts; show or set how each criterion is proven |
 | `stint goal new "<title>" --outcome "<what is true>"`, `stint goal run <goal>` | Make a goal above tasks, split it with `stint goal plan`, then put its tasks on autopilot |
-| `stint approve <task>`, `stint changes <task> --reason "<what>"`, `stint reject <task> --reason "<why>"` | Merge the verified change, or send it back with the reason as the next run's ask; `stint outcome <task>` says how it went |
+| `stint review <task>`, `stint approve <task>`, `stint changes <task> --reason "<what>"`, `stint reject <task> --reason "<why>"` | Review the verified change now (`--host ollama` on this machine, with no network), merge it, or send it back with the reason as the next run's ask; `stint outcome <task>` says how it went |
 | `stint costs --by host`, `stint keys list` | Spend by task, run, day, week or host; where each key comes from, never its value |
 | `stint demo` | Replay the recorded story; `--live` runs it with your keys |
 | `stint mcp`, `stint mcp install claude` | Serve Stint's tools to any MCP client; register them with Claude Code or Codex in one line |

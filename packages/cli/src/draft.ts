@@ -59,6 +59,7 @@ export const draftCommand = defineCommand({
   args: {
     words: { type: 'positional', required: false, description: 'What you want done, in a sentence or two' },
     goal: { type: 'boolean', description: 'Draft a goal to split into tasks, not one task' },
+    task: { type: 'boolean', description: 'Draft one task, where the model might have made it a goal' },
     answer: { type: 'string', description: 'An answer as <question>=<letter or your own words>, e.g. Q1=A; give it once per answer' },
     recommended: { type: 'boolean', description: 'Take the recommendation for every open question that is not material' },
     from: { type: 'string', description: 'Open a Spec Kit spec.md instead of drafting, or a draft saved with --json' },
@@ -75,7 +76,7 @@ export const draftCommand = defineCommand({
     if (args.from) {
       const text = read(args.from);
       d = savedDraft(text) ?? (await postDaemon<Draft>(root, '/api/drafts/import', { spec: text, ...(args.tasks ? { tasks: read(args.tasks) } : {}) }));
-    } else if (words) d = await postDaemon<Draft>(root, '/api/drafts', { input: words, ...(args.goal ? { kind: 'goal' } : {}) });
+    } else if (words) d = await postDaemon<Draft>(root, '/api/drafts', { input: words, ...(args.goal ? { kind: 'goal' } : args.task ? { kind: 'task' } : {}) });
     else {
       process.stderr.write('Say what you want done, as in: stint draft "Operators can tell the service is up", or open a spec with --from spec.md.\n');
       process.exit(2);

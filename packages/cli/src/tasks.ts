@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { StintEvent, Task } from '@stint-dev/core';
+import { type Review, type StintEvent, type Task, modelName } from '@stint-dev/core';
 import { defineCommand } from 'citty';
 import { getDaemon, postDaemon } from './client';
 import { limitArgs, limitsFromFlags } from './limits';
@@ -118,6 +118,49 @@ export const assignTask = defineCommand({
       ...(args.ask ? { instruction: args.ask } : {}),
     });
     process.stdout.write(`${args.task} ${r.run} started in ${r.worktree}\n`);
+  },
+});
+
+export const reviewCommand = defineCommand({
+  meta: { name: 'review', description: "Review a task's change now that Stint's tests passed; --host ollama reviews on this machine, with no network" },
+  args: {
+    task: { type: 'positional', required: true, description: 'Task id' },
+    host: { type: 'string', description: 'meta-api, fireworks, baseten, modal or ollama (default: the reviewer chain)' },
+    json: { type: 'boolean', description: 'Machine-readable output: the review' },
+    ...repoArg,
+  },
+  async run({ args }) {
+    const r = await postDaemon<Review>(repoRoot(args.repo), `/api/tasks/${args.task}/review`, args.host ? { host: args.host } : {});
+    if (args.json) {
+      process.stdout.write(`${JSON.stringify(r)}\n`);
+      return;
+    }
+    const usd = r.cost?.usd;
+    const lines = [
+      `${args.task} reviewed by ${modelName(r.model)}${r.offline ? ' on this machine' : ''}${typeof usd === 'number' ? `, $${usd.toFixed(2)}` : ''}: ${r.verdict.replace('_', ' ')}, ${r.findings.length} finding${r.findings.length === 1 ? '' : 's'}`,
+      ...(r.summary ? [r.summary] : []),
+      ...r.findings.map((f) => `${f.id} ${f.severity}${f.file ? ` ${f.file}${f.line ? `:${f.line}` : ''}` : ''}: ${f.text}`),
+    ];
+    process.stdout.write(`${lines.join('\n')}\n`);
+  },
+});
+
+export const stopRun = defineCommand({
+  meta: { name: 'stop', description: "Stop a task's live run, as Stop the run does in the UI; Stint builds its packet from the log and the diff" },
+  args: {
+    task: { type: 'positional', required: true, description: 'Task id' },
+    run: { type: 'string', description: 'The run to stop, e.g. r2 (default: the one that is going)' },
+    ...repoArg,
+  },
+  async run({ args }) {
+    const root = repoRoot(args.repo);
+    const run = args.run ?? (await getDaemon<{ runs: Array<{ run: string; endedAt: string | null }> }>(root, `/api/tasks/${args.task}`)).runs.find((r) => !r.endedAt)?.run;
+    if (!run) {
+      process.stderr.write(`${args.task} has no run going\n`);
+      process.exit(1);
+    }
+    await postDaemon(root, `/api/tasks/${args.task}/runs/${run}/stop`, {});
+    process.stdout.write(`Stopped ${args.task} ${run}. Its packet is built from the log and the diff: stint packet ${args.task}\n`);
   },
 });
 
