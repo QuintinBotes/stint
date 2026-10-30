@@ -12,6 +12,23 @@ async function stint(...args: string[]): Promise<{ code: number; out: string; er
   const [out, err] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text()]);
   return { code: await p.exited, out, err };
 }
+/** What a watcher prints until it says enough or the time is up; one read stays pending across the waits, so no chunk is dropped. */
+async function readUntil(stream: ReadableStream<Uint8Array>, enough: (out: string) => boolean, ms: number): Promise<string> {
+  const reader = stream.getReader();
+  let out = '';
+  let pending = reader.read();
+  const until = Date.now() + ms;
+  while (!enough(out) && Date.now() < until) {
+    const got = await Promise.race([pending, Bun.sleep(500).then(() => null)]);
+    if (!got) continue;
+    if (got.done) break;
+    out += new TextDecoder().decode(got.value);
+    pending = reader.read();
+  }
+  return out;
+}
+const assign = (d: { url: string; token: string }, id: string) =>
+  fetch(`${d.url}/api/tasks/${id}/assign`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ adapter: 'muse-code', role: 'implementer' }) });
 let seq = 0;
 const ev = (ts: string, type: string, run: string | undefined, adapter: string | undefined, payload: Record<string, unknown>) =>
   ({ id: `e${++seq}`, seq, ts: `2026-10-30T${ts}.000Z`, task: 'T-0042', run, adapter, vendor: 'meta', type, payload }) as unknown as StintEvent;
@@ -94,23 +111,33 @@ test('stint watch follows a task live: the run, its edit, its packet and the tes
     try {
       // the watcher reads the log, then follows the stream from its end
       await Bun.sleep(1500);
-      await fetch(`${d.url}/api/tasks/${t.id}/assign`, { method: 'POST', headers: { Authorization: `Bearer ${d.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ adapter: 'muse-code', role: 'implementer' }) });
-      const reader = watch.stdout.getReader();
-      let out = '';
-      // one read stays pending across the waits, so no chunk is dropped
-      let pending = reader.read();
-      const until = Date.now() + 40_000;
-      while (!(out.includes('Tests run by Stint') && out.includes('Packet h1')) && Date.now() < until) {
-        const got = await Promise.race([pending, Bun.sleep(500).then(() => null)]);
-        if (!got) continue;
-        if (got.done) break;
-        out += new TextDecoder().decode(got.value);
-        pending = reader.read();
-      }
+      await assign(d, t.id);
+      const out = await readUntil(watch.stdout, (o) => o.includes('Tests run by Stint') && o.includes('Packet h1'), 40_000);
       expect(out).toMatch(/ r1 {3}Muse Code on .+ started\n/);
       expect(out).toContain('r1   write_file src/lib/limiter.ts');
       expect(out).toMatch(/r1 {3}Packet h1: \d+ tokens/);
       expect(out).toMatch(/r1 {3}[✓✗] Tests run by Stint: \d+ passed/);
+    } finally {
+      watch.kill();
+      for (let i = 0; i < 400 && (await d.ws.readTask(t.id)).status === 'building'; i++) await Bun.sleep(25);
+      await d.stop();
+    }
+  });
+}, 60_000);
+
+test('stint watch with no task follows every task, a task made after it started included, each line marked with its task', async () => {
+  await withFixtureRepo(async (repo) => {
+    const d = await startDaemon({ root: repo, quiet: true, adapters: [{ ...fakeAdapter('edit'), id: 'muse-code' }] });
+    await d.ws.createTask(newTask);
+    const watch = Bun.spawn(['bun', STINT, 'watch', '--repo', repo], { stdout: 'pipe', stderr: 'pipe' });
+    const t = await d.ws.createTask({ ...newTask, title: 'Made after the watch began' });
+    try {
+      await Bun.sleep(1500);
+      await assign(d, t.id);
+      const out = await readUntil(watch.stdout, (o) => o.includes('Tests run by Stint'), 40_000);
+      expect(out).toStartWith('Following every task. Ctrl-C stops.\n');
+      expect(out).toMatch(new RegExp(`  ${t.id}  r1 {3}Muse Code on .+ started\\n`));
+      expect(out).toMatch(new RegExp(`  ${t.id}  r1 {3}[✓✗] Tests run by Stint: \\d+ passed`));
     } finally {
       watch.kill();
       for (let i = 0; i < 400 && (await d.ws.readTask(t.id)).status === 'building'; i++) await Bun.sleep(25);

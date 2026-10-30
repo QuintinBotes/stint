@@ -102,22 +102,23 @@ export function feed(): (e: StintEvent) => FeedLine | null {
 
 const INK: Record<Tone, string> = { plain: '', good: '\x1b[32m', bad: '\x1b[31m', quiet: '\x1b[2m' };
 
-/** The line as printed: time, run and text, coloured only on a terminal that wants colour. */
-export function render(l: FeedLine, colour: boolean): string {
-  if (!colour) return `${l.at}  ${l.run.padEnd(3)}  ${l.text}`;
-  return `\x1b[2m${l.at}\x1b[0m  \x1b[36m${l.run.padEnd(3)}\x1b[0m  ${INK[l.tone]}${l.text}\x1b[0m`;
+/** The line as printed: time, the task when following them all, run and text, coloured only on a terminal that wants colour. */
+export function render(l: FeedLine, colour: boolean, task?: string): string {
+  if (!colour) return `${l.at}  ${task ? `${task}  ` : ''}${l.run.padEnd(3)}  ${l.text}`;
+  return `\x1b[2m${l.at}\x1b[0m  ${task ? `\x1b[1m${task}\x1b[0m  ` : ''}\x1b[36m${l.run.padEnd(3)}\x1b[0m  ${INK[l.tone]}${l.text}\x1b[0m`;
 }
 
 export const watchCommand = defineCommand({
-  meta: { name: 'watch', description: "Follow a task as it happens: runs, edits, packets, Stint's test runs, the review and the merge" },
+  meta: { name: 'watch', description: "Follow a task, or every task, as it happens: runs, edits, packets, Stint's test runs, the review and the merge" },
   args: {
-    task: { type: 'positional', required: true, description: 'Task id' },
+    task: { type: 'positional', required: false, description: 'Task id (default: every task, each line marked with its task)' },
     all: { type: 'boolean', description: 'Print what already happened first' },
     ...repoArg,
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
     const colour = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
+    if (!args.task) return watchAll(root, colour);
     const next = feed();
     const print = (e: StintEvent) => {
       const l = next(e);
@@ -137,3 +138,26 @@ export const watchCommand = defineCommand({
     }
   },
 });
+
+/** Every task of the workspace on one feed, as tasks are made, built, reviewed and merged in parallel. */
+async function watchAll(root: string, colour: boolean) {
+  const feeds = new Map<string, ReturnType<typeof feed>>();
+  const feedOf = (task: string) => {
+    if (!feeds.has(task)) feeds.set(task, feed());
+    return feeds.get(task) as ReturnType<typeof feed>;
+  };
+  // runs that started before the watch end on it later, so each task's log goes through its feed first, unprinted
+  const { tasks } = await getDaemon<{ tasks: Array<{ task: { id: string } }> }>(root, '/api/tasks');
+  for (const { task } of tasks) for (const e of (await getDaemon<{ events: StintEvent[] }>(root, `/api/tasks/${task.id}/events`)).events) feedOf(task.id)(e);
+  process.stdout.write(colour ? '\x1b[2mFollowing every task. Ctrl-C stops.\x1b[0m\n' : 'Following every task. Ctrl-C stops.\n');
+  const stop = new AbortController();
+  process.on('SIGINT', () => stop.abort());
+  // shortcut: the workspace stream has no since, so an event between the log reads and the stream's start is not printed; add since to /api/stream if that shows
+  for await (const m of readSSE(`${daemonFor(root).url}/api/stream`, stop.signal)) {
+    if (m.event === 'heartbeat') continue;
+    const e = JSON.parse(m.data) as StintEvent;
+    if (!/^T-\d+$/.test(e.task)) continue;
+    const l = feedOf(e.task)(e);
+    if (l) process.stdout.write(`${render(l, colour, e.task)}\n`);
+  }
+}
