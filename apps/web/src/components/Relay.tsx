@@ -159,8 +159,9 @@ export function Relay() {
 
         {data.runs.map((r) => {
           const x1 = x(r.start);
-          // a short run still gets room for its label
-          const x2 = Math.max(x1 + MIN_BAR, x(r.end ?? to));
+          const next = Math.min(Infinity, ...data.runs.filter((o) => o.lane === r.lane && o.start > r.start).map((o) => x(o.start)));
+          // a short run still gets room for its label, unless the next run on its lane starts first
+          const x2 = Math.max(x1 + 4, x(r.end ?? to), Math.min(x1 + MIN_BAR, next - 2));
           const y = yOf(r.lane) - BAR_H / 2;
           const c = colour(r.lane);
           const lines = [
@@ -181,9 +182,11 @@ export function Relay() {
               onMouseLeave={() => setHover(null)}
             >
               <rect x={x1} y={y} width={x2 - x1} height={BAR_H} fill={c} className={r.endedBy ? undefined : 'live-spine'} />
-              <text x={x1 + 6} y={y + 15.5} fontSize={13} fontWeight={600} fill="var(--on-ink)" className="tabular select-none">
-                {r.task} {r.run}
-              </text>
+              {x2 - x1 >= MIN_BAR ? (
+                <text x={x1 + 6} y={y + 15.5} fontSize={13} fontWeight={600} fill="var(--on-ink)" className="tabular select-none">
+                  {r.task} {r.run}
+                </text>
+              ) : null}
               {r.endedBy === 'killed' ? (
                 <g>
                   <rect x={x2 - 4} y={y} width={4} height={BAR_H} fill="var(--red)" />
@@ -199,11 +202,14 @@ export function Relay() {
         {marks.map((m, i) => {
           const y = yOf('you');
           const mx = x(m.at);
+          const label = m.kind === 'approved' ? `merged ${m.task}` : m.text.slice(0, 24);
+          // near the right edge the label sits left of its mark, so it is never cut off
+          const left = mx + 10 + label.length * 7.5 > width;
           return (
             <g key={`m${i}`} data-mark={m.kind}>
               <rect x={mx - 6} y={y - 6} width={12} height={12} transform={`rotate(45 ${mx} ${y})`} fill="var(--ink)" />
-              <text x={mx + 10} y={y + 4.5} fontSize={13} fill="var(--ink)">
-                {m.kind === 'approved' ? `merged ${m.task}` : m.text.slice(0, 24)}
+              <text x={left ? mx - 10 : mx + 10} y={y + 4.5} fontSize={13} fill="var(--ink)" textAnchor={left ? 'end' : 'start'}>
+                {label}
               </text>
             </g>
           );

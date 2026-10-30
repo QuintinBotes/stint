@@ -23,10 +23,11 @@ export type Relay = { lanes: RelayLane[]; runs: RelayRun[]; links: RelayLink[]; 
 const timeOf = (e: StintEvent) => (typeof e.payload.replayAt === 'number' ? e.payload.replayAt : Date.parse(e.ts));
 const str = (v: unknown) => (typeof v === 'string' ? v : null);
 
-function laneOf(started: StintEvent): Omit<RelayLane, 'roles'> {
+/** The lane is who did the work: a run that fell through its chain, or learned its model as it went, says so when it finishes. */
+function laneOf(started: StintEvent, finished?: StintEvent): Omit<RelayLane, 'roles'> {
   const adapter = started.adapter ?? null;
-  const model = str(started.payload.model);
-  const host = str(started.payload.host);
+  const model = str(finished?.payload.model) ?? str(started.payload.model);
+  const host = str(finished?.payload.host) ?? str(started.payload.host);
   // a model a host answered directly (plan, review, learn) is its own lane; a coding agent is a lane per agent and model
   if (adapter === 'openai-compatible' || !adapter) return { id: `${host ?? 'host'}/${model ?? 'model'}`, adapter, model, host, human: false };
   return { id: `${adapter}:${model ?? 'default'}`, adapter, model, host: host === 'local-cli' ? null : host, human: false };
@@ -46,20 +47,23 @@ export function relayFromEvents(byTask: Array<{ task: string; events: StintEvent
 
   for (const { task, events } of byTask) {
     const index = new Map<string, RelayRun>();
+    const startedBy = new Map<string, StintEvent>();
+    const place = (r: RelayRun, l: Omit<RelayLane, 'roles'>) => {
+      if (!lanes.has(l.id)) lanes.set(l.id, { ...l, roles: [] });
+      r.lane = l.id;
+    };
     for (const e of events) {
       if (typeof e.payload.replayAt === 'number') replay = true;
       if (e.type === 'run.started' && e.run) {
-        const l = laneOf(e);
-        const role = str(e.payload.role);
-        const lane = lanes.get(l.id) ?? { ...l, roles: [] };
-        if (role && !lane.roles.includes(role)) lane.roles.push(role);
-        lanes.set(l.id, lane);
-        const r: RelayRun = { task, run: e.run, lane: l.id, role, start: timeOf(e), end: null, endedBy: null, usd: null, verified: null };
+        const r: RelayRun = { task, run: e.run, lane: '', role: str(e.payload.role), start: timeOf(e), end: null, endedBy: null, usd: null, verified: null };
+        place(r, laneOf(e));
+        startedBy.set(e.run, e);
         index.set(e.run, r);
         runs.push(r);
       } else if (e.type === 'run.finished' && e.run) {
         const r = index.get(e.run);
         if (r) {
+          place(r, laneOf(startedBy.get(e.run) as StintEvent, e));
           r.end = timeOf(e);
           r.endedBy = str(e.payload.endedBy);
           r.usd = typeof (e.payload.cost as { usd?: unknown } | undefined)?.usd === 'number' ? ((e.payload.cost as { usd: number }).usd) : null;
@@ -96,8 +100,10 @@ export function relayFromEvents(byTask: Array<{ task: string; events: StintEvent
     }
   }
   const times = [...runs.flatMap((r) => [r.start, r.end ?? r.start]), ...marks.map((m) => m.at)];
+  // a lane's roles are its runs' roles, and a lane every run moved off is not drawn
+  for (const l of lanes.values()) l.roles = [...new Set(runs.filter((r) => r.lane === l.id && r.role).map((r) => r.role as string))];
   const order = (l: RelayLane) => (l.roles.includes('planner') ? 0 : l.roles.includes('implementer') ? 1 : l.roles.includes('reviewer') ? 2 : 3);
-  const sorted = [...lanes.values()].sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id));
+  const sorted = [...lanes.values()].filter((l) => runs.some((r) => r.lane === l.id)).sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id));
   if (marks.length) sorted.push({ id: 'you', adapter: null, model: null, host: null, roles: [], human: true });
   return { lanes: sorted, runs, links, marks, from: times.length ? Math.min(...times) : 0, to: times.length ? Math.max(...times) : 0, replay };
 }
