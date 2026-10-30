@@ -6,24 +6,20 @@ Footage from the replay instead of a live take: `bun apps/web/scripts/capture-vi
 
 | Time | On screen | Voiceover |
 |---|---|---|
-| 0:00 | The Board (`/`), three tasks | "I'm going to kill a coding agent halfway through a task, and another agent is going to finish it." |
-| 0:08 | `.stint/tasks/T-0042` in the file browser, then the task view | "This is Stint, a software factory on your own machine, built on Meta's Muse models. The task is a folder in your repo, not a chat." |
-| 0:18 | A live take of the spec builder: press n, type one sentence into "What do you want done?", choose Draft it; the questions, each with its recommended answer; the draft | "A task starts as one sentence. Muse Wonder asks only the questions that change what gets built, and drafts the spec." |
-| 0:27 | Muse Wonder's plan arrives; Memory (press m) shows T-0040 as similar | "Muse Wonder plans it. Stint's memory finds the earlier task that hit the same problem." |
-| 0:34 | Muse Code building on Muse Spark: the live diff, the cost meter, decision D3 | "Muse Code builds on Muse Spark, in its own git worktree. Every step lands on the timeline, and every token is priced." |
-| 0:44 | The kill in the terminal pane; the segment ends red | "Now I kill it. Mid-edit." |
-| 0:48 | The packet card: tokens, done, open, the in-flight step marked unknown | "The daemon doesn't ask the dead agent anything. It builds the packet from the log and the diff: a few hundred tokens. It even names the step that was in flight." |
-| 1:01 | Hand to the Stint agent; it continues; the verification card on the Tests tab reads "33 passed, tests unchanged, run by Stint", green | "A different agent, the Stint agent on Muse Spark, picks it up from the packet alone. The daemon, not the agent, runs the tests: 33 passed, and the tests it is judged by are unchanged." |
-| 1:15 | Wi-Fi off; Glimmer's review, $0.00; F2 goes to the queue beside D3 | "Review runs on the laptop with Muse Glimmer, network off, for nothing. One finding would undo a decision we made, so it waits for me instead of being applied." |
-| 1:27 | Press `a` twice (the first gets Approve ready); the sign-off with the merge commit and its trailers | "I approve. That's a real merge, and the commit says which task, which runs and which packet." |
-| 1:34 | The proposed skill with its eval line ("with skill: N findings, without: M"), approved; T-0043 runs with it; its review is clean | "The same finding showed up on two tasks, so Stint proposed a rule with the evidence and measured it with and without: both reviews clean, a fifth cheaper with it. I approve it, and the next task runs with it." |
-| 1:50 | The Factory: runs by agent over time, then Meta models at work | "Here's the whole floor: who carried each task, and what they handed on. Every model is Meta's." |
-| 1:57 | The relay table in `docs/proofs.md` ("Live evidence, 29 October") on GitHub, the three rows that reached the gate picked out, then one run's packets in `bench/relay/wait-on/tasks/T-0001/handoffs/` | "Then live, on three open-source repositories Stint had never seen: Muse Code, then Claude Code on Glimmer, then Codex on Muse Spark, each from the last one's packet. All three tasks reached the gate, hidden tests green." |
-| 2:12 | The benchmark table in `docs/proofs.md` | "And we measured the packet: seven times smaller than the transcript, and runs that continued from it passed more often." |
-| 2:21 | The "One packet, any agent" panel on the Factory: every configured agent and model host as chips | "Muse Code, the Stint agent, or any other harness. Muse Spark, Glimmer, or any other model. Any harness, any model, one packet." |
-| 2:30 | The logo and the repository URL | "Stint. The task outlives the agent." |
+| 0:00 | The Board, then the spec builder: one sentence typed into "What do you want done?", the questions with their recommended answers, the draft | "I'm going to kill a coding agent halfway through a task, and another agent is going to finish it. This is Stint, a software factory on your own machine, built on Meta's Muse models. A task starts as one sentence. Muse Spark asks only the questions that change what gets built, and drafts the spec." |
+| 0:22 | Muse Wonder's plan arrives; Memory (press m) shows the earlier task as similar | "Muse Wonder plans it, and Stint's memory finds the earlier task that hit the same problem." |
+| 0:32 | Muse Code building on Muse Spark, the kill, the packet card with its size, the Stint agent continuing, the Tests tab green | "Muse Code builds on Muse Spark, in its own git worktree, and every token is priced. Now I kill it. Mid-edit. The daemon doesn't ask the dead agent anything: it builds a packet of a few hundred tokens from the log and the diff. A different agent, the Stint agent, picks it up from the packet alone, and the daemon, not the agent, runs the tests: 31 passed." |
+| 0:56 | Wi-Fi off; Glimmer's review: "On this machine", $0.00 | "Review runs on the laptop with the network off: Muse Glimmer, about a minute, for nothing." |
+| 1:06 | Approve; "Merged" in the header; "Approved by you and merged into main as" its commit | "I approve. That's a real merge, and the commit says which task, which runs and which packet." |
+| 1:16 | The Skills page of the replay, its "Replay, hand-written" strip in frame: the learned skill, the two findings it came from, its with and without line | "When the same finding shows up on two tasks, Stint proposes a rule with the evidence and measures it with and without. This take had nothing to learn, so this is the replay; the measurement is from a live run on 27 October." |
+| 1:32 | A terminal: `stint list`, `stint packet T-0042 --as prompt`, `stint costs --by task` | "It all works from the terminal: the board, the packet any agent can read, and what each task cost." |
+| 1:40 | `muse exec` asked to use the Stint tools; its answer; `stint list` with the new task; the task on the Board | "And any harness that speaks MCP can drive it. Muse Code reads the board through Stint's tools, finds the similar past task, and files a new one, with its acceptance criteria." |
+| 1:56 | The Factory: the top numbers, runs by agent with the packet between them, One packet, any agent, Meta models at work | "Here's the whole floor: who carried each task, the packet they passed on, and every model is Meta's." |
+| 2:06 | The relay table in `docs/proofs.md` on GitHub, then one packet in `bench/relay/wait-on/tasks/T-0001/handoffs/` | "Then live, on three open-source repositories Stint had never seen: Muse Code, then Claude Code on Glimmer, then Codex on Muse Spark, each from the last one's packet. Four relays out of five reached the gate with hidden tests green, and the one that didn't is in the table too." |
+| 2:25 | The benchmark table and the paragraph under its chart in `docs/proofs.md` | "And we measured the packet: about seven times smaller than the transcript, and runs that continued from it passed more often." |
+| 2:36 | Stint, "The task outlives the agent.", the repository URL | "Stint. The task outlives the agent." |
 
-It ends by 2:34, which leaves room under 2:45 for a pause at each cut-in.
+The cut of 30 October runs 2:41. Every beat but one is the live take of that day; the learned skill is the replay, because that take's two reviews found nothing, so nothing recurred and the learn step rightly proposed no skill. The numbers spoken are the ones on screen in that take.
 
 ## Captions
 
