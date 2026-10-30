@@ -12,9 +12,11 @@ The owner asked on 30 Oct for the demo to run mostly in a terminal, with the UI 
 4. `stint up --no-review` MUST leave a person's finished build unreviewed until `stint review`; without the flag nothing changes (D-080).
 5. `stint draft --task` MUST keep the draft one task where the model might have made it a goal, as the task/goal switch in the spec builder does.
 6. Model display names live once, in core (`modelName`), for the UI and the CLI.
+7. A harness drives the same story over MCP: `stint_new_goal` makes a goal, `stint_plan_goal` has the planner split it into tasks that wait on each other and creates them, `stint_run_goal` puts its open tasks on autopilot, and `stint_stop` stops a live run so its packet can be handed on. None of them approves or merges, and none is listed inside a run.
 
 ## Acceptance
 1. `packages/cli/test/watch.test.ts`: the feed's lines for the event shapes of the 30 October live take, exact; `stint stop` stops a sleeping fake run (exit 0, the run ends killed) and exits 1 with no run going; `stint watch` follows a real daemon and prints the run, its edit, its packet and Stint's test run.
 2. `packages/cli/test/review.test.ts`: `stint review --host ollama` against a fake local model prints the reviewer on this machine, $0.00, the verdict and the summary.
 3. `packages/cli/test/draft.test.ts`: `stint draft --task` on words the model would make a goal prints a task.
-4. The README's command table names `watch`, `stop` and `review` and `stint up --no-review`; `bash scripts/check.sh` and `bun run test:ui` pass.
+4. `packages/cli/test/mcp.test.ts`: from an MCP client, a goal is made, split into two tasks where the second waits on the first, run, and its live run stopped and ended killed; the in-run tool list is unchanged.
+5. The README's command table names `watch`, `stop` and `review` and `stint up --no-review`; `bash scripts/check.sh` and `bun run test:ui` pass.

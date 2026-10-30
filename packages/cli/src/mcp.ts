@@ -69,7 +69,7 @@ const prop = (type: string, description: string, extra: Json = {}) => ({ type, d
 const taskProp = prop('string', 'Task id such as T-0042; inside a Stint run, defaults to the run\'s task');
 
 /** Tools a run's own token is refused on: a new task is outside its task, and hand and verify wait for its run to end. */
-const OUTSIDE_A_RUN = new Set(['stint_new_task', 'stint_hand', 'stint_verify']);
+const OUTSIDE_A_RUN = new Set(['stint_new_task', 'stint_hand', 'stint_verify', 'stint_stop', 'stint_new_goal', 'stint_plan_goal', 'stint_run_goal']);
 
 /** Stint's tools; inside a run (STINT_RUN_TOKEN set) only the ones its token can call, so none of them always fails. */
 export function tools(root: string): Tool[] {
@@ -220,6 +220,59 @@ export function tools(root: string): Tool[] {
         const id = taskOf(args);
         const v = await call<{ status: string; passed: number; failed: number; command: string; failing?: string[] }>(root, `/api/tasks/${id}/verify`, { method: 'POST', body: {} });
         return `${v.command}: ${v.status}, ${v.passed} passed, ${v.failed} failed${v.failing?.length ? `. Failing: ${v.failing.join('; ')}` : ''}`;
+      },
+    },
+    {
+      name: 'stint_stop',
+      description: "Stop a task's live run, as Stop the run does in the UI; Stint builds its packet from the log and the diff, so another agent can continue.",
+      inputSchema: { type: 'object', properties: { task: taskProp, run: prop('string', 'The run to stop, such as r2; defaults to the one that is going') } },
+      call: async (args) => {
+        const id = taskOf(args);
+        const run = str(args.run) ?? (await call<{ runs: Array<{ run: string; endedAt: string | null }> }>(root, `/api/tasks/${id}`)).runs.find((r) => !r.endedAt)?.run;
+        if (!run) throw new ToolError(`${id} has no run going`);
+        await call(root, `/api/tasks/${id}/runs/${run}/stop`, { method: 'POST', body: {} });
+        return `Stopped ${id} ${run}. Its packet is built from the log and the diff; hand it on with stint_hand.`;
+      },
+    },
+    {
+      name: 'stint_new_goal',
+      description: 'Make a goal: an outcome bigger than one task, and the criteria that prove it. stint_plan_goal splits it into tasks.',
+      inputSchema: {
+        type: 'object',
+        properties: { title: prop('string', 'The goal in a few words'), outcome: prop('string', 'What is true once it is done'), criteria: prop('array', 'One check per line that proves the goal is met', { items: { type: 'string' } }) },
+        required: ['title', 'outcome', 'criteria'],
+      },
+      call: async (args) => {
+        const title = str(args.title);
+        const outcome = str(args.outcome);
+        const criteria = Array.isArray(args.criteria) ? args.criteria.map(str).filter((c): c is string => !!c) : [];
+        if (!title || !outcome || !criteria.length) throw new ToolError('Give the goal a title, an outcome and at least one criterion');
+        const g = await call<{ id: string }>(root, '/api/goals', { method: 'POST', body: { title, outcome, criteria } });
+        return `Made ${g.id}, ${title}, with ${criteria.length} criteria. Split it into tasks with stint_plan_goal.`;
+      },
+    },
+    {
+      name: 'stint_plan_goal',
+      description: "Have Stint's planner split a goal into tasks, each with what it waits on, and create them on the board.",
+      inputSchema: { type: 'object', properties: { goal: prop('string', 'Goal id such as G-0001') }, required: ['goal'] },
+      call: async (args) => {
+        const goal = str(args.goal);
+        if (!goal) throw new ToolError('Name the goal, such as G-0001');
+        const { tasks } = await call<{ tasks: unknown[] }>(root, `/api/goals/${goal}/plan`, { method: 'POST', body: {} });
+        const made = await call<{ tasks: Array<{ id: string; title: string; dependsOn?: string[] }> }>(root, `/api/goals/${goal}/tasks`, { method: 'POST', body: { tasks } });
+        const lines = made.tasks.map((t) => `- ${t.id} ${t.title}${t.dependsOn?.length ? `, after ${t.dependsOn.join(' and ')}` : ''}`);
+        return `${goal} is split into ${made.tasks.length} tasks:\n${lines.join('\n')}\nRun them with stint_run_goal.`;
+      },
+    },
+    {
+      name: 'stint_run_goal',
+      description: "Put every open task of a goal on autopilot; a task waits for the tasks it depends on to be merged, and each stops at the person's approval.",
+      inputSchema: { type: 'object', properties: { goal: prop('string', 'Goal id such as G-0001') }, required: ['goal'] },
+      call: async (args) => {
+        const goal = str(args.goal);
+        if (!goal) throw new ToolError('Name the goal, such as G-0001');
+        const r = await call<{ started: string[] }>(root, `/api/goals/${goal}/run`, { method: 'POST', body: {} });
+        return r.started.length ? `${goal}: ${r.started.join(', ')} on autopilot; tasks that wait on others start once those are merged, and nothing merges without the person.` : `${goal}: no open task to start.`;
       },
     },
   ];

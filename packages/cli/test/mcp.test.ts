@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { startDaemon } from '@stint-dev/daemon';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { flowConfig, startFakeModels } from '../../../apps/web/e2e/flows/fakes';
 import { fakeAdapter, withFixtureRepo } from '../../daemon/test/helpers';
 
 /** An MCP client over the server's stdio, one request at a time, as an agent would talk to it. */
@@ -129,3 +131,41 @@ test('inside a Stint run the server lists only the tools the run token can call,
     }
   });
 }, 120_000);
+
+test('From a harness, a goal is made, split into tasks that wait on each other, and run; and a live run is stopped for its packet', async () => {
+  const models = startFakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      mkdirSync(join(repo, '.stint'), { recursive: true });
+      writeFileSync(join(repo, '.stint', 'config.json'), JSON.stringify(flowConfig(models.port)));
+      const d = await startDaemon({ root: repo, quiet: true, adapters: [{ ...fakeAdapter('sleep'), id: 'muse-code' }] });
+      const c = client(repo);
+      try {
+        await c.request('initialize', {});
+        const made = await c.tool('stint_new_goal', { title: 'Reliable webhook delivery', outcome: 'Webhooks are limited per tenant and retried.', criteria: ['A tenant over the limit gets 429', 'A failed delivery is retried with backoff'] });
+        expect(made).toEqual({ isError: false, text: 'Made G-0001, Reliable webhook delivery, with 2 criteria. Split it into tasks with stint_plan_goal.' });
+        const split = await c.tool('stint_plan_goal', { goal: 'G-0001' });
+        expect(split.isError).toBe(false);
+        expect(split.text.split('\n')).toEqual([
+          'G-0001 is split into 2 tasks:',
+          '- T-0001 Part 1: A tenant over the limit gets 429',
+          '- T-0002 Part 2: A failed delivery is retried with backoff, after T-0001',
+          'Run them with stint_run_goal.',
+        ]);
+        expect((await c.tool('stint_stop', { task: 'T-0001' })).text).toBe('T-0001 has no run going');
+
+        const ran = await c.tool('stint_run_goal', { goal: 'G-0001' });
+        expect(ran.text).toStartWith('G-0001: T-0001');
+        for (let i = 0; i < 400 && !(await d.ws.events('T-0001').read()).some((e) => e.type === 'agent.tool_call'); i++) await Bun.sleep(25);
+        expect((await c.tool('stint_stop', { task: 'T-0001' })).text).toMatch(/^Stopped T-0001 r\d+\. Its packet is built from the log and the diff; hand it on with stint_hand\.$/);
+        for (let i = 0; i < 400 && !(await d.ws.events('T-0001').read()).some((e) => e.type === 'run.finished' && e.payload.endedBy === 'killed'); i++) await Bun.sleep(25);
+        expect((await d.ws.events('T-0001').read()).some((e) => e.type === 'run.finished' && e.payload.endedBy === 'killed')).toBe(true);
+      } finally {
+        c.close();
+        await d.stop();
+      }
+    });
+  } finally {
+    models.stop();
+  }
+}, 90_000);

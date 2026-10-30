@@ -17,10 +17,14 @@ This page is for anyone connecting a coding agent or another MCP client to Stint
 | `stint_hand` | hand a task to another agent, from a packet addressed to it |
 | `stint_autopilot` | put a task on autopilot, or take it off |
 | `stint_verify` | have the daemon run the tests and report the result |
+| `stint_stop` | stop a task's live run; Stint builds its packet from the log and the diff, ready for `stint_hand` |
+| `stint_new_goal` | make a goal: an outcome bigger than one task and the criteria that prove it |
+| `stint_plan_goal` | have Stint's planner split a goal into tasks, each with what it waits on, and create them |
+| `stint_run_goal` | put a goal's open tasks on autopilot; a task waits for the tasks it depends on to be merged |
 
 Approving, rejecting and merging are not tools. A person does those.
 
-Inside a Stint run, `task` defaults to the run's task, so an agent can call `stint_constraints` or `stint_decide` with no arguments. There the server calls the daemon with the run's own token, which changes only that task: recording a decision and autopilot work, and changing another task is refused ([`sandbox.md`](sandbox.md#a-sandbox-per-run)). The server lists 8 of its 11 tools there. It leaves out `stint_new_task`, because a run token cannot create a task, and `stint_hand` and `stint_verify`, because both wait for the task's live run to end, and the caller's own run is that run.
+Inside a Stint run, `task` defaults to the run's task, so an agent can call `stint_constraints` or `stint_decide` with no arguments. There the server calls the daemon with the run's own token, which changes only that task: recording a decision and autopilot work, and changing another task is refused ([`sandbox.md`](sandbox.md#a-sandbox-per-run)). The server lists 8 of its 15 tools there. It leaves out `stint_new_task` and the three goal tools, because a run token cannot create a task or a goal, and `stint_hand`, `stint_verify` and `stint_stop`, because each acts on the task's live run, and the caller's own run is that run.
 
 ## Connect an agent
 
