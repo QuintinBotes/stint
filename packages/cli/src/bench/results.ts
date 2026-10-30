@@ -348,7 +348,8 @@ export function renderBenchSvg(results: BenchResults, theme: 'dark' | 'light'): 
   const groupW = 148;
   const barW = 48;
   const left = 72;
-  const top = 84;
+  // room above the plot for the tallest bar's label, below the legend
+  const top = 104;
   const plotH = 260;
   const width = Math.max(640, left + tasks.length * groupW + 24);
   const height = top + plotH + 64;
