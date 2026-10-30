@@ -8,7 +8,9 @@ test('The approval gate stays shut while the verification is absent or red', asy
   const fresh = await d.create('Flow: gate with nothing verified yet');
   await page.goto(`/t/${fresh.id}`);
   await expect(page.getByTestId('approval-gate')).toHaveAttribute('data-open', 'false');
-  await expect(page.getByTestId('approve')).toBeDisabled();
+  // before any run there is nothing to approve, change or reject, so the gate says so and offers none of them
+  await expect(page.getByTestId('approval-gate')).toContainText('Nothing has been built yet.');
+  for (const id of ['approve', 'ask-changes', 'ask-reject']) await expect(page.getByTestId(id), id).toHaveCount(0);
 
   const red = await d.post<Task>('/api/tasks', { title: 'Flow: gate with red tests', goal: 'Fail the daemon tests.', acceptance: ['the gate stays shut'], testCommand: 'false' });
   await d.post(`/api/tasks/${red.id}/assign`, { adapter: 'muse-code', role: 'implementer' });

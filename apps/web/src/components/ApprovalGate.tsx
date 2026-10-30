@@ -481,10 +481,12 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
                       </Button>
                     </div>
                   </form>
+                ) : bundle.runs.length === 0 ? (
+                  // before any run there is nothing to approve, change or reject, and no decorative $0.00
+                  <Explain word="gate" />
                 ) : (
                   <>
-                    {/* nothing to tell before a run, and no decorative $0.00 */}
-                    {bundle.task.status === 'rejected' || bundle.task.status === 'abandoned' || bundle.runs.length === 0 ? null : <HowItWent bundle={bundle} />}
+                    {bundle.task.status === 'rejected' || bundle.task.status === 'abandoned' ? null : <HowItWent bundle={bundle} />}
                     <Button
                       ref={approveButton}
                       tone="primary"
