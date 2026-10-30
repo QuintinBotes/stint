@@ -181,10 +181,11 @@ One run per task and mode is a small sample, and single tasks swung both ways (o
 
 | Model | Where it runs | What it does in Stint |
 |---|---|---|
-| Muse Wonder 1.0 | Meta Model API | plans each task with structured output, drafts a spec from a sentence, and asks Sharpen's questions |
+| Muse Wonder 1.0 | Meta Model API | plans each task with structured output and asks Sharpen's questions |
 | Muse Spark 1.3 | Meta Model API, through Muse Code | builds in the task's worktree; Muse Code's JSON event stream becomes the timeline |
 | Muse Spark 1.3 | Meta Model API, through the Stint agent | continues from a packet: Stint's own tool-calling agent, with refusals Stint enforces |
 | Muse Spark 1.3 | Meta Model API, in the verifier | judges a screenshot of a page against a visual criterion |
+| Muse Spark 1.3 | Meta Model API, in the spec builder | drafts a spec from a sentence, with its questions, because a person waits at the dialog (D-089) |
 | SAM 3.1 | Meta Model API | marks the element on the screenshot that Muse Spark said is wrong |
 | Muse Glimmer 30B | Ollama on your machine | reviews at $0.00 with the network off |
 | Muse Spark Open | Fireworks, Baseten, Modal | the learn step's first choice, and the fallback for planning, review and the Stint agent when the Meta API or Ollama cannot answer |

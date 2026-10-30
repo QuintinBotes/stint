@@ -26,8 +26,8 @@ Try it in a browser with nothing to install: [the judge page](https://quintinbot
 
 | Model | Its job in Stint | Where to see it |
 |---|---|---|
-| Muse Wonder 1.0 | Plans each task, drafts a spec from a sentence, and asks Sharpen's questions | T-0042's run r1 in the replay; [`docs/sharpen.md`](docs/sharpen.md) |
-| Muse Spark 1.3 | Builds through Muse Code and the Stint agent, continues a killed run from its packet, and judges a page in the visual gate | T-0042's runs r2 and r3; [`continue.live.test.ts`](packages/daemon/test/continue.live.test.ts) |
+| Muse Wonder 1.0 | Plans each task and asks Sharpen's questions | T-0042's run r1 in the replay; [`docs/sharpen.md`](docs/sharpen.md) |
+| Muse Spark 1.3 | Builds through Muse Code and the Stint agent, continues a killed run from its packet, drafts a spec from a sentence, and judges a page in the visual gate | T-0042's runs r2 and r3; [`continue.live.test.ts`](packages/daemon/test/continue.live.test.ts) |
 | Muse Spark Open | On Fireworks, Baseten and Modal: the learn step's first host, and the fallback for planning, review and the Stint agent | The default routes in [`config.ts`](packages/core/src/schemas/config.ts); [`docs/agents.md`](docs/agents.md#another-model) |
 | Muse Glimmer 30B | On Ollama, on your machine: reviews at $0.00 with the network off | T-0042's run r4; [`docs/setup.md`](docs/setup.md#the-offline-review) |
 | SAM 3.1 | Marks the part of a screenshot that Muse Spark said is wrong | [`visual-1-marked.png`](bench/visual/visual-1-marked.png); [`docs/verify.md`](docs/verify.md#what-stint-saw-visual-checks) |

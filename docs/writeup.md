@@ -49,10 +49,11 @@ The UI is a calm charcoal workspace that follows the system's light or dark sett
 
 | Model | Where it runs | What it does in Stint |
 |---|---|---|
-| Muse Wonder 1.0 | Meta Model API | plans each task with structured output, drafts a spec from a sentence, asks Sharpen's questions, and writes the statements of the packet quiz |
+| Muse Wonder 1.0 | Meta Model API | plans each task with structured output, asks Sharpen's questions, and writes the statements of the packet quiz |
 | Muse Spark 1.3 | Meta Model API, through Muse Code | builds in the task's worktree; Muse Code's JSON event stream becomes the timeline |
 | Muse Spark 1.3 | Meta Model API, through the Stint agent | continues from a packet: Stint's own tool-calling agent, with refusals Stint enforces |
 | Muse Spark 1.3 | Meta Model API, in the verifier | judges a screenshot of a page against a visual criterion |
+| Muse Spark 1.3 | Meta Model API, in the spec builder | drafts a spec from a sentence, with its questions, because a person waits at the dialog (D-089) |
 | SAM 3.1 | Meta Model API | marks the element on the screenshot that Muse Spark said is wrong |
 | Muse Glimmer 30B | Ollama on the laptop | reviews at $0.00 with the network off, digests a killed run's diff, answers the packet quiz |
 | Muse Spark Open | Fireworks, Baseten, Modal | the learn step's first choice, and the fallback for planning, review and the Stint agent when the Meta API or Ollama cannot answer |
