@@ -7,6 +7,8 @@ permissions:
 
 jobs:
   sign-off:
+    # the sign-off certifies a contribution to the owner; the repository owner's own pull requests need none
+    if: github.event.pull_request.user.login != github.repository_owner
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
