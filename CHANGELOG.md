@@ -2,14 +2,34 @@
 
 ## Unreleased
 
+### Added (31 October)
+- `stint limits <task> --implementer-tokens N` raises a task's token budget, as do `--planner-tokens`, `--reviewer-tokens`, `--tester-tokens` and `--learn-tokens` for their roles, through `PATCH /api/tasks/:id/limits`; the meters end with the implementer's tokens against its budget.
+- A host in `config.json` can set `timeoutMs`, the least time one call to it gets whatever its role allows.
+
+### Changed (31 October)
+- The default implementer token budget is 1,200,000 tokens, up from 150,000: one Muse Code build used 91,000 to 142,000, so the old budget refused every task's second build or hand-off while autopilot allows 8 builds.
+- Ollama's default `timeoutMs` is 10 minutes.
+
+### Fixed (31 October)
+- Muse Glimmer's reviews no longer time out on a 32 GB Mac: one review of a 27 KB diff took 185 s, over the 120 s review limit, so with two tasks in parallel the gate opened with no review.
+- A run or hand-off refused over a token budget says what was spent, against which budget, and the command that raises it; the UI no longer answers "Check the fields and try again".
+- The approval gate names a merge conflict's files in words and says to ask for changes so an agent merges main, instead of printing them as JSON.
+
 ### Added (30 October)
 - Live relays on three public repositories Stint had never seen (R-070): jshttp/negotiator, jeffbski/wait-on and vercel/ms. One task each goes from Muse Code to Claude Code on Muse Glimmer 30B to Codex on Muse Spark 1.3 by packet, is verified by the daemon with hidden tests, is reviewed offline, and stops at the gate. All three tasks reached the gate with the hidden tests green; a control task that cannot pass without editing a locked test stopped red before it; a seven-task learning sequence ran green with no findings, so no skill was proposed. Every run is published in `bench/relay/`, the failed ones too.
 - The scorecard (R-070): `bun scripts/scorecard.ts` runs each relay task k times as a single run, has Glimmer review each green build, grades it with the hidden tests, and writes pass^k, hand-off success and how the review did against the hidden tests to `bench/scorecard.json`; `--render` prints the table in `docs/proofs.md`. Live, the Stint agent on Muse Spark Open passed 3 of 9.
 - The learning chart on the Factory: review findings per task in the order reviewed, with a labelled mark where each skill was approved, drawn from the task and workspace logs so the replay draws it too.
 - The judge page is published at https://quintinbotes.github.io/stint/, built on the owner's Mac with `bun run build:judge`.
 - Run the goal's tasks asks first, as Run all does: what starts now and what waits, the goal's limits, and that nothing merges without you. Only Start starts it.
+- The terminal tells the whole story (R-073): `stint watch <task>` follows a task live, a line per event that says what happened, and `stint watch` with no task follows every task at once, each line marked with its task; `stint stop` stops the run that is going; `stint review` reviews the verified change now (`--host ollama` on this machine, with no network); `stint up --no-review` leaves review to the person; `stint draft --task` keeps a draft to one task.
+- A harness drives a whole goal over MCP: `stint_new_goal` makes it, `stint_plan_goal` has the planner split it into tasks that wait on each other, `stint_run_goal` puts them on autopilot, and `stint_stop` stops a live run so its packet can be handed on. None approves or merges.
+
+### Changed (30 October)
+- The web UI shows money only where a person sets or meets a spend limit (R-074): the week's spend, credits left, cost per day, spend by task, the dollar metrics and every per-card, per-run and per-line cost are gone. The log, the API and `stint costs` keep every figure.
+- The runs chart names every harness the way the rest of the UI does, and the lanes of one role follow the order the agents first worked.
 
 ### Fixed (30 October)
+- A merged or abandoned task asks nothing more: its Sharpen questions no longer show as needing an answer, and its answers stay on as its decisions.
 - Agent CLIs on a Stint host run without the person's own setup: Claude Code with no MCP servers or subagents, and Codex from a clean home, so a run no longer carries the person's plugins. The person's own configs are never edited, and relay runs never publish raw agent transcripts.
 - The Stint agent no longer reads a cut-off reply as done. A reply cut off before the model says or does anything is asked again with more room (4,096, then 16,384, then 32,768 output tokens), and a model still cut off at the most room ends the run failed, saying why. The first live scorecard found it.
 - Approve writes the shadow decision before `merge.completed`, so whatever follows the merge already sees it.
