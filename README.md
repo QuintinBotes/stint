@@ -13,14 +13,14 @@ Coding agents lose their work when a session ends: the context fills up, the pro
 
 ## For judges
 
-Watch the 3-minute demo at [youtu.be/zm7PmrHn0-M](https://youtu.be/zm7PmrHn0-M). To try Stint with nothing to install, open [the live demo](https://quintinbotes.github.io/stint/demo/) on [Stint's site](https://quintinbotes.github.io/stint/), or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys.
+Watch the 3-minute demo at [youtu.be/ejYyHgkVOWg](https://youtu.be/ejYyHgkVOWg). To try Stint with nothing to install, open [the live demo](https://quintinbotes.github.io/stint/demo/) on [Stint's site](https://quintinbotes.github.io/stint/), or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys.
 
 | Criterion | Evidence |
 |---|---|
 | Impact | Muse Code can resume its own session; Stint keeps the task alive across agents, checks the work itself and asks a person before anything merges, so a usage limit, a crash or a full context window is a hand-off, not a restart. Live, packets were about seven times smaller than transcripts, and more of the runs continued from them passed ([benchmark](docs/proofs.md#benchmark)). On three open-source repositories Stint had never seen, one task each went from Muse Code to Claude Code to Codex by packet, and all 3 reached the gate with the hidden tests green ([live evidence](docs/proofs.md#live-evidence-29-october)). |
 | Use of Meta AI | Six Meta models, each in a job Meta documents; every model Stint calls at runtime is Meta's (next table). Live, Muse Spark 1.3 judged a page wrong and SAM 3.1 boxed the fault, for $0.0063 ([`bench/visual/result.json`](bench/visual/result.json)). |
 | Technical depth | A daemon that is the only writer of a hash-chained event log, a published packet schema ([`handoff.schema.json`](packages/core/schemas/handoff.schema.json)), verification an agent cannot fake ([`docs/verify.md`](docs/verify.md)) and a sandbox per run ([`docs/sandbox.md`](docs/sandbox.md)). Live, a control task that could pass only by editing a locked test stopped red before the gate ([`bench/relay/`](bench/relay/README.md)). |
-| Demo | The [film](https://youtu.be/zm7PmrHn0-M) is live takes on Meta's models. The replay plays T-0040, T-0042 and T-0043 with no keys and says on screen that its story is hand-written; its numbers come from live runs ([`docs/demo.md`](docs/demo.md)). |
+| Demo | The [film](https://youtu.be/ejYyHgkVOWg) is live takes on Meta's models. The replay plays T-0040, T-0042 and T-0043 with no keys and says on screen that its story is hand-written; its numbers come from live runs ([`docs/demo.md`](docs/demo.md)). |
 
 ### Where Meta's models are used
 
