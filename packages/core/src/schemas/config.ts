@@ -247,7 +247,8 @@ export const DEFAULT_CONFIG: Config = {
     'stint-agent': { enabled: true, maxTurns: 40, model: 'muse-spark-1.3' },
     replay: { enabled: true },
   },
-  budgets: { planner: 40_000, implementer: 150_000, reviewer: 30_000, learn: 20_000 },
+  // measured 31 Oct: one Muse Code build used 91,000 to 142,000 uncached tokens, so this fits the default 8 builds
+  budgets: { planner: 40_000, implementer: 1_200_000, reviewer: 30_000, learn: 20_000 },
   testCommand: 'bun test',
   hosts: {
     'meta-api': {

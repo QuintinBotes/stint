@@ -195,7 +195,9 @@ export class DaemonError extends Error {
 export function daemonMessage(e: unknown): string {
   if (!(e instanceof DaemonError)) return e instanceof Error ? e.message : String(e);
   const hint = e.error.hint;
-  return `${e.error.message}${hint ? `. ${typeof hint === 'string' ? hint : plainIssues(hint)}` : ''}`;
+  // an object hint is data for code, such as a budget's numbers; the message already says them in words
+  const said = typeof hint === 'string' ? hint : Array.isArray(hint) ? plainIssues(hint) : '';
+  return `${e.error.message}${said ? `. ${said}` : ''}`;
 }
 
 /** A schema's complaints as a sentence a person reads ("criteria: at most 12"), never as raw JSON. */

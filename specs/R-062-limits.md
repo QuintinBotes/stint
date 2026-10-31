@@ -46,6 +46,7 @@ Each counter covers the task's whole log, not the autopilot tail.
 7. MUST add CLI flags and a command:
    - `stint new … --max-builds N --max-handoffs N --max-review-rounds N --max-usd D --max-minutes N`, and the same fields in the strict `POST /api/tasks` body;
    - `stint limits <task> [--max-… …] [--none <limit>]`, which prints the meters (used, cap) and changes limits through the route.
+   - `stint limits <task> --<role>-tokens N` raises a role's token budget on the task (planner, implementer, reviewer, tester, learn) through the same route, whose body takes `budgets` beside the limits and records `budgetsFrom` and `budgetsTo` in `limits.changed`; the meters add the implementer's tokens spent against its budget. The `budget_exceeded` refusal names the tokens spent, the prompt, the budget and this command, so a person at a refused hand-off knows what to do (added 31 Oct, D-094).
 8. MUST show limits in the web UI, following DESIGN.md:
    - **New task dialog:** a native `<details>` called "Limits" with four number fields (builds, hand-offs, spend in dollars, agent minutes). Each field's placeholder shows the default, and the field has a one-line hint. Review rounds are CLI and config only.
    - **Task view title block:** one row of meters, for example "Builds 3 of 8 · Hand-offs 1 of 3 · Spend $0.61 of $3.00 · Agent time 12 min". A meter with no cap shows the used value only. Meter bars are square and in ink. Amber appears only when a limit is reached and the task needs you.
@@ -65,6 +66,7 @@ Each counter covers the task's whole log, not the autopilot tail.
 - A unit test: `reviewRounds: 2` allows a second changes build and stops at the third request.
 - A unit test on `taskUsage`, covering adopted runs, escalations, a live run's minutes and an unpriced call.
 - A daemon test: PATCH without the token is 401; a bad body is 400; a good one writes `task.json` and `limits.changed`.
+- A daemon test: an assign refused over the implementer budget says what was spent and the command that raises it; after `PATCH { budgets: { implementer } }` the same assign starts.
 - A schema agreement test covering `limits`, and an old `task.json` without `limits` that still parses.
 - An e2e flow (`apps/web/e2e/flows/`): create a task with "Builds 1" from the dialog, let a failing fake build run, see the meter at "1 of 1" and the stop, raise the limit to 2 inline, and see autopilot take the next build.
 - `bun run typecheck`, the unit tests, `node scripts/guard-identity.mjs` and the a11y spec pass.

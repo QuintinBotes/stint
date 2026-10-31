@@ -27,6 +27,7 @@ test('stint new --max-… sets the task limits, stint limits prints the meters a
         'Review rounds 0 of 1',
         'Spend         $0.00 of $3.00',
         'Agent time    0 of 30 min',
+        'Tokens        0 of 1200000, implementer',
         '',
       ]);
 
@@ -36,6 +37,9 @@ test('stint new --max-… sets the task limits, stint limits prints the meters a
       expect(changed.stdout).toContain('Spend         $0.00, no limit');
       expect((await d.ws.readTask(id)).limits).toEqual({ builds: 4, usd: null, minutes: 30 });
       expect((await d.ws.events(id).read()).filter((e) => e.type === 'limits.changed')).toHaveLength(1);
+      const raised = await stint('limits', id, '--implementer-tokens', '300,000', '--repo', repo);
+      expect(raised.stdout).toContain('Tokens        0 of 300000, implementer');
+      expect((await d.ws.readTask(id)).budgets.implementer).toBe(300_000);
 
       const notNumber = await stint('limits', id, '--max-builds', 'many', '--repo', repo);
       expect(notNumber.exitCode).toBe(2);

@@ -86,7 +86,7 @@ When a limit is reached, the daemon records `limit.reached` with the limit, what
 - **Raise the limit:** type the new limit in place. Stint records `limits.changed` and puts the task back on autopilot.
 - **Hand to another agent:** opens the packet tab at its hand-to control. The stop clears once that run starts.
 
-From a terminal, `stint limits <task>` prints every meter, review rounds included, and `stint limits <task> --max-builds 10` or `--none usd` changes them. Changing a limit this way does not restart autopilot; `stint run <task>` does. Both go through `PATCH /api/tasks/:id/limits`, and `GET /api/tasks/:id/limits` returns the limits and what the task has used. A merged, approved or abandoned task has no work left to limit, so its limits cannot change.
+From a terminal, `stint limits <task>` prints every meter, review rounds included, and `stint limits <task> --max-builds 10` or `--none usd` changes them. The last line is the implementer's tokens against the task's token budget, 1,200,000 by default. When a run or a hand-off is refused over that budget, the refusal says what was spent and gives the command that raises it, such as `stint limits T-0009 --implementer-tokens 400000`. Changing a limit this way does not restart autopilot; `stint run <task>` does. Both go through `PATCH /api/tasks/:id/limits`, and `GET /api/tasks/:id/limits` returns the limits and what the task has used. A merged, approved or abandoned task has no work left to limit, so its limits cannot change.
 
 ### A goal's limits
 

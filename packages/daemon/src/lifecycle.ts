@@ -47,7 +47,7 @@ export function priced(ctx: DaemonContext, adapter: string, r: Pick<RunResult, '
 }
 
 /** Tokens a role has already spent on a task: fresh input plus output, the part that costs money (D-033). */
-async function spentByRole(ctx: DaemonContext, task: string, role: Role): Promise<number> {
+export async function spentByRole(ctx: DaemonContext, task: string, role: Role): Promise<number> {
   const runs = runsFromEvents(await ctx.ws.events(task).read());
   return runs.filter((r) => r.role === role && r.cost).reduce((s, r) => s + Math.max(0, (r.cost?.inputTokens ?? 0) - (r.cost?.cachedTokens ?? 0)) + (r.cost?.outputTokens ?? 0), 0);
 }
@@ -124,7 +124,8 @@ export async function assign(ctx: DaemonContext, taskId: string, input: AssignIn
 async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, task: Task, adapter: Adapter): Promise<Assigned> {
   const ws = ctx.ws;
   // tester and learn runs draw on the implementer's budget unless the task gives them their own
-  const budget = task.budgets[input.role] ?? task.budgets.implementer;
+  const budgetKey = task.budgets[input.role] !== undefined ? input.role : 'implementer';
+  const budget = task.budgets[budgetKey] ?? task.budgets.implementer;
   const spent = await spentByRole(ctx, taskId, input.role);
   const av = await adapter.available();
   if (!av.ok) throw new DaemonError('adapter_unavailable', `${adapter.id} is unavailable: ${av.reason ?? 'no reason given'}`);
@@ -155,7 +156,12 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
   // The role's spend on this task plus the prompt about to be sent must stay under the role's budget.
   const promptTokens = countTokens(prompt);
   if (spent + promptTokens > budget) {
-    throw new DaemonError('budget_exceeded', `the ${input.role} budget on ${taskId} would be exceeded`, { spent, prompt: promptTokens, cap: budget });
+    const room = Math.ceil((spent + promptTokens + budget) / 10_000) * 10_000;
+    throw new DaemonError(
+      'budget_exceeded',
+      `the ${input.role} budget on ${taskId} would be exceeded: ${spent.toLocaleString('en-US')} tokens spent and a ${promptTokens.toLocaleString('en-US')}-token prompt against ${budget.toLocaleString('en-US')}; raise it with stint limits ${taskId} --${budgetKey}-tokens ${room}`,
+      { spent, prompt: promptTokens, cap: budget },
+    );
   }
   // the next run id is above every run the log or the run folders know
   const fromDirs = Number((await ws.runs(taskId).nextRunId()).slice(1));

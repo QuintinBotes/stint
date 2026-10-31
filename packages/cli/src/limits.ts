@@ -57,27 +57,50 @@ export function meterLines(limits: Limits, used: TaskUsage): string[] {
   });
 }
 
-type Meters = { limits: Limits; used: TaskUsage; own: TaskLimits };
+type Meters = { limits: Limits; used: TaskUsage; own: TaskLimits; tokens: { budget: number; spent: number } };
+
+/** The token budgets a person raises where a run was refused over one, each as `--<role>-tokens`. */
+const BUDGET_ROLES = ['implementer', 'planner', 'reviewer', 'tester', 'learn'] as const;
+const budgetArgs = Object.fromEntries(
+  BUDGET_ROLES.map((r) => [`${r}-tokens`, { type: 'string', description: `Tokens the ${r} runs of this task may use, uncached input plus output` }]),
+) as Record<`${(typeof BUDGET_ROLES)[number]}-tokens`, { type: 'string'; description: string }>;
+
+function budgetsFromFlags(args: Record<string, unknown>): Partial<Record<(typeof BUDGET_ROLES)[number], number>> | undefined {
+  const out: Partial<Record<(typeof BUDGET_ROLES)[number], number>> = {};
+  for (const r of BUDGET_ROLES) {
+    const raw = args[`${r}-tokens`];
+    if (typeof raw !== 'string') continue;
+    const n = Number(raw.replaceAll(',', ''));
+    if (!Number.isInteger(n) || n < 0) {
+      process.stderr.write(`--${r}-tokens must be a whole number of tokens, not ${raw}\n`);
+      process.exit(2);
+    }
+    out[r] = n;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 export const limits = defineCommand({
   meta: { name: 'limits', description: "Show a task's limits and what it has used, or change them" },
   args: {
     task: { type: 'positional', required: true, description: 'Task id' },
     ...limitArgs,
+    ...budgetArgs,
     none: { type: 'string', description: 'Take a limit off: builds, handoffs, review-rounds, usd or minutes (several with commas)' },
     json: { type: 'boolean', description: 'Machine-readable output' },
     repo: { type: 'string', description: 'Repository root (default: the git top level)' },
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
-    const change = limitsFromFlags(args, args.none ? args.none.split(',').map((s) => s.trim()).filter(Boolean) : []);
+    const budgets = budgetsFromFlags(args);
+    const change = { ...limitsFromFlags(args, args.none ? args.none.split(',').map((s) => s.trim()).filter(Boolean) : []), ...(budgets ? { budgets } : {}) };
     const path = `/api/tasks/${args.task}/limits`;
     const m = Object.keys(change).length ? await postDaemon<Meters>(root, path, change, 'PATCH') : await getDaemon<Meters>(root, path);
     if (args.json) {
       process.stdout.write(`${JSON.stringify(m)}\n`);
       return;
     }
-    process.stdout.write(`${meterLines(m.limits, m.used).join('\n')}\n`);
+    process.stdout.write(`${[...meterLines(m.limits, m.used), `${'Tokens'.padEnd(14)}${m.tokens.spent} of ${m.tokens.budget}, implementer`].join('\n')}\n`);
     // raising a limit does not restart autopilot; switching it on again does
     if (Object.keys(change).length) process.stdout.write(`Limits changed. If autopilot stopped at a limit, switch it on again: stint run ${args.task}\n`);
   },

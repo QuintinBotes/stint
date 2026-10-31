@@ -198,7 +198,9 @@ test('R-025 Req 4: a build that would go over the implementer budget stops autop
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
       const events = await until(ws, t.id, stopped);
       expect(steps(events)).toEqual(['plan', 'build']);
-      expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toEqual({ reason: `Needs you: budget_exceeded: the implementer budget on ${t.id} would be exceeded`, needsYou: true });
+      const stop = events.find((e) => e.type === 'autopilot.stopped')?.payload as { reason: string; needsYou: boolean };
+      expect(stop.needsYou).toBe(true);
+      expect(stop.reason).toMatch(new RegExp(`^Needs you: budget_exceeded: the implementer budget on ${t.id} would be exceeded: 0 tokens spent and a [0-9,]+-token prompt against 50; raise it with stint limits ${t.id} --implementer-tokens [0-9]+0000$`));
       expect(events.filter((e) => e.type === 'run.started').map((e) => e.payload.role)).toEqual(['planner']);
     });
   } finally {

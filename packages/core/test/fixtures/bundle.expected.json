@@ -8,7 +8,7 @@
     "baseCommit": "be1bee8d153659647701b8f5886f0a5c73cf276a",
     "branch": "stint/T-0042",
     "budgets": {
-      "implementer": 150000,
+      "implementer": 1200000,
       "learn": 20000,
       "planner": 40000,
       "reviewer": 30000
