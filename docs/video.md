@@ -1,36 +1,52 @@
 # The video
 
-This page is the script for the demo video, for whoever records and edits it: 2:45 at most, inside the hackathon's 3 minute limit, 1080p, captions burned in. Record the live run with `stint demo --live` and screen capture. If any segment is a replay, the strip under the top bar says so ("Replay, hand-written", or "A recording of a live run on <date>" for a recorded take), and that stays on screen. The voiceover is below; each line names what must be on screen while it plays.
+The demo film runs 2:57.5, inside the hackathon's 3 minute limit, at 1080p with captions burned in and "Forward Clarity" under it. Every picture of Stint at work is a live take, and every model in it is Meta's. The proof acts at the end show the repository's own evidence, each naming its source.
 
-Footage from the replay instead of a live take: `bun apps/web/scripts/capture-video.ts` plays the replay through the real daemon at 1.2x, switches the view on the replay's own clock in the order of the beats below, pans the Factory (`/factory`), ends on a title card, and writes a silent 1920x1080 MP4 to `.loop/video/`. It records in the dark charcoal theme whatever the machine's setting; for a screen capture of a live take, set the system to dark first, since the UI follows it. The strip under the top bar says "Replay, hand-written" for its whole length, so nobody takes it for a live run. The replay has no spec builder and no live relay, so record those two beats on their own (see the checklist), cut them in, and trim the replay footage to the times below.
+## How it was made
+
+Each take ran on a stage page: a real terminal on the left, Stint's UI on the right, both driven by a script at a person's pace while videoFn recorded the window. The edit adds zooms where something has to be read, a speed badge on every stretch that is not real time, and an "N min later" pill wherever time jumps.
+
+- **The Muse Code take, 30 October.** Muse Code (read-only profile) drives Stint over MCP while Stint's UI shows the same goal.
+- **The network-off take, 30 October.** Muse Glimmer reviews on this machine with the network off, for $0.00.
+- **Takes 8 and 9, 31 October.** A goal made in Stint's UI and followed in a terminal with `stint watch`. Glimmer reviewed every task on the laptop. The person answered every gate.
+
+## The cut
 
 | Time | On screen | Voiceover |
 |---|---|---|
-| 0:00 | The Board, then the spec builder: one sentence typed into "What do you want done?", the questions with their recommended answers, the draft | "I'm going to kill a coding agent halfway through a task, and another agent is going to finish it. This is Stint, a software factory on your own machine, built on Meta's Muse models. A task starts as one sentence. Muse Spark asks only the questions that change what gets built, and drafts the spec." |
-| 0:22 | Muse Wonder's plan arrives; Memory (press m) shows the earlier task as similar | "Muse Wonder plans it, and Stint's memory finds the earlier task that hit the same problem." |
-| 0:32 | Muse Code building on Muse Spark, the kill, the packet card with its size, the Stint agent continuing, the Tests tab green | "Muse Code builds on Muse Spark, in its own git worktree, and every token is priced. Now I kill it. Mid-edit. The daemon doesn't ask the dead agent anything: it builds a packet of a few hundred tokens from the log and the diff. A different agent, the Stint agent, picks it up from the packet alone, and the daemon, not the agent, runs the tests: 31 passed." |
-| 0:56 | Wi-Fi off; Glimmer's review: "On this machine" | "Review runs on the laptop with the network off: Muse Glimmer, about a minute, for nothing." |
-| 1:06 | Approve; "Merged" in the header; "Approved by you and merged into main as" its commit | "I approve. That's a real merge, and the commit says which task, which runs and which packet." |
-| 1:16 | The Skills page of the replay, its "Replay, hand-written" strip in frame: the learned skill, the two findings it came from, its with and without line | "When the same finding shows up on two tasks, Stint proposes a rule with the evidence and measures it with and without. This take had nothing to learn, so this is the replay; the measurement is from a live run on 27 October." |
-| 1:32 | A terminal: `stint list`, `stint packet T-0042 --as prompt`, `stint costs --by task` | "It all works from the terminal: the board, the packet any agent can read, and what each task cost." |
-| 1:40 | `muse exec` asked to use the Stint tools; its answer; `stint list` with the new task; the task on the Board | "And any harness that speaks MCP can drive it. Muse Code reads the board through Stint's tools, finds the similar past task, and files a new one, with its acceptance criteria." |
-| 1:56 | The Factory: the top numbers, runs by agent with the packet between them, One packet, any agent, Meta models at work | "Here's the whole floor: who carried each task, the packet they passed on, and every model is Meta's." |
-| 2:06 | The relay table in `docs/proofs.md` on GitHub, then one packet in `bench/relay/wait-on/tasks/T-0001/handoffs/` | "Then live, on three open-source repositories Stint had never seen: Muse Code, then Claude Code on Glimmer, then Codex on Muse Spark, each from the last one's packet. Four relays out of five reached the gate with hidden tests green, and the one that didn't is in the table too." |
-| 2:25 | The benchmark table and the paragraph under its chart in `docs/proofs.md` | "And we measured the packet: about seven times smaller than the transcript, and runs that continued from it passed more often." |
-| 2:36 | Stint, "The task outlives the agent.", the repository URL | "Stint. The task outlives the agent." |
+| 0:00 | The title sequence | "Coding agents stop: they crash, hit a limit, or run out of context, and the work dies with the session. Stint is a software factory on your own machine, built on Meta's Muse models. Any agent can pick up the task, and nothing merges without you. The task outlives the agent." |
+| 0:19 | Muse Code, left; Stint's UI, right: the request, Muse Code asking to use Stint's tools, the goal page with four tasks that wait on each other | "Here's Stint inside Muse Code. I ask for something bigger than one task: make webhook delivery reliable. Muse Code calls Stint's tools. Stint makes it a goal, and its planner splits it into four tasks, each waiting on the one it needs." |
+| 0:38 | The board as agents build | "Stint's agents build them, each in its own worktree, while the board keeps up." |
+| 0:44 | The stop request in Muse Code, the killed run, its packet | "I tell Muse Code to stop one mid-run and hand it to the Stint agent. Stint builds the packet from the log and the diff, and the next agent starts from that alone." |
+| 0:57 | Glimmer's review on this machine, the gate armed, merged; the next task starting | "Every change is tested by Stint and reviewed by Muse Glimmer on this laptop, for nothing. I approve, and each merge unlocks the next task." |
+| 1:11 | The network-off take: the Offline pill and Glimmer's review | "It even works with the network off." |
+| 1:17 | The review's two findings against the task's decisions; the tampered acceptance tests; both sent back | "And it doesn't trust the agents. The review caught a build that broke two of the task's own decisions, and Stint caught an agent rewriting the tests it is judged by. Both go back, with the reason as the next ask." |
+| 1:33 | Chapter 09: one sentence in the spec builder, the draft, the goal's four tasks | "Or start from Stint's own UI. One sentence becomes a goal, and the planner splits it into four tasks." |
+| 1:41 | Chapter 10: two tasks building at once, the terminal following every task, Glimmer's approve, merged | "Two tasks build at once, and one terminal follows every task. Glimmer reviews each one, and three merge." |
+| 1:49 | The hand-off refused over the task's token budget, `stint limits T-0009 --implementer-tokens 600000` in the terminal, the Stint agent continuing, 67 passed | "The fourth gets stuck. Handing it on hits the task's token budget, so I raise it from the terminal, and the Stint agent picks it up from the packet." |
+| 1:59 | The approve refused: the branch conflicts with main; sent back to merge main; 132 passed | "Then the merge is refused: the other three changed the same files. I send it back, Muse Code merges main, and Glimmer approves." |
+| 2:09 | Chapter 11, "All four merged": the last approve, `stint goal show G-0003` | "Four tasks, one goal, and nothing merged without me." |
+| 2:14 | The runs chart of a live relay on jeffbski/wait-on | "It works across agents, too. On three open-source projects Stint had never seen, Muse Code, Claude Code on Glimmer and Codex on Muse Spark each carried a task on from the last one's packet, and four relays out of five reached the gate with hidden tests green." |
+| 2:33 | The packet, measured (docs/proofs.md, live 27 October) | "Against handing over the whole transcript, the packet is about seven times smaller, and runs that continued from it passed nine times in ten, against three in five." |
+| 2:45 | Every model is Meta's | "Every model Stint calls is Meta's, and two are open weights, one running on your own laptop." |
+| 2:52 | Stint, "The task outlives the agent.", the repository | |
 
-The cut of 30 October runs 2:41. Every beat but one is the live take of that day; the learned skill is the replay, because that take's two reviews found nothing, so nothing recurred and the learn step rightly proposed no skill. The numbers spoken are the ones on screen in that take.
+At the end of chapter 11 the goal reads "in progress": every task merged and every criterion's tests pass, but Stint calls a criterion met only when a test showed it failing first, and this take set no such proofs. The chapter says "All four merged" for that reason.
+
+Takes 7 to 9 found three things that would have stopped a real person, and each was fixed before the take that shows it:
+- One Glimmer review of a 27 KB diff took 185 s on a 32 GB Mac, over the 120 s review limit. A host now sets its own `timeoutMs`, and Ollama's is 10 minutes (D-093).
+- The implementer token budget of 150,000 refused every task's second build or hand-off, and nothing let a person raise it. The default is now 1,200,000, and `stint limits <task> --implementer-tokens N` raises it, as the refusal says (D-094).
+- The gate printed a merge conflict's files as JSON. It now names them and says to ask for changes so an agent merges main.
 
 ## Captions
 
-Captions are the voiceover lines, at most two lines on screen at a time. Numbers on screen must match the run being shown, so read them from that run's packet card, not from this script. The relay beat's numbers are the ones in the table on screen, which names the file each comes from; say no number the table does not show.
+Captions are the voiceover lines, at most two lines on screen at a time, in the band under the picture. Every number on screen is the take's own; the proof acts name the file each number comes from, and the voiceover says no number the picture does not show.
 
 ## Checklist before recording
 
+- The Mac is unlocked and stays awake: screen capture stops when the screen locks.
 - Ollama has only Glimmer loaded (`ollama ps`); run one review first so it is warm.
 - `META_API_KEY` is set; `muse --version` works.
-- `stint demo seed` on a fresh fixture copy; the browser is on the Board at 1080p.
+- `stint up --no-review` in the take's repository, so `stint review` is the person's to run; `autopilot.parallel` is 2.
 - Notifications are off; the terminal font is large enough to read at 1080p.
 - The system is set to dark, so the UI shows the charcoal theme.
-- For the spec builder beat: `stint up` on a fresh fixture copy with `META_API_KEY` set; the draft is one live Muse Wonder call.
-- For the relay beat: `docs/proofs.md` open on GitHub at "Live evidence, 29 October", in the dark theme.
