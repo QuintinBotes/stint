@@ -375,7 +375,7 @@ export function makeHost(
     const { short, providerId } = internals.resolveModel(args.model);
     const modelSchema = modelFacingSchema(args.jsonSchema);
     const schemaName = args.schemaName ?? String(args.jsonSchema.title ?? 'stint_output').replace(/[^a-zA-Z0-9_-]+/g, '_');
-    const timeoutMs = args.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const timeoutMs = Math.max(args.timeoutMs ?? DEFAULT_TIMEOUT_MS, hostConfig.timeoutMs ?? 0);
     const totals: UsageTotals = { inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
     let prompt = args.prompt;
     let retryErrors: string | undefined;

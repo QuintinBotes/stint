@@ -16,6 +16,8 @@ export const HostConfigSchema = z.strictObject({
   cachedInput: z.boolean().default(false),
   tpm: z.int().positive().optional(),
   rpm: z.int().positive().optional(),
+  /** The least time one call to this host gets, whatever the role allows: a model on a laptop needs minutes for a review. */
+  timeoutMs: z.int().positive().optional(),
 });
 export type HostConfig = z.infer<typeof HostConfigSchema>;
 
@@ -287,6 +289,8 @@ export const DEFAULT_CONFIG: Config = {
       offline: true,
       structuredOutput: 'enforced',
       cachedInput: false,
+      // measured 31 Oct on a 32 GB Mac: one review of a 27 KB diff took 185 s, past the 120 s review limit
+      timeoutMs: 600_000,
     },
     // other places a model can run, ready for any route or agent that names them; no default route does (ADR-0001)
     lmstudio: { baseURL: 'http://localhost:1234/v1', models: {}, offline: true, structuredOutput: 'prompt-only', cachedInput: false },
