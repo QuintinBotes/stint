@@ -195,9 +195,16 @@ export class DaemonError extends Error {
 export function daemonMessage(e: unknown): string {
   if (!(e instanceof DaemonError)) return e instanceof Error ? e.message : String(e);
   const hint = e.error.hint;
-  // an object hint is data for code, such as a budget's numbers; the message already says them in words
-  const said = typeof hint === 'string' ? hint : Array.isArray(hint) ? plainIssues(hint) : '';
+  // an object hint is data for code, such as a budget's numbers, which the message already says; files are named
+  const said = typeof hint === 'string' ? hint : Array.isArray(hint) ? plainIssues(hint) : filesIn(hint);
   return `${e.error.message}${said ? `. ${said}` : ''}`;
+}
+
+/** The files a refusal names (a merge conflict, changed acceptance tests), the first four in full. */
+function filesIn(hint: unknown): string {
+  const files = (hint as { files?: unknown } | null)?.files;
+  if (!Array.isArray(files) || !files.every((f) => typeof f === 'string') || !files.length) return '';
+  return `Files: ${files.slice(0, 4).join(', ')}${files.length > 4 ? ` and ${files.length - 4} more` : ''}.`;
 }
 
 /** A schema's complaints as a sentence a person reads ("criteria: at most 12"), never as raw JSON. */

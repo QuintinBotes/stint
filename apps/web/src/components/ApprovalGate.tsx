@@ -3,7 +3,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { agentOf } from '../agents';
-import { DaemonError, type GoalView, type PendingContradictionItem, type RunSummary, type TaskBundle, type TaskCardData, type Verification, api, readOnly } from '../api';
+import { type GoalView, daemonMessage, type PendingContradictionItem, type RunSummary, type TaskBundle, type TaskCardData, type Verification, api, readOnly } from '../api';
 import { localDate, localTime } from '../format';
 import { singleKey } from '../shortcuts';
 import { HowItWent } from './HowItWent';
@@ -209,7 +209,7 @@ export function ApprovalGate({ bundle, events, seen, files, viewed, tasks, contr
       return true;
     } catch (e) {
       // what was typed stays in the form; the daemon's words go beside the actions
-      setError(e instanceof DaemonError ? `${e.error.message}${e.error.hint ? `: ${typeof e.error.hint === 'string' ? e.error.hint : JSON.stringify(e.error.hint)}` : ''}` : String(e));
+      setError(daemonMessage(e));
       return false;
     } finally {
       pending.current = false;

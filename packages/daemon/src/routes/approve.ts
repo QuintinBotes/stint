@@ -100,7 +100,7 @@ async function merge(ctx: DaemonContext, id: string, squash: boolean, verifiedCo
   const mt = await git(root, ['merge-tree', '--write-tree', '--name-only', '--no-messages', baseSha, branchHead]);
   if (mt.code === 1) {
     const files = mt.stdout.trim().split('\n').slice(1).filter(Boolean);
-    throw new DaemonError('merge_conflict', `${task.branch} conflicts with ${base}`, { files });
+    throw new DaemonError('merge_conflict', `${task.branch} conflicts with ${base}; ask for changes so an agent merges ${base} into it`, { files });
   }
   if (mt.code !== 0) throw new Error(`git merge-tree failed: ${mt.stderr.trim()}`);
   const tree = mt.stdout.trim().split('\n')[0] as string;
