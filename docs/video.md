@@ -1,6 +1,6 @@
 # The video
 
-The demo film runs 2:57.5, inside the hackathon's 3 minute limit, at 1080p with captions burned in and "Forward Clarity" under it. Every picture of Stint at work is a live take, and every model in it is Meta's. The proof acts at the end show the repository's own evidence, each naming its source.
+The demo film, [on YouTube](https://youtu.be/zm7PmrHn0-M), runs 2:57.5, inside the hackathon's 3 minute limit, at 1080p with captions burned in and "Forward Clarity" under it. Every picture of Stint at work is a live take, and every model in it is Meta's. The proof acts at the end show the repository's own evidence, each naming its source.
 
 ## How it was made
 
