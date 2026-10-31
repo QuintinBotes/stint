@@ -1,7 +1,8 @@
 // Screenshots of every screen from a replay daemon, at 1600x1000 (deviceScaleFactor 2) and at 390x844, to compare with the design.
 // Usage, from the repository root, with a replay daemon serving the built UI (STINT_E2E_PORT=4601 bun apps/web/e2e/serve.ts):
 //   bun apps/web/scripts/shots.ts [--url http://127.0.0.1:4601] [--out .loop/ui-shots] [--assets]
-// --assets also writes assets/screenshot-task.png and assets/screenshot-factory.png.
+// --assets also writes assets/screenshot-task.png and assets/screenshot-factory.png in the dark theme, and
+// assets/screenshot-task-light.png, the README's picture for a light page.
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { type Page, chromium } from '@playwright/test';
@@ -70,15 +71,17 @@ for (const [size, viewport, scale] of [
   await shot('factory', '/factory', true, () => graphDone(page));
   await shot('skills', '/skills');
   if (size === '1600' && process.argv.includes('--assets')) {
-    await page.goto(`${url}/t/T-0042`);
-    await settle(page);
-    await graphDone(page);
-    await page.screenshot({ path: join(root, 'assets', 'screenshot-task.png') });
-    await page.goto(`${url}/factory`);
-    await settle(page);
-    await graphDone(page);
-    await page.screenshot({ path: join(root, 'assets', 'screenshot-factory.png') });
-    process.stdout.write('assets/screenshot-task.png assets/screenshot-factory.png\n');
+    const asset = async (path: string, file: string, scheme: 'dark' | 'light') => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(`${url}${path}`);
+      await settle(page);
+      await graphDone(page);
+      await page.screenshot({ path: join(root, 'assets', file) });
+    };
+    await asset('/t/T-0042', 'screenshot-task.png', 'dark');
+    await asset('/t/T-0042', 'screenshot-task-light.png', 'light');
+    await asset('/factory', 'screenshot-factory.png', 'dark');
+    process.stdout.write('assets/screenshot-task.png assets/screenshot-task-light.png assets/screenshot-factory.png\n');
   }
   await context.close();
 }

@@ -1,6 +1,6 @@
 # GOAL.md: what the loop is driving toward
 
-The loop stops when every line under **Definition of done** is true and checked by a command, not by a claim. Until then, `LOOP.md` picks the next spec in `PROGRESS.md`.
+This file defines "done" for Stint's build loop (`scripts/loop.sh`) and the agents it runs. The loop stops when every line under **Definition of done** is true and checked by a command, not by a claim. Until then, `LOOP.md` picks the next spec in `PROGRESS.md`.
 
 ## The goal, in one paragraph
 
@@ -17,7 +17,7 @@ By **3 November 2026, 23:00 CET**, the `stint` repo is public-ready and `stint d
 | 5 | An offline Glimmer review validates against `stint.review/1` and a contradiction is routed, not applied | `bun test packages/daemon/test/review.offline.test.ts` passes with Ollama up and network off |
 | 6 | Approve merges with `Stint-Task`, `Stint-Runs`, `Stint-Handoff` trailers; reject re-opens at `building` | `bun test packages/daemon/test/approve.test.ts` passes; `git log -1 --format=%B` in the fixture shows the trailers |
 | 7 | The learn step proposes a skill from a recurring finding; approving writes `.agents/skills/<id>/SKILL.md`; the next run shows `skill.applied` | `bun test packages/daemon/test/learn.test.ts` passes on the seeded fixture |
-| 8 | The memory graph answers `similar`, `files-together`, `constrains` and `?asOf=` hides a superseded decision | `bun test packages/core/test/graph.test.ts` passes |
+| 8 | The memory graph answers `similar`, `files-together`, `constrains` and `?asOf=` hides a superseded decision | `bun test packages/core/test/graph.` (the `graph.*.test.ts` files) passes |
 | 9 | The web UI renders the replay end to end: board, task view, timeline with a handoff joint, verification card, review card with offline badge, approval gate, memory panel with scrubber, terminal pane, dark by default | `bun run test:ui` (Playwright against the replay) passes |
 | 10 | `stint bench --tasks 5 --modes transcript,packet` writes `bench/results.json` and a chart | file exists; README embeds the chart |
 | 11 | The demo recording is captured from a live run and replays identically | `bun test packages/daemon/test/replay.test.ts` passes; `stint demo` runs to the end without keys |

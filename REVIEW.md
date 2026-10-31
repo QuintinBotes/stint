@@ -11,7 +11,7 @@ Read `AGENTS.md` (non-negotiables), the spec named in your prompt argument (`spe
 1. **Verify block.** Run the spec's Verify commands yourself. A red command is a `block`. Do not trust the Notes.
 2. **Acceptance to tests.** Every Acceptance line has a test that quotes it and that test exists in the diff or already existed. Missing test: `request_changes`.
 3. **Interfaces.** Names, routes, fields, error codes, file paths match the spec and `schemas/` byte for byte. A drift without a `Deviation:` line: `request_changes`.
-4. **Non-negotiables.** Daemon-only writes, packets never transcripts, verify by the daemon, every ending builds a packet, capability honesty, fail-open said loudly, append-only decisions, no secrets, identity guard, pins, dark default, honest copy. Any breach: `block`.
+4. **Non-negotiables.** Daemon-only writes, packets never transcripts, verify by the daemon, every ending builds a packet, capability honesty, fail-open said loudly, append-only decisions, no secrets, identity guard, pins, the system setting picks the theme, honest copy. Any breach: `block`.
 5. **Scope.** Work beyond Requirements or into Out of scope: `request_changes` with the lines to remove, unless it is a test.
 6. **Left out.** The Notes say what was left out. If you find something left out that the Notes do not name: `request_changes` (the honesty rule is the product).
 7. **Quality, briefly.** Only concrete failure modes, worst first, each under 40 words, with file and line. No style remarks, no praise.

@@ -3,7 +3,7 @@
 Status: Accepted, 27 October 2026. Builds on D-018, D-019 and D-034. Specs: R-026, R-032, R-033, R-034, R-050.
 
 ## Context
-The hackathon rule (D-018) is that the runtime models are Meta's. Someone building with Stint after the hackathon wants Muse, Claude, Codex, a local model or whatever they prefer. Treating each product as one adapter makes every new agent a schema change. The factory review (26 Oct) split the idea of an agent in two: the harness that runs the loop (Muse Code, the Stint agent, Claude Code, Codex, goose, opencode, Gemini CLI, aider) and the host that serves the model (the Meta Model API, Fireworks, Baseten, Modal, Ollama, LM Studio, llama.cpp, a LiteLLM gateway).
+The hackathon rule (D-018) is that the runtime models are Meta's. Someone building with Stint after the hackathon wants Muse, Claude, Codex, a local model or whatever they prefer. Treating each product as one adapter makes every new agent a schema change. The factory review (26 October) split the idea of an agent in two: the harness that runs the loop (Muse Code, the Stint agent, Claude Code, Codex, goose, opencode, Gemini CLI, aider) and the host that serves the model (the Meta Model API, Fireworks, Baseten, Modal, Ollama, LM Studio, llama.cpp, a LiteLLM gateway).
 
 ## Decision
 - Agents and hosts are open ids in `.stint/config.json`, validated against the config, not closed enums. An agent names its harness, host, model, roles and capability flags.

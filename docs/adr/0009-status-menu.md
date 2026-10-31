@@ -11,3 +11,7 @@ The bar shows this week's spend and one button that summarises readiness ("Repla
 ## Consequences
 - The bar fits from phone width up, with any number of agents and models.
 - Detail that used to live in tooltips is reachable by keyboard.
+
+## Later changes
+- The UX audit (R-071, 29 October 2026) reworded the button to "Connected, 4 agents and 1 model ready", or "Replay, agents are off" in the replay (`UX_AUDIT.md`, F12).
+- R-074 (30 October 2026) took the week's spend off the bar and credits left off the panel: the UI shows money only where a person sets or meets a spend limit.

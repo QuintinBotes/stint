@@ -1,6 +1,6 @@
 # When Stint was built
 
-The hackathon's building period starts after the kickoff session on 26 October 2026. Part of this repository was written earlier that same day, before the kickoff. This page says which part, when each later spec was written, and what was built each day through 29 October, so a judge does not have to work it out from the commit times. Times are CET, from each commit's author date.
+This page shows judges what was built during the hackathon, day by day, so they need not work it out from the commit times. The building period starts after the kickoff session on 26 October 2026; part of this repository was written earlier that day, and the first section lists that part. Times are CET, from each commit's author date.
 
 ## Before the kickoff (26 October, 15:15 to 17:00 CET)
 
@@ -14,11 +14,13 @@ The hackathon's building period starts after the kickoff session on 26 October 2
 | R-012 (first draft) | The packet builder, written before the kickoff and committed after it | product code |
 | R-010 | The OpenAI-compatible host client and the fallback chain, written by Muse Code from 16:35 to 18:05 CET, so partly during the kickoff session; committed after it | product code |
 
-Every commit made before the kickoff is listed by `git log --until="2026-10-26 17:00 +0100"`. Commit messages were later edited to drop tool attribution lines. On 27 October the history was rewritten once more to replace a sample email address in one test title and one spec line with plain words, so a publishing check would pass; nothing else in the contents changed. Every author and commit date is unchanged, so the times shown are the real ones.
+`git log --until="2026-10-26 17:00 +0100"` lists every commit made before the kickoff. Commit messages were later edited to drop tool attribution lines. On 27 October the history was rewritten once more to replace a sample email address in one test title and one spec line with plain words, so a publishing check would pass; nothing else in the contents changed. Every author and commit date is unchanged, so the times shown are the real ones.
+
+## Which specs came before the event
+
+The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before the kickoff (SPEC-000, F-001 and R-001 to R-024) were written before the event as the plan. R-013 was rewritten after the kickoff, when the agent that continues a run became the Stint agent. Every other spec was written during the event: R-025 to R-049 on 26 October, R-050 to R-061 on 27 October, R-062 to R-064 on 28 October, R-065 to R-070 on 29 October, and R-073 and R-074 on 30 October. R-028, R-071 and R-072 have rows in `PROGRESS.md` but no spec file. `git log --diff-filter=A -- specs/` shows when each spec was added, and `PROGRESS.md` records what was built from each, when, and by which agent.
 
 ## 26 October, after the kickoff (from 17:20 CET)
-
-The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before the kickoff (SPEC-000, F-001 and R-001 to R-024) were written before the event as the plan. R-013 was rewritten after the kickoff, when the agent that continues a run became the Stint agent. Every other spec was written during the event: R-025 to R-049 on 26 October, R-050 to R-061 on 27 October, R-062 to R-064 on 28 October, and R-065 to R-071 on 29 October. `git log --diff-filter=A -- specs/` shows when each one was added, and `PROGRESS.md` records what was built from them, when, and by which agent.
 
 | Commit | What | Kind |
 |---|---|---|
@@ -37,7 +39,7 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-057 | Live proofs: the bench on the current build, the golden set and the skill eval, on Meta's models (12:30 to 17:15) | product code and live runs |
 | R-058, R-059 | A guard that keeps client and employer names out, in CI; a README and a setup guide a stranger can follow (17:45 to 23:31) | product code and docs |
 
-## 28 October (from 00:00 CET)
+## 28 October
 
 | Commit | What | Kind |
 |---|---|---|
@@ -52,7 +54,7 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-040, R-003, R-005, R-011, R-013, R-017, R-025 | Fixes from a review of the whole codebase: a token per run, a stricter macOS sandbox, the daemon's git with hooks off, tests in the run's sandbox, restart recovery, a torn event log repaired and parsed logs cached, approve only of a verified commit, every model call's cost counted, secrets kept out of the logs, and the Stint agent's search in a worker (17:25 to 19:12) | product code |
 | R-059, R-023 | Two passes over the docs against the code, each page checked against the routes, commands, config and screens (01:08, and again in the evening) | docs |
 
-## 29 October (from 00:00 CET)
+## 29 October
 
 | Commit | What | Kind |
 |---|---|---|
@@ -64,6 +66,30 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-005, R-028, R-037, R-040, R-053 and others | Fixes from a spec audit: a command that cannot start comes back red, the Stint agent's refusals read through quotes, a stricter macOS sandbox, only the tools a run token can call inside a run, scenarios that cannot run turn verification red, every model call metered, and tests added for older specs (10:07 to 10:47) | product code |
 | R-069 | The judge path: a read-only board for GitHub Pages and its workflow, `stint mcp install`, bootstrap that downloads Glimmer only when asked, Claude Code and Codex on in the replay, and a command for every gate and board action (10:16 to 11:50) | product code |
 | R-068 | The visual gate: the daemon opens the page, Muse Spark 1.3 judges the screenshot, SAM 3.1 marks what looks wrong, and one live check is kept in `bench/visual/` (12:42 to 13:11) | product code and a live run |
-| R-071 | The adversarial UX audit, `UX_AUDIT.md`: what needs you and why, Run all asks first, permission questions in Needs you, the gate lists contradictions, a task shows its goal (12:44 to 13:01) | product code |
+| R-071 | The adversarial UX audit, `UX_AUDIT.md`: what needs you and why, Run all asks first, permission questions in Needs you, the gate lists contradictions, a task shows its goal (12:44 to 13:01); Run the goal's tasks asks first too (16:38) | product code |
 | R-067 | The light theme, chosen by the system setting and measured on every main screen (12:51) | product code |
 | R-059, R-069 | The README's For judges section, screenshots in both themes, and every docs page checked against the code (afternoon) | docs |
+| R-072 | Defects from an exploratory end-to-end test and a UI spec audit: a run assigned or handed on by hand goes on to review and the gate, busy buttons keep focus, and focus lands near a control that left the page (14:23 to 15:23) | product code |
+| R-070 | Live evidence: the relay runner with seeded tasks and held-out scenarios (13:27); live relays on jshttp/negotiator, jeffbski/wait-on and vercel/ms, the control and the learning sequence (15:09 to 17:02); the scorecard runner (16:42) and the live scorecard (19:18); the proofs page led by this evidence (19:43); the scorecard on the Factory (20:00) | product code and live runs |
+| R-013 | The Stint agent asks again with more room when a reasoning model's reply is cut off, the defect the first live scorecard found; that run is kept in `bench/scorecard-1` (18:12) | product code and a live run |
+| R-068, R-066 | The spec builder may propose a visual proof (20:16), and drafts against real models on its own route, led by Muse Spark 1.3 (21:14) | product code |
+
+## 30 October
+
+| Commit | What | Kind |
+|---|---|---|
+| R-016, R-019, R-021, R-064, R-066 | Smaller fixes: the gate offers no decision before anything is built, the runs chart puts each run in the lane of whoever finished it and names every harness, the bench chart's label no longer overlaps its legend, a drafted task keeps its requirements as lines, and a merged or abandoned task asks no more Sharpen questions (14:56 to 19:05) | product code |
+| R-066, R-023 | The docs say the spec builder drafts on Muse Spark 1.3; the video script follows the cut of 30 October (15:16) | docs |
+| R-073, R-074 | The specs for the terminal story and for money shown only at a spend limit (18:29 and 23:27) | the plan, written during the event |
+| R-073 | The terminal tells the whole story: `stint watch` follows a task live, `stint stop` stops its run, `stint review` reviews the verified change, and `stint up --no-review` leaves review to the person (18:29); a harness drives a whole goal through Stint over MCP with `stint_new_goal`, `stint_plan_goal` and `stint_run_goal` (20:28); `stint watch` with no task follows every task (23:27) | product code |
+| R-074 | The UI shows money only where a person sets or meets a spend limit (23:27) | product code |
+
+## 31 October
+
+| Commit | What | Kind |
+|---|---|---|
+| R-010 | A host sets its own `timeoutMs`, and Ollama's is 10 minutes, so Glimmer can finish a review of a large diff (07:42) | product code |
+| R-062 | `stint limits <task> --implementer-tokens N` raises a task's token budget, a refused run names that command, and the default implementer budget is 1,200,000 tokens (08:52) | product code |
+| R-017 | A refused approval reads as words at the gate: a merge conflict names its files (09:35) | product code |
+| R-024 | The video page's final cut, the changelog and the README's case for judges (10:23 to 10:59); the film published (11:36); the submission, sent through the Cerebral Valley form at 11:35 CET and recorded at 11:47 | docs and submission |
+| R-068 | The owner's decision that the visual check keeps drawing SAM 3.1's box, with no `@meta-sam/parser` dependency (D-095, 11:10) | decision |

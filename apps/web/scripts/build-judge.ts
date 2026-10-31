@@ -3,16 +3,20 @@
 // It plays the replay into a daemon as `stint demo` does, drives the real UI through every page, task and view on it
 // while recording each GET to /api (so a new panel is covered without a list of endpoints to keep), and builds the UI
 // in judge mode around that snapshot.
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Page, chromium } from '@playwright/test';
 import { startDaemon } from '@stint-dev/daemon';
 import { seedDemoConfig } from '../../../packages/cli/src/demo/seed';
 
-export const BASE = '/stint/';
+/** The site GitHub Pages serves: the landing page at its root and the read-only board under demo/. */
+export const SITE = '/stint/';
+export const BASE = `${SITE}demo/`;
 const web = join(import.meta.dir, '..');
+const repo = join(web, '..', '..');
 const out = join(web, 'dist-judge');
+const app = join(out, 'demo');
 type Snapshot = Record<string, { status: number; type: string; body: string }>;
 
 function vite(...args: string[]): void {
@@ -127,11 +131,17 @@ function scrub(snapshot: Snapshot, roots: string[]): Snapshot {
 if (import.meta.main) {
   vite();
   const snapshot = await crawl();
-  vite('--mode', 'judge', '--base', BASE);
-  writeFileSync(join(out, 'snapshot.json'), JSON.stringify(snapshot));
-  // GitHub Pages answers an unknown path with 404.html, so a deep link boots the app and the router takes it from there
-  writeFileSync(join(out, '404.html'), readFileSync(join(out, 'index.html')));
-  const manifest = join(out, 'manifest.webmanifest');
+  rmSync(out, { recursive: true, force: true });
+  vite('--mode', 'judge', '--base', BASE, '--outDir', 'dist-judge/demo');
+  writeFileSync(join(app, 'snapshot.json'), JSON.stringify(snapshot));
+  const manifest = join(app, 'manifest.webmanifest');
   writeFileSync(manifest, readFileSync(manifest, 'utf8').replaceAll('"/', `"${BASE}`));
-  process.stdout.write(`Wrote ${out}: ${Object.keys(snapshot).length} recorded reads. Look at it with: bun run serve:judge\n`);
+  // the landing page and its images at the site's root
+  copyFileSync(join(web, 'landing', 'index.html'), join(out, 'index.html'));
+  for (const image of ['logo-dark.png', 'film-frame.jpg', 'screenshot-task.png', 'screenshot-factory.png', 'social-card.png']) copyFileSync(join(repo, 'assets', image), join(out, image));
+  copyFileSync(join(web, 'public', 'favicon.svg'), join(out, 'favicon.svg'));
+  // GitHub Pages answers an unknown path with the root 404.html, so a deep link into the board boots it and its router takes over
+  writeFileSync(join(out, '404.html'), readFileSync(join(app, 'index.html')));
+  writeFileSync(join(out, '.nojekyll'), '');
+  process.stdout.write(`Wrote ${out}: the landing page, and the board under demo/ with ${Object.keys(snapshot).length} recorded reads. Look at it with: bun run serve:judge\n`);
 }
