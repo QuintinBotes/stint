@@ -147,7 +147,7 @@ Models by role, as fallback chains the daemon walks in order (a 429, a 5xx or a 
 
 - **One spec per iteration.** `LOOP.md` tells you how to pick it, build it, verify it and record it. Never work on two specs at once; never start a spec whose `Depends on` is not `done`.
 - **Tests first.** Turn each acceptance criterion into a test before writing the code it tests. `bun test` and `bun run typecheck` must be green before a spec is `done`; CI (ubuntu + macos) must be green before a gate.
-- **Small, named commits.** A plain sentence saying what changed, ending with the trailer `Spec: R-0xx` and no other trailer (no co-author or model lines). From R-017 on, Stint's own merges carry `Stint-Task:` trailers too (the repo builds itself with itself).
+- **Small, named commits.** A plain sentence saying what changed, ending with the trailer `Spec: R-0xx`. A commit a Meta agent wrote also carries `Model: <adapter/model>`, as `LOOP.md` shows; no other trailer, and never a co-author line. From R-017 on, Stint's own merges carry `Stint-Task:` trailers too (the repo builds itself with itself).
 - **Record, don't remember.** Every decision goes into `PROGRESS.md` under Decisions with a reason; every deviation from a spec gets a `Deviation:` line; every question for the human goes under Blocked.
 - **Hand off like the product does.** If you stop before a spec is green, leave a handoff note in `PROGRESS.md` in packet shape (done, open, leftOut, risks, askOfNext, ≤ 600 tokens) and set the status to `handed`. The next iteration, possibly another vendor, continues from that note and the worktree, not from your transcript.
 - **Do not touch**: `specs/` (except a `Deviation:` note), `schemas/` (except through the spec that owns a schema), `demo/repo` history, pins, CI matrix, licence, anything under `.stint/` by hand.
@@ -157,7 +157,7 @@ Models by role, as fallback chains the daemon walks in order (a 429, a 5xx or a 
 
 - Product code is written from **26 October** onward. Research, design, schemas, specs, this kit and the demo fixture precede it; that is allowed.
 - Meta models are used in the roles Meta documents: Wonder plans, Spark builds (Muse Code), Glimmer reviews, and Muse Spark Open (Meta's open-weight model) plans, reviews and learns on the two hosts Meta's own deployment page lists, Baseten and Fireworks. Every model Stint calls at runtime is a Meta model (organizer ruling, 26 October): Muse Code and the Stint agent both run Muse models, so the continue beat is a different agent, not a different vendor.
-- Open source, public repo, 3-minute video, teams of two at most. The licence is MIT (`LICENSE`), chosen on 26 October once the rules had been read.
+- Open source, public repo, 3-minute video, teams of up to four. The licence is MIT (`LICENSE`), chosen on 26 October once the rules had been read.
 - `Built with Muse Spark Open` attribution is required, since hosted Spark Open legs are part of the product. Keys never in the repo. Nothing from the author's employer or clients.
 - Hackathon partner credits (Baseten $100 and 2M TPM, Fireworks $25, Modal $100) are claimed by the human before day 3 and recorded in `PROGRESS.md`.
 
