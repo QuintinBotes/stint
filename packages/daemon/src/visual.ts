@@ -129,8 +129,8 @@ async function locate(api: Api, png: Uint8Array, element: string): Promise<{ box
 
 /**
  * The screenshot with SAM's box drawn on it, rendered by the same browser.
- * shortcut: SAM's mask is not decoded, so only its box is drawn; decoding the mask needs Meta's @meta-sam/parser under
- * the SAM License, an owner's call before the outline can be drawn.
+ * shortcut: SAM's mask is not decoded, so only its box is drawn; decoding it needs Meta's @meta-sam/parser under the
+ * SAM License, which the owner chose not to take on (D-095); revisit if an outline is ever wanted.
  */
 async function drawMark(browser: Browser, png: Uint8Array, box: Box, out: string): Promise<void> {
   const sx = VIEWPORT.width / box.w;
