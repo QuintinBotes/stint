@@ -12,7 +12,7 @@ Muse Code on Muse Spark 1.3 starts the task; the script stops it after 10 tool c
 
 | Run | Repository | Hop 1: Muse Code, Muse Spark 1.3 | Hop 2: Claude Code, Muse Glimmer 30B | Hop 3: Codex, Muse Spark 1.3 | The daemon's verification after hop 3 | Glimmer's offline review | Cost | Wall time |
 |---|---|---|---|---|---|---|---|---|
-| `negotiator` | jshttp/negotiator | killed by the script after 10 tool calls | killed at its 15 minute limit | failed after 9 s | red: own tests pass, hidden tests fail | none, since it was red | unpriced | 15.7 min |
+| `negotiator` | jshttp/negotiator | killed by the script after 10 tool calls | killed at its 15 minute limit | failed after 10 s | red: own tests pass, hidden tests fail | none, since it was red | unpriced | 15.7 min |
 | `negotiator-2` | jshttp/negotiator | killed by the script after 10 tool calls | killed at its 15 minute limit | completed | green: own tests and hidden tests pass | request changes, 4 findings | $0.2944 | 20.0 min |
 | `wait-on` | jeffbski/wait-on | killed by the script after 11 tool calls | killed at its 15 minute limit | completed | green: own tests and hidden tests pass | approve, no findings | $0.3874 | 27.4 min |
 | `ms` | vercel/ms | killed by the script after 10 tool calls | killed at its 15 minute limit | completed | green: own tests and hidden tests pass | timed out at its 120 s limit | $0.1949 | 21.6 min |
@@ -26,7 +26,7 @@ The cost is the daemon's price, which `costs.json` marks estimated, and covers C
 
 **What it does not show.** That every hop helped. Claude Code on Glimmer ran to its 15 minute limit in all five relays and left the task red each time; Codex finished the work from its packet in 4 of the 5. The scorecard counts this as hand-off success: 4 of 10 continued runs went green (`bench/scorecard.json`).
 
-**Two runs did not reach the gate.** The first negotiator relay stopped red at the third hop, where Codex failed after 9 seconds. In that run Claude Code and Codex carried the person's own CLI setup, plugins included. Since D-082 (`PROGRESS.md`) both run without it, and `negotiator-2` is the same relay after that change. Claude Code's hop read 18,617 input tokens in the first run and 1,494 to 1,641 in the five after it (`run.finished` in each `events.jsonl`). The first ms relay went green, but Glimmer's review hit its 120 second limit while the same Mac ran Stint's full browser test suite (the note in its `relay.json`). `ms-2` is the same relay on an otherwise idle machine.
+**Two runs did not reach the gate.** The first negotiator relay stopped red at the third hop, where Codex failed after 10 seconds. In that run Claude Code and Codex carried the person's own CLI setup, plugins included. Since D-082 (`PROGRESS.md`) both run without it, and `negotiator-2` is the same relay after that change. Claude Code's hop read 18,617 input tokens in the first run and 1,494 to 1,641 in the five after it (`run.finished` in each `events.jsonl`). The first ms relay went green, but Glimmer's review hit its 120 second limit while the same Mac ran Stint's full browser test suite (the note in its `relay.json`). `ms-2` is the same relay on an otherwise idle machine.
 
 ### The control
 

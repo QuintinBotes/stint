@@ -36,7 +36,7 @@ The live runner runs these beats in order. Press Enter to move to the next one, 
 | Time | Beat | What the runner does | What the screen shows |
 |---|---|---|---|
 | 0:00 | The folder is the task | Seeds the tasks, starts the daemon, prints the URL | Three tasks, plain JSON and markdown in `.stint/tasks/` |
-| 0:12 | Plan the task | Plans T-0042 with the planner chain | Muse Wonder 1.0's plan streams in; Memory (press m) shows T-0040 as similar |
+| 0:12 | Speak the task | Plans T-0042 with the planner chain | Muse Wonder 1.0's plan streams in; Memory (press m) shows T-0040 as similar |
 | 0:40 | Muse Code builds | Assigns Muse Code as r2 | The worktree, the live diff, decisions landing in `decisions.md` |
 | 1:05 | Kill it | Once a `src/` file has changed, waits `--kill-after` seconds (6 by default), then stops r2 through the daemon | A red notice says the run was killed; the packet appears anyway, with its size and tokens and the in-flight step unknown |
 | 1:20 | A different agent finishes | Hands T-0042 to the Stint agent and waits for the daemon's verification | It checks the unknown step first; the verification card on the Tests tab goes green: "33 passed, tests unchanged, run by Stint" |

@@ -234,7 +234,7 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-009 | Req 1, `available()` checks META_API_KEY | checks that `muse` runs and reports its version | ADR-0010: Muse Code logs in by itself; the run environment strips keys it does not need | decided |
 | R-014 | Req 1, hooks template written into each worktree's `.muse/` | a user-scope Muse plugin, installed once | ADR-0005: Muse 1.4 loads hooks from plugins; a worktree file would land in the diff and the merge | decided |
 | R-016 | Req 3, never the leaving vendor | never the leaving agent; vendor shown, not enforced | ADR-0006: under D-018 every model is Meta's | decided |
-| R-022 | Req 3 and 4, the live take is the default replay | the hand-written story stays the default; live takes in demo/recordings | ADR-0011: no take yet has the offline review and a learned skill | owner to close |
+| R-022 | Req 3 and 4, the live take is the default replay | the hand-written story stays the default; live takes in demo/recordings | ADR-0011: no take yet has the offline review and a learned skill | closed 31 Oct by the owner, kept: no live take has proposed a skill (ADR-0011) |
 | R-027 | Req 4, `acceptance.tampered` | `verification.tampered` | ADR-0002: the tamper check is part of verification since R-029 | decided |
 | R-029 | Req 2, lock every test file | lock the test files the plan and task name | ADR-0003 (D-045): locking every test blocked routine test additions | decided |
 | R-035 | Req 2, `stint/<task>-b<k>` branches | child tasks on their own branches | ADR-0002 (D-043): one task holds one live run | decided |
