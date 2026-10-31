@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (31 October 2026)
 
 ### Added (31 October)
 - `stint limits <task> --implementer-tokens N` raises a task's token budget, as do `--planner-tokens`, `--reviewer-tokens`, `--tester-tokens` and `--learn-tokens` for their roles, through `PATCH /api/tasks/:id/limits`; the meters end with the implementer's tokens against its budget.
