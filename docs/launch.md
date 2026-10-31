@@ -1,6 +1,6 @@
 # Launch posts
 
-This page holds the launch drafts for X, for whoever posts them for the most-viral prize. Post the video with the first one, and attach `assets/social-card.png` when there is no video. Each post is 280 characters or fewer, counting a link as 23, and makes no claim that depends on which take the video shows.
+This page holds the launch posts for X, for whoever posts them for the most-viral prize: one post and a thread. Post the video with the first one, or attach `assets/social-card.png` when there is no video. Each post is 280 characters or fewer, counting a link as 23, and makes no claim that depends on which take the video shows.
 
 ## The post
 

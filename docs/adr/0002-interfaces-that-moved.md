@@ -3,10 +3,10 @@
 Status: Accepted, 27 October 2026. Specs: R-004, R-005, R-027, R-035, R-041.
 
 ## Context
-A requirements audit on 27 Oct found interfaces that work but no longer match their spec lines. Each change was made for a reason at the time and is covered by tests; none was recorded as a deviation.
+A requirements audit on 27 October found interfaces that work but no longer match their spec lines. Each change was made for a reason at the time and is covered by tests; none was recorded as a deviation.
 
 ## Decision
-Keep each of these, and record it here and in the PROGRESS Deviations table:
+Keep each of these, and record it here and in the Deviations table of `PROGRESS.md`:
 
 | Spec line | As written | As built | Why |
 |---|---|---|---|

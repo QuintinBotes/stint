@@ -37,7 +37,7 @@ R-0xx: <title in a few words>
 <two or three lines on what changed and why>
 
 Spec: R-0xx
-Model: <adapter/model, e.g. muse-code/muse-spark-1.3>
+Model: <adapter/model, for example muse-code/muse-spark-1.3>
 ```
 
 **Not green, and you are out of steps, time or ideas:** do not mark done. Commit what exists as `R-0xx: wip attempt N` (tests may be red in this commit, but nothing else on `main` may break: use a branch `spec/R-0xx` if the daemon is not yet building Stint with Stint). Set the row to `handed` (or `blocked` if Attempts is 3) and write a handoff note in Notes, in packet shape and under 600 tokens:

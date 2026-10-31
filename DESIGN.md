@@ -95,7 +95,7 @@ components:
 
 ## Overview
 
-Stint is a working tool for people who hand coding work to agents, so every screen answers four questions first: what needs me, what is running, what is ready or waiting, and what I can safely do next. The look is a calm charcoal workspace: near-black surfaces with a cool undertone, near-white ink, quiet tables, and colour kept for meaning. The UI follows the system's light or dark setting on the same tokens; dark is charcoal, the default, and the look the demo and the video use.
+This is the design system of Stint's web UI, for anyone who changes a screen. Stint is a working tool for people who hand coding work to agents, so every screen answers four questions first: what needs me, what is running, what is ready or waiting, and what I can safely do next. The look is a calm charcoal workspace: near-black surfaces with a cool undertone, near-white ink, quiet tables, and colour kept for meaning. The UI follows the system's light or dark setting on the same tokens; dark is charcoal, the default, and the look the demo and the video use.
 
 Every state reads in a word and a shape, never in colour alone. Amber means it needs you, mint green means verified evidence and nothing else, red means failed or stopped, and violet means a skill was learned. Merged and other closed outcomes are neutral.
 
@@ -105,12 +105,12 @@ Copy is the product's own: task, run, packet, decision, finding, skill, verify, 
 
 ## Colors
 
-Charcoal is the dark theme, and the system setting picks light or dark (the light set is below). Charcoal is near-black surfaces with a cool blue undertone, stepped up in lightness from shell to panel-2, near-white ink, and borders that carry a little blue. The palette is the owner's (29 Oct brief), with one change: red.
+Charcoal is the dark theme, and the system setting picks light or dark (the light set is below). Charcoal is near-black surfaces with a cool blue undertone, stepped up in lightness from shell to panel-2, near-white ink, and borders that carry a little blue. The palette follows the design brief of 29 October, with one change: red.
 
 - **Vendor inks** mark who did the work, on rail segments, run blocks and revision cells. They are small marks, never text, and always paired with a name.
 - **State inks** carry meaning only: amber means it needs you or waits for approval, mint green means verified evidence and nothing else, red means failed or stopped, violet means a skill was learned. Merged, approved and other closed outcomes are neutral ink.
 - A recommendation is not a state. It uses an ink-outline label, not green.
-- **Red** is the owner's `#ffaaa2` deepened to the coral `#f2786f`. At the supplied value red and green were 9.3 apart under protanopia and 8.2 under deuteranopia (CIEDE2000); the coral takes them to 21.5 and 17.1, and red text still reads at 5.05:1 or better on every surface.
+- **Red** is the brief's `#ffaaa2` deepened to the coral `#f2786f`. At the supplied value red and green were 9.3 apart under protanopia and 8.2 under deuteranopia (CIEDE2000); the coral takes them to 21.5 and 17.1, and red text still reads at 5.05:1 or better on every surface.
 
 ### Light theme
 
@@ -186,7 +186,7 @@ Corners are nearly square:
 - 8px on dialogs;
 - 12px on the skill pill in the memory graph.
 
-Every status label draws a 10px mark before its word (`StateMark` in `ui.tsx`): a triangle needs you, a tick verified, a cross failed, a filled dot runs, a ring waits, a square is closed, a bar was abandoned, a diamond was learned. A run's packet joint on the rail is a 12px square, red-edged when the run was killed or failed.
+Every status label draws its 10px mark before its word (`StateMark` in `ui.tsx`, listed under Never by colour alone). A run's packet joint on the rail is a 12px square, red-edged when the run was killed or failed.
 
 ## Components
 

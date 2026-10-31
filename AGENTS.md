@@ -131,16 +131,17 @@ AGENTS.md                      this file; `stint init` adds a "## Stint" section
 | Ollama | ≥ 0.32.8 | `muse-glimmer:30b-mlx` |
 | Vitest | demo repo only | the daemon parses its summary line |
 
-**Hosts** (a provider is a base URL and a key name, never a code path; all four go through `@stint-dev/adapter-openai-compatible`):
+**Hosts** (a provider is a base URL and a key name, never a code path; all five go through `@stint-dev/adapter-openai-compatible`):
 
 | Host id | Base URL | Key | Models | Notes |
 |---|---|---|---|---|
 | `meta-api` | Meta Model API | `META_API_KEY` | `muse-wonder-1.0`, `muse-spark-1.3` | the hero models; native structured output |
 | `baseten` | `https://inference.baseten.co/v1` | `BASETEN_API_KEY` | `meta-models/muse-spark-open-1026` | Meta's open-weight 816B model hosted; $1.25 in, $0.15 cached, $4.25 out per M; hackathon partner: $100 credits and 2M TPM; accepts `json_schema` but does not enforce it, so the adapter validates and retries |
 | `fireworks` | `https://api.fireworks.ai/inference/v1` | `FIREWORKS_API_KEY` | `accounts/fireworks/models/muse-spark-open` | same model and prices, cached input $0.15, enforced `json_schema`, function calling, zero data retention, US-only serverless; hackathon partner: $25 credits |
+| `modal` | from `MODAL_BASE_URL` | `MODAL_API_KEY` | `meta-models/Muse-Spark-Open-816B-A42B` | same model and prices; hackathon partner: $100 credits |
 | `ollama` | `http://localhost:11434/v1` | none | `muse-glimmer:30b-mlx` | offline, $0, the review beat on stage |
 
-Models by role, as fallback chains the daemon walks in order (a 429, a 5xx or a missing key moves to the next host and emits `provider.fallback`): planner `meta-api/muse-wonder-1.0` → `fireworks/muse-spark-open` → `baseten/muse-spark-open` → `ollama/glimmer`; implementer Muse Code on `muse-spark-1.3`, the Stint agent (Muse Spark through the planner chain's hosts) for the continue hop; reviewer `ollama/glimmer` (offline by design on stage) → `fireworks/muse-spark-open` → `baseten/muse-spark-open`; learn `baseten/muse-spark-open` → `meta-api/muse-spark-1.3` → `ollama/glimmer`; bench legs and bulk summaries `baseten/muse-spark-open` (the 2M TPM) with local Glimmer for per-event summaries. Caps: planner 40k tokens / 1 call; implementer 150k tokens, `--max-model-steps 60`, 15 min; reviewer 30k; learn 20k. Every run records which host answered (`from.host`), and the cost meter prices by host.
+Models by role, as fallback chains the daemon walks in order (a 429, a 5xx or a missing key moves to the next host and emits `provider.fallback`; the defaults are `routes` in `DEFAULT_CONFIG`, `packages/core/src/schemas/config.ts`): planner `meta-api/muse-wonder-1.0` → `fireworks/muse-spark-open` → `baseten/muse-spark-open` → `modal/muse-spark-open` → `ollama/glimmer`; implementer Muse Code on `muse-spark-1.3`, and the Stint agent for the continue hop (`meta-api/muse-spark-1.3`, then Muse Spark Open on Fireworks, Baseten and Modal, then `ollama/glimmer`); reviewer `ollama/glimmer` (offline by design on stage) → `fireworks/muse-spark-open` → `baseten/muse-spark-open` → `modal/muse-spark-open` → `meta-api/muse-spark-1.3`; learn `baseten/muse-spark-open` → `meta-api/muse-spark-1.3` → `modal/muse-spark-open` → `ollama/glimmer`; spec drafts `meta-api/muse-spark-1.3` first, since a person waits at the dialog (D-089); summaries `ollama/glimmer` → `meta-api/muse-spark-1.3` → `baseten/muse-spark-open`. Caps: planner 40k tokens / 1 call; implementer 1,200,000 tokens (D-094), `--max-model-steps 60`, 15 min; reviewer 30k; learn 20k. Every run records which host answered (`from.host`), and the cost meter prices by host.
 
 ## 7. How to work here
 
@@ -156,7 +157,7 @@ Models by role, as fallback chains the daemon walks in order (a 429, a 5xx or a 
 
 - Product code is written from **26 October** onward. Research, design, schemas, specs, this kit and the demo fixture precede it; that is allowed.
 - Meta models are used in the roles Meta documents: Wonder plans, Spark builds (Muse Code), Glimmer reviews, and Muse Spark Open (Meta's open-weight model) plans, reviews and learns on the two hosts Meta's own deployment page lists, Baseten and Fireworks. Every model Stint calls at runtime is a Meta model (organizer ruling, 26 October): Muse Code and the Stint agent both run Muse models, so the continue beat is a different agent, not a different vendor.
-- Open source, public repo, 3-minute video, teams of two at most. Licence decided after the IP clause is read on 26 October; until then no `LICENSE` file.
+- Open source, public repo, 3-minute video, teams of two at most. The licence is MIT (`LICENSE`), chosen on 26 October once the rules had been read.
 - `Built with Muse Spark Open` attribution is required, since hosted Spark Open legs are part of the product. Keys never in the repo. Nothing from the author's employer or clients.
 - Hackathon partner credits (Baseten $100 and 2M TPM, Fireworks $25, Modal $100) are claimed by the human before day 3 and recorded in `PROGRESS.md`.
 
