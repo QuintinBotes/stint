@@ -18,10 +18,10 @@ const devToken = {
   },
 };
 
-// `--mode judge` is the read-only copy for GitHub Pages (R-069): served under /stint/, its reads from a snapshot.
+// `--mode judge` is the read-only copy for GitHub Pages (R-069): served under /stint/demo/, its reads from a snapshot.
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss(), devToken],
-  ...(mode === 'judge' ? { base: process.env.STINT_JUDGE_BASE ?? '/stint/' } : {}),
+  ...(mode === 'judge' ? { base: process.env.STINT_JUDGE_BASE ?? '/stint/demo/' } : {}),
   build: { outDir: mode === 'judge' ? 'dist-judge' : 'dist', emptyOutDir: true },
   server: { proxy: { '/api': { target: process.env.STINT_DAEMON ?? 'http://127.0.0.1:4319', changeOrigin: false } } },
 }));
