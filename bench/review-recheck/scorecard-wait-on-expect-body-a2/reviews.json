@@ -1,0 +1,29 @@
+{
+  "source": "scorecard",
+  "attempt": "wait-on-expect-body-a2",
+  "hidden": "red",
+  "recorded": {
+    "verdict": "approve",
+    "findings": 0,
+    "model": "muse-glimmer:30b-mlx"
+  },
+  "diffBytes": 0,
+  "promptTokens": 500,
+  "reviews": [
+    {
+      "reviewer": "meta-api/muse-spark-1.3",
+      "verdict": "block",
+      "summary": null,
+      "findings": [
+        {
+          "severity": "blocker",
+          "text": "Diff db58522..8cce479 content not included; cannot verify implementation for T-0001."
+        }
+      ],
+      "inputTokens": 892,
+      "outputTokens": 990,
+      "usd": 0.0061,
+      "wallMs": 5862
+    }
+  ]
+}
