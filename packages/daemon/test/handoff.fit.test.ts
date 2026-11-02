@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import { countTokens, renderHandoff } from '@stint-dev/core';
-import type { Adapter, RunResult } from '../src/index';
+import { HandoffSchema, countTokens, renderHandoff } from '@stint-dev/core';
+import { type Adapter, type RunResult, assign, daemonContext } from '../src/index';
 import { fakeAdapter, makeApp, newTask, post, withFixtureRepo } from './helpers';
 
 /** A run that touches sixty files and is killed, the shape that broke the first live rehearsal. */
@@ -29,5 +29,24 @@ test('A killed run that changed sixty files still gets a packet under 600 tokens
     expect(packet?.leftOut[0]).toBe('In-flight step unknown: write_file src/generated/index.ts');
     expect(packet?.leftOut.at(-1)).toMatch(/^Trimmed to fit 600 tokens: \d+ items and file entries are not listed/);
     expect(packet?.changedFiles.length).toBeLessThan(60);
+  });
+}, 120_000);
+
+test('A run whose packet cannot fit even after the last trim still ends with one packet: the required fields, under 600 tokens, saying what was cut', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { app, ws } = await makeApp(repo, [fakeAdapter('edit')]);
+    // the test command is carried in the packet and no trim level shortens it
+    const t = await ws.createTask({ ...newTask, testCommand: `true ${'--a-very-long-flag '.repeat(160)}` });
+    await (await assign(daemonContext(app), t.id, { adapter: 'fake', role: 'implementer' })).done;
+    const created = (await ws.events(t.id).read()).filter((e) => e.type === 'handoff.created');
+    expect(created).toHaveLength(1);
+    const packet = HandoffSchema.parse(await ws.handoffs(t.id).latest());
+    expect(countTokens(renderHandoff(packet))).toBeLessThanOrEqual(600);
+    expect(packet.from).toMatchObject({ run: 'r1', endedBy: 'completed' });
+    expect(packet.verification).toMatchObject({ runBy: 'daemon', status: 'green', exitCode: 0 });
+    expect(packet.verification?.command.length).toBeLessThanOrEqual(90);
+    expect(packet.changedFiles).toEqual([]);
+    expect(packet.leftOut.at(-1)).toMatch(/^Cut to fit 600 tokens: done, changed files not listed, the rest shortened/);
+    expect(packet.askOfNext.length).toBeGreaterThan(0);
   });
 }, 120_000);

@@ -2,8 +2,9 @@ import { expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Workspace } from '@stint-dev/core/node';
-import { RunRegistry, Worktrees, startDaemon } from '../src/index';
-import { fakeAdapter, newTask, withFixtureRepo } from './helpers';
+import type { Hono } from 'hono';
+import { type Adapter, RunRegistry, Worktrees, assign, daemonContext, startDaemon } from '../src/index';
+import { fakeAdapter, makeApp, newTask, post, withFixtureRepo } from './helpers';
 
 /** A run a crash cut off: started in the log, its worktree dirty, and no run.finished. */
 async function orphan(repo: string) {
@@ -94,5 +95,57 @@ test('on start, a task left verifying gets the packet its run never built, and a
     }
     expect(await packets(ws)).toHaveLength(1);
     expect(await ws.handoffs(task.id).names()).toEqual(['h1']);
+  });
+}, 90_000);
+
+test('on start, a done task whose last run has no packet gets none, so a restart spends nothing on finished work', async () => {
+  await withFixtureRepo(async (repo) => {
+    const { app, ws } = await makeApp(repo, [fakeAdapter('edit')]);
+    daemonContext(app).afterRun = async () => undefined;
+    const task = await ws.createTask({ ...newTask, testCommand: 'true' });
+    await (await assign(daemonContext(app), task.id, { adapter: 'fake', role: 'implementer' })).done;
+    await ws.writeTask(task.id, { status: 'done' });
+    const d = await startDaemon({ root: repo, quiet: true, adapters: [fakeAdapter('edit')] });
+    await d.stop();
+    expect((await ws.events(task.id).read()).filter((e) => e.type === 'handoff.created')).toHaveLength(0);
+    expect((await ws.readTask(task.id)).status).toBe('done');
+  });
+}, 90_000);
+
+test('on start, a run whose daemon died after the task moved to reviewing gets its packet once, and the PreCompact draft from mid-run does not count as it', async () => {
+  await withFixtureRepo(async (repo) => {
+    const holder: { app?: Hono } = {};
+    const drafting: Adapter = {
+      ...fakeAdapter('edit'),
+      async run(c) {
+        // the agent's PreCompact hook drafts a packet while the run is live
+        expect((await post(holder.app as Hono, `/api/tasks/${c.task.id}/handoff`, { run: c.run, reason: 'precompact' })).status).toBe(200);
+        return fakeAdapter('edit').run(c);
+      },
+    };
+    const { app, ws } = await makeApp(repo, [drafting]);
+    holder.app = app;
+    daemonContext(app).afterRun = async () => undefined;
+    const task = await ws.createTask({ ...newTask, testCommand: 'true' });
+    await (await assign(daemonContext(app), task.id, { adapter: 'fake', role: 'implementer' })).done;
+    expect((await ws.readTask(task.id)).status).toBe('reviewing');
+    const packets = async () => (await ws.events(task.id).read()).filter((e) => e.type === 'handoff.created');
+    expect((await packets()).map((e) => e.payload.reason)).toEqual(['precompact']);
+
+    for (let restart = 0; restart < 2; restart++) {
+      const d = await startDaemon({ root: repo, quiet: true, adapters: [fakeAdapter('edit')] });
+      await d.stop();
+      const events = await ws.events(task.id).read();
+      const finished = events.find((e) => e.type === 'run.finished' && e.run === 'r1');
+      const all = await packets();
+      expect(all).toHaveLength(2);
+      const [draft, ending] = all;
+      expect(draft?.seq).toBeLessThan(finished?.seq as number);
+      expect(ending?.seq).toBeGreaterThan(finished?.seq as number);
+      expect(ending?.payload).toMatchObject({ name: 'h2', reason: 'completed', from: { run: 'r1', endedBy: 'completed' } });
+      // the status had moved on, so the restart neither verifies again nor moves it
+      expect(events.filter((e) => e.type === 'verification.ran')).toHaveLength(1);
+      expect((await ws.readTask(task.id)).status).toBe('reviewing');
+    }
   });
 }, 90_000);
