@@ -132,6 +132,16 @@ process.exit(validate.errors ? 1 : 0);
 
 It prints `valid stint.handoff/1`. Pass `../../bench/runs/bench-03-delete-tenant-packet/handoff.json` instead to check a benchmark packet. Remove a required field such as `askOfNext` from the file and it prints the error and exits 1. The packet's `verification` says `runBy: "daemon"`: it is the daemon's record of the run, not the agent's claim.
 
+5. Check which commit you are judging and what ran on it. Each push to `main` runs CI, and one that passes the smoke test publishes the image under `sha-` and the short commit:
+
+```bash
+git rev-parse --short=7 HEAD
+gh run list --repo QuintinBotes/stint --commit "$(git rev-parse HEAD)" --limit 5
+docker buildx imagetools inspect "ghcr.io/quintinbotes/stint:sha-$(git rev-parse --short=7 HEAD)"
+```
+
+The runs list `ci` and `docker` with their results, and the last command prints the image's digest, which `cosign verify` checks as [`docker.md`](docker.md#checking-what-you-run) shows.
+
 ## If an agent misbehaves on stage
 
 Show a recorded packet instead: `bench/runs/*/handoff.json` holds ten real packets from the benchmark, and `stint packet T-0042 --as prompt` prints the replay's killed packet.
