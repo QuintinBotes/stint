@@ -11,6 +11,8 @@
 
 - `bench/visual-set/` checks ten pages through the daemon's own visual check, five with a seeded defect and five clean: on 2 November Muse Spark 1.3 caught 4 of the 5 defects and failed none of the clean pages, and SAM 3.1 boxed 2 of the 4 it caught, both on the defect, for $0.0489 (`scripts/visual-set.ts`).
 
+- `stint bench` gains a `resume` mode, in which Muse Code continues its own capped session, and `scripts/unfinished-bench.ts` runs every mode from checkpoints that fail their held-out tests. On 2 November, on two tasks with four runs per mode, every mode finished the code, resume included, and the packet was the dearest (`bench/fair-unfinished/`).
+
 ### Fixed (2 November)
 - A review whose findings are empty no longer becomes an approval when the model blocked: its blockers become its findings, an approve that lists blockers becomes a block, and a block that names nothing is asked for again and then passed to the next host. A scan of the 164 recorded reviews found none with blockers turned into an approval.
 - A daemon restart after a crash during verification builds the packet the run never got, once, through the same path a run's end uses.
