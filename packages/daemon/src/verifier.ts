@@ -12,6 +12,8 @@ import { installDependencies } from './worktree';
 
 export interface Verifier {
   verify(task: Task, run: string, worktree: string): Promise<VerificationRecord>;
+  /** The tests and the checks alone, on a checkout that is no run's worktree; nothing is recorded. */
+  suite(task: Task, run: string, dir: string): Promise<{ checks: VerificationCheck[]; outputs: string[] }>;
 }
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g');
@@ -175,7 +177,7 @@ export class DaemonVerifier implements Verifier {
     return execInGroup(command, dir, p.env, this.capMs, undefined, p.wrap);
   }
 
-  async verify(task: Task, run: string, worktree: string): Promise<VerificationRecord> {
+  async suite(task: Task, run: string, worktree: string) {
     const defs = [
       { name: 'tests', command: task.testCommand, kind: 'test' as const },
       ...(task.checks ?? this.ws.config.verify?.checks ?? []),
@@ -206,6 +208,11 @@ export class DaemonVerifier implements Verifier {
         status: ok && (counts === null || counts.failed === 0) ? 'green' : 'red',
       });
     }
+    return { defs, checks, outputs, testsParsed, testsTimedOut };
+  }
+
+  async verify(task: Task, run: string, worktree: string): Promise<VerificationRecord> {
+    const { defs, checks, outputs, testsParsed, testsTimedOut } = await this.suite(task, run, worktree);
     const testsCheck = checks[0] as VerificationCheck;
     const counts = { passed: testsCheck.passed ?? 0, failed: testsCheck.failed ?? 0 };
     const testsOutput = outputs[0] ?? '';
