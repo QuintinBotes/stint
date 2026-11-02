@@ -93,3 +93,11 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-017 | A refused approval reads as words at the gate: a merge conflict names its files (09:35) | product code |
 | R-024 | The video page's final cut, the changelog and the README's case for judges (10:23 to 10:59); the film published (11:36); the submission, sent through the Cerebral Valley form at 11:35 CET and recorded at 11:47 | docs and submission |
 | R-068 | The owner's decision that the visual check keeps drawing SAM 3.1's box, with no `@meta-sam/parser` dependency (D-095, 11:10) | decision |
+
+## 2 November
+
+| Commit | What | Kind |
+|---|---|---|
+| R-004 | The daemon can listen on a container's own network: `stint up --bind` and `stint demo --bind`, or `STINT_BIND`; the localhost Host check and the token stay (13:11) | product code |
+| R-001 | Stint runs in a container: the `Dockerfile`, `compose.yaml`, `scripts/docker-smoke.sh` and a CI job that builds the image and runs it (13:15) | product code |
+| R-001 | The guide to running Stint in a container (`docs/docker.md`), ADR-0012, D-097 and the R-004 deviation, and the pages that point to the guide | docs |

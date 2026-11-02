@@ -18,5 +18,6 @@ Stint is pre-1.0. Only the latest commit on `main` receives security fixes.
 - Anything that lets an agent act outside its worktree or its sandbox, read a key, or reach the network when the run's policy says it may not.
 - Anything that puts a key, a credential or a transcript into a packet, an event, the UI or a log.
 - The CLI, the web UI and the adapters in this repository.
+- The container image and `compose.yaml`: what they publish, and the privileges the container runs with ([`docs/docker.md`](docs/docker.md#security)).
 
 Problems in a coding agent or a model host that Stint drives belong with that project, unless Stint's handling makes them worse.
