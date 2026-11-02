@@ -3,8 +3,9 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { countTokens } from '@stint-dev/core';
 
-export type BenchMode = 'transcript' | 'packet';
-export const BENCH_MODES: BenchMode[] = ['transcript', 'packet'];
+/** What the continuer starts from: the first run's transcript, its packet, or only the task and the first run's diff. */
+export type BenchMode = 'transcript' | 'packet' | 'diff';
+export const BENCH_MODES: BenchMode[] = ['transcript', 'packet', 'diff'];
 
 /** The legs a bench run can measure (R-055): plan, build (the continuing runs), review and learn. */
 export type BenchLeg = 'plan' | 'build' | 'review' | 'learn';
@@ -79,6 +80,9 @@ export type BenchRow = {
   promptTokens: number;
   repeat: number;
   synthetic?: true;
+  /** With held-out tests: the daemon's verification once they were added (green or red), or null when they could not run. */
+  hidden?: 'green' | 'red' | null;
+  scenarios?: { passed: number; failed: number } | null;
 };
 
 /** A row artefact (row.json, or row-<leg>.json): the row plus the facts a replay needs to rebuild the top level. */
@@ -93,7 +97,16 @@ export type BenchRowFile = Omit<BenchRow, 'leg' | 'result'> & {
   finishedAt?: string;
 };
 
-export type ModeSummary = { runs: number; meanInputTokens: number; meanPromptTokens: number; meanUsd: number | null; passRate: number };
+export type ModeSummary = {
+  runs: number;
+  meanInputTokens: number;
+  meanPromptTokens: number;
+  meanUsd: number | null;
+  passRate: number;
+  /** Present when the rows had held-out tests: the share of graded runs they passed, and how many were graded. */
+  hiddenPassRate?: number;
+  hiddenGraded?: number;
+};
 
 /** One leg summed the same way as a mode; pass means the leg did its work (for build, a green verification). */
 export type LegSummary = ModeSummary;
@@ -135,6 +148,7 @@ function stripRow(r: BenchRowFile): BenchRow {
     promptTokens: r.promptTokens,
     repeat: r.repeat ?? 1,
     ...(r.synthetic ? { synthetic: true as const } : {}),
+    ...(r.hidden !== undefined ? { hidden: r.hidden, scenarios: r.scenarios ?? null } : {}),
   };
 }
 
@@ -150,12 +164,16 @@ export function buildResults(input: {
   const rows = input.rows.map(stripRow);
   const summarise = (inGroup: BenchRow[]): ModeSummary => {
     const priced = inGroup.filter((r) => r.usd !== null);
+    const graded = inGroup.filter((r) => r.hidden === 'green' || r.hidden === 'red');
     return {
       runs: inGroup.length,
       meanInputTokens: round(mean(inGroup.map((r) => r.inputTokens)), 1),
       meanPromptTokens: round(mean(inGroup.map((r) => r.promptTokens)), 1),
       meanUsd: priced.length ? round(mean(priced.map((r) => r.usd as number)), 6) : null,
       passRate: round(inGroup.filter((r) => r.verified).length / inGroup.length, 3),
+      ...(inGroup.some((r) => r.hidden !== undefined)
+        ? { hiddenPassRate: graded.length ? round(graded.filter((r) => r.hidden === 'green').length / graded.length, 3) : 0, hiddenGraded: graded.length }
+        : {}),
     };
   };
   // byMode is the continuing runs only, as it always was: the other legs have no mode of their own
@@ -202,16 +220,18 @@ function checkedRowFile(raw: unknown, path: string): BenchRowFile {
   const r = raw as Record<string, unknown>;
   const bad = (field: string) => new Error(`${path}: row.json field ${field} is missing or not valid`);
   if (typeof r.task !== 'string' || !r.task) throw bad('task');
-  if (r.mode !== 'transcript' && r.mode !== 'packet') throw bad('mode');
+  if (!BENCH_MODES.includes(r.mode as BenchMode)) throw bad('mode');
   for (const f of ['inputTokens', 'cachedTokens', 'outputTokens', 'wallMs', 'promptTokens'] as const) {
     if (typeof r[f] !== 'number' || !Number.isFinite(r[f] as number)) throw bad(f);
   }
   if (typeof r.verified !== 'boolean') throw bad('verified');
   if (r.usd !== null && typeof r.usd !== 'number') throw bad('usd');
   if (r.leg !== undefined && !BENCH_LEGS.includes(r.leg as BenchLeg)) throw bad('leg');
+  if (r.hidden !== undefined && r.hidden !== null && r.hidden !== 'green' && r.hidden !== 'red') throw bad('hidden');
+  const sc = r.scenarios as { passed?: unknown; failed?: unknown } | null | undefined;
   return {
     task: r.task,
-    mode: r.mode,
+    mode: r.mode as BenchMode,
     ...(r.leg !== undefined ? { leg: r.leg as BenchLeg } : {}),
     ...(typeof r.result === 'string' ? { result: r.result } : {}),
     host: typeof r.host === 'string' ? r.host : 'unknown',
@@ -231,6 +251,9 @@ function checkedRowFile(raw: unknown, path: string): BenchRowFile {
     ...(typeof r.implementerModel === 'string' ? { implementerModel: r.implementerModel } : {}),
     ...(typeof r.startedAt === 'string' ? { startedAt: r.startedAt } : {}),
     ...(typeof r.finishedAt === 'string' ? { finishedAt: r.finishedAt } : {}),
+    ...(r.hidden !== undefined
+      ? { hidden: r.hidden as 'green' | 'red' | null, scenarios: sc && typeof sc.passed === 'number' && typeof sc.failed === 'number' ? { passed: sc.passed, failed: sc.failed } : null }
+      : {}),
   };
 }
 
@@ -295,7 +318,7 @@ export function formatSummary(results: BenchResults): string[] {
     const m = results.byMode[mode];
     if (!m) continue;
     lines.push(
-      `${mode.padEnd(10)} ${m.runs} runs, mean input ${Math.round(m.meanInputTokens)} tokens, mean prompt ${Math.round(m.meanPromptTokens)} tokens, mean ${money(m.meanUsd)}, pass rate ${pct(m.passRate)} (verified by the daemon)`,
+      `${mode.padEnd(10)} ${m.runs} runs, mean input ${Math.round(m.meanInputTokens)} tokens, mean prompt ${Math.round(m.meanPromptTokens)} tokens, mean ${money(m.meanUsd)}, pass rate ${pct(m.passRate)} (verified by the daemon)${m.hiddenPassRate !== undefined ? `, held-out tests passed ${pct(m.hiddenPassRate)} of ${m.hiddenGraded} graded` : ''}`,
     );
   }
   for (const leg of BENCH_LEGS) {
@@ -325,10 +348,10 @@ export async function writeBenchOutputs(outDir: string, results: BenchResults): 
   await writeFile(join(outDir, 'results-light.svg'), renderBenchSvg(results, 'light'));
 }
 
-// Colours from design/tokens.json: surface, ink, ink-muted, border, accent (packet), vendor-alt (transcript).
+// Colours from design/tokens.json: surface, ink, ink-muted, border, accent (packet), vendor-alt (transcript), vendor-meta (diff).
 const THEMES = {
-  dark: { surface: '#0b0b0d', ink: '#f4f4f5', muted: '#a1a1aa', border: '#27272a', packet: '#60a5fa', transcript: '#94a3b8' },
-  light: { surface: '#ffffff', ink: '#18181b', muted: '#52525b', border: '#e4e4e7', packet: '#2563eb', transcript: '#475569' },
+  dark: { surface: '#0b0b0d', ink: '#f4f4f5', muted: '#a1a1aa', border: '#27272a', packet: '#60a5fa', transcript: '#94a3b8', diff: '#facc15' },
+  light: { surface: '#ffffff', ink: '#18181b', muted: '#52525b', border: '#e4e4e7', packet: '#2563eb', transcript: '#475569', diff: '#a16207' },
 } as const;
 
 const xml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -358,13 +381,13 @@ export function renderBenchSvg(results: BenchResults, theme: 'dark' | 'light'): 
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Continued run input tokens by task and mode">`,
     `<rect width="${width}" height="${height}" fill="${c.surface}"/>`,
     `<text x="24" y="32" font-family="Geist, Inter, system-ui, sans-serif" font-size="16" font-weight="600" fill="${c.ink}">Continued run input tokens by mode</text>`,
-    `<text x="24" y="52" font-family="Geist, Inter, system-ui, sans-serif" font-size="12" fill="${c.muted}">${xml(results.replay ? 'Replay of recorded runs' : 'Live runs')}${results.synthetic ? ', synthetic' : ''}; pass means the daemon verification was green</text>`,
+    `<text x="24" y="52" font-family="Geist, Inter, system-ui, sans-serif" font-size="12" fill="${c.muted}">${xml(results.replay ? 'Replay of recorded runs' : 'Live runs')}${results.synthetic ? ', synthetic' : ''}; ${results.rows.some((r) => r.hidden !== undefined) ? 'green means the daemon verification passed with the held-out tests added' : 'pass means the daemon verification was green'}</text>`,
   ];
   let legendX = 24;
   for (const mode of modes) {
     const m = results.byMode[mode] as ModeSummary;
     out.push(`<rect x="${legendX}" y="62" width="12" height="12" fill="${c[mode]}"/>`);
-    const label = `${mode}: ${pct(m.passRate)} passed`;
+    const label = m.hiddenPassRate !== undefined ? `${mode}: ${pct(m.hiddenPassRate)} green` : `${mode}: ${pct(m.passRate)} passed`;
     out.push(`<text x="${legendX + 18}" y="73" font-family="Geist, Inter, system-ui, sans-serif" font-size="12" fill="${c.ink}">${xml(label)}</text>`);
     legendX += 18 + label.length * 7 + 24;
   }

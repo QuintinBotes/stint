@@ -26,8 +26,8 @@ export type AssignInput = {
   handoffFrom?: string;
   /** Caps this run at this many model steps, replacing the adapter default (the bench first run). */
   steps?: number;
-  /** Continues from a rendered transcript instead of a packet (the bench transcript mode). */
-  resume?: { kind: 'transcript'; text: string };
+  /** Continues from a rendered transcript, or from the earlier run's unified diff, instead of a packet (the bench transcript and diff modes). */
+  resume?: { kind: 'transcript' | 'diff'; text: string };
 };
 export type Assigned = { run: string; worktree: string; done: Promise<void> };
 
@@ -138,20 +138,22 @@ async function begin(ctx: DaemonContext, taskId: string, input: AssignInput, tas
   }
   const skills = await skillsForTask(ws, task, input.role);
   const transcript = input.resume?.kind === 'transcript' ? input.resume.text : undefined;
-  const packetName = transcript !== undefined ? null : (input.handoffFrom ?? (await ws.handoffs(taskId).names()).at(-1) ?? null);
+  const priorDiff = input.resume?.kind === 'diff' ? input.resume.text : undefined;
+  const packetName = input.resume ? null : (input.handoffFrom ?? (await ws.handoffs(taskId).names()).at(-1) ?? null);
   const handoff = packetName ? await ws.handoffs(taskId).read(packetName) : null;
-  if (transcript === undefined && input.handoffFrom && !handoff) throw new DaemonError('not_found', `${taskId} has no packet ${input.handoffFrom}`);
+  if (!input.resume && input.handoffFrom && !handoff) throw new DaemonError('not_found', `${taskId} has no packet ${input.handoffFrom}`);
   const prompt = renderPrompt({
     task,
     plan: await ws.readPlan(taskId),
     handoff,
     ...(transcript !== undefined ? { transcript } : {}),
+    ...(priorDiff !== undefined ? { priorDiff } : {}),
     before: handoff ? await earlierHops(ctx, taskId, handoff.from.run) : [],
     skills,
     diff: (await ctx.worktrees.diff(task, 'json')) as never,
     ask: input.instruction ?? task.pendingAsk ?? null,
     // the first build, with no packet to continue from, starts from what sharpening settled
-    ...(input.role === 'implementer' && !handoff && transcript === undefined ? { settled: await sharpenBrief(ws, task) } : {}),
+    ...(input.role === 'implementer' && !handoff && !input.resume ? { settled: await sharpenBrief(ws, task) } : {}),
   });
   // The role's spend on this task plus the prompt about to be sent must stay under the role's budget.
   const promptTokens = countTokens(prompt);

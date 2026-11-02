@@ -20,7 +20,7 @@ function parseModes(raw: string): BenchMode[] {
     .map((m) => m.trim())
     .filter(Boolean);
   if (!modes.length || modes.some((m) => !BENCH_MODES.includes(m as BenchMode))) {
-    process.stderr.write(`--modes must be a comma list from transcript,packet, not ${raw}\n`);
+    process.stderr.write(`--modes must be a comma list from ${BENCH_MODES.join(',')}, not ${raw}\n`);
     process.exit(2);
   }
   return BENCH_MODES.filter((m) => modes.includes(m));
@@ -39,15 +39,15 @@ function parseLegs(raw: string): BenchLeg[] {
 }
 
 export const bench = defineCommand({
-  meta: { name: 'bench', description: 'Measure the packet: continue capped runs from the transcript or from the packet plus the diff' },
+  meta: { name: 'bench', description: 'Measure the packet: continue one capped run per task from the transcript, the packet, or the task and the diff' },
   args: {
     tasks: { type: 'string', description: 'How many bench tasks to run (default: all)' },
-    modes: { type: 'string', description: 'Comma list: transcript,packet', default: 'transcript,packet' },
+    modes: { type: 'string', description: 'Comma list: transcript,packet,diff (diff is the task and the first run\'s diff only)', default: 'transcript,packet' },
     legs: { type: 'string', description: 'Comma list: plan,build,review,learn', default: 'build' },
     host: { type: 'string', description: 'Run the continuing leg on this host (a host id from config)' },
     implementer: { type: 'string', description: 'Adapter for the capped first run', default: 'muse-code' },
     continuer: { type: 'string', description: 'Adapter that continues the capped run', default: 'stint-agent' },
-    repeat: { type: 'string', description: 'Repeats per task and mode', default: '1' },
+    repeat: { type: 'string', description: 'Continued runs per task and mode, all from the one first run of each task', default: '1' },
     concurrency: { type: 'string', description: 'Bench runs at once', default: '2' },
     'no-digest': { type: 'boolean', description: 'Build packets without the diff digest that stint up adds' },
     replay: { type: 'boolean', description: 'Rebuild results from recorded runs; no model call' },

@@ -35,3 +35,30 @@ test('A run assigned with resume transcript has no packet section and carries th
     expect(seen?.budget.maxTurns).toBe(3);
   });
 }, 90_000);
+
+test('A run assigned with resume diff carries the earlier diff and neither the packet nor a transcript', async () => {
+  await withFixtureRepo(async (repo) => {
+    const adapter = fakeAdapter('edit');
+    const { app, ws } = await makeApp(repo, [adapter]);
+    const ctx = daemonContext(app);
+    const t = await ws.createTask(newTask);
+    const first = await assign(ctx, t.id, { adapter: 'fake', role: 'implementer' });
+    await first.done;
+    expect(await ws.handoffs(t.id).names()).toHaveLength(1);
+
+    const diff = (await ctx.worktrees.diff(await ws.readTask(t.id), 'unified')) as string;
+    expect(diff).toContain('export const LIMIT = 60;');
+    const second = await assign(ctx, t.id, { adapter: 'fake', role: 'implementer', resume: { kind: 'diff', text: diff } });
+    await second.done;
+
+    const prompt = adapter.seen[1]?.prompt ?? '';
+    expect(prompt).toContain('## Diff of the previous run');
+    expect(prompt).toContain('+export const LIMIT = 60;');
+    expect(prompt).toContain('Continue from the diff');
+    expect(prompt).toContain(newTask.goal);
+    expect(prompt).not.toContain('## Packet from the previous run');
+    expect(prompt).not.toContain('## Transcript of the previous run');
+    const started = (await ws.events(t.id).read()).find((e) => e.type === 'run.started' && e.run === second.run);
+    expect(started?.payload.handoffFrom).toBeNull();
+  });
+}, 90_000);

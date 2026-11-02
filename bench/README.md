@@ -1,8 +1,8 @@
 # The packet benchmark
 
-This page explains `stint bench` and its results files, for anyone who runs the benchmark or checks its numbers. The bench measures the packet idea: it runs the same small tasks twice from the same base commit, each time capping the first agent at the same step and letting a second agent continue the work. In transcript mode the second agent starts from the first run rendered as text: its messages, its tool calls with their arguments, and its tool results. In packet mode it starts from the packet the capped run built, plus the diff. The bench records what the continued run cost and whether the tests passed when the daemon ran them itself.
+This page explains `stint bench` and its results files, for anyone who runs the benchmark or checks its numbers. The bench measures the packet idea: for each small task it caps the first agent once, at the task's step, and every mode continues from that one capped run, each in its own copy of the fixture, so the modes differ only in what the second agent is handed. In transcript mode the second agent starts from the first run rendered as text: its messages, its tool calls with their arguments, and its tool results. In packet mode it starts from the packet the capped run built, plus the list of changed files. In diff mode it starts from the task and the first run's unified diff, with no packet and no transcript: the cheap alternative a packet has to beat. Until 2 November each mode ran its own first run, so the 27 October results compare continuations from different starting points; `bench/fair/` is the rerun from one shared start. The bench records what the continued run cost and whether the tests passed when the daemon ran them itself.
 
-That is the build leg, the default. `--legs plan,build,review,learn` also measures the other legs through the daemon's own calls: plan through its planner, review through its reviewer on the built branch, and learn by approving, which is the call that starts the daemon's learn step. Review and learn stand on a build, so the build still runs for them; its row is kept only when `build` is listed.
+That is the build leg, the default. `--legs plan,build,review,learn` also measures the other legs through the daemon's own calls: plan through its planner, review through its reviewer on the built branch, and learn by approving, which is the call that starts the daemon's learn step. Review and learn stand on a build, so the build still runs for them; its row is kept only when `build` is listed. The plan leg runs once per task, before the shared first run, and its row sits with the first mode listed.
 
 ## How to run it
 
@@ -15,7 +15,8 @@ stint bench --tasks 5 --modes transcript,packet
 By default the implementer is `muse-code`, the continuer `stint-agent`, with one repeat, two bench runs at a time, the build leg, and packets with the diff digest. The flags:
 
 - `--implementer` and `--continuer`: the adapters for the capped first run and the continued run.
-- `--repeat N` and `--concurrency N`: repeats per task and mode, and bench runs at once.
+- `--modes <list>`: from `transcript`, `packet` and `diff` (default `transcript,packet`).
+- `--repeat N` and `--concurrency N`: continued runs per task and mode, all from the task's one first run, and bench runs at once.
 - `--legs <list>`: the legs to measure.
 - `--host <id>`: run the continuing, plan and review calls on that host's model from the agent chain.
 - `--no-digest`: packets without the diff digest that `stint up` adds.
@@ -37,11 +38,14 @@ The tasks are in `bench/tasks.json`: five small tasks on the demo webhook servic
 
 ## What a run writes
 
-Each live bench run works in a fresh copy of the fixture repository and keeps its artefacts in `bench/runs/<task>-<mode>/`:
+Each task's first run works in a fresh copy of the fixture repository, and each continued run in a copy of that folder taken after the first run ended. A continued run keeps its artefacts in `bench/runs/<task>-<mode>/` (with `-r<n>` when there are repeats):
 
 - `transcript.jsonl`: the first run's recorded transcript lines, as the daemon kept them.
 - `handoff.json`: the packet the capped first run built. Packet mode continues from this.
 - `prompt.md`: the exact prompt the continuer started from.
+- `events.jsonl`: the task's timeline in that copy: the shared first run, the continued run, its verification and any held-out tests.
+- `handoff-continued.json`: the packet the continued run built, when it built one.
+- `diff.patch`: the change on the task branch after the continued run.
 - `row.json`: the result row for this continued run, plus the facts a replay needs (the base commit, the two adapters and models, and the run's start and end times). The other legs write `row-plan.json`, `row-review.json` and `row-learn.json` beside it, with `plan.json` and `review.json`.
 
 The summary files land in `bench/`:
@@ -71,11 +75,12 @@ A build row is the continued run, not the capped first run; a plan, review or le
 
 - `task`: the bench task id from `bench/tasks.json`.
 - `leg`: `plan`, `build`, `review` or `learn`; rows recorded before legs existed read as `build`.
-- `mode`: `transcript` or `packet`.
+- `mode`: `transcript`, `packet` or `diff`.
 - `host` and `model`: who answered the continued run.
 - `inputTokens`, `cachedTokens`, `outputTokens`, `usd`: the continued run's usage and cost, as the daemon metered and priced them.
 - `wallMs`: the continued run's wall time in milliseconds.
 - `verified`: true when the daemon's own run of the task's test command was green after the continued run.
+- `hidden` and `scenarios`: present when the bench was given held-out tests for the task (`bench/fair/` is). They are stored after the continued run and its review, so no agent sees them, and the daemon verifies the run again with them: `hidden` is that verification's status, or null when the held-out tests could not run, and `scenarios` their pass and fail counts. `byMode` then also carries `hiddenPassRate` and `hiddenGraded`.
 - `promptTokens`: the size of the prompt the continuer started from, counted with Stint's token counter. This is the direct size comparison between the transcript and the packet.
 - `result`: what the leg did, in a few words: the plan's step count, the review verdict, the proposed skill, or whether the daemon verified the build.
 - `repeat`: which repeat this row is, starting at 1.
