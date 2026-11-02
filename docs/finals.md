@@ -10,7 +10,7 @@ Run in live mode if the network and keys hold, the replay (`stint demo`) if not,
 2. **T-0042, Muse Code building on Muse Spark (0:10):** kill it. "The daemon builds the packet from the log and the diff: a few hundred tokens, 412 in the replay."
 3. **The Stint agent continues (0:25)** from the packet on Muse Spark. "The daemon, not the agent, runs the tests: green."
 4. **Glimmer reviews on the laptop, offline (0:40):** a finding that would reverse a decision goes to the queue. Approve: a real merge with trailers.
-5. **The Factory, at `/factory` (0:50):** which Muse model did what, and the skill it learned in the replay. "Every model is Meta's; the benchmark is in the repository."
+5. **The Factory, at `/factory` (0:50):** which Muse model did what, and the skill it learned in the replay. "By default and in every recorded run, every model is Meta's; the benchmark is in the repository."
 
 ## Questions to expect
 
@@ -20,7 +20,7 @@ A board shows tasks; Stint keeps a task alive across agents. Every run ends with
 
 ### How is this different from tools that run agents on a ticket queue and merge on their own?
 
-Those tools answer how many agents can clear a queue without a person. Stint answers what happens to one task when its agent dies. When a queued run fails, it goes back to the queue and starts over; in Stint, another vendor's agent continues from a packet of a few hundred tokens. The daemon then runs the tests itself, on locked test files and held-out scenarios the agent is never shown. Every model Stint calls at runtime is Meta's, the review runs on the laptop at $0, and nothing merges without a person.
+Those tools answer how many agents can clear a queue without a person. Stint answers what happens to one task when its agent dies. When a queued run fails, it goes back to the queue and starts over; in Stint, another vendor's agent continues from a packet of a few hundred tokens. The daemon then runs the tests itself, on locked test files and held-out scenarios the agent is never shown. Every default route and every recorded run uses a Meta model, the review runs on the laptop at $0, and nothing merges without a person.
 
 ### Why not just use Muse Code's own subagents?
 
@@ -32,7 +32,7 @@ Muse Code keeps its own work well: each subagent gets a worktree, its events go 
 
 ### Is Meta essential, or could any model do this?
 
-The hand-off is vendor-neutral by design: the packet is plain JSON with a published schema, and Claude Code, Codex and other agents are config entries that ship turned off. Meta's models are the default in every role, and every model Stint calls at runtime is Meta's ([`proofs.md`](proofs.md#meta-models-where-each-one-works)). Each one does a job: Muse Glimmer 30B is small enough to review on the laptop with the network off, at $0.00; Muse Spark 1.3 judges a screenshot and SAM 3.1 boxes the element it names, which is the visual gate; Muse Code's hooks draft a packet before context is lost. So the answer is both: Meta runs every job by default, and the packet is what lets you swap any of them.
+The hand-off is vendor-neutral by design: the packet is plain JSON with a published schema, and Claude Code, Codex and other agents are config entries that ship turned off. Meta's models are the default in every role, every recorded run used one, and the agent presets that could reach another vendor's model ship disabled ([`proofs.md`](proofs.md#meta-models-where-each-one-works)). Each one does a job: Muse Glimmer 30B is small enough to review on the laptop with the network off, at $0.00; Muse Spark 1.3 judges a screenshot and SAM 3.1 boxes the element it names, which is the visual gate; Muse Code's hooks draft a packet before context is lost. So the answer is both: Meta runs every job by default, and the packet is what lets you swap any of them.
 
 ### Why not just resume the session, or hand over the diff?
 
@@ -51,7 +51,7 @@ It keeps your code on your machine; Glimmer does not catch bugs. Rechecked on 2 
 Four things limit the damage:
 
 - **It cannot invent results.** The packet is derived from the log, so it cannot claim tests passed that did not. Verification is the daemon's own run.
-- **We measure it.** The quiz asks a second model facts from the full record, answered from the packet alone, and the misses show what the packet dropped. The first live quiz found that the packet named files but not what the code did. The daemon now asks the leaving agent for its account of what the code does, and has a model digest the diff when the agent cannot be asked. Until 2 November that question never reached Muse Code's session, because it carried the daemon's API key instead of the login the session was made under; that is fixed, and the recorded packets carry the digest or what the event log and the diff show. On the current build, runs from the packet used 31% fewer input tokens than runs from the transcript and passed 9 of 10 against 3 of 5, in a small sample whose runs started from different checkpoints.
+- **We measure it.** The quiz asks a second model facts from the full record, answered from the packet alone, and the misses show what the packet dropped. The first live quiz found that the packet named files but not what the code did. The daemon now asks the leaving agent for its account of what the code does, and has a model digest the diff when the agent cannot be asked. Until 2 November that question never reached Muse Code's session, because it carried the daemon's API key instead of the login the session was made under; that is fixed, and the recorded packets carry the digest or what the event log and the diff show. On 27 October, runs from the packet used 31% fewer input tokens than runs from the transcript and passed 9 of 10 against 3 of 5, in a small sample whose runs started from different checkpoints.
 - **The next agent's checks still run.** The daemon's tests, the tests-first lock and any held-out scenarios run on the continuation before it can reach the gate, and they catch what they test.
 - **A person merges, not an agent.**
 

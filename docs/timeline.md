@@ -109,3 +109,4 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-021, R-010 | The fair bench from one shared checkpoint with a `diff` mode (D-099) and the review recheck on Muse Spark 1.3, both live on Meta's models, results in `bench/fair/` and `bench/review-recheck/` | product code and live runs |
 | R-068 | The visual check on ten pages, five seeded defects and five clean, live on Muse Spark 1.3 and SAM 3.1 (`bench/visual-set/`) | live runs |
 | R-021 | The unfinished rerun with a `resume` mode, from checkpoints that fail their held-out tests, live on Muse Spark 1.3 (`bench/fair-unfinished/`) | product code and live runs |
+| R-024 | The README and proofs lead with the controlled numbers and their limits, the Claude Code relay hop is described from its events, and a claims test locks the 2 November figures | docs and tests |
