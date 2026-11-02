@@ -1,0 +1,20 @@
+{
+  "budgetUsd": 4,
+  "priorUsd": 0.0437,
+  "checkpointsUsd": 0.4151,
+  "continuedUsd": 1.9471,
+  "totalUsd": 2.4059,
+  "tasks": [
+    {
+      "task": "bench-01-rate-limit",
+      "continuedUsd": 1.2916,
+      "unpriced": []
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "continuedUsd": 0.6555,
+      "unpriced": []
+    }
+  ],
+  "stopped": "stopped before bench-04-audit-limit-config: $2.4059 spent plus up to $1.6145 for the next task would pass the $4 budget"
+}

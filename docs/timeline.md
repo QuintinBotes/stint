@@ -108,3 +108,4 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-001, R-069 | CI scans every commit for keys and tokens with gitleaks (D-098), and the link test covers every page in `docs/` and the paths the README names | tests and CI |
 | R-021, R-010 | The fair bench from one shared checkpoint with a `diff` mode (D-099) and the review recheck on Muse Spark 1.3, both live on Meta's models, results in `bench/fair/` and `bench/review-recheck/` | product code and live runs |
 | R-068 | The visual check on ten pages, five seeded defects and five clean, live on Muse Spark 1.3 and SAM 3.1 (`bench/visual-set/`) | live runs |
+| R-021 | The unfinished rerun with a `resume` mode, from checkpoints that fail their held-out tests, live on Muse Spark 1.3 (`bench/fair-unfinished/`) | product code and live runs |

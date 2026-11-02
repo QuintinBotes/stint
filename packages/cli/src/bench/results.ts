@@ -3,9 +3,12 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { countTokens } from '@stint-dev/core';
 
-/** What the continuer starts from: the first run's transcript, its packet, or only the task and the first run's diff. */
-export type BenchMode = 'transcript' | 'packet' | 'diff';
-export const BENCH_MODES: BenchMode[] = ['transcript', 'packet', 'diff'];
+/**
+ * What the continuer starts from: the first run's transcript, its packet, or only the task and the first run's diff;
+ * or, in resume, no hand-over at all: the first run's own agent continues its own session.
+ */
+export type BenchMode = 'transcript' | 'packet' | 'diff' | 'resume';
+export const BENCH_MODES: BenchMode[] = ['transcript', 'packet', 'diff', 'resume'];
 
 /** The legs a bench run can measure (R-055): plan, build (the continuing runs), review and learn. */
 export type BenchLeg = 'plan' | 'build' | 'review' | 'learn';
@@ -83,6 +86,8 @@ export type BenchRow = {
   /** With held-out tests: the daemon's verification once they were added (green or red), or null when they could not run. */
   hidden?: 'green' | 'red' | null;
   scenarios?: { passed: number; failed: number } | null;
+  /** Whether the continued run itself wrote a `decision: tests:` line, the locked-test rule's way out. */
+  testsDecision?: boolean;
 };
 
 /** A row artefact (row.json, or row-<leg>.json): the row plus the facts a replay needs to rebuild the top level. */
@@ -149,6 +154,7 @@ function stripRow(r: BenchRowFile): BenchRow {
     repeat: r.repeat ?? 1,
     ...(r.synthetic ? { synthetic: true as const } : {}),
     ...(r.hidden !== undefined ? { hidden: r.hidden, scenarios: r.scenarios ?? null } : {}),
+    ...(r.testsDecision !== undefined ? { testsDecision: r.testsDecision } : {}),
   };
 }
 
@@ -254,6 +260,7 @@ function checkedRowFile(raw: unknown, path: string): BenchRowFile {
     ...(r.hidden !== undefined
       ? { hidden: r.hidden as 'green' | 'red' | null, scenarios: sc && typeof sc.passed === 'number' && typeof sc.failed === 'number' ? { passed: sc.passed, failed: sc.failed } : null }
       : {}),
+    ...(typeof r.testsDecision === 'boolean' ? { testsDecision: r.testsDecision } : {}),
   };
 }
 
@@ -348,10 +355,10 @@ export async function writeBenchOutputs(outDir: string, results: BenchResults): 
   await writeFile(join(outDir, 'results-light.svg'), renderBenchSvg(results, 'light'));
 }
 
-// Colours from design/tokens.json: surface, ink, ink-muted, border, accent (packet), vendor-alt (transcript), vendor-meta (diff).
+// Colours from design/tokens.json: surface, ink, ink-muted, border, accent (packet), vendor-alt (transcript), vendor-meta (diff), vendor-openai (resume).
 const THEMES = {
-  dark: { surface: '#0b0b0d', ink: '#f4f4f5', muted: '#a1a1aa', border: '#27272a', packet: '#60a5fa', transcript: '#94a3b8', diff: '#facc15' },
-  light: { surface: '#ffffff', ink: '#18181b', muted: '#52525b', border: '#e4e4e7', packet: '#2563eb', transcript: '#475569', diff: '#a16207' },
+  dark: { surface: '#0b0b0d', ink: '#f4f4f5', muted: '#a1a1aa', border: '#27272a', packet: '#60a5fa', transcript: '#94a3b8', diff: '#facc15', resume: '#4ade80' },
+  light: { surface: '#ffffff', ink: '#18181b', muted: '#52525b', border: '#e4e4e7', packet: '#2563eb', transcript: '#475569', diff: '#a16207', resume: '#15803d' },
 } as const;
 
 const xml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -368,13 +375,19 @@ export function renderBenchSvg(results: BenchResults, theme: 'dark' | 'light'): 
     return rows.length ? mean(rows.map((r) => r.inputTokens)) : null;
   };
   const max = Math.max(1, ...tasks.flatMap((t) => modes.map((m) => value(t, m) ?? 0)));
-  const groupW = 148;
   const barW = 48;
+  // wide enough for every mode's bar, so a group never runs into the next
+  const groupW = Math.max(148, 28 + modes.length * (barW + 8) - 8);
   const left = 72;
   // room above the plot for the tallest bar's label, below the legend
   const top = 104;
   const plotH = 260;
-  const width = Math.max(640, left + tasks.length * groupW + 24);
+  const labels = modes.map((mode) => {
+    const m = results.byMode[mode] as ModeSummary;
+    return m.hiddenPassRate !== undefined ? `${mode}: ${pct(m.hiddenPassRate)} green` : `${mode}: ${pct(m.passRate)} passed`;
+  });
+  const legendW = 24 + labels.reduce((w, l) => w + 18 + l.length * 7 + 24, 0);
+  const width = Math.max(640, left + tasks.length * groupW + 24, legendW);
   const height = top + plotH + 64;
   const baseY = top + plotH;
   const out: string[] = [
@@ -384,10 +397,9 @@ export function renderBenchSvg(results: BenchResults, theme: 'dark' | 'light'): 
     `<text x="24" y="52" font-family="Geist, Inter, system-ui, sans-serif" font-size="12" fill="${c.muted}">${xml(results.replay ? 'Replay of recorded runs' : 'Live runs')}${results.synthetic ? ', synthetic' : ''}; ${results.rows.some((r) => r.hidden !== undefined) ? 'green means the daemon verification passed with the held-out tests added' : 'pass means the daemon verification was green'}</text>`,
   ];
   let legendX = 24;
-  for (const mode of modes) {
-    const m = results.byMode[mode] as ModeSummary;
+  for (const [i, mode] of modes.entries()) {
     out.push(`<rect x="${legendX}" y="62" width="12" height="12" fill="${c[mode]}"/>`);
-    const label = m.hiddenPassRate !== undefined ? `${mode}: ${pct(m.hiddenPassRate)} green` : `${mode}: ${pct(m.passRate)} passed`;
+    const label = labels[i] as string;
     out.push(`<text x="${legendX + 18}" y="73" font-family="Geist, Inter, system-ui, sans-serif" font-size="12" fill="${c.ink}">${xml(label)}</text>`);
     legendX += 18 + label.length * 7 + 24;
   }

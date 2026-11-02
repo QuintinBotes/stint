@@ -1,0 +1,417 @@
+{
+  "version": "stint.bench/1",
+  "replay": false,
+  "commit": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+  "startedAt": "2026-11-02T20:43:42.224Z",
+  "finishedAt": "2026-11-02T20:58:29.783Z",
+  "implementer": "muse-code",
+  "continuer": "stint-agent",
+  "models": {
+    "muse-code": "muse-spark-1.3",
+    "stint-agent": "muse-spark-1.3"
+  },
+  "rows": [
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "diff",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 77621,
+      "cachedTokens": 36616,
+      "outputTokens": 10080,
+      "usd": 0.1071,
+      "wallMs": 50103,
+      "verified": true,
+      "promptTokens": 1027,
+      "repeat": 1,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "diff",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 113482,
+      "cachedTokens": 51178,
+      "outputTokens": 15479,
+      "usd": 0.163,
+      "wallMs": 75659,
+      "verified": true,
+      "promptTokens": 1027,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "packet",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 211596,
+      "cachedTokens": 105503,
+      "outputTokens": 26719,
+      "usd": 0.282,
+      "wallMs": 124026,
+      "verified": true,
+      "promptTokens": 872,
+      "repeat": 1,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "packet",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 165799,
+      "cachedTokens": 75069,
+      "outputTokens": 21431,
+      "usd": 0.2318,
+      "wallMs": 96350,
+      "verified": true,
+      "promptTokens": 872,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "resume",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "local-cli",
+      "model": "muse-spark-1.3",
+      "inputTokens": 483811,
+      "cachedTokens": 440155,
+      "outputTokens": 3241,
+      "usd": 0.1368,
+      "wallMs": 56132,
+      "verified": true,
+      "promptTokens": 63,
+      "repeat": 1,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "resume",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "local-cli",
+      "model": "muse-spark-1.3",
+      "inputTokens": 277845,
+      "cachedTokens": 234918,
+      "outputTokens": 3134,
+      "usd": 0.1046,
+      "wallMs": 40490,
+      "verified": true,
+      "promptTokens": 63,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "transcript",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 137108,
+      "cachedTokens": 66455,
+      "outputTokens": 12086,
+      "usd": 0.1587,
+      "wallMs": 56500,
+      "verified": true,
+      "promptTokens": 5311,
+      "repeat": 1,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-01-rate-limit",
+      "mode": "transcript",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 99506,
+      "cachedTokens": 54551,
+      "outputTokens": 8653,
+      "usd": 0.1076,
+      "wallMs": 50706,
+      "verified": true,
+      "promptTokens": 5311,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 3,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "diff",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 76312,
+      "cachedTokens": 32633,
+      "outputTokens": 6368,
+      "usd": 0.0913,
+      "wallMs": 32481,
+      "verified": true,
+      "promptTokens": 710,
+      "repeat": 1,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "diff",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 62984,
+      "cachedTokens": 25239,
+      "outputTokens": 7218,
+      "usd": 0.0871,
+      "wallMs": 31633,
+      "verified": true,
+      "promptTokens": 710,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "packet",
+      "leg": "build",
+      "result": "not verified by the daemon; with the held-out tests red",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 65766,
+      "cachedTokens": 31195,
+      "outputTokens": 6238,
+      "usd": 0.0791,
+      "wallMs": 32479,
+      "verified": false,
+      "promptTokens": 754,
+      "repeat": 1,
+      "hidden": "red",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": false
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "packet",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 65848,
+      "cachedTokens": 22792,
+      "outputTokens": 4967,
+      "usd": 0.0821,
+      "wallMs": 24582,
+      "verified": true,
+      "promptTokens": 754,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "resume",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "local-cli",
+      "model": "muse-spark-1.3",
+      "inputTokens": 182204,
+      "cachedTokens": 143812,
+      "outputTokens": 2146,
+      "usd": 0.0803,
+      "wallMs": 30745,
+      "verified": true,
+      "promptTokens": 63,
+      "repeat": 1,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "resume",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "local-cli",
+      "model": "muse-spark-1.3",
+      "inputTokens": 265954,
+      "cachedTokens": 243607,
+      "outputTokens": 2980,
+      "usd": 0.0794,
+      "wallMs": 38570,
+      "verified": true,
+      "promptTokens": 63,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": true
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "transcript",
+      "leg": "build",
+      "result": "not verified by the daemon; with the held-out tests red",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 58286,
+      "cachedTokens": 13907,
+      "outputTokens": 4730,
+      "usd": 0.0812,
+      "wallMs": 22415,
+      "verified": false,
+      "promptTokens": 4335,
+      "repeat": 1,
+      "hidden": "red",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": false
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "mode": "transcript",
+      "leg": "build",
+      "result": "verified by the daemon; with the held-out tests green",
+      "host": "meta-api",
+      "model": "muse-spark-1.3",
+      "inputTokens": 68477,
+      "cachedTokens": 39078,
+      "outputTokens": 6484,
+      "usd": 0.075,
+      "wallMs": 31417,
+      "verified": true,
+      "promptTokens": 4335,
+      "repeat": 2,
+      "hidden": "green",
+      "scenarios": {
+        "passed": 5,
+        "failed": 0
+      },
+      "testsDecision": true
+    }
+  ],
+  "byMode": {
+    "transcript": {
+      "runs": 4,
+      "meanInputTokens": 90844.3,
+      "meanPromptTokens": 4823,
+      "meanUsd": 0.105625,
+      "passRate": 0.75,
+      "hiddenPassRate": 0.75,
+      "hiddenGraded": 4
+    },
+    "packet": {
+      "runs": 4,
+      "meanInputTokens": 127252.3,
+      "meanPromptTokens": 813,
+      "meanUsd": 0.16875,
+      "passRate": 0.75,
+      "hiddenPassRate": 0.75,
+      "hiddenGraded": 4
+    },
+    "diff": {
+      "runs": 4,
+      "meanInputTokens": 82599.8,
+      "meanPromptTokens": 868.5,
+      "meanUsd": 0.112125,
+      "passRate": 1,
+      "hiddenPassRate": 1,
+      "hiddenGraded": 4
+    },
+    "resume": {
+      "runs": 4,
+      "meanInputTokens": 302453.5,
+      "meanPromptTokens": 63,
+      "meanUsd": 0.100275,
+      "passRate": 1,
+      "hiddenPassRate": 1,
+      "hiddenGraded": 4
+    }
+  },
+  "byLeg": {
+    "build": {
+      "runs": 16,
+      "meanInputTokens": 150787.4,
+      "meanPromptTokens": 1641.9,
+      "meanUsd": 0.121694,
+      "passRate": 0.875,
+      "hiddenPassRate": 0.875,
+      "hiddenGraded": 16
+    }
+  },
+  "ratio": 0.714
+}

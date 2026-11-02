@@ -1,0 +1,151 @@
+diff --git a/src/app.ts b/src/app.ts
+index c41e355..54a01bb 100644
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1,6 +1,7 @@
+ import { Hono } from 'hono';
+ import { type Config, loadConfig } from './config';
+ import { AuditLog } from './lib/audit';
++import { RateLimiter } from './lib/limiter';
+ import { EventStore } from './lib/store';
+ import { TenantRegistry } from './lib/tenants';
+ import { adminRoutes } from './routes/admin';
+@@ -13,6 +14,7 @@ export interface Deps {
+   store: EventStore;
+   tenants: TenantRegistry;
+   audit: AuditLog;
++  limiter: RateLimiter;
+ }
+ 
+ export function createDeps(config: Config = loadConfig()): Deps {
+@@ -24,6 +26,7 @@ export function createDeps(config: Config = loadConfig()): Deps {
+       { id: 'tenant-b', name: 'Tenant B' },
+     ]),
+     audit: new AuditLog(),
++    limiter: new RateLimiter(),
+   };
+ }
+ 
+diff --git a/src/config.ts b/src/config.ts
+index 7816adc..6e6816a 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -3,6 +3,8 @@ export interface Config {
+   maxBodyBytes: number;
+   replayMaxAttempts: number;
+   replayBaseDelayMs: number;
++  rateLimitMax: number;
++  rateLimitWindowMs: number;
+ }
+ 
+ type Env = Record<string, string | undefined>;
+@@ -19,5 +21,7 @@ export function loadConfig(env: Env = process.env): Config {
+     maxBodyBytes: positiveInt(env.MAX_BODY_BYTES, 65536),
+     replayMaxAttempts: positiveInt(env.REPLAY_MAX_ATTEMPTS, 5),
+     replayBaseDelayMs: positiveInt(env.REPLAY_BASE_DELAY_MS, 100),
++    rateLimitMax: positiveInt(env.RATE_LIMIT_MAX, 100),
++    rateLimitWindowMs: positiveInt(env.RATE_LIMIT_WINDOW_MS, 60000),
+   };
+ }
+diff --git a/src/lib/limiter.ts b/src/lib/limiter.ts
+new file mode 100644
+index 0000000..c3d0332
+--- /dev/null
++++ b/src/lib/limiter.ts
+@@ -0,0 +1,22 @@
++export interface LimitResult {
++  allowed: boolean;
++  retryAfterSec: number;
++}
++
++export class RateLimiter {
++  private hits = new Map<string, { count: number; windowStart: number }>();
++
++  check(key: string, limit: number, windowMs: number, now = Date.now()): LimitResult {
++    let entry = this.hits.get(key);
++    if (!entry || now - entry.windowStart >= windowMs) {
++      entry = { count: 0, windowStart: now };
++      this.hits.set(key, entry);
++    }
++    if (entry.count >= limit) {
++      const retryAfterSec = Math.max(1, Math.ceil((entry.windowStart + windowMs - now) / 1000));
++      return { allowed: false, retryAfterSec };
++    }
++    entry.count += 1;
++    return { allowed: true, retryAfterSec: 0 };
++  }
++}
+diff --git a/src/routes/webhooks.ts b/src/routes/webhooks.ts
+index 5292091..3a12a9c 100644
+--- a/src/routes/webhooks.ts
++++ b/src/routes/webhooks.ts
+@@ -9,6 +9,12 @@ export function webhookRoutes(deps: Deps): Hono {
+     if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
+     if (!deps.tenants.get(tenant)) return c.json({ error: `unknown tenant ${tenant}` }, 404);
+ 
++    const limit = deps.limiter.check(tenant, deps.config.rateLimitMax, deps.config.rateLimitWindowMs);
++    if (!limit.allowed) {
++      c.header('Retry-After', String(limit.retryAfterSec));
++      return c.json({ error: 'rate limit exceeded' }, 429);
++    }
++
+     const raw = await c.req.text();
+     if (new TextEncoder().encode(raw).length > deps.config.maxBodyBytes) {
+       return c.json({ error: 'payload too large' }, 413);
+diff --git a/test/config.test.ts b/test/config.test.ts
+index dbec790..3d32455 100644
+--- a/test/config.test.ts
++++ b/test/config.test.ts
+@@ -3,12 +3,12 @@ import { loadConfig } from '../src/config';
+ 
+ describe('config', () => {
+   it('uses defaults when the environment is empty', () => {
+-    expect(loadConfig({})).toEqual({ port: 3000, maxBodyBytes: 65536, replayMaxAttempts: 5, replayBaseDelayMs: 100 });
++    expect(loadConfig({})).toEqual({ port: 3000, maxBodyBytes: 65536, replayMaxAttempts: 5, replayBaseDelayMs: 100, rateLimitMax: 100, rateLimitWindowMs: 60000 });
+   });
+ 
+   it('reads values from the environment', () => {
+-    const config = loadConfig({ PORT: '8080', MAX_BODY_BYTES: '1024', REPLAY_MAX_ATTEMPTS: '3', REPLAY_BASE_DELAY_MS: '50' });
+-    expect(config).toEqual({ port: 8080, maxBodyBytes: 1024, replayMaxAttempts: 3, replayBaseDelayMs: 50 });
++    const config = loadConfig({ PORT: '8080', MAX_BODY_BYTES: '1024', REPLAY_MAX_ATTEMPTS: '3', REPLAY_BASE_DELAY_MS: '50', RATE_LIMIT_MAX: '10', RATE_LIMIT_WINDOW_MS: '5000' });
++    expect(config).toEqual({ port: 8080, maxBodyBytes: 1024, replayMaxAttempts: 3, replayBaseDelayMs: 50, rateLimitMax: 10, rateLimitWindowMs: 5000 });
+   });
+ 
+   it('falls back on values that are not numbers', () => {
+diff --git a/test/rate-limit.test.ts b/test/rate-limit.test.ts
+new file mode 100644
+index 0000000..b49f138
+--- /dev/null
++++ b/test/rate-limit.test.ts
+@@ -0,0 +1,31 @@
++import { describe, expect, it } from 'vitest';
++import { setup } from './helpers';
++
++describe('POST /webhooks rate limiting', () => {
++  it('answers 429 with a Retry-After header when a tenant exceeds the limit', async () => {
++    const { postWebhook } = setup({ rateLimitMax: 2, rateLimitWindowMs: 60000 });
++    expect((await postWebhook('tenant-a', { type: 'x' })).status).toBe(202);
++    expect((await postWebhook('tenant-a', { type: 'x' })).status).toBe(202);
++
++    const res = await postWebhook('tenant-a', { type: 'x' });
++    expect(res.status).toBe(429);
++    expect(res.headers.get('Retry-After')).not.toBeNull();
++    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
++    expect(await res.json()).toMatchObject({ error: 'rate limit exceeded' });
++  });
++
++  it('does not affect other tenants', async () => {
++    const { postWebhook } = setup({ rateLimitMax: 1, rateLimitWindowMs: 60000 });
++    expect((await postWebhook('tenant-a', { type: 'x' })).status).toBe(202);
++    expect((await postWebhook('tenant-a', { type: 'x' })).status).toBe(429);
++    expect((await postWebhook('tenant-b', { type: 'x' })).status).toBe(202);
++  });
++
++  it('reads the limit from config', async () => {
++    const { postWebhook } = setup({ rateLimitMax: 3, rateLimitWindowMs: 60000 });
++    for (let i = 0; i < 3; i += 1) {
++      expect((await postWebhook('tenant-a', { type: 'x' })).status).toBe(202);
++    }
++    expect((await postWebhook('tenant-a', { type: 'x' })).status).toBe(429);
++  });
++});

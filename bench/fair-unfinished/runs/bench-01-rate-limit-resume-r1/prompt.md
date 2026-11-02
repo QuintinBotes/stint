@@ -1,0 +1,1 @@
+You were stopped by the step cap before the task was done. Continue it from where you stopped: finish the goal and every acceptance criterion, and make the test command pass. Your earlier changes are in the current directory.
