@@ -8,8 +8,9 @@ name: stint
 
 services:
   stint:
+    # docker compose pull fetches the published image; docker compose build makes it from this checkout
+    image: ${STINT_IMAGE:-ghcr.io/quintinbotes/stint:latest}
     build: .
-    image: stint:local
     command: ["up", "--repo", "/repo"]
     ports:
       - "127.0.0.1:${STINT_HOST_PORT:-4319}:4319"

@@ -6,14 +6,13 @@ You need Docker with Compose 2.24 or later, and on Linux Docker Engine 28 or lat
 
 ## The replay, with no keys
 
-From a clone of this repository, build the image and run it:
+Run the published image; there is nothing to clone or build:
 
 ```bash
-docker build -t stint .
-docker run --rm -p 127.0.0.1:4319:4319 stint
+docker run --rm -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint
 ```
 
-Open http://127.0.0.1:4319. The container replays the recorded story through the real daemon, as `bash scripts/bootstrap.sh` does, then keeps the UI up until you press Ctrl-C.
+Open http://127.0.0.1:4319. The container replays the recorded story through the real daemon, as `bash scripts/bootstrap.sh` does, then keeps the UI up until you press Ctrl-C. To build the image from a clone of this repository instead, run `docker build -t stint .` and use `stint` in place of the image name.
 
 ## Stint on your repository
 
@@ -25,9 +24,10 @@ Compose runs `stint up` on a repository you mount, keeps it running across resta
    cp .env.example .env
    ```
 
-2. Start it, and follow its log:
+2. Get the image, start it, and follow its log. `docker compose pull` fetches the published image; `docker compose build` makes it from this checkout instead.
 
    ```bash
+   docker compose pull
    docker compose up -d
    docker compose logs -f stint
    ```
@@ -48,6 +48,7 @@ Compose reads these from `.env` beside `compose.yaml`.
 |---|---|---|
 | `STINT_REPO` | none, required | The repository Stint works on, mounted at `/repo` |
 | `STINT_HOST_PORT` | `4319` | The port on this machine's 127.0.0.1 |
+| `STINT_IMAGE` | `ghcr.io/quintinbotes/stint:latest` | The image Compose runs; a `sha-` tag stays on one build |
 | `STINT_UID`, `STINT_GID` | `1000` | The user the container runs as; on Linux, the repository owner's |
 | `META_API_KEY` and the partner keys | none | The hosted models, as in [`setup.md`](setup.md#keys); a `.env` in your repository works too |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` | none | Who the merges are by; without them the daemon signs its merges "Stint daemon" |
@@ -80,15 +81,15 @@ A shared Stint, on Kubernetes or behind a public address, is not supported: Stin
 
 ## Updating
 
-Pull the new version, rebuild, and restart:
+Pull the new version and restart:
 
 ```bash
 git pull
-docker compose build
+docker compose pull
 docker compose up -d
 ```
 
-The image starts from a Bun image pinned by digest in `Dockerfile`, so a rebuild changes only what changed in Stint.
+Every push to `main` that passes the smoke test publishes the image for amd64 and arm64, tagged `latest` and `sha-` with the commit. To run what you changed in this checkout, use `docker compose build` in place of `docker compose pull`. The image starts from a Bun image pinned by digest in `Dockerfile`, so a rebuild changes only what changed in Stint.
 
 ## Moving between the container and your machine
 
@@ -108,4 +109,4 @@ Git records each run's worktree by its path, which is under `/repo` in the conta
 
 ## Checking the image
 
-`bash scripts/docker-smoke.sh` builds nothing; it takes an image you built with `docker build -t stint:local .` and checks it does what this page says. It runs the replay and checks the UI, the API, and the refusal of another Host and of a change without the token. Then it runs `stint up` on a throwaway repository as your user, with the same restrictions `compose.yaml` sets, and checks that `docker stop` ends each one cleanly. CI runs it on every pull request that touches the image.
+`bash scripts/docker-smoke.sh` builds nothing; it takes an image you built with `docker build -t stint:local .` and checks it does what this page says. It runs the replay and checks the UI, the API, and the refusal of another Host and of a change without the token. Then it runs `stint up` on a throwaway repository as your user, with the same restrictions `compose.yaml` sets, and checks that `docker stop` ends each one cleanly. CI runs it on every pull request that touches the image, and publishes the image only after it passes.
