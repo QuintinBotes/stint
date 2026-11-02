@@ -1,0 +1,13 @@
+.git
+**/node_modules
+apps/web/dist
+.stint
+**/.stint
+.env
+.env.*
+graphify-out
+docs
+assets
+design
+**/*.log
+**/.DS_Store
