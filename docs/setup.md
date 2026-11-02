@@ -20,7 +20,7 @@ The examples use two folders: the Stint checkout (`/path/to/stint`) and your rep
 | Muse Code runs | The `muse` CLI, logged in | Without the CLI, health reports Muse Code as unavailable and assigning a task to it fails with `adapter_unavailable`. Without the login, the run fails with Muse Code's own message. |
 | The Stint agent | `META_API_KEY`, a partner key for Muse Spark Open, or Muse Glimmer running in Ollama | The same refusal |
 | Planning with Muse Wonder 1.0 | `META_API_KEY` | The planner falls back to Fireworks, Baseten, Modal, then local Muse Glimmer |
-| The offline review | Ollama 0.32.8 or later with `muse-glimmer:30b-mlx` (about 19 GB; 32 GB of memory is comfortable) | The reviewer falls back to Muse Spark Open on Fireworks, Baseten and Modal, then Muse Spark 1.3 on the Meta Model API |
+| The offline review | Ollama 0.32.8 or later with `muse-glimmer:30b-mlx` (about 19 GB; 32 GB of memory is comfortable), tested on Apple silicon only; on Linux, check which Muse Glimmer tag your Ollama serves and give it as the value of `muse-glimmer:30b-mlx` in `hosts.ollama.models` in `.stint/config.json` | The reviewer falls back to Muse Spark Open on Fireworks, Baseten and Modal, then Muse Spark 1.3 on the Meta Model API |
 | Visual checks | `META_API_KEY`, `visual` in `.stint/config.json`, and the Chromium that Playwright installs (`bunx playwright install chromium`) | A visual proof reads "not checked" with the reason, and the verification stays as the tests left it ([`verify.md`](verify.md#what-stint-saw-visual-checks)) |
 | The terminal pane | `Bun.Terminal`, which every supported Bun version has | Health reports the terminal as unavailable, and the pane says so |
 

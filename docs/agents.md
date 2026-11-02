@@ -2,7 +2,7 @@
 
 This page explains how to run another coding agent or model in Stint, and how autopilot picks, escalates, reviews and plans. Every setting below lives in `.stint/config.json`.
 
-By default Stint runs only Meta's models: Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder 1.0 plans, and Muse Glimmer 30B reviews on your machine. The packet is plain JSON and markdown, so any other agent or model can take a task. The demo replay also turns on Claude Code (on Muse Glimmer through Ollama) and Codex (on Muse Spark 1.3 through the Meta Model API), so its status menu lists four agents, all on Meta's models. A new repository keeps those two off.
+By default Stint runs only Meta's models: Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder 1.0 plans, and Muse Glimmer 30B reviews on your machine. The packet is plain JSON and markdown, so any other agent or model can take a task. The demo replay also turns on Claude Code (on Muse Glimmer through Ollama) and Codex (on Muse Spark 1.3 through the Meta Model API), so its status menu lists four agents, all on Meta's models. A new repository keeps those two off. Every agent preset ships disabled, and the Claude Code, Codex and ACP sections below show how to run each one on a Meta model, as the demo replay and the relays did.
 
 ## Another coding agent
 
@@ -67,8 +67,6 @@ The `claude-code` preset uses the native harness: `claude -p --output-format str
 
 Approvals stay on. The run may edit files, and the only shell command it may run without asking is the task's own test command (`--allowedTools "Bash(<test command>:*)"`), so it can check its work before the daemon verifies it. Any other command still asks.
 
-With your Anthropic key in the key file (`stint keys set ANTHROPIC_API_KEY`), runs bill your API account rather than a Claude subscription. An organisation key that is not scoped to a workspace is refused with "must include the anthropic-workspace-id header". Either create the key inside a workspace in the Anthropic Console, or add `ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: <workspace id>` to the key file; the preset passes it through.
-
 To run Claude Code on Muse Glimmer on your own machine, give the preset a `host`. Ollama serves an Anthropic-compatible endpoint at the same address as the rest of its API, so Stint gives the run `ANTHROPIC_BASE_URL` from the host's address (without its `/v1`) and, for a host that needs no key, a placeholder `ANTHROPIC_AUTH_TOKEN`:
 
 ```json
@@ -78,6 +76,8 @@ To run Claude Code on Muse Glimmer on your own machine, give the preset a `host`
 With a `host` set, the run also passes `--bare --strict-mcp-config --disallowedTools Agent`, so your own hooks, plugins and MCP servers stay out and the run is a single agent.
 
 A value you set yourself wins: list `ANTHROPIC_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` in the preset's `env` and export it, and the run uses yours. A host that needs a key, such as a LiteLLM gateway, gets the address from Stint but never a token; pass the token through `env` the same way. These values stay in your environment and never enter the repository or a packet.
+
+Without a `host`, Claude Code runs on Anthropic's own models, which Stint never turns on by itself: the preset ships disabled, and every run in this repository's evidence used a Meta model. If you choose that, put your Anthropic key in the key file (`stint keys set ANTHROPIC_API_KEY`), runs bill your API account rather than a Claude subscription. An organisation key that is not scoped to a workspace is refused with "must include the anthropic-workspace-id header". Either create the key inside a workspace in the Anthropic Console, or add `ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: <workspace id>` to the key file; the preset passes it through.
 
 ### Other places a model can run
 
