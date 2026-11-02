@@ -10,6 +10,8 @@
 - `scripts/review-recheck.ts` reviews the graded scorecard patches again with the reviewer's own prompt; on 2 November Muse Spark 1.3 flagged 5 of the 15 failing patches and none of the 3 passing ones (`bench/review-recheck/`).
 
 ### Fixed (2 November)
+- A review whose findings are empty no longer becomes an approval when the model blocked: its blockers become its findings, an approve that lists blockers becomes a block, and a block that names nothing is asked for again and then passed to the next host. A scan of the 164 recorded reviews found none with blockers turned into an approval.
+- A daemon restart after a crash during verification builds the packet the run never got, once, through the same path a run's end uses.
 - The Stint agent gives each call its host's `timeoutMs` when that is longer than 120 s, as planning and review already did, so a continuation on Muse Glimmer through Ollama gets its 10 minutes.
 - `stint doctor` fails when no implementer can build, and names the fix: a key, Ollama with Muse Glimmer, or Muse Code. In the container it says which of those steps run on your machine.
 - `stint run --wait` that stops on "Needs you" also prints why each implementer could not build, the hosts its last run skipped, and the fix. The daemon's own message is unchanged.

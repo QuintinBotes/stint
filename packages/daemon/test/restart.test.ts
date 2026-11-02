@@ -61,3 +61,38 @@ test('on start, a task left verifying with no live verification is verified agai
     }
   });
 }, 90_000);
+
+test('on start, a task left verifying gets the packet its run never built, and a later restart builds no second one', async () => {
+  await withFixtureRepo(async (repo) => {
+    const ws = await Workspace.open(repo);
+    const task = await ws.createTask({ ...newTask, testCommand: 'true' });
+    const wts = new Worktrees(ws, new RunRegistry());
+    const { path } = await wts.create(task, 'r1');
+    await ws.events(task.id).append({ task: task.id, run: 'r1', adapter: 'fake', vendor: 'local', type: 'run.started', payload: { role: 'implementer', model: null, host: 'local-cli', worktree: `.stint/worktrees/${task.id}-r1` } });
+    const commit = await wts.commit(task, 'r1', path, 'completed');
+    await ws.events(task.id).append({ task: task.id, run: 'r1', adapter: 'fake', vendor: 'local', type: 'run.finished', payload: { endedBy: 'completed', cost: { inputTokens: 1, cachedTokens: 0, outputTokens: 1, usd: 0 }, commit } });
+    await ws.writeTask(task.id, { status: 'verifying', assignee: null });
+    const packets = async (w: Workspace) => (await w.events(task.id).read()).filter((e) => e.type === 'handoff.created' && e.run === 'r1');
+
+    const first = await startDaemon({ root: repo, quiet: true, adapters: [fakeAdapter('edit')] });
+    try {
+      for (let i = 0; i < 400 && (await packets(first.ws)).length === 0; i++) await Bun.sleep(50);
+      const [created] = await packets(first.ws);
+      expect(created?.payload).toMatchObject({ name: 'h1', reason: 'completed', from: { run: 'r1', endedBy: 'completed' } });
+      expect((await first.ws.handoffs(task.id).latest())?.verification).toMatchObject({ runBy: 'daemon', exitCode: 0 });
+    } finally {
+      await first.stop();
+    }
+
+    // the packet is there, so a restart that finds the task verifying again only verifies
+    await ws.writeTask(task.id, { status: 'verifying' });
+    const second = await startDaemon({ root: repo, quiet: true, adapters: [fakeAdapter('edit')] });
+    try {
+      for (let i = 0; i < 400 && (await second.ws.readTask(task.id)).status === 'verifying'; i++) await Bun.sleep(50);
+    } finally {
+      await second.stop();
+    }
+    expect(await packets(ws)).toHaveLength(1);
+    expect(await ws.handoffs(task.id).names()).toEqual(['h1']);
+  });
+}, 90_000);
