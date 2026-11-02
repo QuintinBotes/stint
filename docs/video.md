@@ -36,6 +36,8 @@ Each take ran on a stage page: a real terminal on the left and Stint's UI on the
 
 **A correction in this cut.** The first upload said four relays out of five reached the gate. Four of the five relays passed the hidden tests, but three reached the gate: the first vercel/ms relay went green and stopped when Glimmer's review timed out (`bench/relay/ms/relay.json`). This cut counts tasks, and all three reached the gate; [`proofs.md`](proofs.md#live-evidence-29-october) has every relay.
 
+**What the 2:21 and 2:34 lines rest on.** The relay line at 2:21 counts tasks: in those relays Codex, the last hop, wrote every green change ([`proofs.md`](proofs.md#live-evidence-29-october)). The packet line at 2:34 quotes the bench of 27 October, in which each mode had its own first run, so the packet and the transcript continued from different starting points. Rerun from one shared start on 2 November, every mode's code passed the held-out tests, and only the packet's runs all cleared the daemon's verification, 10 of 10 against 7 and 4, because only the packet carried the locked-test finding ([`proofs.md`](proofs.md#the-fair-rerun-2-november)).
+
 At the end of chapter 11 the goal reads "in progress": every task merged and every criterion's tests pass, but Stint calls a criterion met only when a test showed it failing first, and this take set no such proofs. That is why the chapter says "All four merged".
 
 Takes 7 to 9 found three defects that would have stopped a real user, and each was fixed before the take that shows it:

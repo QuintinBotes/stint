@@ -1,6 +1,6 @@
 # When Stint was built
 
-This page shows judges what was built during the hackathon, day by day, so they need not work it out from the commit times. The building period starts after the kickoff session on 26 October 2026; part of this repository was written earlier that day, and the first section lists that part. Times are CET, from each commit's author date.
+This page shows judges what was built during the hackathon, day by day, so they need not work it out from the commit times. The building period starts after the kickoff session on 26 October 2026; part of this repository was written earlier that day, and the first section lists that part: 9,743 lines of `packages/` and `apps/`, of the 86,595 there on 2 November (`git diff --shortstat` from the empty tree to commit `9565344` and to `main`). Times are CET, from each commit's author date.
 
 ## Before the kickoff (26 October, 15:15 to 17:00 CET)
 
