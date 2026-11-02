@@ -4,8 +4,8 @@ This folder holds every guide to Stint, one line each, grouped by what you came 
 
 ## Use Stint
 
-- [`setup.md`](setup.md): installing Stint: platforms, what each part needs, where keys load from, your first task and its limits, other agents, the offline review, updating and uninstalling.
-- [`docker.md`](docker.md): running Stint in a container: the replay with no keys, Stint on your repository with Docker Compose, the settings, what runs inside, security, updating and troubleshooting.
+- [`setup.md`](setup.md): installing Stint: platforms, what each part needs, where keys load from, trying it with your own key and what a task cost, your first task and its limits, other agents, the offline review, updating and uninstalling.
+- [`docker.md`](docker.md): running Stint in a container: the replay with no keys, Stint on your repository with Docker Compose and `stint init`, the settings, what runs inside, security, updating and troubleshooting.
 - [`agents.md`](agents.md): turning on other agents and models, hosts and keys, running Claude Code, Codex or an ACP agent on a Meta model, and how autopilot hands on, escalates, reviews and stops at a task's limits.
 - [`sharpen.md`](sharpen.md): the spec builder, which drafts a task or a goal from a sentence or opens a Spec Kit spec; Sharpen, which asks the questions that change what gets built and records the answers as decisions and proofs; and goals, which split into tasks, run in order and roll up how each task went.
 - [`skills.md`](skills.md): custom skills: writing, importing, uploading and exporting, the pattern scan, review and probation, and the `requireReview` gate.
@@ -31,7 +31,7 @@ This folder holds every guide to Stint, one line each, grouped by what you came 
 - [`writeup.md`](writeup.md): the submission write-up.
 - [`timeline.md`](timeline.md): when Stint was built, which commits came before the hackathon kickoff, when each spec was written, and what was built each day through 2 November.
 - [`build-kit.md`](build-kit.md): the spec-driven build loop Stint was built with (`AGENTS.md`, `GOAL.md`, `LOOP.md`, `specs/`).
-- [`demo.md`](demo.md): the demo runbook: the commands, the GitHub Pages site (the landing page and the read-only Board), the beats, rehearsal timings, and what to do when a beat goes wrong.
+- [`demo.md`](demo.md): what to click in the replay, where to see each capability, and the demo runbook: the commands, the GitHub Pages site (the landing page and the read-only Board), the beats, rehearsal timings, and what to do when a beat goes wrong.
 - [`finals.md`](finals.md): the kit for the live judging: the 60-second version, likely questions, a five-minute check a judge can run, and fallbacks.
 - [`video.md`](video.md): the demo film: how it was made, the cut with its voiceover, and the checklist before recording.
 - [`launch.md`](launch.md): the launch post and thread for X.
