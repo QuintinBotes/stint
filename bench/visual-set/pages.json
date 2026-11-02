@@ -1,0 +1,16 @@
+{
+  "criterion": "The admin page tells an over-limit tenant when to try again",
+  "ref": "/admin :: a 429 banner saying try again in 60 s",
+  "pages": [
+    { "id": "defect-overflow", "kind": "defect", "change": "The banner is capped at 380 px on one line and cut with an ellipsis, so it reads \"Too many requests (429). Deliveries to this end...\" and the retry time is never shown.", "targets": [".banner"] },
+    { "id": "defect-contrast", "kind": "defect", "change": "The banner's text is #f7dc90 on its #ffe8a3 background, a contrast of 1.11 to 1 (WCAG AA asks for 4.5 to 1), so a person cannot read \"Try again in 60 s.\".", "targets": [".banner"] },
+    { "id": "defect-template", "kind": "defect", "change": "The retry time is an unfilled template: the banner says \"Try again in {{retryAfter}} s.\".", "targets": [".banner"] },
+    { "id": "defect-overlap", "kind": "defect", "change": "A \"New: delivery logs now keep 30 days\" popover sits over the left half of the banner and hides all of its text.", "targets": [".whats-new", ".banner"] },
+    { "id": "defect-label", "kind": "defect", "change": "The banner says \"Please try again later.\" and gives no time.", "targets": [".banner"] },
+    { "id": "clean-baseline", "kind": "clean", "change": "The bench/visual page with the value fixed: \"Too many requests (429). Try again in 60 s.\"", "targets": [] },
+    { "id": "clean-seconds", "kind": "clean", "change": "The unit spelled out, \"Try again in 60 seconds.\", and a third delivery row.", "targets": [] },
+    { "id": "clean-error-style", "kind": "clean", "change": "A red error banner with a 429 badge: \"429 Too many requests. Try again in 60 s.\"", "targets": [] },
+    { "id": "clean-busy", "kind": "clean", "change": "A tab bar, a summary line and five deliveries around the same banner.", "targets": [] },
+    { "id": "clean-dark", "kind": "clean", "change": "A dark theme: #ffe8a3 text on a #3d3210 banner, a contrast of 10.42 to 1.", "targets": [] }
+  ]
+}

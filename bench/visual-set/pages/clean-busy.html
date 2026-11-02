@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Webhooks admin</title>
+<style>
+  body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: #f6f7f9; color: #1d2733; }
+  header { background: #1d2733; color: #fff; padding: 16px 32px; font-weight: 600; }
+  main { padding: 32px; max-width: 900px; }
+  .banner { background: #ffe8a3; border: 1px solid #e0b100; border-radius: 6px; padding: 16px 20px; margin-bottom: 24px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; background: #fff; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #e3e6ea; }
+  nav { background: #fff; border-bottom: 1px solid #e3e6ea; padding: 0 32px; }
+  nav a { display: inline-block; padding: 12px 0; margin-right: 24px; color: #4a5562; text-decoration: none; }
+  nav a[aria-current] { color: #1d2733; font-weight: 600; border-bottom: 2px solid #1d2733; }
+  .summary { color: #4a5562; margin: -8px 0 16px; }
+</style>
+</head>
+<body>
+<header>Webhooks admin</header>
+<nav><a href="#" aria-current="page">Deliveries</a><a href="#">Endpoints</a><a href="#">Signing keys</a><a href="#">Settings</a></nav>
+<main>
+  <div class="banner" role="alert">Too many requests (429). Try again in 60 s.</div>
+  <h1>Deliveries</h1>
+  <p class="summary">5 endpoints, 5,828 attempts today</p>
+  <table>
+    <tr><th>Endpoint</th><th>Status</th><th>Last attempt</th><th>Attempts today</th></tr>
+    <tr><td>https://hooks.example.com/orders</td><td>Delivered</td><td>2 min ago</td><td>1,204</td></tr>
+    <tr><td>https://hooks.example.com/refunds</td><td>Rate limited</td><td>just now</td><td>3,880</td></tr>
+    <tr><td>https://hooks.example.com/invoices</td><td>Delivered</td><td>4 min ago</td><td>612</td></tr>
+    <tr><td>https://hooks.example.com/customers</td><td>Delivered</td><td>9 min ago</td><td>87</td></tr>
+    <tr><td>https://hooks.example.com/shipments</td><td>Failed (502)</td><td>12 min ago</td><td>45</td></tr>
+  </table>
+</main>
+</body>
+</html>

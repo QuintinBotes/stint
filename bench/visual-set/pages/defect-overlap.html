@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Webhooks admin</title>
+<style>
+  body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: #f6f7f9; color: #1d2733; }
+  header { background: #1d2733; color: #fff; padding: 16px 32px; font-weight: 600; }
+  main { padding: 32px; max-width: 900px; }
+  .banner { background: #ffe8a3; border: 1px solid #e0b100; border-radius: 6px; padding: 16px 20px; margin-bottom: 24px; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; background: #fff; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #e3e6ea; }
+  .whats-new { position: absolute; top: 70px; left: 24px; width: 440px; background: #fff; border: 1px solid #d5dae0; border-radius: 8px; box-shadow: 0 6px 24px rgba(29, 39, 51, 0.18); padding: 14px 18px; }
+  .whats-new p { margin: 0 0 8px; }
+  .whats-new button { font: inherit; padding: 4px 12px; }
+</style>
+</head>
+<body>
+<header>Webhooks admin</header>
+<div class="whats-new" role="dialog" aria-label="What is new"><p><strong>New:</strong> delivery logs now keep 30 days of attempts.</p><button>Got it</button></div>
+<main>
+  <div class="banner" role="alert">Too many requests (429). Try again in 60 s.</div>
+  <h1>Deliveries</h1>
+  <table>
+    <tr><th>Endpoint</th><th>Status</th><th>Last attempt</th></tr>
+    <tr><td>https://hooks.example.com/orders</td><td>Delivered</td><td>2 min ago</td></tr>
+    <tr><td>https://hooks.example.com/refunds</td><td>Rate limited</td><td>just now</td></tr>
+  </table>
+</main>
+</body>
+</html>
