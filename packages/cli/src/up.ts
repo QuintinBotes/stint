@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { ConfigSchema, DEFAULT_CONFIG, type Config, type HostConfig } from '@stint-dev/core';
 import { defineCommand } from 'citty';
 import { startDaemon } from '@stint-dev/daemon';
+import { bindAddress, bindWarning } from './bind';
 import { keyReport } from './keys';
 import { repoRoot } from './repo';
 
@@ -111,7 +112,8 @@ async function readConfig(root: string): Promise<Config> {
 export const up = defineCommand({
   meta: { name: 'up', description: 'Start the daemon on 127.0.0.1 for this repository' },
   args: {
-    port: { type: 'string', description: 'Port (0 picks a free one)', default: '0' },
+    port: { type: 'string', description: 'Port (0 picks a free one; default STINT_PORT)', default: process.env.STINT_PORT ?? '0' },
+    bind: { type: 'string', description: 'Address to listen on (default STINT_BIND or 127.0.0.1); wider only inside a container', default: process.env.STINT_BIND ?? '127.0.0.1' },
     open: { type: 'boolean', description: 'Copy the URL to the clipboard' },
     check: { type: 'boolean', description: 'Start, print health, stop' },
     review: { type: 'boolean', default: true, description: "Review a person's finished build on its own; --no-review leaves it to stint review" },
@@ -120,10 +122,17 @@ export const up = defineCommand({
   },
   async run({ args }) {
     const root = repoRoot(args.repo);
+    let hostname: string;
+    try {
+      hostname = bindAddress(args.bind);
+    } catch (err) {
+      process.stderr.write(`${(err as Error).message}\n`);
+      process.exit(2);
+    }
     // where each key came from, by name and source only; the daemon reads the values from the environment
     const keys = keyReport(root);
     for (const [name, value] of Object.entries(keys.values)) if (!process.env[name]) process.env[name] = value;
-    const d = await startDaemon({ root, port: Number(args.port) || 0, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check, autoReview: !args.check && args.review });
+    const d = await startDaemon({ root, port: Number(args.port) || 0, hostname, quiet: Boolean(args.check), handleSignals: !args.check, digest: !args.check, autoReview: !args.check && args.review });
     const report = await upReport(await readConfig(root));
     const reportLines = () => {
       if (report.warming) process.stdout.write(`${report.warming}\n`);
@@ -146,6 +155,8 @@ export const up = defineCommand({
       }
       process.exit(health.ok ? 0 : 1);
     }
+    const wide = bindWarning(hostname);
+    if (wide) process.stderr.write(`${wide}\n`);
     process.stdout.write(`Stint is running at ${d.url}\n`);
     reportLines();
     if (args.open) {
