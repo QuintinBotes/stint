@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ConfigSchema, type Config, DEFAULT_CONFIG } from '@stint-dev/core';
 import { STINT_CHECKOUT, userKeyFile } from '@stint-dev/core/node';
-import { adapterHealth, defaultAdapters, sandboxAvailable } from '@stint-dev/daemon';
+import { AUTOPILOT_DEFAULTS, adapterHealth, defaultAdapters, sandboxAvailable } from '@stint-dev/daemon';
 import { defineCommand } from 'citty';
 import { keyReport } from './keys';
 import { repoRoot } from './repo';
@@ -47,7 +47,21 @@ async function getJson(url: string, headers: Record<string, string> = {}, timeou
   }
 }
 
-type HealthAdapter = { id: string; enabled?: boolean; available?: boolean; capability: { level: string; reason?: string } };
+export type HealthAdapter = { id: string; enabled?: boolean; available?: boolean; capability: { level: string; reason?: string } };
+
+/** The image sets STINT_BIND=0.0.0.0 (Dockerfile); Ollama and Muse Code are then on the person's machine, not beside Stint. */
+const inContainer = (env: NodeJS.ProcessEnv = process.env) => env.STINT_BIND === '0.0.0.0';
+const OLLAMA_IN_CONTAINER = 'set hosts.ollama.baseURL to http://host.docker.internal:11434/v1 in .stint/config.json';
+
+/** Whether an autopilot implementer can build, by the daemon's rule: its adapter is registered and available (health says supported). */
+export const canBuild = (agents: HealthAdapter[], id: string) => agents.some((a) => a.id === id && a.capability.level === 'supported');
+
+/** What to do when no implementer can build. */
+export function buildFix(env: NodeJS.ProcessEnv = process.env): string {
+  return inContainer(env)
+    ? `set META_API_KEY in the .env beside compose.yaml and run docker compose up -d; or, on your machine, not in the container, start Ollama with Muse Glimmer (ollama serve, then ollama pull muse-glimmer:30b-mlx) and ${OLLAMA_IN_CONTAINER}; Muse Code is not in the image`
+    : 'stint keys set META_API_KEY and start stint up again; or start Ollama with Muse Glimmer (ollama serve, then ollama pull muse-glimmer:30b-mlx); or install Muse Code (https://dev.meta.ai/install.sh)';
+}
 
 /** Every check, in the order a person fixes them. Nothing here calls a hosted model or prints a key's value. */
 export async function doctorChecks(root: string): Promise<Check[]> {
@@ -71,7 +85,7 @@ export async function doctorChecks(root: string): Promise<Check[]> {
     } catch {
       // a binary, not a shim
     }
-    add(shim.includes(STINT_CHECKOUT)
+    add(shim.includes(STINT_CHECKOUT) || realpathSync(onPath).startsWith(`${STINT_CHECKOUT}/`)
       ? { id: 'stint.path', status: 'ok', reason: `${onPath} runs this checkout` }
       : { id: 'stint.path', status: 'warn', reason: `${onPath} runs another copy of Stint`, fix: `bash ${join(STINT_CHECKOUT, 'scripts', 'install-cli.sh')}` });
   }
@@ -129,6 +143,11 @@ export async function doctorChecks(root: string): Promise<Check[]> {
       ? { id: `agent.${a.id}`, status: 'ok', reason: 'available' }
       : { id: `agent.${a.id}`, status: 'warn', reason: a.capability.reason ?? a.capability.level });
   }
+  const implementers = (config.autopilot ?? AUTOPILOT_DEFAULTS).implementers;
+  const builder = implementers.find((id) => canBuild(agents, id));
+  add(builder
+    ? { id: 'implementer', status: 'ok', reason: `${builder} can build` }
+    : { id: 'implementer', status: 'fail', reason: `no implementer in ${implementers.join(', ')} can build`, fix: buildFix() });
 
   const reviewerLocal = (config.routes.reviewer ?? []).map((e) => [e.slice(0, e.indexOf('/')), e.slice(e.indexOf('/') + 1)] as const).find(([h]) => {
     const host = config.hosts[h];
@@ -140,11 +159,11 @@ export async function doctorChecks(root: string): Promise<Check[]> {
   else {
     const origin = new URL(base).origin;
     const tags = (await getJson(`${origin}/api/tags`, {}, 1500)) as { models?: Array<{ name: string }> } | null;
-    if (!tags) add({ id: 'ollama', status: 'warn', reason: `Ollama is not reachable at ${origin}; the offline review needs it`, fix: 'ollama serve' });
+    if (!tags) add({ id: 'ollama', status: 'warn', reason: `Ollama is not reachable at ${origin}; the offline review needs it`, fix: inContainer() ? `on your machine, not in the container: ollama serve; and ${OLLAMA_IN_CONTAINER}` : 'ollama serve' });
     else if (reviewerLocal && reviewerLocal[0] === 'ollama') {
       const model = ollama?.models[reviewerLocal[1]] ?? reviewerLocal[1];
       const pulled = (tags.models ?? []).some((m) => m.name === model);
-      add(pulled ? { id: 'ollama', status: 'ok', reason: `${model} is pulled` } : { id: 'ollama', status: 'warn', reason: `the reviewer model ${model} is not pulled`, fix: `ollama pull ${model}` });
+      add(pulled ? { id: 'ollama', status: 'ok', reason: `${model} is pulled` } : { id: 'ollama', status: 'warn', reason: `the reviewer model ${model} is not pulled`, fix: `${inContainer() ? 'on your machine: ' : ''}ollama pull ${model}` });
     } else add({ id: 'ollama', status: 'ok', reason: `reachable at ${origin}` });
   }
 

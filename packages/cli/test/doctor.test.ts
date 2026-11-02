@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type Adapter, DEFAULT_CONFIG } from '@stint-dev/core';
 import { startDaemon } from '@stint-dev/daemon';
@@ -16,11 +16,11 @@ function initialise(repo: string): void {
   writeFileSync(join(repo, '.stint', 'config.json'), JSON.stringify(config));
 }
 
-async function doctor(repo: string): Promise<{ code: number; report: Report }> {
+async function doctor(repo: string, env: Record<string, string> = {}): Promise<{ code: number; report: Report }> {
   const home = tempDir('stint-doctor-home-');
   try {
     // async, not spawnSync: the daemon answering the doctor runs in this process
-    const p = Bun.spawn(['bun', cli, 'doctor', '--json', '--repo', repo], { cwd: repo, env: { HOME: home.dir, PATH: process.env.PATH ?? '' }, stdout: 'pipe', stderr: 'pipe' });
+    const p = Bun.spawn(['bun', cli, 'doctor', '--json', '--repo', repo], { cwd: repo, env: { HOME: home.dir, PATH: process.env.PATH ?? '', ...env }, stdout: 'pipe', stderr: 'pipe' });
     const [out, code] = await Promise.all([new Response(p.stdout).text(), p.exited]);
     return { code, report: JSON.parse(out) as Report };
   } finally {
@@ -30,12 +30,12 @@ async function doctor(repo: string): Promise<{ code: number; report: Report }> {
 
 const status = (r: Report, id: string) => r.checks.find((c) => c.id === id)?.status;
 
-const fake = (id: string): Adapter => ({
+const fake = (id: string, unavailable?: string): Adapter => ({
   id,
   vendor: 'meta',
   roles: ['implementer'],
   capabilities: { editsFiles: true, runsCommands: false, resumable: false, structuredOutput: false, offline: true },
-  available: async () => ({ ok: true, version: 'fake 1' }),
+  available: async () => (unavailable ? { ok: false, reason: unavailable } : { ok: true, version: 'fake 1' }),
   gate: () => 'none',
   run: async () => ({ endedBy: 'completed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0 } }),
 });
@@ -66,6 +66,33 @@ test('R-059 Acceptance 5: on a clean fixture with the daemon up and fake agents,
       expect(status(report, 'agent.muse-code')).toBe('ok');
       expect(status(report, 'repo.clean')).toBe('ok');
     } finally {
+      await d.stop();
+    }
+  });
+}, 60_000);
+
+test('stint doctor fails when no implementer can build and names the fix; in the container no fix sends the person to a host-only command unsaid', async () => {
+  await withFixtureRepo(async (repo) => {
+    initialise(repo);
+    const d = await startDaemon({ root: repo, quiet: true, adapters: [fake('muse-code', 'the muse CLI is not installed'), fake('stint-agent', 'meta-api/muse-spark-1.3: META_API_KEY not set; ollama/muse-glimmer:30b-mlx: not running')] });
+    // the image puts stint on PATH as a link to its checkout's bin
+    const bin = tempDir('stint-doctor-bin-');
+    symlinkSync(join(import.meta.dir, '..', 'bin', 'stint'), join(bin.dir, 'stint'));
+    try {
+      const native = await doctor(repo);
+      expect(native.code).toBe(1);
+      const line = native.report.checks.find((c) => c.id === 'implementer');
+      expect(line).toMatchObject({ status: 'fail', reason: 'no implementer in muse-code, stint-agent can build' });
+      expect(line?.fix).toContain('stint keys set META_API_KEY');
+      expect(line?.fix).toContain('ollama serve');
+
+      const inImage = await doctor(repo, { STINT_BIND: '0.0.0.0', PATH: `${bin.dir}:${process.env.PATH ?? ''}` });
+      expect(inImage.code).toBe(1);
+      expect(inImage.report.checks.find((c) => c.id === 'implementer')?.fix).toContain('META_API_KEY in the .env beside compose.yaml');
+      expect(status(inImage.report, 'stint.path')).toBe('ok');
+      for (const c of inImage.report.checks.filter((x) => /install-cli|ollama (serve|pull)/.test(x.fix ?? ''))) expect(c.fix).toContain('on your machine');
+    } finally {
+      bin.cleanup();
       await d.stop();
     }
   });
