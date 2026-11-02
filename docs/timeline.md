@@ -102,3 +102,4 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-001 | Stint runs in a container: the `Dockerfile`, `compose.yaml`, `scripts/docker-smoke.sh` and a CI job that builds the image and runs it (13:15) | product code |
 | R-001 | The guide to running Stint in a container (`docs/docker.md`), ADR-0012, D-097 and the R-004 deviation, and the pages that point to the guide | docs |
 | R-001 | The image holds only what the `stint` command runs on, 360 MB instead of 511, and is published to the GitHub container registry for amd64 and arm64 | product code |
+| R-024 | The judges' line in the README and the finals kit point to the published image, and the kit answers how Stint differs from tools that run agents on a ticket queue | docs |
