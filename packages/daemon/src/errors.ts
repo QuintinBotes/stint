@@ -15,14 +15,14 @@ export type ErrorCode =
   | 'unauthorized'
   | 'forbidden'
   | 'invalid'
-  | 'packet_too_large'
   | 'verification_red'
   | 'review_blocked'
   | 'decision_pending'
   | 'skill_invalid'
   | 'skill_blocked'
   | 'skill_unacknowledged'
-  | 'merge_conflict';
+  | 'merge_conflict'
+  | 'merge_red';
 
 const STATUS: Record<ErrorCode, ContentfulStatusCode> = {
   dirty_tree: 409,
@@ -36,7 +36,6 @@ const STATUS: Record<ErrorCode, ContentfulStatusCode> = {
   unauthorized: 401,
   forbidden: 403,
   invalid: 400,
-  packet_too_large: 422,
   verification_red: 409,
   review_blocked: 409,
   decision_pending: 409,
@@ -44,6 +43,7 @@ const STATUS: Record<ErrorCode, ContentfulStatusCode> = {
   skill_blocked: 409,
   skill_unacknowledged: 409,
   merge_conflict: 409,
+  merge_red: 409,
 };
 
 export class DaemonError extends Error {

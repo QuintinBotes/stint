@@ -14,6 +14,9 @@
 - `stint bench` gains a `resume` mode, in which Muse Code continues its own capped session, and `scripts/unfinished-bench.ts` runs every mode from checkpoints that fail their held-out tests. On 2 November, on two tasks with four runs per mode, every mode finished the code, resume included, and the packet was the dearest (`bench/fair-unfinished/`).
 
 ### Fixed (2 November)
+- A daemon restart builds the packet of a run cut off after the task's status moved on, whatever the status is, once, through the same path a run's end uses; a packet a PreCompact or SubagentStop hook drafted during the run does not count as it.
+- A packet that does not fit 600 tokens after the last trim keeps only its required fields and says in `leftOut` what was cut, instead of refusing, so every ending has one.
+- Approve runs the tests and checks on the merge commit when main moved since the verified commit, and refuses a red merge with `merge_red`; when main has not moved, nothing extra runs.
 - The question to a leaving Muse Code session for its packet goes out with the run's environment instead of the daemon's, so the API key no longer reaches it and the session answers on Muse Code's own login. Until now the API refused it, and no live packet from Muse Code carried the agent's own account.
 - A review whose findings are empty no longer becomes an approval when the model blocked: its blockers become its findings, an approve that lists blockers becomes a block, and a block that names nothing is asked for again and then passed to the next host. A scan of the 164 recorded reviews found none with blockers turned into an approval.
 - A daemon restart after a crash during verification builds the packet the run never got, once, through the same path a run's end uses.

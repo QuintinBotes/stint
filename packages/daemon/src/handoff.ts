@@ -289,7 +289,7 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     if (e.askOfNext) tryField('askOfNext', { ...draft, askOfNext: inFlight && !e.askOfNext.startsWith('Check the unknown step first.') ? `Check the unknown step first. ${scrub(e.askOfNext)}` : scrub(e.askOfNext) });
   }
 
-  // a packet always fits: trim in steps (fewer items, shorter items, fewer files) and say so, before refusing
+  // a packet always fits: trim in steps (fewer items, shorter items, fewer files) and say so
   let handoff = HandoffSchema.parse({ ...draft, hash: hashHandoff(draft) });
   let tokens = countTokens(renderHandoff(handoff));
   for (const level of TRIM_LEVELS) {
@@ -300,12 +300,24 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     meta.trimmed = level;
   }
   if (tokens > PACKET_TOKEN_LIMIT) {
-    const fields = Object.entries(draft)
-      .filter(([, val]) => Array.isArray(val) || typeof val === 'string')
-      .map(([k, val]) => ({ field: k, tokens: countTokens(JSON.stringify(val)) }))
-      .sort((a, b) => b.tokens - a.tokens)
-      .slice(0, 4);
-    throw new DaemonError('packet_too_large', `the packet renders to ${tokens} tokens; the limit is ${PACKET_TOKEN_LIMIT}`, { tokens, limit: PACKET_TOKEN_LIMIT, fields });
+    // every ending has a packet (non-negotiable 4): past the last trim only the required fields stay, and leftOut says what went
+    const lists = { done: draft.done, open: draft.open, decisions: draft.decisions, risks: draft.risks, refusals: draft.refusals ?? [], 'changed files': draft.changedFiles, 'other left-out items': draft.leftOut.slice(1) };
+    const gone = Object.entries(lists).filter(([, xs]) => xs.length > 0).map(([k]) => k);
+    const minimal: Omit<Handoff, 'hash'> = {
+      ...draft,
+      summary: clip(draft.summary, 140),
+      done: [],
+      open: [],
+      leftOut: [...draft.leftOut.slice(0, 1).map((x) => clip(x, 90)), `Cut to fit ${PACKET_TOKEN_LIMIT} tokens: ${gone.length ? `${gone.join(', ')} not listed, ` : ''}the rest shortened; the diff and the task's log have it all`],
+      refusals: [],
+      decisions: [],
+      risks: [],
+      changedFiles: [],
+      ...(draft.verification ? { verification: { ...draft.verification, command: clip(draft.verification.command, 90) } } : {}),
+      askOfNext: clip(draft.askOfNext, 200),
+    };
+    handoff = HandoffSchema.parse({ ...minimal, hash: hashHandoff(minimal) });
+    meta.trimmed = { list: 0, item: 90, summary: 140, files: 0 };
   }
   return { handoff, meta };
 }

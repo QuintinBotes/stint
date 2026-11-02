@@ -335,8 +335,9 @@ const logError = (message: string) => process.stderr.write(`${JSON.stringify({ t
 
 /**
  * On start nothing is live, so a run the log leaves open was cut off by a crash or a stop: it is closed as killed
- * through the same path as any killed run. A task left verifying is verified again and gets the packet its run's
- * ending never built. Autopilot resumes after this, so it never waits on a run that will not end (R-025).
+ * through the same path as any killed run. A task left verifying is verified again, and the task's last agent run
+ * gets the packet its ending never built, once. Autopilot resumes after this, so it never waits on a run that will
+ * not end (R-025).
  */
 export async function recoverRuns(ctx: DaemonContext): Promise<void> {
   for (const t of await ctx.ws.listTasks()) {
@@ -354,16 +355,21 @@ export async function recoverRuns(ctx: DaemonContext): Promise<void> {
         else await closeRun(ctx, t, base, worktreePath(ctx.ws, t.id, r.run), killed, r.model ?? undefined, null);
       }
       const task = await ctx.ws.readTask(t.id);
-      if (task.status !== 'verifying' || ctx.runs.get(t.id)) continue;
-      const wt = await currentWorktree(ctx, t.id).catch(() => null);
-      const last = runsFromEvents(await ctx.ws.events(t.id).read()).filter((r) => r.role === 'implementer').at(-1);
-      const v = wt ? await ctx.verifier.verify(task, wt.run, wt.path) : last ? await verifyBranch(ctx, task, last.run) : null;
-      await ctx.ws.writeTask(t.id, { status: v?.status === 'green' ? 'reviewing' : 'building' });
-      // closeRun stopped before the packet; a packet built after run.finished means a restart already made it
-      const run = wt?.run ?? last?.run;
+      if (ctx.runs.get(t.id)) continue;
+      if (task.status === 'verifying') {
+        const wt = await currentWorktree(ctx, t.id).catch(() => null);
+        const last = runsFromEvents(await ctx.ws.events(t.id).read()).filter((r) => r.role === 'implementer').at(-1);
+        const v = wt ? await ctx.verifier.verify(task, wt.run, wt.path) : last ? await verifyBranch(ctx, task, last.run) : null;
+        await ctx.ws.writeTask(t.id, { status: v?.status === 'green' ? 'reviewing' : 'building' });
+      }
+      // a crash anywhere in closeRun after run.finished leaves that ending without its packet, whatever the status moved
+      // to; a packet built after run.finished is that one, while a PreCompact or SubagentStop draft comes before it
       const after = await ctx.ws.events(t.id).read();
-      const finished = after.filter((e) => e.type === 'run.finished' && e.run === run).at(-1);
-      if (run && finished && !after.some((e) => e.type === 'handoff.created' && e.run === run && e.seq > finished.seq)) await ctx.afterRun?.(t.id, run, finished.payload as RunResult);
+      const closed = after.filter((e) => e.type === 'run.started' && typeof e.payload.worktree === 'string' && e.payload.replay !== true).at(-1);
+      const finished = closed && after.filter((e) => e.type === 'run.finished' && e.run === closed.run).at(-1);
+      // a finished task needs no hand-off, and building one would spend model calls on work nobody continues
+      const settled = ['done', 'abandoned', 'rejected'].includes((await ctx.ws.readTask(t.id)).status);
+      if (!settled && finished?.run && !after.some((e) => e.type === 'handoff.created' && e.run === finished.run && e.seq > finished.seq)) await ctx.afterRun?.(t.id, finished.run, finished.payload as RunResult);
     } catch (err) {
       logError(`a run of ${t.id} that a restart cut off could NOT be closed: ${err instanceof Error ? err.message : String(err)}`);
     }

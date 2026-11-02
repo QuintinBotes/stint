@@ -247,6 +247,8 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-011 | Acceptance 1, usd 0.0276 | 0.0303 | 0.0276 does not follow from the default prices under any reading of cached tokens; D-012 gives 0.0303 | pending |
 | R-060 | Interfaces, error codes | `skill_invalid` 422, `skill_blocked` 409 and `skill_unacknowledged` 409 join the daemon's error codes | SPEC-000 lists the codes; R-060 names these three and asks for this line | author, 2026-10-28 |
 | R-004 | Req 1, "on `127.0.0.1` only" | `--bind` or `STINT_BIND` sets another address; the default stays 127.0.0.1, and only the container image sets 0.0.0.0, with its port published on the host's 127.0.0.1 | ADR-0012 (D-097): a port published from a container reaches only a server that listens on the container's network | owner, 2026-11-02 |
+| R-012 | Req 1 (refuses with `packet_too_large` once trimming cannot fit 600 tokens) and Interfaces, error `packet_too_large` | a packet that still does not fit after the last trim keeps only its required fields, shortened, and its `leftOut` names what was cut; the error code is gone | non-negotiable 4: every ending builds a packet, and the refusal left that ending with none | pending |
+| R-017 | Interfaces, errors | `merge_red` 409 joins them: when main moved since the verified commit, approve runs the tests and checks on the merge commit in a checkout of its own and refuses a red one | two changes that each passed can merge into code that fails; when main has not moved nothing extra runs | pending |
 
 ## Reviews
 

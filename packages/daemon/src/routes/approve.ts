@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { Task } from '@stint-dev/core';
 import { canonicalJSON, latestMergedLine, runsFromEvents, sha256Hex, withLatestMerged, writeJsonAtomic } from '@stint-dev/core/node';
 import type { Hono } from 'hono';
 import { z } from 'zod';
@@ -13,6 +14,8 @@ import { releaseWorktrees } from '../lifecycle';
 import { type PreparedShadow, prepareShadow, recordShadow, writeShadow } from '../risk';
 import { pendingContradictions } from './models';
 import { updateSkillStatuses } from '../skills';
+import { failingTests } from '../verifier';
+import { installDependencies } from '../worktree';
 
 /** Skill statuses follow task outcomes; a status pass that fails is said out loud, never hidden. */
 async function skillStatuses(ctx: DaemonContext): Promise<void> {
@@ -74,11 +77,30 @@ async function withLatestTask(ctx: DaemonContext, tree: string, id: string, titl
 }
 
 /**
+ * The tests and checks on the merge commit, in a checkout of its own that is removed after: two changes that each
+ * passed can merge into code that fails. Nothing is recorded; a red merge is refused.
+ */
+async function verifyMerge(ctx: DaemonContext, task: Task, run: string, base: string, commit: string): Promise<void> {
+  const root = ctx.ws.root;
+  const path = join(ctx.ws.cacheDir, 'verify', `${task.id}-${Date.now()}-merge`);
+  await mkdir(join(ctx.ws.cacheDir, 'verify'), { recursive: true });
+  await gitOk(root, ['worktree', 'add', '-q', '--detach', path, commit]);
+  try {
+    await installDependencies(path);
+    const { checks, outputs } = await ctx.verifier.suite(task, run, path);
+    const red = checks.filter((c) => c.status === 'red').map((c) => c.name);
+    if (red.length) throw new DaemonError('merge_red', `${task.branch} passes on its own but fails merged with ${base}; ask for changes so an agent merges ${base} into it`, { checks: red, failing: failingTests(outputs[0] ?? '') });
+  } finally {
+    await git(root, ['worktree', 'remove', '--force', path]);
+  }
+}
+
+/**
  * Approval is a real merge into the branch checked out in the main tree, of exactly the commit the daemon
  * verified. The merge is computed with `git merge-tree` first, so a conflict leaves every tree as it was; the
  * main tree only moves by a fast-forward to the finished merge commit, and only when nothing in it is in the way.
  */
-async function merge(ctx: DaemonContext, id: string, squash: boolean, verifiedCommit: string | undefined): Promise<{ commit: string; base: string; trailers: Trailers }> {
+async function merge(ctx: DaemonContext, id: string, squash: boolean, verifiedCommit: string | undefined, verifiedRun: string): Promise<{ commit: string; base: string; trailers: Trailers }> {
   const root = ctx.ws.root;
   const task = await ctx.ws.readTask(id);
   const base = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
@@ -128,9 +150,12 @@ async function merge(ctx: DaemonContext, id: string, squash: boolean, verifiedCo
   const parents = squash ? ['-p', baseSha] : ['-p', baseSha, '-p', branchHead];
   const commit = (await gitOk(root, [...(await identityArgs(root)), 'commit-tree', merged, ...parents, '-F', msgFile])).trim();
   await rm(msgFile, { force: true });
+  // main moved since the verified commit, so the tree that lands is not the tree the tests passed on
+  if (tree !== (await gitOk(root, ['rev-parse', `${branchHead}^{tree}`])).trim()) await verifyMerge(ctx, task, verifiedRun, base, commit);
   // the person may have switched branches while the merge was computed; never move a different branch
   const now = (await git(root, ['symbolic-ref', '-q', '--short', 'HEAD'])).stdout.trim();
   if (now !== base) throw new DaemonError('invalid', `the checked-out branch changed from ${base} to ${now || 'a detached HEAD'} during approve`, 'approve again');
+  if ((await gitOk(root, ['rev-parse', base])).trim() !== baseSha) throw new DaemonError('invalid', `${base} moved while the merge was being checked`, 'approve again');
   await gitOk(root, ['merge', '--ff-only', '-q', commit]);
   return { commit, base, trailers };
 }
@@ -225,7 +250,7 @@ export async function approveTask(ctx: DaemonContext, id: string, { by, squash, 
       return { status: 'in_review', url: pr.url, number: pr.number, pr: { url: pr.url, number: pr.number }, into: pr.base, trailers: pr.trailers };
     }
 
-    const { commit, base, trailers } = await merge(ctx, id, squash, v.commit);
+    const { commit, base, trailers } = await merge(ctx, id, squash, v.commit, v.run);
     const at = new Date().toISOString();
     const events = ctx.ws.events(id);
     await events.append({ task: id, vendor: by === 'policy' ? 'daemon' : 'human', type: 'approval.granted', payload: { by, verification: { passed: v.passed, failed: v.failed }, review: review?.verdict ?? null } });
