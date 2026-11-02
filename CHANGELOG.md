@@ -6,6 +6,9 @@
 - CI scans every commit for keys and tokens with gitleaks, with the values redacted; `.gitleaksignore` names the made-up keys the tests use.
 - The link test also checks every link in `docs/`, from the page's own folder, and every path the README names in backticks.
 
+- `stint bench` gives each task one capped first run and continues every mode from a copy of it, and gains a `diff` mode, the task and the first run's diff alone. The fair rerun of 2 November is in `bench/fair/`: from one shared start, the daemon's verdict was green 10 of 10 from the packet, 7 of 10 from the transcript and 4 of 10 from the diff.
+- `scripts/review-recheck.ts` reviews the graded scorecard patches again with the reviewer's own prompt; on 2 November Muse Spark 1.3 flagged 5 of the 15 failing patches and none of the 3 passing ones (`bench/review-recheck/`).
+
 ### Fixed (2 November)
 - The Stint agent gives each call its host's `timeoutMs` when that is longer than 120 s, as planning and review already did, so a continuation on Muse Glimmer through Ollama gets its 10 minutes.
 - `stint doctor` fails when no implementer can build, and names the fix: a key, Ollama with Muse Glimmer, or Muse Code. In the container it says which of those steps run on your machine.
