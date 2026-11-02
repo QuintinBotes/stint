@@ -15,6 +15,7 @@ This folder holds every guide to Stint, one line each, grouped by what you came 
 
 ## How it works
 
+- [`architecture.md`](architecture.md): the parts of Stint and how they connect, one task's life from plan to merge, and which model answers each role with its fallback chain, as diagrams GitHub draws.
 - [`factory.md`](factory.md): each screen of the web UI, the loop around the hand-off (escalation, best of n, memory, skills, evals and outcomes after merge), and the limits you set on a task or a goal.
 - [`packet.md`](packet.md): the `stint.handoff/1` packet: its fields, its rules, runs cut off by a restart, and the killed example as the next agent reads it.
 - [`adapters.md`](adapters.md): how an adapter drives one coding agent, the contract, and what each adapter can prove.
