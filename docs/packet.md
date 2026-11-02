@@ -25,11 +25,26 @@ A packet is how a task moves from one agent to the next. When a run ends, howeve
 
 ## Rules
 
-- **Size.** The whole packet renders under 600 tokens (`countTokens` is characters / 3.6, rounded up). A packet that does not fit says too much: lists are trimmed to 12 items before the builder refuses with `packet_too_large`.
+- **Size.** The whole packet renders under 600 tokens (`countTokens` is characters / 3.6, rounded up). A packet that does not fit says too much: lists are trimmed to 12 items, then shortened step by step, and one that still does not fit becomes a minimal valid packet whose `leftOut` names what was cut, so a run never ends without one.
 - **No secrets.** The packet reads command excerpts, never tool-output bodies, so a credential printed by a tool cannot reach it. What it does carry goes through the same scrubber as the event log ([`sandbox.md`](sandbox.md#keys-stay-in-the-daemon)).
 - **Killed runs.** A killed run still gets a packet, built from the log alone. The last tool call with no result is named in `leftOut` as an unknown in-flight step, and `askOfNext` starts with "Check the unknown step first." Stopping a run (`POST /api/tasks/:id/runs/:run/stop`) answers `{ run, stopped }` once `run.finished` is recorded, within 5 seconds. The verification and then the packet follow on the task's stream as `verification.ran` and `handoff.created`, since asking a model for a digest can take up to 75 seconds.
 - **Restarts.** When the daemon starts again, it closes as killed any run it was not there to close because it crashed or was stopped mid-run. A build closed this way goes through the same path as any killed run: its commit, the daemon's verification, then its packet. A task left verifying is verified again, and autopilot resumes only after that.
 - **Rendering.** `renderHandoff()` prints fixed headings, and `parseHandoffPrompt()` reads the task, where it got to, the refusals and the not-included list back by exact heading. Across more than one hop, only the task, the refusals and the origin are carried forward.
+
+## What the next agent reads
+
+The packet is not the whole prompt. When the daemon starts the next run, it writes that run's `prompt.md` with `renderPrompt` (`packages/daemon/src/prompt.ts`), in this order:
+
+1. The task's id and title, and Stint's rules for the run: work only in the worktree, write a decision on its own line, the locked test files and the `decision: tests:` line that unlocks one, say what was left unfinished, and the daemon, not the agent, runs the task's `testCommand`.
+2. The task's goal and acceptance criteria.
+3. The skills mounted for the run, or "None."
+4. The plan's steps, with the files each one names.
+5. The packet, rendered as below.
+6. The files changed on the task branch so far, each with its added and removed line counts: the diff's numstat, not the diff.
+7. The ask for this run, by default "Continue from the packet: start with its ask of next."
+8. What sharpening settled and the accepted proofs, when the task was sharpened.
+
+The transcript is never in it. Everything before the packet stays the same for a task, so a host that caches input bills it at the cached rate on the next run. The bench's hand-over sizes in [`proofs.md`](proofs.md#benchmark) count this whole prompt. In the bench's transcript and diff modes the transcript or the first run's diff takes the packet's place, and Muse Code resuming its own session is sent only an instruction to finish (`RESUME_INSTRUCTION` in `packages/cli/src/bench/live.ts`).
 
 ## A live packet
 

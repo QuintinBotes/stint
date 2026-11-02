@@ -13,6 +13,8 @@
 
 - `stint bench` gains a `resume` mode, in which Muse Code continues its own capped session, and `scripts/unfinished-bench.ts` runs every mode from checkpoints that fail their held-out tests. On 2 November, on two tasks with four runs per mode, every mode finished the code, resume included, and the packet was the dearest (`bench/fair-unfinished/`).
 
+- The README leads with the controlled numbers of 2 November and what they do and do not show, every claim about Meta models says it covers every default route and every recorded run, and a claims test checks the 2 November figures in the README and `docs/proofs.md` against the bench files.
+
 ### Fixed (2 November)
 - A daemon restart builds the packet of a run cut off after the task's status moved on, whatever the status is, once, through the same path a run's end uses; a packet a PreCompact or SubagentStop hook drafted during the run does not count as it.
 - A packet that does not fit 600 tokens after the last trim keeps only its required fields and says in `leftOut` what was cut, instead of refusing, so every ending has one.
