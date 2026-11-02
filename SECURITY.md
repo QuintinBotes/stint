@@ -21,3 +21,7 @@ Stint is pre-1.0. Only the latest commit on `main` receives security fixes.
 - The container image and `compose.yaml`: what they publish, and the privileges the container runs with ([`docs/docker.md`](docs/docker.md#security)).
 
 Problems in a coding agent or a model host that Stint drives belong with that project, unless Stint's handling makes them worse.
+
+## Keys in the repository
+
+CI scans every commit for keys and tokens with gitleaks and fails on one it finds. `.gitleaksignore` names the made-up keys the tests use, one fingerprint per line. If you find a real key in this repository or its history, report it as above.

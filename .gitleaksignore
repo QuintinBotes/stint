@@ -1,0 +1,4 @@
+# sk-test-0123456789 in the test of the bench scrub, a made-up key the test removes from text; each line is commit:file:rule:line
+1b48ba9b9cac330ee88fd8582606ec41ec447fa2:packages/cli/test/bench.replay.test.ts:generic-api-key:148
+3a5a8199ff6e1f4f94b79c1c520216c148bf43ab:packages/cli/test/bench.replay.test.ts:generic-api-key:148
+edd1ee7e954e08e5ddad8c6a00dee0652803fd14:packages/cli/test/bench.replay.test.ts:generic-api-key:148
