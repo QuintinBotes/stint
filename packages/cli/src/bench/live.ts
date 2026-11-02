@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto';
-import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { type Handoff, countTokens, renderHandoff } from '@stint-dev/core';
 import { Workspace, runsFromEvents } from '@stint-dev/core/node';
-import { type Adapter, assign, createApp, daemonContext, defaultAdapters } from '@stint-dev/daemon';
+import { type Adapter, type RunContext, assign, createApp, daemonContext, defaultAdapters } from '@stint-dev/daemon';
 import { freshFixture } from '../demo';
 import { type BenchClock, type HostBuckets, hostBuckets } from './limits';
 import { BENCH_LEGS, type BenchLeg, type BenchMode, type BenchResults, type BenchRowFile, type BenchTaskDef, buildResults, taskKey } from './results';
@@ -68,13 +68,18 @@ export type LiveBenchOptions = {
   /** Fresh adapters per bench run; the live command leaves this out and uses the daemon defaults. */
   adapters?: () => Adapter[];
   makeFixture?: () => string;
+  /** Muse Code's session store, for the resume mode; tests point it at a temporary folder. */
+  museSessions?: string;
   log?: (line: string) => void;
 };
 
-type Unit = { def: BenchTaskDef; task: string; mode: BenchMode; repeat: number };
+export type Unit = { def: BenchTaskDef; task: string; mode: BenchMode; repeat: number };
+
+/** The first run's agent session as the run left it: each folder of it in the agent's store, and a copy of each. */
+export type SessionSnapshot = { id: string; snapshot: string; dirs: Array<{ live: string; copy: string }> };
 
 /** One task's capped first run, which every continued run of that task starts from, each in its own copy. */
-type Checkpoint = {
+export type Checkpoint = {
   fixture: string;
   id: string;
   baseRow: Pick<BenchRowFile, 'task' | 'synthetic' | 'commit' | 'implementer' | 'continuer'>;
@@ -84,7 +89,67 @@ type Checkpoint = {
   transcriptLines: string[];
   diff: string;
   implementerModel: string;
+  /** Kept only when the resume mode runs: the session the first run's agent resumes, as the cap left it. */
+  session?: SessionSnapshot | null;
 };
+
+/** What the resumed agent is told; its own session already holds the task, the rules and everything it did. */
+export const RESUME_INSTRUCTION =
+  'You were stopped by the step cap before the task was done. Continue it from where you stopped: finish the goal and every acceptance criterion, and make the test command pass. Your earlier changes are in the current directory.';
+
+const museSessionsRoot = () => join(process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'), 'muse', 'sessions');
+
+/** Copies a Muse Code session's folders (<root>/<yyyy>/<mm>/<dd>/<id> and its view cache), or null when there are none. */
+export function snapshotSession(id: string, root = museSessionsRoot()): SessionSnapshot | null {
+  const live: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (!e.isDirectory()) continue;
+      if (e.name === id) live.push(join(dir, e.name));
+      else if (/^\d+$/.test(e.name) || e.name.startsWith('.msp-view')) walk(join(dir, e.name));
+    }
+  };
+  if (existsSync(root)) walk(root);
+  if (!live.length) return null;
+  const snapshot = mkdtempSync(join(tmpdir(), 'stint-session-'));
+  const dirs = live.map((from, i) => ({ live: from, copy: join(snapshot, String(i)) }));
+  for (const d of dirs) cpSync(d.live, d.copy, { recursive: true, verbatimSymlinks: true });
+  return { id, snapshot, dirs };
+}
+
+/** Puts the session back as the first run left it, so each resumed run starts from the same history. */
+export function restoreSession(s: SessionSnapshot): void {
+  for (const d of s.dirs) {
+    rmSync(d.live, { recursive: true, force: true });
+    cpSync(d.copy, d.live, { recursive: true, verbatimSymlinks: true });
+  }
+}
+
+/** The implementer, made to resume the first run's session with the instruction instead of starting a run. */
+function resumer(a: Adapter, sessionId: string): Adapter {
+  const resume = a.resume?.bind(a);
+  if (!resume) throw new Error(`${a.id} cannot resume a session`);
+  return Object.assign(Object.create(a) as Adapter, {
+    run: (ctx: RunContext) =>
+      resume({
+        ...ctx,
+        sessionId,
+        instruction: RESUME_INSTRUCTION,
+        // Muse Code binds a session to the folder it began in, and this run's worktree is another folder
+        ...(a.id === 'muse-code'
+          ? {
+              wrap: (argv: string[]) => {
+                const switched = [...argv, '--allow-workspace-switch'];
+                return ctx.wrap ? ctx.wrap(switched) : switched;
+              },
+            }
+          : {}),
+      }),
+  });
+}
+
+// resumed runs of one session go one at a time, each from the restored snapshot
+const sessionTurns = new Map<string, Promise<unknown>>();
 
 const asString = (v: unknown): string => (typeof v === 'string' && v ? v : 'unknown');
 
@@ -102,11 +167,12 @@ const runDir = (opts: LiveBenchOptions, task: string, mode: BenchMode, repeat: n
 const wallOf = (run: { startedAt?: string | null; endedAt?: string | null } | undefined, fallback: number) =>
   run?.startedAt && run.endedAt ? Math.max(0, Date.parse(run.endedAt) - Date.parse(run.startedAt)) : fallback;
 
-/** An in-process daemon on one fixture folder, called through its routes as `stint up` would be. */
-async function daemonOn(opts: LiveBenchOptions, folder: string, buckets: HostBuckets) {
+/** An in-process daemon on one fixture folder, called through its routes as `stint up` would be; `swap` replaces the implementer. */
+async function daemonOn(opts: LiveBenchOptions, folder: string, buckets: HostBuckets, swap?: (a: Adapter) => Adapter) {
   const ws = await Workspace.open(folder);
   const token = randomBytes(16).toString('hex');
-  const app = createApp(ws, opts.adapters ? opts.adapters() : defaultAdapters(ws.config), {
+  const adapters = (opts.adapters ? opts.adapters() : defaultAdapters(ws.config)).map((a) => (swap && a.id === opts.implementer ? swap(a) : a));
+  const app = createApp(ws, adapters, {
     token,
     quiet: true,
     webDist: null,
@@ -136,13 +202,25 @@ async function writeRow(opts: LiveBenchOptions, dir: string, row: BenchRowFile, 
  * then the first run capped at the task's step. Its worktree is removed afterwards, so the folder can be copied
  * once per continued run with nothing linking a copy to it. Null when only the plan leg was asked for.
  */
-async function makeCheckpoint(opts: LiveBenchOptions, def: BenchTaskDef, buckets: HostBuckets): Promise<{ rows: BenchRowFile[]; checkpoint: Checkpoint | null }> {
+export async function makeCheckpoint(opts: LiveBenchOptions, def: BenchTaskDef, buckets: HostBuckets): Promise<{ rows: BenchRowFile[]; checkpoint: Checkpoint | null }> {
   const fixture = (opts.makeFixture ?? freshFixture)();
   const key = taskKey(def);
   const legs = opts.legs ?? ['build'];
   const rows: BenchRowFile[] = [];
+  // for resume, the session is copied the moment the first run ends, before the daemon asks it for the packet
+  const kept: { session: SessionSnapshot | null } = { session: null };
+  const keepSession = opts.modes.includes('resume')
+    ? (a: Adapter): Adapter =>
+        Object.assign(Object.create(a) as Adapter, {
+          run: async (ctx: RunContext) => {
+            const r = await a.run(ctx);
+            if (r.sessionId) kept.session = snapshotSession(r.sessionId, opts.museSessions);
+            return r;
+          },
+        })
+    : undefined;
   try {
-    const d = await daemonOn(opts, fixture, buckets);
+    const d = await daemonOn(opts, fixture, buckets, keepSession);
     const task = await d.ws.createTask({
       title: def.title,
       goal: def.goal,
@@ -216,9 +294,10 @@ async function makeCheckpoint(opts: LiveBenchOptions, def: BenchTaskDef, buckets
     const firstFinished = events.find((e) => e.type === 'run.finished' && e.run === first.run);
     const implementerModel = asString(firstFinished?.payload.model ?? runsFromEvents(events).find((r) => r.run === first.run)?.model);
     await d.ctx.worktrees.remove(now, first.run);
-    return { rows, checkpoint: { fixture, id: task.id, baseRow, taskText, packetName, packet, transcriptLines, diff, implementerModel } };
+    return { rows, checkpoint: { fixture, id: task.id, baseRow, taskText, packetName, packet, transcriptLines, diff, implementerModel, ...(keepSession ? { session: kept.session } : {}) } };
   } catch (err) {
     rmSync(fixture, { recursive: true, force: true });
+    if (kept.session) rmSync(kept.session.snapshot, { recursive: true, force: true });
     throw err;
   }
 }
@@ -228,7 +307,22 @@ async function makeCheckpoint(opts: LiveBenchOptions, def: BenchTaskDef, buckets
  * the first run's diff; then review, the held-out tests and learn as the legs ask. Each leg that runs is recorded
  * with its cost and result, and the run's artefacts are kept.
  */
-async function continueFrom(opts: LiveBenchOptions, cp: Checkpoint, unit: Unit, buckets: HostBuckets): Promise<BenchRowFile[]> {
+export async function continueFrom(opts: LiveBenchOptions, cp: Checkpoint, unit: Unit, buckets: HostBuckets): Promise<BenchRowFile[]> {
+  if (unit.mode !== 'resume') return continueRun(opts, cp, unit, buckets);
+  const session = cp.session;
+  if (!session) throw new Error(`${unit.task} resume: the first run left no session to resume`);
+  const turn = (sessionTurns.get(session.id) ?? Promise.resolve()).then(() => {
+    restoreSession(session);
+    return continueRun(opts, cp, unit, buckets, session.id);
+  });
+  sessionTurns.set(
+    session.id,
+    turn.catch(() => undefined),
+  );
+  return turn;
+}
+
+async function continueRun(opts: LiveBenchOptions, cp: Checkpoint, unit: Unit, buckets: HostBuckets, sessionId?: string): Promise<BenchRowFile[]> {
   const copy = mkdtempSync(join(tmpdir(), 'stint-bench-'));
   const label = `${unit.task} ${unit.mode}${opts.repeat > 1 ? ` repeat ${unit.repeat}` : ''}`;
   const legs = opts.legs ?? ['build'];
@@ -237,37 +331,47 @@ async function continueFrom(opts: LiveBenchOptions, cp: Checkpoint, unit: Unit, 
   try {
     // relative links stay relative, so no copy points back into the checkpoint folder
     cpSync(cp.fixture, copy, { recursive: true, verbatimSymlinks: true });
-    const d = await daemonOn(opts, copy, buckets);
+    const d = await daemonOn(opts, copy, buckets, sessionId ? (a) => resumer(a, sessionId) : undefined);
     const baseRow = { ...cp.baseRow, mode: unit.mode, repeat: unit.repeat };
     const recordLeg = async (row: BenchRowFile): Promise<void> => {
       rows.push(row);
       await writeRow(opts, dir, row, label);
     };
-    opts.log?.(`${label}: continuing from the ${unit.mode}${opts.host ? ` on ${opts.host}` : ''}`);
     const resume =
       unit.mode === 'transcript'
         ? { kind: 'transcript' as const, text: renderTranscript(cp.transcriptLines) }
         : unit.mode === 'diff'
           ? { kind: 'diff' as const, text: cp.diff }
           : null;
-    await d.acquire(d.ws.config.routes.agent, countTokens(resume?.text ?? renderHandoff(cp.packet)));
-    // One host's model for the continuing leg: the agent chain's entry on that host, named as
-    // host/model for the Stint agent (which runs exactly that entry) and by its short model name otherwise.
-    const hostEntry = opts.host ? d.ws.config.routes.agent?.find((e) => e.startsWith(`${opts.host}/`)) : undefined;
-    const continuerModel = hostEntry ? (opts.continuer === 'stint-agent' ? hostEntry : hostEntry.split('/').slice(1).join('/')) : undefined;
-    const second = await assign(d.ctx, cp.id, {
-      adapter: opts.continuer,
-      role: 'implementer',
-      ...(continuerModel ? { model: continuerModel } : {}),
-      ...(resume ? { resume } : { handoffFrom: cp.packetName }),
-    });
+    let second: Awaited<ReturnType<typeof assign>>;
+    if (sessionId) {
+      // the first run's own agent, on its own session, with as many model steps as the continuer has turns
+      opts.log?.(`${label}: ${opts.implementer} resuming its session ${sessionId}`);
+      await buckets.acquire('meta-api', d.ws.config.hosts['meta-api'], countTokens(RESUME_INSTRUCTION));
+      const steps = Number(d.ws.config.adapters[opts.continuer]?.maxTurns ?? 40);
+      second = await assign(d.ctx, cp.id, { adapter: opts.implementer, role: 'implementer', steps, handoffFrom: cp.packetName });
+    } else {
+      opts.log?.(`${label}: continuing from the ${unit.mode}${opts.host ? ` on ${opts.host}` : ''}`);
+      await d.acquire(d.ws.config.routes.agent, countTokens(resume?.text ?? renderHandoff(cp.packet)));
+      // One host's model for the continuing leg: the agent chain's entry on that host, named as
+      // host/model for the Stint agent (which runs exactly that entry) and by its short model name otherwise.
+      const hostEntry = opts.host ? d.ws.config.routes.agent?.find((e) => e.startsWith(`${opts.host}/`)) : undefined;
+      const continuerModel = hostEntry ? (opts.continuer === 'stint-agent' ? hostEntry : hostEntry.split('/').slice(1).join('/')) : undefined;
+      second = await assign(d.ctx, cp.id, {
+        adapter: opts.continuer,
+        role: 'implementer',
+        ...(continuerModel ? { model: continuerModel } : {}),
+        ...(resume ? { resume } : { handoffFrom: cp.packetName }),
+      });
+    }
     await second.done;
 
     const events = await d.ws.events(cp.id).read();
     const cont = runsFromEvents(events).find((r) => r.run === second.run);
     const finished = events.find((e) => e.type === 'run.finished' && e.run === second.run);
     const verification = await d.ws.verification(cp.id).read(second.run);
-    const prompt = (await d.ws.runs(cp.id).readPrompt(second.run)) ?? '';
+    // a resumed agent is sent only the instruction; the daemon's prompt for the run is not passed to it
+    const prompt = sessionId ? RESUME_INSTRUCTION : ((await d.ws.runs(cp.id).readPrompt(second.run)) ?? '');
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'transcript.jsonl'), scrubPaths(cp.transcriptLines.length ? `${cp.transcriptLines.join('\n')}\n` : ''));
     await writeFile(join(dir, 'handoff.json'), scrubPaths(`${JSON.stringify(cp.packet, null, 2)}\n`));
@@ -286,6 +390,7 @@ async function continueFrom(opts: LiveBenchOptions, cp: Checkpoint, unit: Unit, 
       verified: verification?.status === 'green',
       promptTokens: countTokens(prompt),
       implementerModel: cp.implementerModel,
+      testsDecision: events.some((e) => e.type === 'decision.recorded' && e.run === second.run && String(e.payload.text ?? '').startsWith('tests:')),
       ...(cont?.startedAt ? { startedAt: cont.startedAt } : {}),
       ...(cont?.endedAt ? { finishedAt: cont.endedAt } : {}),
     };
@@ -398,7 +503,7 @@ async function continueFrom(opts: LiveBenchOptions, cp: Checkpoint, unit: Unit, 
 }
 
 /** Runs at most n jobs at once; a finishing job hands its slot straight to the next one waiting. */
-function slots(n: number) {
+export function slots(n: number) {
   let active = 0;
   const waiting: Array<() => void> = [];
   return async <T>(job: () => Promise<T>): Promise<T> => {
@@ -443,6 +548,7 @@ export async function runBenchLive(opts: LiveBenchOptions): Promise<BenchResults
         await settle(units.filter((u) => u.def === def).map((u) => slot(async () => rows.push(...(await continueFrom(opts, cp, u, buckets))))));
       } finally {
         rmSync(cp.fixture, { recursive: true, force: true });
+        if (cp.session) rmSync(cp.session.snapshot, { recursive: true, force: true });
       }
     }),
   );
