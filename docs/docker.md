@@ -2,7 +2,7 @@
 
 This page is for anyone who wants Stint without installing Bun on their machine, or who keeps tools in containers. It covers the replay with no keys, Stint on your own repository with Docker Compose, the settings, what runs inside the container and what does not, how the container is kept safe, updating, and troubleshooting.
 
-You need Docker with Compose 2.24 or later. Nothing else is installed on your machine.
+You need Docker with Compose 2.24 or later, and on Linux Docker Engine 28 or later: earlier engines let other machines on your local network reach a port published on 127.0.0.1. Nothing else is installed on your machine.
 
 ## The replay, with no keys
 
@@ -52,7 +52,7 @@ Compose reads these from `.env` beside `compose.yaml`.
 | `META_API_KEY` and the partner keys | none | The hosted models, as in [`setup.md`](setup.md#keys); a `.env` in your repository works too |
 | `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL` | none | Who the merges are by; without them the daemon signs its merges "Stint daemon" |
 
-The image sets `STINT_BIND=0.0.0.0` and `STINT_PORT=4319` itself, so the published port reaches the daemon. Leave them as they are; [Security](#security) says why the port is published on 127.0.0.1 only.
+The image sets `STINT_BIND=0.0.0.0` and `STINT_PORT=4319` itself, so the published port reaches the daemon. Leave them as they are, and change the port with `STINT_HOST_PORT`, not with `--port`: the health check probes `STINT_PORT`. [Security](#security) says why the port is published on 127.0.0.1 only.
 
 ## What runs in the container
 
@@ -72,6 +72,7 @@ The web page carries the daemon's token, so anyone who can open the page can do 
 - Do not publish the port on `0.0.0.0` or put the container on a network shared with other containers.
 - To reach Stint from another machine, use an SSH tunnel to the one that runs it: `ssh -L 4319:127.0.0.1:4319 your-host`.
 - The daemon still answers only to localhost names, so a web page elsewhere cannot rebind DNS onto it, and every change still needs the token.
+- `docker run` puts the replay on Docker's default network, which other containers share. The replay holds only the demo repository, so nothing of yours is within reach. Stint on your repository runs on a network Compose makes for it alone.
 
 `compose.yaml` also runs the container as a user who is not root, with a read-only filesystem apart from `/repo`, `/tmp` and its home, with no Linux capabilities, and with no way to gain privileges. Keys reach the container as environment variables at start; `.dockerignore` keeps `.env` out of the image.
 
@@ -102,7 +103,8 @@ Git records each run's worktree by its path, which is under `/repo` in the conta
 | `docker compose up` says the port is in use | Another program has 4319 | Set `STINT_HOST_PORT` in `.env` |
 | The review host is unreachable | The container's `localhost` is the container, not your machine | Set `hosts.ollama.baseURL` as [above](#what-runs-in-the-container) |
 | Muse Code, Claude Code or Codex is unavailable | Their command lines are not in the image | Build on this image to add one, or run Stint on your machine |
-| The container stays `unhealthy` | The daemon did not start | `docker compose logs stint` prints why |
+| Tasks fail to make their worktrees | `STINT_REPO` is a linked worktree (`git worktree add`), whose `.git` points outside the mount | Point `STINT_REPO` at the repository's main checkout |
+| The container stays `unhealthy` | The daemon did not start, or its port was changed with `--port` | `docker compose logs stint` prints why; change the port with `STINT_HOST_PORT` |
 
 ## Checking the image
 

@@ -113,7 +113,7 @@ export const up = defineCommand({
   meta: { name: 'up', description: 'Start the daemon on 127.0.0.1 for this repository' },
   args: {
     port: { type: 'string', description: 'Port (0 picks a free one; default STINT_PORT)', default: process.env.STINT_PORT ?? '0' },
-    bind: { type: 'string', description: 'Address to listen on (default STINT_BIND or 127.0.0.1); wider only inside a container', default: process.env.STINT_BIND ?? '127.0.0.1' },
+    bind: { type: 'string', description: '127.0.0.1, or 0.0.0.0 inside a container (default STINT_BIND or 127.0.0.1)', default: process.env.STINT_BIND ?? '127.0.0.1' },
     open: { type: 'boolean', description: 'Copy the URL to the clipboard' },
     check: { type: 'boolean', description: 'Start, print health, stop' },
     review: { type: 'boolean', default: true, description: "Review a person's finished build on its own; --no-review leaves it to stint review" },

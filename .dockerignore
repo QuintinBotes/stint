@@ -3,8 +3,8 @@
 apps/web/dist
 .stint
 **/.stint
-.env
-.env.*
+**/.env
+**/.env.*
 graphify-out
 docs
 assets
