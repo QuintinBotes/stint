@@ -18,6 +18,10 @@ Run in live mode if the network and keys hold, the replay (`stint demo`) if not,
 
 A board shows tasks; Stint keeps a task alive across agents. Every run ends with a packet the daemon builds from the log and the diff, not from the agent's say-so, and any agent continues from it. The daemon runs the tests itself, so "done" is not an agent's claim. Decisions are protected from reviewers, the factory learns rules from recurring findings, and we measured the packet against the transcript instead of assuming it wins.
 
+### How is this different from tools that run agents on a ticket queue and merge on their own?
+
+Those tools answer how many agents can clear a queue without a person. Stint answers what happens to one task when its agent dies. When a queued run fails, it goes back to the queue and starts over; in Stint, another vendor's agent continues from a packet of a few hundred tokens. The daemon then proves the result with tests the agent cannot edit and scenarios it never saw. Every model Stint calls at runtime is Meta's, the review runs on the laptop at $0, and nothing merges without a person.
+
 ### Why not just use Muse Code's own subagents?
 
 Muse Code keeps its own work well: each subagent gets a worktree, its events go to a JSONL log, and `muse resume` brings a session back after a crash. Stint does what one agent's session cannot do for itself:
@@ -78,3 +82,7 @@ Muse Wonder 1.0 plans, asks Sharpen's questions and writes the quiz. Muse Spark 
 ## If an agent misbehaves on stage
 
 Show a recorded packet instead: `bench/runs/*/handoff.json` holds ten real packets from the benchmark, and `stint packet T-0042 --as prompt` prints the replay's killed packet.
+
+## If the laptop fails
+
+Any machine with Docker plays the replay with nothing else to install: run `docker run --rm -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` and open http://127.0.0.1:4319. The image is about 360 MB, so pull it on the backup machine before the session. [`docker.md`](docker.md) has the rest.

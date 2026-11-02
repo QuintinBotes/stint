@@ -13,7 +13,7 @@ Coding agents lose their work when a session ends: the context fills up, the pro
 
 ## For judges
 
-Watch the 3-minute demo at [youtu.be/ejYyHgkVOWg](https://youtu.be/ejYyHgkVOWg). To try Stint with nothing to install, open [the live demo](https://quintinbotes.github.io/stint/demo/) on [Stint's site](https://quintinbotes.github.io/stint/), or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys.
+Watch the 3-minute demo at [youtu.be/ejYyHgkVOWg](https://youtu.be/ejYyHgkVOWg). To try Stint with nothing to install, open [the live demo](https://quintinbotes.github.io/stint/demo/) on [Stint's site](https://quintinbotes.github.io/stint/), or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys. With Docker, `docker run --rm -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` plays it on your machine with nothing else to install; open http://127.0.0.1:4319.
 
 | Criterion | Evidence |
 |---|---|
