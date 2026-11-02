@@ -1,6 +1,23 @@
 # Proofs
 
-This page lists every number Stint claims, where it came from and the record behind it, for judges and anyone else who wants to check. Every number here comes from a live run on Meta's models; the replay's story (T-0040, T-0042 and T-0043) is hand-written, and the UI says so. `packages/core/test/docs.claims.test.ts` fails when a benchmark, golden-set or live-packet number here differs from its results file.
+This page lists every number Stint claims, where it came from and the record behind it, for judges and anyone else who wants to check. Every measured number here comes from a live run on Meta's models; the replay's story (T-0040, T-0042 and T-0043) and its own numbers are hand-written, and the UI says so. `packages/core/test/docs.claims.test.ts` fails when a benchmark, golden-set or live-packet number here differs from its results file.
+
+## Claims at a glance
+
+Each headline claim, the record behind it and what that record does not show. The sections below have the detail.
+
+| Claim | Evidence | What it does not show |
+|---|---|---|
+| A killed agent's work survives | Live, 26 October: Muse Code was killed on T-0042 and the Stint agent continued from the packet to 29 of 29 tests, for $0.10 (Gate 2 in `PROGRESS.md`) | Breadth: it is one task, on the demo fixture. The replay's 33 tests and 412-token packet are hand-written ([What is real](#what-is-real)) |
+| The packet is about seven times smaller than the transcript | 929 and 923 hand-over tokens against 6,328 (`bench/results.json`, `bench/digest/results.json`) | A tokenizer's count: hand-over sizes are Stint's estimate, characters / 3.6 |
+| More continued runs passed from the packet | 9 of 10 against 3 of 5, by the daemon's verification ([Benchmark](#benchmark)) | That the packet caused it: one run per task and mode, from different first-run checkpoints. Nothing yet compares it with resuming the session or with handing over the task and the diff |
+| A task crosses agents on code Stint had never seen | 3 of 5 relays, one per repository, reached the gate with the hidden tests green (`bench/relay/`) | That a hand-off helped: hops 1 and 2 left no changed files in any relay, Codex wrote every green change, and Codex never ran these tasks alone |
+| The daemon, not the agent, decides green | The control task stopped red with no locked file edited (`bench/relay/negotiator-control/`) | That a locked test cannot change: an agent's `tests:` decision unlocks one, shown at the gate, and the runner's config is not locked ([`verify.md`](verify.md#the-tamper-guard)) |
+| Hidden tests the agent never saw | The daemon ran them in a checkout outside every worktree (`bench/relay/README.md`) | That an agent could not read them: with the default sandbox, `none`, they are on the same disk ([`verify.md`](verify.md#held-out-scenarios)) |
+| Review runs offline at $0.00 | Glimmer on Ollama in every relay and scorecard review (`bench/scorecard.json`) | That review catches defects: Glimmer approved all 5 failing patches it saw, and all 9 in the first scorecard |
+| Single runs are scored on the same hidden tests | 3 of 9 passed; $0.4895 per green attempt's own run, $1.6311 per green attempt counting all nine (`bench/scorecard.json`) | A controlled comparison with the relays, which used other agents and models; 3 attempts per task |
+| A page is checked by eye | Muse Spark 1.3 judged a seeded page wrong and SAM 3.1 boxed the fault, for $0.0063 (`bench/visual/result.json`) | How often it is right: n = 1, a seeded defect, a stand-in test command, and no page without a defect |
+| It learns | `packages/daemon/test/learn.test.ts` and the hand-written replay | A skill learned live: none was (`bench/relay/ms-learning/`), and the one live skill eval found no findings either way |
 
 ## Live evidence, 29 October
 
@@ -22,9 +39,9 @@ Sources, all in `bench/relay/<run>/`: hops and outcome from `relay.json`, verifi
 
 The cost is the daemon's price, which `costs.json` marks estimated, and covers Codex's hop alone: a stopped Muse Code hop reports no usage and so has no price, Claude Code and the review ran on Glimmer at $0, and in the first negotiator run Codex recorded no usage either. The five relays and the control cost $1.2829 in all (`priorSpendUsd` in `bench/relay/ms-learning/relay.json`).
 
-**What it shows.** On three repositories Stint had never seen, a task crossed three agents, each starting from the previous agent's packet, never its transcript. All three tasks reached the gate with the hidden tests green (`negotiator-2`, `wait-on` and `ms-2`), and the daemon, not an agent, decided each was green.
+**What it shows.** On three repositories Stint had never seen, a task crossed three agents, each starting from the previous agent's packet, never its transcript. All three tasks reached the gate with the hidden tests green (`negotiator-2`, `wait-on` and `ms-2`), 3 of the 5 relays run, and the daemon, not an agent, decided each was green.
 
-**What it does not show.** That every hop helped. Claude Code on Glimmer ran to its 15 minute limit in all five relays and left the task red each time; Codex finished the work from its packet in 4 of the 5. The scorecard counts this as hand-off success: 4 of 10 continued runs went green (`bench/scorecard.json`).
+**What it does not show.** That a hand-off helped. Muse Code and Claude Code left no changed files in any relay: every packet from hops 1 and 2 lists no changed files, and the one Codex continued from lists nothing done (`handoffs/h1.json` to `h4.json` in each run's `tasks/T-0001/`). Claude Code on Glimmer ran to its 15 minute limit in all five relays and left the task red each time, so the middle hop never helped. Codex wrote every green change, from the task and a packet that said the held-out scenarios failed, and finished the work in 4 of the 5. The scorecard counts this as hand-off success: 4 of 10 continued runs went green (`bench/scorecard.json`). So the relay shows a task outliving two agents that failed, with the daemon deciding green; it does not show that a packet's content made the next agent succeed, and Codex never ran these tasks alone to compare with.
 
 **Two runs did not reach the gate.** The first negotiator relay stopped red at the third hop, where Codex failed after 10 seconds. In that run Claude Code and Codex carried the person's own CLI setup, plugins included. Since D-082 (`PROGRESS.md`) both run without it, and `negotiator-2` is the same relay after that change. Claude Code's hop read 18,617 input tokens in the first run and 1,494 to 1,641 in the five after it (`run.finished` in each `events.jsonl`). The first ms relay went green, but Glimmer's review hit its 120 second limit while the same Mac ran Stint's full browser test suite (the note in its `relay.json`). `ms-2` is the same relay on an otherwise idle machine.
 
@@ -68,7 +85,7 @@ Scorecard (live): k 3, 9 attempts on 3 seeded tasks, spend $4.8932, generated 20
 
 The attempts ran stint-agent on baseten/muse-spark-open as implementer (9 runs), openai-compatible on ollama/muse-glimmer:30b-mlx as reviewer (8 runs). The relays ran muse-code on local-cli/muse-spark-1.3 as implementer (5 runs), claude-code on ollama/muse-glimmer:30b-mlx as implementer (5 runs), codex on meta-api/muse-spark-1.3 as implementer (5 runs).
 
-**What it shows.** A single run passed the hidden tests 3 times in 9: 1 of 3 on ms, 2 of 3 on negotiator and 0 of 3 on wait-on. No task passed all three tries. Seven of the nine ended `capped` at a run limit, after 36 to 63 tool calls, and those seven include all six that failed (each attempt's `endedBy` in `bench/scorecard.json`, and the tool calls in its packet's summary, `bench/scorecard/<attempt>/tasks/T-0001/handoffs/h1.json`). The repository's own tests stopped 1 of the 6 bad patches. The other 5 passed their own tests and went to Glimmer, which approved all 5. The nine attempts cost $4.8932, all of it on Baseten, since the review runs locally. A green attempt cost $0.4895 and took 6.0 minutes on average.
+**What it shows.** A single run passed the hidden tests 3 times in 9: 1 of 3 on ms, 2 of 3 on negotiator and 0 of 3 on wait-on. No task passed all three tries. Seven of the nine ended `capped` at a run limit, after 36 to 63 tool calls, and those seven include all six that failed (each attempt's `endedBy` in `bench/scorecard.json`, and the tool calls in its packet's summary, `bench/scorecard/<attempt>/tasks/T-0001/handoffs/h1.json`). The repository's own tests stopped 1 of the 6 bad patches. The other 5 passed their own tests and went to Glimmer, which approved all 5. The nine attempts cost $4.8932, all of it on Baseten, since the review runs locally. A green attempt's own run cost $0.4895 and took 6.0 minutes on average; that is the table's figure, and it leaves out the six red attempts. Counting every attempt, the $4.8932 bought 3 green attempts: $1.6311 and 18.4 minutes of run time per green attempt (each attempt's `usd` and `wallMs` in `bench/scorecard.json`).
 
 **What it does not show.** That a relay beats a single run. Single runs passed 3 of 9 while the relays brought all three tasks to the gate with the hidden tests green, but the relays used other agents and models (Muse Code, Claude Code and Codex on Muse Spark 1.3 and Glimmer, against the Stint agent on Muse Spark Open) and more runs: three agents per task, two tries on negotiator and on ms, and in every green relay Codex made the change that turned it green. This is not a controlled comparison, and each pass rate rests on 3 or 9 attempts.
 
@@ -82,9 +99,9 @@ The fix, D-086 in `PROGRESS.md`, asks again with more room (4,096, then 16,384, 
 
 ### The visual gate
 
-Tests miss a page that renders the wrong words. On 29 October, `bun bench/visual/run.ts` put one visual check of a seeded defect through the daemon's own verifier, against the Meta Model API. The fixture's admin page should tell an over-limit tenant to try again in 60 s; the seeded banner says "Try again in NaN s." instead.
+Tests miss a page that renders the wrong words. On 29 October, `bun bench/visual/run.ts` put one visual check of a seeded defect through the daemon's own verifier, against the Meta Model API. The task's test command was a stand-in that prints one pass (`bench/visual/run.ts`), so only the visual check could turn it red. The fixture's admin page should tell an over-limit tenant to try again in 60 s; the seeded banner says "Try again in NaN s." instead.
 
-Muse Spark 1.3 got the screenshot and the criterion "The admin page tells an over-limit tenant when to try again", and answered that it does not hold: "The banner displays NaN s instead of the expected 60 s retry time." SAM 3.1 found the element it named, the yellow banner, and Stint drew its box on a copy of the screenshot. The verification went red with that reason. The check cost $0.0063: $0.0038 for Muse Spark (1,439 input tokens and 391 output) and $0.0025 for SAM 3.1's image.
+Muse Spark 1.3 got the screenshot and the criterion "The admin page tells an over-limit tenant when to try again", and answered that it does not hold: "The banner displays NaN s instead of the expected 60 s retry time." SAM 3.1 found the element it named, the yellow banner, and Stint drew its box on a copy of the screenshot. The verification went red with that reason. The check cost $0.0063: $0.0038 for Muse Spark (1,439 input tokens and 391 output) and $0.0025 for SAM 3.1's image. It is one check (n = 1) of one seeded defect: it shows the path working end to end, not how often Muse Spark judges a page right, and no page without a defect was checked, so there is no false-alarm rate.
 
 <p align="center"><img alt="The webhooks admin page with a yellow banner that says Too many requests (429). Try again in NaN s., boxed in red by SAM 3.1, above the Deliveries table" src="../bench/visual/visual-1-marked.png" width="640"></p>
 
@@ -94,13 +111,17 @@ The screenshot, the marked copy, the clip of the page loading and the full recor
 
 | Number | From | Record |
 |---|---|---|
-| A killed run continued to green: 29 of 29 tests, $0.10 | Live, 26 October: Muse Code killed, the Stint agent on Muse Spark 1.3 continued | `packages/daemon/test/continue.live.test.ts` |
-| A live packet of 404 tokens, shown below | Live, 27 October: Muse Code capped on the rate-limit task, its packet as the next agent read it | `bench/digest/runs/bench-01-rate-limit-packet/` |
+| A killed run continued to green: 29 of 29 tests, $0.10 | Live, 26 October: Muse Code killed, the Stint agent on Muse Spark 1.3 continued | `packages/daemon/test/continue.live.test.ts`, run with `STINT_LIVE=1`; the result is Gate 2 in `PROGRESS.md` |
+| A live packet of 404 tokens by Stint's estimate, shown below | Live, 27 October: Muse Code capped on the rate-limit task, its packet as the next agent read it | `bench/digest/runs/bench-01-rate-limit-packet/` |
 | The bench table | Live, 27 October, five tasks on the current build; the 26 October run is in the text | `bench/results.json`, `bench/digest/results.json` |
 | The golden set: 9 of 9 tries passed, pass^3 100%, $1.40 | Live, 27 October, three tasks, three tries each | `bench/golden-results.json` |
 | The skill eval: no findings either way, 32 against 31 tests passed, $0.1365 against $0.1724 | Live, 27 October, Muse Code with the learned skill and without | the T-0042 timeline's `skill.evaluated` |
 | The packet quiz: 4 of 8, two blocking misses, $0.08 | Live, 26 October, on the killed T-0042 packet | `PROGRESS.md` D-037 |
-| The visual gate: a seeded defect judged wrong by Muse Spark 1.3 and boxed by SAM 3.1, $0.0063 | Live, 29 October, one check through the daemon's own verifier | `bench/visual/result.json` |
+| The visual gate: a seeded defect judged wrong by Muse Spark 1.3 and boxed by SAM 3.1, $0.0063 | Live, 29 October, one check (n = 1) through the daemon's own verifier | `bench/visual/result.json` |
+
+Test counts on the demo fixture differ by run because each is the fixture's 27 tests plus the tests that run added. The 29 of 29 is the Gate 2 run above. The live take on 26 October continued T-0042 to 30 passed and 0 failed (`demo/recordings/2026-10-26-1/recording.jsonl`). The replay's 33 passed is hand-written, and so is its killed packet: `handoff-killed.json`, which renders to 412 tokens ([`packet.md`](packet.md)). The 404-token packet below is a live one.
+
+Token sizes of packets and hand-over prompts on this page are Stint's own estimate, characters / 3.6 (`packages/core/src/tokens.ts`), the same function every packet limit is checked with. Input and output tokens of a run, and the visual check's, are the counts the provider reported.
 
 ## The live packet
 
@@ -112,7 +133,7 @@ The screenshot, the marked copy, the clip of the page loading and the full recor
 - **The changed files and the daemon's verification.**
 - **One `askOfNext`.**
 
-It always renders under 600 tokens, and a killed run gets one too. This one is live: Muse Code was capped on the rate-limit task, and the Stint agent continued from these 404 tokens to a green verification.
+It always renders under 600 tokens by that estimate, and a killed run gets one too. This one is live: Muse Code was capped on the rate-limit task, and the Stint agent continued from these 404 tokens to a green verification.
 
 <details>
 <summary>The live packet, as the next agent read it</summary>
@@ -158,11 +179,11 @@ The full schema and the recorded killed example are in [`packet.md`](packet.md).
 
 ## Benchmark
 
-`stint bench` runs the same tasks twice from the same commit. Each time Muse Code is capped at the same step, and the Stint agent continues on Muse Spark 1.3, once from the full transcript and once from the packet plus the diff. The daemon runs the tests both times.
+`stint bench` runs the same tasks twice from the same commit. Each time Muse Code's first run is capped at the same step (two of the fifteen finished before it), and the Stint agent continues on Muse Spark 1.3, once from the full transcript and once from the packet plus the diff. The daemon runs the tests both times. Each mode gets its own first run (`packages/cli/src/bench/live.ts`), so the two continuations start from different checkpoints: in all five tasks the two first runs left different diffs and test counts. For the delete-tenant task, the run before the packet was capped with only a test file written (27 passed, 4 failed), and the run before the transcript completed the change (31 passed); compare `bench/runs/bench-03-delete-tenant-packet/handoff.json` with `bench/runs/bench-03-delete-tenant-transcript/handoff.json`. Three of the five transcript continuations started from a green first run, against one of the ten packet continuations.
 
 Live, 27 October, five tasks, on the current build:
 
-| Continue from | Hand-over prompt | Input tokens for the whole continued run | Cost | Tests green (daemon) |
+| Continue from | Hand-over prompt (estimated) | Input tokens for the whole continued run (provider's count) | Cost | Tests green (daemon) |
 |---|---|---|---|---|
 | the transcript | 6,328 tokens | 86,423 | $0.087 | 3 of 5 |
 | the packet | 929 tokens | 56,642 | $0.074 | 4 of 5 |
@@ -173,11 +194,11 @@ Live, 27 October, five tasks, on the current build:
   <img alt="Input tokens per continued run, transcript against packet, for five tasks" src="../bench/results-light.svg" width="640">
 </picture>
 
-The packet is about seven times smaller to hand over. Across its two runs, 9 of 10 continued runs passed against 3 of 5 from the transcript, using 31% fewer input tokens at 11% less cost.
+The packet is about seven times smaller to hand over, by Stint's estimate. Across its two runs, 9 of 10 continued runs passed against 3 of 5 from the transcript, using 31% fewer input tokens at 11% less cost.
 
-It took two steps. The first live run, on 26 October, passed 5 of 5 from both, with a packet of 728 tokens against 4,418, but the continued run cost about the same as from the transcript: the agent spent the difference re-reading code. The packet quiz showed why: the packet said which files changed, not what the code now does. So the daemon now asks the leaving agent for its own account before it builds the packet, and when the agent cannot be asked, as with a killed run, a model reads the diff and writes a digest instead. On 26 October a digest-only run used 48,623 input tokens per continued run, 20% fewer than the transcript, with 5 of 5 green. The bench caps runs rather than killing them, so on 27 October the agent answered every time; the second packet run had the digest on as a fallback and never needed it, which makes it a repeat of the first. The 26 October results are at commit `5a95aeb` (`git show 5a95aeb:bench/results.json`).
+It took two steps. The first live run, on 26 October, passed 5 of 5 from both, with a packet of 728 tokens against 4,418 (estimated), but the continued run cost about the same as from the transcript: the agent spent the difference re-reading code. The packet quiz showed why: the packet said which files changed, not what the code now does. So the daemon now asks the leaving agent for its own account before it builds the packet, and when the agent cannot be asked, as with a killed run, a model reads the diff and writes a digest instead. On 26 October a digest-only run used 48,623 input tokens per continued run, 20% fewer than the transcript, with 5 of 5 green. The bench caps runs rather than killing them, so on 27 October the agent answered every time; the second packet run had the digest on as a fallback and never needed it, which makes it a repeat of the first. The 26 October results are at commit `5a95aeb` (`git show 5a95aeb:bench/results.json`).
 
-One run per task and mode is a small sample, and single tasks swung both ways (one transcript run used 140,290 input tokens, one packet run 27,465), so read this as a measurement, not a law. The rows, prompts, packets and transcripts are in `bench/runs/` and `bench/digest/runs/`, and `stint bench --replay` rebuilds the tables from them.
+The pass rates are descriptive. Each rests on one run per task and mode (n = 5 per row), the runs started from different checkpoints, and single tasks swung both ways (one transcript run used 140,290 input tokens, one packet run 27,465), so the table describes these runs and does not isolate the packet's effect. There is no comparison yet against Muse Code resuming its own session, or against handing over the task and the diff without the packet. The rows, prompts, packets and transcripts are in `bench/runs/` and `bench/digest/runs/`, and `stint bench --replay` rebuilds the tables from them.
 
 ## Meta models, where each one works
 
