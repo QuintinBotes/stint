@@ -2,7 +2,7 @@
 # scripts/bootstrap.sh: take a fresh clone to a running daemon and UI.
 # Usage: scripts/bootstrap.sh [--check-only] [--with-glimmer]
 # --with-glimmer also starts the Glimmer download for the offline review; nothing else downloads a model.
-# Exit codes: 0 ok, 2 missing Bun or git, 3 install failed.
+# Exit codes: 0 ok, 2 missing Bun or git, 3 install or web build failed.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -68,8 +68,19 @@ if command -v muse >/dev/null 2>&1; then
 else
   say "  muse-code      unavailable: muse CLI not installed (https://dev.meta.ai/install.sh)"
 fi
-if has_key META_API_KEY || has_key FIREWORKS_API_KEY || has_key BASETEN_API_KEY; then say "  stint-agent    key set for Muse Spark (not checked here; stint up --check asks the host)"
-else say "  stint-agent    unavailable: no META_API_KEY, FIREWORKS_API_KEY or BASETEN_API_KEY"; fi
+# the Stint agent's own rule (packages/adapters/stint-agent): the first host in its chain with a key, else Ollama answering
+ollama_answers() { bun -e 'fetch("http://localhost:11434/api/version", { signal: AbortSignal.timeout(800) }).then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))' >/dev/null 2>&1; }
+agent_host=""
+if has_key META_API_KEY; then agent_host="meta-api/muse-spark-1.3"
+elif has_key FIREWORKS_API_KEY; then agent_host="fireworks/muse-spark-open"
+elif has_key BASETEN_API_KEY; then agent_host="baseten/muse-spark-open"
+elif has_key MODAL_API_KEY && has_key MODAL_BASE_URL; then agent_host="modal/muse-spark-open"
+elif ollama_answers; then agent_host="ollama/$GLIMMER"; fi
+case "$agent_host" in
+  "") say "  stint-agent    unavailable: no META_API_KEY, FIREWORKS_API_KEY, BASETEN_API_KEY or MODAL_API_KEY, and Ollama does not answer at localhost:11434" ;;
+  ollama/*) say "  stint-agent    available: $agent_host first (Ollama answers at localhost:11434)" ;;
+  *) say "  stint-agent    available: $agent_host first (key set, not checked here; stint up --check asks the host)" ;;
+esac
 if [ "$glimmer_ok" = 1 ]; then say "  ollama         available: $GLIMMER pulled (offline review, \$0)"
 elif [ "$ollama_ok" = 1 ]; then say "  ollama         unavailable: $GLIMMER not pulled yet (ollama pull $GLIMMER)"
 else say "  ollama         unavailable: ollama not installed"; fi
@@ -91,4 +102,11 @@ if ! command -v stint >/dev/null 2>&1; then
   say "To use stint from any folder, install the command: bash scripts/install-cli.sh"
   say ""
 fi
-exec bun run demo
+# the build's log only matters when it fails; on success the replay's address is the last thing printed
+tmp="${TMPDIR:-/tmp}"; build_log="${tmp%/}/stint-web-build.log"
+if ! bun run build:web >"$build_log" 2>&1; then
+  cat "$build_log"
+  say "the web build failed; its log is in $build_log"
+  exit 3
+fi
+exec bun packages/cli/bin/stint demo --keep --open

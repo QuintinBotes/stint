@@ -16,5 +16,9 @@ test('bun run dev runs the daemon under bun --watch beside vite, which proxies t
   const vite = readFileSync(join(root, 'apps', 'web', 'vite.config.ts'), 'utf8');
   expect(vite).toContain("process.env.STINT_DAEMON");
   expect(vite).toContain("'stint-dev-token'");
-  expect(readFileSync(join(root, 'scripts', 'bootstrap.sh'), 'utf8')).toContain('exec bun run demo');
+  // bootstrap is bun run demo with the build's log kept in a file
+  const [build, replay] = scripts.demo?.split(' && ') ?? [];
+  const bootstrap = readFileSync(join(root, 'scripts', 'bootstrap.sh'), 'utf8');
+  expect(bootstrap).toContain(`if ! ${build} >"$build_log" 2>&1; then`);
+  expect(bootstrap).toContain(`exec ${replay}\n`);
 });
