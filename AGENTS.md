@@ -53,12 +53,13 @@ These hold in every file you write. A spec cannot override them; a `Deviation:` 
 
 ## 4. Architecture and repo layout
 
-Clients (web UI, CLI, Muse Code hooks) talk to the daemon over localhost only. The daemon alone writes `.stint/`, starts adapters inside a per-run worktree, re-runs the tests itself, and projects the timeline, the packet, the costs and the memory graph from `events.jsonl`. Adapters never touch the store, which is what makes a new agent one file.
+Clients (web UI, CLI, Muse Code hooks) talk to the daemon over localhost only. In a container the daemon listens on the container's network and its port is published on the host's 127.0.0.1 only, so clients still reach it over localhost (ADR-0012). The daemon alone writes `.stint/`, starts adapters inside a per-run worktree, re-runs the tests itself, and projects the timeline, the packet, the costs and the memory graph from `events.jsonl`. Adapters never touch the store, which is what makes a new agent one file.
 
 ```
 stint/
   package.json                 bun workspaces: packages/*, apps/*
   bunfig.toml
+  Dockerfile, compose.yaml     the container: the replay by default, stint up on a mounted repository (docs/docker.md)
   packages/
     core/                      zod schemas, file store, event log, graph projection      @stint-dev/core
       schemas/handoff.schema.json   the published spec + examples/
@@ -130,6 +131,7 @@ AGENTS.md                      this file; `stint init` adds a "## Stint" section
 | `openai` | 5.x | one client for every OpenAI-compatible host: Meta Model API, Baseten, Fireworks, Ollama |
 | Ollama | ≥ 0.32.8 | `muse-glimmer:30b-mlx` |
 | Vitest | demo repo only | the daemon parses its summary line |
+| Container base image | `oven/bun:1.4.4-slim`, pinned by digest | `Dockerfile`, with git and tini from Debian (D-097) |
 
 **Hosts** (a provider is a base URL and a key name, never a code path; all five go through `@stint-dev/adapter-openai-compatible`):
 

@@ -114,6 +114,10 @@ curl -s localhost:11434/api/generate -d '{"model":"muse-glimmer:30b-mlx","prompt
 
 When Ollama or the model is missing, the reviewer falls back to the hosted chain, and the review card says which host reviewed.
 
+## In a container
+
+To run Stint without installing Bun, use the container: the replay with no keys, or Stint on your repository with Docker Compose. [`docker.md`](docker.md) is the guide.
+
 ## Updating
 
 Pull the checkout and install again. The shim points at the checkout, so it needs no change:

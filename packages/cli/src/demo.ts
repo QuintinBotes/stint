@@ -6,6 +6,7 @@ import { defineCommand } from 'citty';
 import { BEATS, type Beat, runLiveDemo } from './demo/live';
 import { recordWorkspace } from './demo/record';
 import { seedDemo, seedDemoConfig } from './demo/seed';
+import { bindAddress, bindWarning } from './bind';
 import { repoRoot } from './repo';
 import { readSSE } from './sse';
 import { keepAwake } from './awake';
@@ -31,6 +32,8 @@ export const demo = defineCommand({
     path: { type: 'string', description: 'Recording file (default demo/recording.jsonl)' },
     keep: { type: 'boolean', description: 'Keep the daemon running for the UI after the replay ends' },
     open: { type: 'boolean', description: 'Open the UI in the browser' },
+    port: { type: 'string', description: 'Port for the replay daemon (0 picks a free one; default STINT_PORT)', default: process.env.STINT_PORT ?? '0' },
+    bind: { type: 'string', description: '127.0.0.1, or 0.0.0.0 inside a container (default STINT_BIND or 127.0.0.1)', default: process.env.STINT_BIND ?? '127.0.0.1' },
     json: { type: 'boolean', description: 'One JSON line per event, then a summary line' },
     live: { type: 'boolean', description: 'Run the beats live through the daemon with real models' },
     auto: { type: 'boolean', description: 'Do not pause for Enter between beats (--live)' },
@@ -109,9 +112,17 @@ export const demo = defineCommand({
     if (args.json) out(JSON.stringify(header));
     else out(`${rec.header.live ? `Replay of a live run on ${rec.header.recordedAt.slice(0, 10)}` : 'Replay, hand-written'}: ${rec.header.title}`);
 
+    let hostname = '127.0.0.1';
+    try {
+      hostname = bindAddress(args.bind);
+    } catch (err) {
+      fail(err);
+    }
     const root = freshFixture();
     await seedDemoConfig(root);
-    const d = await startDaemon({ root, quiet: true, handleSignals: Boolean(args.keep), autoReview: true });
+    const wide = bindWarning(hostname);
+    if (wide) process.stderr.write(`${wide}\n`);
+    const d = await startDaemon({ root, port: Number(args.port) || 0, hostname, quiet: true, handleSignals: Boolean(args.keep), autoReview: true });
     if (!args.json) out(`Watch it at ${d.url}`);
     if (args.open) {
       const opener = process.platform === 'darwin' ? 'open' : Bun.which('xdg-open') ? 'xdg-open' : null;

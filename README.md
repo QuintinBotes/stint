@@ -55,7 +55,7 @@ git clone https://github.com/QuintinBotes/stint && cd stint
 bash scripts/bootstrap.sh
 ```
 
-Bootstrap checks Bun and git, installs the dependencies, unpacks the demo repository and replays the recorded story through the real daemon, with no keys and no model download. On CI, from a clean clone, these steps take about 10 seconds once the clone is done. It opens the UI and prints its address: open T-0042 on the Board for its runs, the kill, the hand-off, the offline review and the merge. Ctrl-C stops it. For the offline review, `bash scripts/bootstrap.sh --with-glimmer` also pulls Muse Glimmer 30B, a 19 GB download, in the background.
+Bootstrap checks Bun and git, installs the dependencies, unpacks the demo repository and replays the recorded story through the real daemon, with no keys and no model download. On CI, from a clean clone, these steps take about 10 seconds once the clone is done. It opens the UI and prints its address: open T-0042 on the Board for its runs, the kill, the hand-off, the offline review and the merge. Ctrl-C stops it. For the offline review, `bash scripts/bootstrap.sh --with-glimmer` also pulls Muse Glimmer 30B, a 19 GB download, in the background. With Docker and nothing else installed, `docker build -t stint .` and `docker run --rm -p 127.0.0.1:4319:4319 stint` play the same replay in a container; [`docs/docker.md`](docs/docker.md) runs Stint on your own repository that way.
 
 ## Install
 
@@ -203,7 +203,7 @@ Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Mu
 
 ## How it works
 
-- A daemon (Bun and Hono) on 127.0.0.1 is the only writer of `.stint/`; the CLI and the UI ask it.
+- A daemon (Bun and Hono) on 127.0.0.1 is the only writer of `.stint/`; the CLI and the UI ask it. In a container it listens on the container's network, and its port is published on 127.0.0.1 only ([`docs/docker.md`](docs/docker.md)).
 - Every view is projected from each task's hash-chained `events.jsonl`, so the folder is readable without Stint.
 - Each run gets its own worktree. The daemon runs the tests and locks the test files the plan names; a visual proof has Muse Spark judge the page and SAM 3.1 mark what looks wrong ([`docs/verify.md`](docs/verify.md)).
 - Every ending writes a packet (`stint.handoff/1`), never a transcript ([`docs/packet.md`](docs/packet.md)).

@@ -204,6 +204,7 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | D-094 | 2026-10-31 | author | The default implementer token budget is 1,200,000, a person raises a task's token budget with `stint limits <task> --implementer-tokens N`, and the `budget_exceeded` refusal names the tokens spent and that command (R-062) | one Muse Code build used 91,000 to 142,000 uncached tokens, so the old 150,000 refused the second build or hand-off of every task while autopilot allows 8 builds, and nothing let a person raise it; the UI also answered "Check the fields and try again" |
 | D-095 | 2026-10-31 | owner | The visual check keeps drawing SAM 3.1's box, not its outline: Stint does not add `@meta-sam/parser` (R-068) | decoding SAM's mask needs that parser under the separate SAM License; the box already marks the fault, it is what `bench/visual/` shows, and it adds no dependency or licence |
 | D-096 | 2026-10-31 | owner | The GitHub Pages site opens on a landing page, and the read-only board moves from `/stint/` to `/stint/demo/` (R-069) | the board alone did not say what Stint is; the landing page explains it in a screen, plays the film and sends people to the demo, so a link to `/stint/` still lands somewhere that leads to it |
+| D-097 | 2026-11-02 | owner | Stint ships a container image on `oven/bun:1.4.4-slim`, pinned by digest, with git and tini from Debian. The daemon listens on the container's network (`--bind`, `STINT_BIND`), and `compose.yaml` publishes its port on the host's 127.0.0.1 only (ADR-0012) | the owner asked for Stint to be self-hostable; the web page carries the daemon's token, so the port stays on the host's loopback, and the localhost Host check and the token stay as they were |
 
 ## Deviations (a spec line not followed, with the reason; the human decides whether the spec changes)
 
@@ -243,6 +244,7 @@ Shadow mode always records the policy's would-approve beside every approve, reje
 | R-022, R-056 | R-022 Req 2 and R-056 Req 4, `--mic` records the voice beat | not built | the person removed the spoken task ("drop Speak a task"); the demo starts from a typed task | decided by the person |
 | R-011 | Acceptance 1, usd 0.0276 | 0.0303 | 0.0276 does not follow from the default prices under any reading of cached tokens; D-012 gives 0.0303 | pending |
 | R-060 | Interfaces, error codes | `skill_invalid` 422, `skill_blocked` 409 and `skill_unacknowledged` 409 join the daemon's error codes | SPEC-000 lists the codes; R-060 names these three and asks for this line | author, 2026-10-28 |
+| R-004 | Req 1, "on `127.0.0.1` only" | `--bind` or `STINT_BIND` sets another address; the default stays 127.0.0.1, and only the container image sets 0.0.0.0, with its port published on the host's 127.0.0.1 | ADR-0012 (D-097): a port published from a container reaches only a server that listens on the container's network | owner, 2026-11-02 |
 
 ## Reviews
 

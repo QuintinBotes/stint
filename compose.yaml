@@ -1,0 +1,38 @@
+# Stint on a repository of yours, in a container. docs/docker.md is the guide.
+# Put STINT_REPO=/path/to/your/repo in .env beside this file, with your keys, then:
+#   docker compose up -d
+#   docker compose logs -f stint
+# The daemon's port is published on this machine's 127.0.0.1 only: the web page carries the daemon's token.
+
+name: stint
+
+services:
+  stint:
+    build: .
+    image: stint:local
+    command: ["up", "--repo", "/repo"]
+    ports:
+      - "127.0.0.1:${STINT_HOST_PORT:-4319}:4319"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      STINT_BIND: 0.0.0.0
+      STINT_PORT: "4319"
+    volumes:
+      - ${STINT_REPO:?set STINT_REPO to the repository Stint works on}:/repo
+    # on Linux, set STINT_UID and STINT_GID to the repository owner's, as `id -u` and `id -g` print them
+    user: "${STINT_UID:-1000}:${STINT_GID:-1000}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/stint
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    # the daemon gives runs that are ending up to 10 s to commit, verify and write their packet
+    stop_grace_period: 20s

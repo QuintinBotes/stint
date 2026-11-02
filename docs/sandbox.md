@@ -57,6 +57,7 @@ On its own, the proxy covers only tools that honour the proxy variables, which m
 - With egress on, the container sits on an internal network (`stint-egress`) with no route out. Its only way out is a proxy sidecar, which applies the same allow list and logs refusals back onto the run.
 - The image is `sandbox.image` (default `node:22`) and must contain the agent's command line.
 - Hooks that call the daemon do not work from inside a container.
+- When the daemon itself runs in a container ([`docker.md`](docker.md)), this sandbox is not available: the image holds no Docker, and `compose.yaml` does not mount the Docker socket.
 
 **`none`**, the default, runs agents with no sandbox.
 

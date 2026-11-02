@@ -48,16 +48,18 @@ export type DaemonInfo = { port: number; token: string; pid: number; startedAt: 
 export type StartOptions = {
   root: string;
   port?: number;
+  /** The address to listen on. 127.0.0.1 unless a container publishes the port from its own network (ADR-0012). */
+  hostname?: string;
   adapters?: Adapter[];
   quiet?: boolean;
   /** Install SIGTERM and SIGINT handlers that remove daemon.json and exit. */
   handleSignals?: boolean;
 } & Partial<Pick<AppOptions, 'webDist' | 'heartbeatMs' | 'health' | 'digest' | 'autoReview'>>;
 
-/** `hostname` is the address the server is bound to, which is always 127.0.0.1 (R-004). */
+/** `hostname` is the address the server is bound to, 127.0.0.1 unless a container asked for another (ADR-0012); `url` is loopback, which reaches either. */
 export type RunningDaemon = DaemonInfo & { hostname: string; url: string; ws: Workspace; infoPath: string; stop: () => Promise<void> };
 
-/** Starts the daemon on 127.0.0.1 only and writes `.stint/cache/daemon.json` (mode 0600). */
+/** Starts the daemon on 127.0.0.1, or on `o.hostname` inside a container, and writes `.stint/cache/daemon.json` (mode 0600). */
 export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   const ws = await Workspace.open(o.root);
   const token = randomBytes(24).toString('hex');
@@ -99,7 +101,7 @@ export async function startDaemon(o: StartOptions): Promise<RunningDaemon> {
   (releaseTimer as unknown as { unref?: () => void }).unref?.();
   const { websocket } = createBunWebSocket();
   const server = Bun.serve({
-    hostname: '127.0.0.1',
+    hostname: o.hostname ?? '127.0.0.1',
     port: o.port ?? ws.config.port ?? 0,
     fetch: app.fetch,
     websocket,
