@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Enrichment, RunResult } from '../adapter';
 import type { DaemonContext } from '../app';
 import { quizPacket } from '../quiz';
+import { runEnv } from '../env';
 import { DaemonError } from '../errors';
 import { buildHandoff } from '../handoff';
 import { assign, priced, stop } from '../lifecycle';
@@ -19,8 +20,10 @@ async function enrichFrom(ctx: DaemonContext, taskId: string, run: string, adapt
   const adapter = ctx.adapters.find((a) => a.id === adapterId);
   if (!adapter?.enrich || !adapter.capabilities.resumable || !sessionId) return null;
   const task = await ctx.ws.readTask(taskId);
+  const worktree = worktreePath(ctx.ws, taskId, run);
+  const env = runEnv(taskId, run, worktree, { keep: adapter.needsEnv ?? [], hosts: ctx.ws.config.hosts });
   const ask = adapter
-    .enrich({ task, run, sessionId, worktree: worktreePath(ctx.ws, taskId, run), ...(model ? { model } : {}) })
+    .enrich({ task, run, sessionId, worktree, env, ...(model ? { model } : {}) })
     .then(async ({ cost, ...fields }) => {
       // recorded when the call answers, even after the cap gave up waiting: it was paid for either way (D-060)
       if (cost) await ctx.ws.events(taskId).append({ task: taskId, vendor: 'daemon', type: 'cost.recorded', payload: { for: 'enrich', run, host: billingHost(null, adapterId), model: model ?? null, cost: priced(ctx, adapterId, { cost, model }) } });

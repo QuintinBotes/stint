@@ -57,3 +57,44 @@ test('D-060: asking a leaving Muse Code session for the packet is metered as cos
     cleanup();
   }
 }, 60_000);
+
+test('the leaving session is asked with the environment its run had, not the daemon\'s keys', async () => {
+  const saved = { META_API_KEY: process.env.META_API_KEY, AGENT_ONLY_KEY: process.env.AGENT_ONLY_KEY };
+  process.env.META_API_KEY = 'not-a-real-key';
+  process.env.AGENT_ONLY_KEY = 'kept';
+  try {
+    await withFixtureRepo(async (repo) => {
+      let ran: Record<string, string> = {};
+      let asked: Record<string, string> | undefined;
+      const base = fakeAdapter('edit');
+      const agent: Adapter = {
+        ...base,
+        capabilities: { ...base.capabilities, resumable: true },
+        needsEnv: ['AGENT_ONLY_KEY'],
+        async run(ctx): Promise<RunResult> {
+          ran = ctx.env;
+          return { ...(await base.run(ctx)), sessionId: 'sess-1' };
+        },
+        enrich: async (ctx) => {
+          asked = ctx.env;
+          return {};
+        },
+      };
+      const { app, ws } = await makeApp(repo, [agent]);
+      const t = await ws.createTask(newTask);
+      await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'fake', role: 'implementer' });
+      for (let i = 0; i < 300 && (await ws.handoffs(t.id).names()).length === 0; i++) await Bun.sleep(50);
+      // the run's token and port are for its own process only
+      const { STINT_RUN_TOKEN: _token, STINT_DAEMON_PORT: _port, ...runEnv } = ran;
+      expect(asked).toEqual(runEnv);
+      expect(asked?.META_API_KEY).toBeUndefined();
+      expect(asked?.AGENT_ONLY_KEY).toBe('kept');
+      expect(asked?.STINT_TASK).toBe(t.id);
+    });
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}, 60_000);

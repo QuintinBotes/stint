@@ -79,7 +79,7 @@ const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string =>
  * packet takes from an agent, and the call's tokens. Anything malformed or late comes back with no fields, and the
  * daemon builds the packet from events alone; the tokens come back either way, since the call was paid for.
  */
-export async function askSession(sessionId: string, worktree: string, model: string): Promise<Enrichment> {
+export async function askSession(sessionId: string, worktree: string, model: string, env: Record<string, string>): Promise<Enrichment> {
   const dir = mkdtempSync(join(tmpdir(), 'stint-enrich-'));
   let spent: Enrichment = {};
   try {
@@ -90,7 +90,7 @@ export async function askSession(sessionId: string, worktree: string, model: str
     // resolved on the current PATH, as the daemon resolves gh, so a test can put a fake first
     const bin = Bun.which('muse', { PATH: process.env.PATH ?? '' });
     if (!bin) return {};
-    const p = Bun.spawn([bin, ...museArgs({ promptPath, model, steps: 3, sessionId, outputSchema })], { cwd: worktree, stdout: 'pipe', stderr: 'ignore', timeout: ENRICH_TIMEOUT_MS });
+    const p = Bun.spawn([bin, ...museArgs({ promptPath, model, steps: 3, sessionId, outputSchema })], { cwd: worktree, env, stdout: 'pipe', stderr: 'ignore', timeout: ENRICH_TIMEOUT_MS });
     const mapper = new MuseMapper();
     for (const line of (await new Response(p.stdout).text()).split('\n')) if (line.trim()) mapper.map(line);
     if (mapper.usage) spent = { cost: { ...mapper.usage, usd: null } };
@@ -195,5 +195,5 @@ export const museCodeAdapter: Adapter = {
       rmSync(dir, { recursive: true, force: true });
     }
   },
-  enrich: (ctx) => (ctx.sessionId ? askSession(ctx.sessionId, ctx.worktree, ctx.model ?? DEFAULT_MODEL) : Promise.resolve({})),
+  enrich: (ctx) => (ctx.sessionId ? askSession(ctx.sessionId, ctx.worktree, ctx.model ?? DEFAULT_MODEL, ctx.env) : Promise.resolve({})),
 };

@@ -14,6 +14,7 @@
 - `stint bench` gains a `resume` mode, in which Muse Code continues its own capped session, and `scripts/unfinished-bench.ts` runs every mode from checkpoints that fail their held-out tests. On 2 November, on two tasks with four runs per mode, every mode finished the code, resume included, and the packet was the dearest (`bench/fair-unfinished/`).
 
 ### Fixed (2 November)
+- The question to a leaving Muse Code session for its packet goes out with the run's environment instead of the daemon's, so the API key no longer reaches it and the session answers on Muse Code's own login. Until now the API refused it, and no live packet from Muse Code carried the agent's own account.
 - A review whose findings are empty no longer becomes an approval when the model blocked: its blockers become its findings, an approve that lists blockers becomes a block, and a block that names nothing is asked for again and then passed to the next host. A scan of the 164 recorded reviews found none with blockers turned into an approval.
 - A daemon restart after a crash during verification builds the packet the run never got, once, through the same path a run's end uses.
 - The Stint agent gives each call its host's `timeoutMs` when that is longer than 120 s, as planning and review already did, so a continuation on Muse Glimmer through Ollama gets its 10 minutes.
