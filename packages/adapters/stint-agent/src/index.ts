@@ -27,6 +27,7 @@ export function systemPromptFor(skills: Array<{ name: string; description: strin
 }
 
 const DEFAULT_CHAIN = ['meta-api/muse-spark-1.3', 'fireworks/muse-spark-open', 'baseten/muse-spark-open', 'modal/muse-spark-open', 'ollama/muse-glimmer:30b-mlx'];
+/** The time one call gets where its host sets no `timeoutMs`; a host's own is the least it gets, as for plan and review. */
 const CALL_TIMEOUT_MS = 120_000;
 
 export type HostCall = { host: string; model: string; providerId: string; client: OpenAI };
@@ -50,7 +51,7 @@ export function hostCall(entry: string, config: Config, env: Record<string, stri
   if (h.keyEnv && !key) return { unavailable: `${h.keyEnv} not set` };
   const baseURL = h.baseURL ?? (h.baseURLEnv ? env[h.baseURLEnv] : undefined);
   if (!baseURL) return { unavailable: `${h.baseURLEnv ?? 'baseURL'} not set` };
-  return { host: host as string, model, providerId: h.models[model] ?? model, client: new OpenAI({ apiKey: key ?? 'none', baseURL, maxRetries: 0, timeout: CALL_TIMEOUT_MS }) };
+  return { host: host as string, model, providerId: h.models[model] ?? model, client: new OpenAI({ apiKey: key ?? 'none', baseURL, maxRetries: 0, timeout: Math.max(CALL_TIMEOUT_MS, h.timeoutMs ?? 0) }) };
 }
 
 function reasonOf(err: unknown): string | null {
