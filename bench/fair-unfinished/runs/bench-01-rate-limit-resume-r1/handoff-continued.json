@@ -1,0 +1,96 @@
+{
+  "askOfNext": "Review the change against the plan, the decisions and AGENTS.md.",
+  "changedFiles": [
+    {
+      "added": 3,
+      "path": "src/app.ts",
+      "removed": 0,
+      "run": "r2"
+    },
+    {
+      "added": 4,
+      "path": "src/config.ts",
+      "removed": 0,
+      "run": "r2"
+    },
+    {
+      "added": 22,
+      "path": "src/lib/limiter.ts",
+      "removed": 0,
+      "run": "r2"
+    },
+    {
+      "added": 6,
+      "path": "src/routes/webhooks.ts",
+      "removed": 0,
+      "run": "r2"
+    },
+    {
+      "added": 3,
+      "path": "test/config.test.ts",
+      "removed": 3,
+      "run": "r2"
+    },
+    {
+      "added": 56,
+      "path": "test/rate-limit.test.ts",
+      "removed": 0,
+      "run": "r2"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 440155,
+    "inputTokens": 483811,
+    "outputTokens": 3241,
+    "usd": 0.1368
+  },
+  "createdAt": "2026-11-02T20:49:05.597Z",
+  "decisions": [
+    {
+      "id": "D1",
+      "text": "rate limit is a fixed window per tenant, checked right after tenant validation so all requests from known tenants count"
+    },
+    {
+      "id": "D2",
+      "text": "429 responses are not stored or audited, like other webhook rejections"
+    },
+    {
+      "id": "D3",
+      "text": "tests: test/config.test.ts changed because the new rate-limit fields had to be added to its exact loadConfig() expectations"
+    }
+  ],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "d4074a9efe55158a6be52261709b96120814ebfd"
+  },
+  "done": [
+    "Verification by the daemon: 33 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "completed",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r2",
+    "sessionId": "01a19df2-9966-72c0-9f56-7efa90d9d990",
+    "vendor": "meta"
+  },
+  "hash": "sha256:d3a1f1ef0e3fb53df8057c907bfd8f41f0151219eaea82d3bd0b817f72b1a007",
+  "leftOut": [],
+  "open": [],
+  "refusals": [],
+  "risks": [],
+  "summary": "Done. All 33 tests pass and typecheck is clean. What changed: - `src/lib/limiter.ts` (new, from earlier in this task): fixed-window `RateLimiter` keyed by tenant, with injectable `now` for testing. - `src/config.ts` (earlier): `rateLimitMax` (`RATE_LIMIT_MAX`, default 100) and `rateLimitWindowMs` (`RATE_LIMIT_WINDOW_MS`, default 60000) via `loadConfig()`. - `src/app.ts`: added shared `limiter: ...",
+  "task": "T-0001",
+  "verification": {
+    "command": "bun run test",
+    "durationMs": 799,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 33,
+    "runBy": "daemon",
+    "status": "green"
+  },
+  "version": "stint.handoff/1"
+}

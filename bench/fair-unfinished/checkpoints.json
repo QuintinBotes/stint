@@ -1,0 +1,124 @@
+[
+  {
+    "task": "bench-01-rate-limit",
+    "cap": 5,
+    "createdAt": "2026-11-02T20:28:50.860Z",
+    "endedBy": "capped",
+    "firstRunUsd": 0.0795,
+    "sessionId": "01a19df2-9966-72c0-9f56-7efa90d9d990",
+    "sessionKept": true,
+    "changedFiles": [
+      "src/config.ts",
+      "src/lib/limiter.ts"
+    ],
+    "ownTests": "Tests  2 failed | 25 passed (27)",
+    "heldOut": {
+      "passed": 1,
+      "failed": 2,
+      "line": "Tests  2 failed | 1 passed (3)"
+    },
+    "unfinished": true,
+    "continued": true
+  },
+  {
+    "task": "bench-02-get-event",
+    "cap": 4,
+    "createdAt": "2026-11-02T20:30:50.474Z",
+    "endedBy": "capped",
+    "firstRunUsd": 0.0603,
+    "sessionId": "01a19df4-c157-72b0-8e2b-ecdd2c01f092",
+    "sessionKept": true,
+    "changedFiles": [
+      "src/routes/events.ts",
+      "test/events.test.ts"
+    ],
+    "ownTests": "Tests  30 passed (30)",
+    "heldOut": {
+      "passed": 4,
+      "failed": 0,
+      "line": "Tests  4 passed (4)"
+    },
+    "unfinished": false,
+    "continued": false
+  },
+  {
+    "task": "bench-03-delete-tenant",
+    "cap": 5,
+    "createdAt": "2026-11-02T20:32:39.366Z",
+    "endedBy": "capped",
+    "firstRunUsd": 0.0683,
+    "sessionId": "01a19df6-55b2-7892-90b9-a3707af22e07",
+    "sessionKept": true,
+    "changedFiles": [
+      "src/lib/tenants.ts"
+    ],
+    "ownTests": "Tests  27 passed (27)",
+    "heldOut": {
+      "passed": 2,
+      "failed": 3,
+      "line": "Tests  3 failed | 2 passed (5)"
+    },
+    "unfinished": true,
+    "continued": true
+  },
+  {
+    "task": "bench-04-audit-limit-config",
+    "cap": 5,
+    "createdAt": "2026-11-02T20:34:26.777Z",
+    "endedBy": "capped",
+    "firstRunUsd": 0.0676,
+    "sessionId": "01a19df7-fe57-7b12-99b1-91d1133b3106",
+    "sessionKept": true,
+    "changedFiles": [
+      "src/config.ts"
+    ],
+    "ownTests": "Tests  27 passed (27)",
+    "heldOut": {
+      "passed": 0,
+      "failed": 4,
+      "line": "Tests  4 failed (4)"
+    },
+    "unfinished": true,
+    "continued": false
+  },
+  {
+    "task": "bench-05-audit-json",
+    "cap": 6,
+    "createdAt": "2026-11-02T20:36:30.702Z",
+    "endedBy": "capped",
+    "firstRunUsd": 0.0846,
+    "sessionId": "01a19df9-a53d-7ee3-87e3-6ecdb177be44",
+    "sessionKept": true,
+    "changedFiles": [
+      "src/lib/audit.ts"
+    ],
+    "ownTests": "Tests  27 passed (27)",
+    "heldOut": {
+      "passed": 2,
+      "failed": 2,
+      "line": "Tests  2 failed | 2 passed (4)"
+    },
+    "unfinished": true,
+    "continued": false
+  },
+  {
+    "task": "bench-02-get-event",
+    "cap": 3,
+    "createdAt": "2026-11-02T20:41:20.319Z",
+    "endedBy": "capped",
+    "firstRunUsd": 0.0548,
+    "sessionId": "01a19dfe-63b3-7353-b689-0f7abe5c5e5d",
+    "sessionKept": true,
+    "changedFiles": [
+      "src/routes/events.ts"
+    ],
+    "ownTests": "Tests  27 passed (27)",
+    "heldOut": {
+      "passed": 4,
+      "failed": 0,
+      "line": "Tests  4 passed (4)"
+    },
+    "unfinished": false,
+    "continued": false
+  }
+]

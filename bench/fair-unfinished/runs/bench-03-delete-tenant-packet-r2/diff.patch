@@ -1,0 +1,62 @@
+diff --git a/src/lib/tenants.ts b/src/lib/tenants.ts
+index 3065154..22b2461 100644
+--- a/src/lib/tenants.ts
++++ b/src/lib/tenants.ts
+@@ -30,6 +30,10 @@ export class TenantRegistry {
+     return this.tenants.get(id);
+   }
+ 
++  remove(id: string): boolean {
++    return this.tenants.delete(id);
++  }
++
+   create(id: string, name: string, now = new Date()): Tenant {
+     if (!TENANT_ID.test(id)) throw new TenantError('id must be lowercase letters, digits and dashes', 'invalid');
+     if (name.trim() === '') throw new TenantError('name is required', 'invalid');
+diff --git a/src/routes/admin.ts b/src/routes/admin.ts
+index c5cb715..29a1469 100644
+--- a/src/routes/admin.ts
++++ b/src/routes/admin.ts
+@@ -22,5 +22,12 @@ export function adminRoutes(deps: Deps): Hono {
+     }
+   });
+ 
++  r.delete('/tenants/:id', (c) => {
++    const id = c.req.param('id');
++    if (!deps.tenants.remove(id)) return c.json({ error: `unknown tenant ${id}` }, 404);
++    deps.audit.record(id, 'tenant.deleted', id);
++    return c.json({ deleted: id });
++  });
++
+   return r;
+ }
+diff --git a/test/admin.test.ts b/test/admin.test.ts
+index c936e52..49401c6 100644
+--- a/test/admin.test.ts
++++ b/test/admin.test.ts
+@@ -34,4 +34,25 @@ describe('admin API', () => {
+     await createTenant(send, { id: 'tenant-c', name: 'Tenant C' });
+     expect((await postWebhook('tenant-c', { type: 'hello' })).status).toBe(202);
+   });
++
++  it('deletes a tenant', async () => {
++    const { send, deps } = setup();
++    const res = await send('/admin/tenants/tenant-a', { method: 'DELETE' });
++    expect(res.status).toBe(200);
++    expect(await res.json()).toMatchObject({ deleted: 'tenant-a' });
++    expect(deps.tenants.get('tenant-a')).toBeUndefined();
++    expect(deps.audit.list()).toMatchObject([{ tenant: 'tenant-a', action: 'tenant.deleted', target: 'tenant-a' }]);
++  });
++
++  it('answers 404 for an unknown tenant', async () => {
++    const { send } = setup();
++    const res = await send('/admin/tenants/no-such-tenant', { method: 'DELETE' });
++    expect(res.status).toBe(404);
++  });
++
++  it('rejects webhooks for a deleted tenant', async () => {
++    const { send, postWebhook } = setup();
++    await send('/admin/tenants/tenant-a', { method: 'DELETE' });
++    expect((await postWebhook('tenant-a', { type: 'hello' })).status).toBe(404);
++  });
+ });
