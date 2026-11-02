@@ -14,7 +14,7 @@
     "@fontsource-variable/geist-mono": "5.3.0",
     "@pierre/diffs": "1.5.2",
     "@stint-dev/core": "workspace:*",
-    "@tanstack/react-virtual": "3.14.17",
+    "@tanstack/react-virtual": "3.14.24",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/addon-webgl": "0.19.0",
     "@xterm/xterm": "6.0.0",
