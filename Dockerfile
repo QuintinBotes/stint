@@ -8,10 +8,17 @@
 # The tag says which Bun; the digest pins the multi-arch image, so a rebuild gets the same base (D-097).
 ARG BUN_IMAGE=oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4
 
-FROM ${BUN_IMAGE} AS build
+# JavaScript is the same on every architecture, so both build stages run once on the builder's own platform
+FROM --platform=$BUILDPLATFORM ${BUN_IMAGE} AS web
 WORKDIR /app
 COPY . .
 RUN bun install --frozen-lockfile && bun run build:web
+
+# only what the stint command runs on; the web app's packages build the UI above and stay behind
+FROM --platform=$BUILDPLATFORM ${BUN_IMAGE} AS app
+WORKDIR /app
+COPY . .
+RUN bun install --frozen-lockfile --production --filter @stint-dev/cli
 
 FROM ${BUN_IMAGE}
 # git for worktrees and merges; tini so the daemon gets signals and the agents it starts are reaped
@@ -22,7 +29,8 @@ RUN apt-get update \
  && mkdir -p /home/stint /repo \
  && chmod 1777 /home/stint \
  && chown bun:bun /repo
-COPY --from=build /app /app
+COPY --from=app /app /app
+COPY --from=web /app/apps/web/dist /app/apps/web/dist
 RUN ln -s /app/packages/cli/bin/stint /usr/local/bin/stint
 
 # HOME is writable by any user, so `--user "$(id -u):$(id -g)"` works on a bind-mounted repository
