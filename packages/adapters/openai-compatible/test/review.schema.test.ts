@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { NO_FINDINGS, ReviewSchema, countTokens, type HostConfig } from '@stint-dev/core';
-import { buildReviewPrompt, capDiff, makeHost, normalizeReview } from '../src/index';
+import { StructuredOutputError, buildReviewPrompt, capDiff, makeHost, normalizeReview } from '../src/index';
 
 test("A review whose text is exactly `No actionable findings.` validates with `verdict: 'approve'` and empty `findings`", () => {
   const review = ReviewSchema.parse({
@@ -17,20 +17,42 @@ test("A review whose text is exactly `No actionable findings.` validates with `v
   expect(review.findings).toEqual([]);
 });
 
-test('an empty findings answer from a model is normalised to the no-findings summary and approve', async () => {
-  const prepared = normalizeReview(
-    { version: 'stint.review/1', verdict: 'request_changes', summary: 'Nothing to say', findings: [], blockers: [] },
-    { model: 'meta-api/muse-wonder-1.0', offline: false, cost: { inputTokens: 1, cachedTokens: 0, outputTokens: 1, usd: 0 } },
-  );
-  const parsed = ReviewSchema.parse(prepared);
-  expect(parsed.summary).toBe('No actionable findings.');
-  expect(parsed.verdict).toBe('approve');
+const FILL = { model: 'meta-api/muse-wonder-1.0', offline: false, cost: { inputTokens: 1, cachedTokens: 0, outputTokens: 1, usd: 0 } };
 
+test('an empty approve from a model is normalised to the no-findings summary', () => {
+  const parsed = ReviewSchema.parse(normalizeReview({ version: 'stint.review/1', verdict: 'approve', summary: 'Nothing to say', findings: [] }, FILL));
+  expect(parsed).toMatchObject({ verdict: 'approve', summary: 'No actionable findings.', findings: [], blockers: [] });
+});
+
+test('a review with blockers and no findings keeps its verdict, and its blockers become its findings', () => {
+  for (const verdict of ['block', 'request_changes']) {
+    const parsed = ReviewSchema.parse(
+      normalizeReview({ version: 'stint.review/1', verdict, summary: 'It drops traffic.', findings: [], blockers: ['The limiter drops every request.'] }, FILL),
+    );
+    expect(parsed).toMatchObject({
+      verdict,
+      summary: 'It drops traffic.',
+      findings: [{ id: 'F1', severity: 'blocker', text: 'The limiter drops every request.' }],
+      blockers: ['The limiter drops every request.'],
+    });
+  }
+});
+
+test('an approve that lists blockers and no findings becomes a block, so the gate stays shut', () => {
+  const parsed = ReviewSchema.parse(
+    normalizeReview({ version: 'stint.review/1', verdict: 'approve', summary: 'Looks fine.', findings: [], blockers: ['The limiter drops every request.'] }, FILL),
+  );
+  expect(parsed).toMatchObject({ verdict: 'block', findings: [{ id: 'F1', severity: 'blocker', text: 'The limiter drops every request.' }] });
+});
+
+test('a block with no findings and no blockers is asked for again and then refused, never turned into an approve', async () => {
+  const prompts: string[] = [];
   const server = Bun.serve({
     port: 0,
-    fetch: (req) => {
+    fetch: async (req) => {
       const url = new URL(req.url);
       if (url.pathname === '/v1/models') return Response.json({ object: 'list', data: [] });
+      prompts.push(JSON.stringify(await req.json()));
       return Response.json({
         id: 'chatcmpl-test',
         object: 'chat.completion',
@@ -60,12 +82,11 @@ test('an empty findings answer from a model is normalised to the no-findings sum
       cachedInput: true,
     };
     const host = makeHost('meta-api', hostConfig, { META_API_KEY: 'test-key' });
-    const review = await host.review({ packetPrompt: 'packet', diff: 'diff --git a/x b/x', decisions: [], model: 'muse-wonder-1.0' });
-    expect(ReviewSchema.parse(review)).toEqual(review);
-    expect(review.summary).toBe('No actionable findings.');
-    expect(review.verdict).toBe('approve');
-    expect(review.findings).toEqual([]);
-    expect(review.offline).toBe(false);
+    // the refusal is what moves the reviewer chain on to its next host
+    const refused = await host.review({ packetPrompt: 'packet', diff: 'diff --git a/x b/x', decisions: [], model: 'muse-wonder-1.0' }).catch((err: unknown) => err);
+    expect(refused).toBeInstanceOf(StructuredOutputError);
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]).toContain('The previous answer did not validate.');
   } finally {
     server.stop(true);
   }
