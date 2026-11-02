@@ -1,0 +1,57 @@
+diff --git a/src/routes/events.ts b/src/routes/events.ts
+index 2779eee..28c7ffc 100644
+--- a/src/routes/events.ts
++++ b/src/routes/events.ts
+@@ -11,6 +11,14 @@ export function eventRoutes(deps: Deps): Hono {
+     return c.json({ events: deps.store.listByTenant(tenant) });
+   });
+ 
++  r.get('/:id', (c) => {
++    const tenant = c.req.header('X-Tenant');
++    if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
++    const event = deps.store.get(c.req.param('id'));
++    if (!event || event.tenant !== tenant) return c.json({ error: 'event not found' }, 404);
++    return c.json(event);
++  });
++
+   r.post('/:id/replay', (c) => {
+     const tenant = c.req.header('X-Tenant');
+     if (!tenant) return c.json({ error: 'missing X-Tenant header' }, 400);
+diff --git a/test/events.test.ts b/test/events.test.ts
+index 456701b..23ba2dd 100644
+--- a/test/events.test.ts
++++ b/test/events.test.ts
+@@ -32,6 +32,33 @@ describe('events', () => {
+     expect(res.status).toBe(404);
+   });
+ 
++  it('returns a single event for its owning tenant', async () => {
++    const { postWebhook, send } = setup();
++    const created = (await (await postWebhook('tenant-a', { type: 'a.one' })).json()) as { id: string };
++    const res = await send(`/events/${created.id}`, { tenant: 'tenant-a' });
++    expect(res.status).toBe(200);
++    expect(await res.json()).toMatchObject({ id: created.id, tenant: 'tenant-a', type: 'a.one' });
++  });
++
++  it('does not return another tenant\'s event', async () => {
++    const { postWebhook, send } = setup();
++    const created = (await (await postWebhook('tenant-a', { type: 'a.one' })).json()) as { id: string };
++    const res = await send(`/events/${created.id}`, { tenant: 'tenant-b' });
++    expect(res.status).toBe(404);
++  });
++
++  it('returns 404 for an event that does not exist', async () => {
++    const { send } = setup();
++    const res = await send('/events/evt_999999', { tenant: 'tenant-a' });
++    expect(res.status).toBe(404);
++  });
++
++  it('requires the X-Tenant header to get an event', async () => {
++    const { postWebhook, send } = setup();
++    await postWebhook('tenant-a', { type: 'a.one' });
++    expect((await send('/events/evt_000001')).status).toBe(400);
++  });
++
+   it('stops replaying after the configured number of attempts', async () => {
+     const { postWebhook, send } = setup({ replayMaxAttempts: 2 });
+     await postWebhook('tenant-a', { type: 'a.one' });

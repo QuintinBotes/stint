@@ -1,0 +1,53 @@
+// Held out: no agent sees this file. The daemon copies it into a checkout of the task branch after the run.
+// Written from the task's goal and acceptance only: any 2xx answers a delete, and the audit action names a deletion.
+import { describe, expect, it } from 'vitest';
+import { createApp, createDeps } from '../src/app';
+import { loadConfig } from '../src/config';
+import { TenantRegistry } from '../src/lib/tenants';
+
+function setup() {
+  const deps = createDeps(loadConfig({}));
+  const app = createApp(deps);
+  const del = (id: string) => app.request(`/admin/tenants/${id}`, { method: 'DELETE' });
+  const ids = async () => ((await (await app.request('/admin/tenants')).json()) as { tenants: Array<{ id: string }> }).tenants.map((t) => t.id);
+  const postWebhook = (tenant: string) =>
+    app.request('/webhooks', { method: 'POST', headers: { 'X-Tenant': tenant, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'held.out' }) });
+  return { deps, del, ids, postWebhook };
+}
+
+describe('held out: DELETE /admin/tenants/:id', () => {
+  it('removes a known tenant', async () => {
+    const { del, ids } = setup();
+    const res = await del('tenant-b');
+    expect(res.status).toBeGreaterThanOrEqual(200);
+    expect(res.status).toBeLessThan(300);
+    expect(await ids()).toEqual(['tenant-a']);
+  });
+
+  it('answers 404 for an unknown tenant', async () => {
+    const { del, ids } = setup();
+    expect((await del('no-such-tenant')).status).toBe(404);
+    expect(await ids()).toEqual(['tenant-a', 'tenant-b']);
+  });
+
+  it('writes an audit entry for the deletion that names the tenant', async () => {
+    const { deps, del } = setup();
+    await del('tenant-b');
+    const entry = deps.audit.list().find((e) => /delet|remov/i.test(e.action));
+    expect(entry).toBeDefined();
+    expect([entry?.tenant, entry?.target]).toContain('tenant-b');
+  });
+
+  it('stops accepting webhooks for the deleted tenant', async () => {
+    const { del, postWebhook } = setup();
+    expect((await postWebhook('tenant-b')).status).toBe(202);
+    await del('tenant-b');
+    expect((await postWebhook('tenant-b')).status).toBe(404);
+  });
+
+  it('gives TenantRegistry a remove method', () => {
+    const registry = new TenantRegistry([{ id: 'held-out', name: 'Held out' }]);
+    (registry as unknown as { remove: (id: string) => unknown }).remove('held-out');
+    expect(registry.get('held-out')).toBeUndefined();
+  });
+});

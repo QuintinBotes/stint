@@ -1,0 +1,104 @@
+# Stint task T-0001: Delete a tenant through the admin routes
+
+You are a coding agent working on one task in a git worktree that Stint created for it. Stint, not you, runs the tests and decides when the work is merged.
+
+Rules for this run:
+- Work only inside this worktree. Do not push, merge or rewrite git history; the person merges through Stint.
+- When you make a design decision that should not be silently reversed, write it on its own line as: decision: <the decision>
+- The test files this task and its plan name are locked. Changing one fails verification unless you record why on its own line as: decision: tests: <file> changed because <reason>. New tests, and new cases in other test files, are welcome.
+- Say plainly what you did not finish and what you did not look at.
+- After you stop, the daemon runs `bun run test` itself. A claim that the tests pass is not the record.
+
+## Goal
+Add DELETE /admin/tenants/:id: add a remove method to TenantRegistry in src/lib/tenants.ts, call it from src/routes/admin.ts, answer 404 for an unknown tenant, and write an audit entry for the deletion like the other admin writes. A deleted tenant must no longer be accepted by POST /webhooks. Add tests in test/admin.test.ts.
+
+Acceptance:
+- DELETE /admin/tenants/:id removes a known tenant and answers 404 for an unknown one
+- The deletion writes an audit entry with the tenant
+- POST /webhooks answers 404 for the deleted tenant
+- The suite stays green with new tests for the delete path
+
+## Skills mounted for this run
+- review-voice-policy: How Review Voice policies are structured, layered, and approved. Use when writing or editing a .review-voice/policy.yaml, adding a repository-scoped rule, debugging why a finding was suppressed, or interpreting policy provenance.
+
+## Plan
+No plan was made for this task.
+
+## Diff of the previous run
+```diff
+diff --git a/src/lib/tenants.ts b/src/lib/tenants.ts
+index 3065154..c1cf26a 100644
+--- a/src/lib/tenants.ts
++++ b/src/lib/tenants.ts
+@@ -38,4 +38,8 @@ export class TenantRegistry {
+     this.tenants.set(id, tenant);
+     return tenant;
+   }
++
++  remove(id: string): boolean {
++    return this.tenants.delete(id);
++  }
+ }
+diff --git a/src/routes/admin.ts b/src/routes/admin.ts
+index c5cb715..6ae6319 100644
+--- a/src/routes/admin.ts
++++ b/src/routes/admin.ts
+@@ -22,5 +22,13 @@ export function adminRoutes(deps: Deps): Hono {
+     }
+   });
+ 
++  r.delete('/tenants/:id', (c) => {
++    const id = c.req.param('id');
++    if (!deps.tenants.get(id)) return c.json({ error: `unknown tenant ${id}` }, 404);
++    deps.tenants.remove(id);
++    deps.audit.record(id, 'tenant.deleted', id);
++    return c.body(null, 204);
++  });
++
+   return r;
+ }
+diff --git a/test/admin.test.ts b/test/admin.test.ts
+index c936e52..9734838 100644
+--- a/test/admin.test.ts
++++ b/test/admin.test.ts
+@@ -34,4 +34,31 @@ describe('admin API', () => {
+     await createTenant(send, { id: 'tenant-c', name: 'Tenant C' });
+     expect((await postWebhook('tenant-c', { type: 'hello' })).status).toBe(202);
+   });
++
++  it('deletes a known tenant', async () => {
++    const { deps, send } = setup();
++    const res = await send('/admin/tenants/tenant-a', { method: 'DELETE' });
++    expect(res.status).toBe(204);
++    const body = (await (await send('/admin/tenants')).json()) as { tenants: Array<{ id: string }> };
++    expect(body.tenants.map((t) => t.id)).toEqual(['tenant-b']);
++    expect(deps.audit.list('tenant-a')).toMatchObject([
++      { tenant: 'tenant-a', action: 'tenant.deleted', target: 'tenant-a' },
++    ]);
++  });
++
++  it('answers 404 for an unknown tenant', async () => {
++    const { send } = setup();
++    const res = await send('/admin/tenants/no-such-tenant', { method: 'DELETE' });
++    expect(res.status).toBe(404);
++    expect(await res.json()).toMatchObject({ error: 'unknown tenant no-such-tenant' });
++  });
++
++  it('rejects webhooks for a deleted tenant', async () => {
++    const { send, postWebhook } = setup();
++    expect((await postWebhook('tenant-a', { type: 'hello' })).status).toBe(202);
++    expect((await send('/admin/tenants/tenant-a', { method: 'DELETE' })).status).toBe(204);
++    const res = await postWebhook('tenant-a', { type: 'hello' });
++    expect(res.status).toBe(404);
++    expect(await res.json()).toMatchObject({ error: 'unknown tenant tenant-a' });
++  });
+ });
+```
+
+## Changes on the task branch so far
+- src/lib/tenants.ts +4 -0
+- src/routes/admin.ts +8 -0
+- test/admin.test.ts +27 -0
+
+## Ask
+Continue from the diff: finish the task the previous run started.
