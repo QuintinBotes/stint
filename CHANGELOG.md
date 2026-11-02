@@ -9,6 +9,8 @@
 - `stint bench` gives each task one capped first run and continues every mode from a copy of it, and gains a `diff` mode, the task and the first run's diff alone. The fair rerun of 2 November is in `bench/fair/`: from one shared start, the daemon's verdict was green 10 of 10 from the packet, 7 of 10 from the transcript and 4 of 10 from the diff.
 - `scripts/review-recheck.ts` reviews the graded scorecard patches again with the reviewer's own prompt; on 2 November Muse Spark 1.3 flagged 5 of the 15 failing patches and none of the 3 passing ones (`bench/review-recheck/`).
 
+- `bench/visual-set/` checks ten pages through the daemon's own visual check, five with a seeded defect and five clean: on 2 November Muse Spark 1.3 caught 4 of the 5 defects and failed none of the clean pages, and SAM 3.1 boxed 2 of the 4 it caught, both on the defect, for $0.0489 (`scripts/visual-set.ts`).
+
 ### Fixed (2 November)
 - The Stint agent gives each call its host's `timeoutMs` when that is longer than 120 s, as planning and review already did, so a continuation on Muse Glimmer through Ollama gets its 10 minutes.
 - `stint doctor` fails when no implementer can build, and names the fix: a key, Ollama with Muse Glimmer, or Muse Code. In the container it says which of those steps run on your machine.
