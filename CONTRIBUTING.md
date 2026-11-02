@@ -35,7 +35,7 @@ bash scripts/check.sh
 bun run test:ui
 ```
 
-CI runs the same checks on every pull request: `scripts/check.sh`'s steps on Linux and macOS, and the UI tests on Linux. `scripts/check.sh` runs the typecheck, the test suite, the identity guard and the web build, and passes only when every one exits 0. The identity guard fails on a real email address, an em or en dash, or a name on the maintainers' private list. If it reports a denylisted name, remove that name from your change; the report gives an entry number, never the name.
+CI runs the same checks on every pull request: `scripts/check.sh`'s steps on Linux and macOS, and the UI tests on Linux. It also scans every commit for keys and tokens with gitleaks; a made-up key a test needs goes in `.gitleaksignore`, by the fingerprint gitleaks prints. `scripts/check.sh` runs the typecheck, the test suite, the identity guard and the web build, and passes only when every one exits 0. The identity guard fails on a real email address, an em or en dash, or a name on the maintainers' private list. If it reports a denylisted name, remove that name from your change; the report gives an entry number, never the name.
 
 ## Sign off every commit
 

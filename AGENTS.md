@@ -132,6 +132,7 @@ AGENTS.md                      this file; `stint init` adds a "## Stint" section
 | Ollama | ≥ 0.32.8 | `muse-glimmer:30b-mlx` |
 | Vitest | demo repo only | the daemon parses its summary line |
 | Container base image | `oven/bun:1.4.4-slim`, pinned by digest | `Dockerfile`, with git and tini from Debian (D-097) |
+| gitleaks | 8.30.1, the release binary checked by its SHA-256 | CI only, the `secrets` job in `ci.yml`; `.gitleaksignore` lists the test fixtures (D-098) |
 
 **Hosts** (a provider is a base URL and a key name, never a code path; all five go through `@stint-dev/adapter-openai-compatible`):
 
