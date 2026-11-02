@@ -4,6 +4,40 @@ This page is the runbook for whoever presents the demo: the commands, the checks
 
 The story is one task, four agents, one model family and three survivals; the beat sheet is in `AGENTS.md` section 2. `stint demo --live` drives the beats through the real daemon with real models, and `stint demo record` turns a finished live run into a recording. The replay that judges click, `demo/recording.jsonl`, is hand-written and says so on screen until a live take with the network off replaces it ([ADR-0011](adr/0011-default-replay-until-live-take.md)).
 
+## What to click
+
+Six steps through the replay. Play it with `bash scripts/bootstrap.sh`, or in a container with `docker run --rm --pull always -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` and http://127.0.0.1:4319, or open [the live demo](https://quintinbotes.github.io/stint/demo/), a read-only copy of the same story on GitHub Pages. The strip under the top bar says "Replay, hand-written"; locally it also counts the replay's 2:35, from "Playing, 0:00 of 2:35" to "Finished, 2:35 of 2:35".
+
+1. **T-0042 and its runs.** On the Board (`/`), open T-0042, "Rate-limit incoming webhooks per tenant". Under Runs on the left, Muse Wonder 1.0 plans (r1), Muse Code builds and is killed (r2, "Killed. In-flight step unknown: write_file test/ratelimit.test.ts"), the Stint agent continues from packet h1 (r3), and Muse Glimmer 30B reviews offline (r4). The Tests tab says "33 passed, tests unchanged, run by Stint".
+2. **The rewind clock.** Drag Rewind, above the runs, back to about 1:10. A notice says "You are looking at T-0042 as it was at 1:10", and a red one says Muse Code r2 was stopped and Stint wrote packet h1 from the log, with Open packet h1. Return to latest, or Now, comes back.
+3. **The Packet tab** (or press h). Under "Every packet is kept", h1 is the killed run's packet, 412 tokens, built by Stint from what the run recorded, and h2 is the Stint agent's. "As the agent reads it" shows the prompt the next agent gets.
+4. **The decision waiting above the tabs.** Under "Decisions waiting for you", Muse Glimmer 30B's review of T-0042 would reverse D3, a decision Muse Code recorded. It is not applied until you choose Keep D3 or Supersede D3, and D3 stands until then.
+5. **The Skills page** (`/skills`). `limiter-config-via-env` was learned from a finding in the reviews of T-0040 and T-0042; under "Tested", a run with it is compared with a run without it.
+6. **T-0043 and its learned skill.** Open T-0043, "Rate-limit the admin API": its run shows "Skill mounted: limiter-config-via-env", Glimmer's review finds nothing, and the task waits at the gate. In the local replay (bootstrap or the container), Approve and merge performs a real merge, with `Stint-Task: T-0043` trailers, into the temporary copy of the demo repository the replay runs on. The live demo is read-only: Approve is off, with "This is a read-only copy of the recorded story. Install Stint to run it."
+
+T-0042 reads "How it went: Merged. 0 of 3 criteria proven." although it merged green: Stint counts a criterion proven only when something showed it failing before the change and passing after, and each of T-0042's criteria only passes, "Passes, but no test showed it failing first" ([`verify.md`](verify.md#proven-or-passing)).
+
+## Where to see each capability
+
+The film's times are from [the cut](video.md#the-cut). The replay and the live demo show the same hand-written story; the records are live runs.
+
+| Capability | In the film | In the replay or the live demo | The record |
+|---|---|---|---|
+| Kill and hand-off | 0:44 | T-0042: r2 killed, packet h1, r3 continues (steps 1 to 3) | Live, 26 October: 29 of 29 tests after the hand-off, $0.10 (Gate 2 in `PROGRESS.md`, [`proofs.md`](proofs.md#what-is-real)) |
+| Tests the daemon runs | 0:57 | The Tests tab, "33 passed, tests unchanged, run by Stint", a hand-written count | Each relay's `tasks/T-0001/verification/r3.json` in `bench/relay/`, `runBy: "daemon"` ([`proofs.md`](proofs.md#the-relay-one-task-three-agents)) |
+| The tamper guard and locked tests | 1:17 | The Tests tab names the locked file, `test/webhooks.test.ts` | `bench/relay/negotiator-control/`, red with no locked file edited ([`proofs.md`](proofs.md#the-control), [`verify.md`](verify.md#the-tamper-guard)) |
+| Offline review | 0:57; 1:11, with the network off | T-0042's r4, Muse Glimmer 30B, local, at $0.00 | `bench/scorecard.json`; review is advice, since Glimmer approved all 5 failing patches it saw ([`proofs.md`](proofs.md#the-scorecard)) |
+| The human gate and merge | 0:57; 2:09 | T-0043 waits at Approve and merge, which merges locally and is off in the live demo (step 6) | The relays stop at the gate and approve nothing ([`proofs.md`](proofs.md#the-relay-one-task-three-agents)) |
+| The learned skill | Not in the film | The Skills page and T-0043 (steps 5 and 6), hand-written | No skill learned live yet; the skill's eval is live, 27 October ([`proofs.md`](proofs.md#the-learning-sequence)) |
+| Goals and the spec builder | 0:19, a goal from Muse Code; 1:33, one sentence in the spec builder | Not in the replay | [`sharpen.md`](sharpen.md) |
+| The visual check | Not in the film | Not in the replay | `bench/visual/result.json`, one live check of a seeded defect ([`proofs.md`](proofs.md#the-visual-gate)) |
+| The cross-vendor relay | 2:21 | The Factory's "One packet, any agent" panel lists every agent and host configured | `bench/relay/`: Muse Code, Claude Code, then Codex, all on Meta models ([`proofs.md`](proofs.md#the-relay-one-task-three-agents)) |
+| MCP | 0:19, Muse Code calls Stint's tools | Not in the replay | [`mcp.md`](mcp.md) |
+| Parallel builds | 1:41, two tasks building at once | Not in the replay | `autopilot.parallel`, 2 by default ([`agents.md`](agents.md#big-tasks-split-into-parts)) |
+| Limits and costs | 1:49, a hand-off refused over the task's token budget, then `stint limits T-0009 --implementer-tokens 600000` | T-0042's limit meters, in its title block | What each task took ([`setup.md`](setup.md#trying-it-with-your-own-key)); [`factory.md`](factory.md#limits-you-set) |
+| Memory and the clock | 2:14 | Rewind, and Memory (press m), on T-0042 (step 2) | [`factory.md`](factory.md) |
+| The packet against the transcript | 2:34 | The Factory's "Packet against full log" panel | `bench/results.json` ([`proofs.md`](proofs.md#benchmark)) |
+
 ## The commands
 
 | Command | What it does |
@@ -45,7 +79,7 @@ The live runner runs these beats in order. Press Enter to move to the next one, 
 | 2:15 | It learned | Waits for the learn step and measures the proposed skill on T-0042 with and without it (two short runs on fresh copies; `--no-eval` skips this). It approves the skill, then assigns T-0043, verifies and reviews it, and stops at awaiting approval. | The skill card's eval line, "with skill: N findings, without: M"; `skill.applied` on T-0043; the review finds nothing on what was flagged before |
 | 2:35 | Close | Prints the per-task cost, the T-0042 packet's tokens and hash, the URL, and the repository path to record from | The "One packet, any agent" panel on the Factory (`/factory`): every configured agent and model host |
 
-These times are the script for the 2:35 video; a live run takes longer. The live take on 26 October (`demo/recordings/2026-10-26-1`) measured these, from the plan's start:
+These times are the replay's: `demo/recording.jsonl` runs 2:35, and the strip under the top bar counts to it. The film is a different cut of live takes, 2:57.9 long (2:58 on the site), with its own times ([`video.md`](video.md#the-cut)). A live run takes longer than either. The live take on 26 October (`demo/recordings/2026-10-26-1`) measured these, from the plan's start:
 
 | Beat | Took | Ended at |
 |---|---|---|
@@ -58,7 +92,7 @@ These times are the script for the 2:35 video; a live run takes longer. The live
 
 A rehearsal on 27 October (`--auto --allow-online`, with Muse Glimmer preloaded) ran every beat in 9 min 14 s, including the offline review on Muse Glimmer, at $0.26 for T-0042 and $0.19 for T-0043. Its learn step proposed nothing. The agents read the limit through `loadConfig()`, as the fixture's `AGENTS.md` asks, so the review found none of the mistakes T-0040's review had found, and Stint proposes a skill only for a mistake that recurs. Whether a take carries the learned skill depends on the model repeating that mistake, so ADR-0011 keeps the hand-written replay as the default until one does.
 
-The video therefore cuts the waits, and the screen says it is a replay when it is one.
+The film therefore cuts the waits and marks every stretch that is not real time, and the UI says it is a replay when it is one.
 
 To rehearse one beat, `--from review` runs the beats before it without stopping and pauses from the review on. The beat names are `plan`, `build`, `hand`, `review`, `approve` and `next`. `--offline-plan` plans on the local model, and `--take 2` records the finished run under `demo/recordings/<date>-2/`. After the run, or without `--take`, record it and keep the recording:
 

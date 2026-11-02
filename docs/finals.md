@@ -104,10 +104,10 @@ For a judge who would rather check a claim than take it. Each command was run on
 1. Play the replay in a container, with nothing else installed:
 
 ```bash
-docker run --rm -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint
+docker run --rm --pull always -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint
 ```
 
-2. Open http://127.0.0.1:4319/t/T-0042. The strip says "Replay, hand-written". Over 2 minutes 35 seconds Muse Code is killed and a packet appears anyway, the Stint agent's run goes green on the Tests tab, Glimmer's finding that contradicts D3 goes to the queue, and the task merges.
+2. Open http://127.0.0.1:4319/t/T-0042. The strip says "Replay, hand-written". Over the replay's 2 minutes 35 seconds Muse Code is killed and a packet appears anyway, the Stint agent's run goes green on the Tests tab, Glimmer's finding that contradicts D3 goes to the queue, and the task merges.
 3. In a second terminal, get the repository and take a live packet. The ten benchmark packets are `bench/runs/*/handoff.json`; the second command takes the first packet of the Hugging Face dataset [`quintinbotes/stint-handoff-packets`](https://huggingface.co/datasets/quintinbotes/stint-handoff-packets), which is the live packet in [`proofs.md`](proofs.md#the-live-packet):
 
 ```bash
@@ -138,4 +138,4 @@ Show a recorded packet instead: `bench/runs/*/handoff.json` holds ten real packe
 
 ## If the laptop fails
 
-Any machine with Docker plays the replay with nothing else to install: run `docker run --rm -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` and open http://127.0.0.1:4319. The image is about 360 MB, so pull it on the backup machine before the session. [`docker.md`](docker.md) has the rest.
+Any machine with Docker plays the replay with nothing else to install: run `docker run --rm --pull always -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` and open http://127.0.0.1:4319. The image is about 360 MB, so pull it on the backup machine before the session, and leave out `--pull always` there if the session has no network. [`docker.md`](docker.md) has the rest.

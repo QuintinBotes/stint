@@ -2,39 +2,52 @@
 
 This page is for anyone who wants Stint without installing Bun on their machine, or who keeps tools in containers. It covers the replay with no keys, Stint on your own repository with Docker Compose, the settings, what runs inside the container and what does not, how the container is kept safe, updating, and troubleshooting.
 
-You need Docker with Compose 2.24 or later, and on Linux Docker Engine 28 or later: earlier engines let other machines on your local network reach a port published on 127.0.0.1. Nothing else is installed on your machine.
+You need Docker with Compose 2.24 or later, and on Linux Docker Engine 28 or later: earlier engines let other machines on your local network reach a port published on 127.0.0.1. The replay needs nothing else. Stint on your repository also needs a clone of this repository, for `compose.yaml` and `.env.example`; neither installs anything else on your machine.
 
 ## The replay, with no keys
 
-Run the published image; there is nothing to clone or build:
+Run the published image; there is nothing to clone or build. `--pull always` checks the registry first, so Docker never plays an older `latest` it has cached:
 
 ```bash
-docker run --rm -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint
+docker run --rm --pull always -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint
 ```
 
-Open http://127.0.0.1:4319. The container replays the recorded story through the real daemon, as `bash scripts/bootstrap.sh` does, then keeps the UI up until you press Ctrl-C. To build the image from a clone of this repository instead, run `docker build -t stint .` and use `stint` in place of the image name.
+Open http://127.0.0.1:4319. The container replays the recorded story through the real daemon, as `bash scripts/bootstrap.sh` does, then keeps the UI up until you press Ctrl-C. To build the image from a clone of this repository instead, run `docker build -t stint .` and use `stint` in place of the image name, without `--pull always`, which would look for `stint` in a registry.
 
 ## Stint on your repository
 
 Compose runs `stint up` on a repository you mount, keeps it running across restarts, and stops it gently.
 
-1. Copy the example settings and fill them in. `STINT_REPO` is the repository Stint works on; the keys are the ones [`setup.md`](setup.md#keys) describes.
+1. In a clone of this repository, copy the example settings to `.env` beside `compose.yaml` and fill them in. `STINT_REPO` is the repository Stint works on. Your keys, the ones [`setup.md`](setup.md#keys) describes, go in this file too: Compose passes it to the container (`env_file` in `compose.yaml`).
 
    ```bash
    cp .env.example .env
    ```
 
-2. Get the image, start it, and follow its log. `docker compose pull` fetches the published image; `docker compose build` makes it from this checkout instead.
+2. Get the image and make your repository a Stint workspace, as `stint init` does on your machine. `docker compose pull` fetches the published image; `docker compose build` makes it from this checkout instead.
 
    ```bash
    docker compose pull
+   docker compose run --rm stint init
+   ```
+
+   It prints `Wrote .stint/config.json, .gitignore, AGENTS.md`: the config, `.stint/worktrees/` and `.stint/cache/` added to `.gitignore`, and a Stint section in `AGENTS.md`. The Muse Code lines it prints after that do not apply, since the image has no Muse Code. Commit the three in your repository, as the README's first step does. A run starts from your last commit and stops with `dirty_tree` while a tracked file has uncommitted changes, and the ignore lines keep the daemon's token file, `.stint/cache/daemon.json`, out of git. Without this step, `.stint/config.json` and that token file are left neither committed nor ignored.
+
+   ```bash
+   git -C /path/to/your/repo add .gitignore AGENTS.md .stint/config.json
+   git -C /path/to/your/repo commit -m "Add Stint"
+   ```
+
+3. Start it and follow its log:
+
+   ```bash
    docker compose up -d
    docker compose logs -f stint
    ```
 
-3. Open http://127.0.0.1:4319. Stint keeps its state in `.stint/` inside your repository, exactly as when it runs on your machine.
+4. Open http://127.0.0.1:4319. Stint keeps its state in `.stint/` inside your repository, exactly as when it runs on your machine.
 
-4. Stop it with `docker compose down`. The daemon gives runs that are ending up to 10 seconds to commit, verify and write their packet, and Compose waits 20.
+5. Stop it with `docker compose down`. The daemon gives runs that are ending up to 10 seconds to commit, verify and write their packet, and Compose waits 20.
 
 Run any `stint` command inside the container with `docker compose exec`, for example `docker compose exec stint stint watch`.
 
@@ -59,7 +72,7 @@ The image sets `STINT_BIND=0.0.0.0` and `STINT_PORT=4319` itself, so the publish
 
 - The daemon, the `stint` command line and the web UI.
 - The Stint agent, planning and review on the hosted Meta models: the Meta Model API, and Muse Spark Open on Baseten, Fireworks and Modal.
-- The offline review, with Ollama running on your machine. In `.stint/config.json`, which Stint writes on its first start, set `hosts.ollama.baseURL` to `http://host.docker.internal:11434/v1`. On Linux, Ollama listens on 127.0.0.1 only unless you start it with `OLLAMA_HOST=0.0.0.0`.
+- The offline review, with Ollama running on your machine. In `.stint/config.json`, which step 2 writes, set `hosts.ollama.baseURL` to `http://host.docker.internal:11434/v1`. On Linux, Ollama listens on 127.0.0.1 only unless you start it with `OLLAMA_HOST=0.0.0.0`.
 
 Not in the image:
 
@@ -112,6 +125,7 @@ Git records each run's worktree by its path, which is under `/repo` in the conta
 | What you see | Why | What to do |
 |---|---|---|
 | `required variable STINT_REPO is missing a value` | Compose needs the repository for every command | Set `STINT_REPO` in `.env` beside `compose.yaml` |
+| `git status` in your repository lists `.stint/cache/daemon.json` | `stint init` never ran there | Run `docker compose run --rm stint init` and commit what it wrote ([step 2](#stint-on-your-repository)) |
 | The daemon stops with a permission error on `.stint/` | On Linux, the container runs as a user who does not own the repository | Set `STINT_UID` and `STINT_GID` to what `id -u` and `id -g` print |
 | `docker compose up` says the port is in use | Another program has 4319 | Set `STINT_HOST_PORT` in `.env` |
 | The review host is unreachable | The container's `localhost` is the container, not your machine | Set `hosts.ollama.baseURL` as [above](#what-runs-in-the-container) |

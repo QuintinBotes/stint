@@ -66,6 +66,32 @@ stint keys set META_API_KEY
 stint keys list
 ```
 
+## Trying it with your own key
+
+The replay needs no key. `stint demo`, `bash scripts/bootstrap.sh` and the container's `docker run` play the hand-written story with no keys and no Ollama, and [the live demo](https://quintinbotes.github.io/stint/demo/) needs only a browser.
+
+Stint on your own repository needs at least one host a model answers on:
+
+- **`META_API_KEY`**, for the Meta Model API, from https://dev.meta.ai (the address `.env.example` gives; Meta's docs call the key `MODEL_API_KEY`). Planning with Muse Wonder 1.0 and visual checks need this key.
+- **A partner key for Muse Spark Open:** `FIREWORKS_API_KEY`, `BASETEN_API_KEY`, or `MODAL_BASE_URL` with `MODAL_API_KEY`. The planner, the Stint agent and the reviewer fall back to each of these hosts. The learn step does not use Fireworks: its chain is Baseten, the Meta Model API, Modal, then Muse Glimmer.
+- **Muse Glimmer 30B running in Ollama** (`muse-glimmer:30b-mlx`, about 19 GB; 32 GB of memory is comfortable), with no key and no network ([the offline review](#the-offline-review)). It is the first reviewer, and the planner, the Stint agent and the learn step fall back to it.
+
+Each role tries its hosts in the order of `routes` in `packages/core/src/schemas/config.ts`. With any one of the three, autopilot can build: it takes the first available agent in `autopilot.implementers`, Muse Code and then the Stint agent, so without Muse Code the Stint agent builds. Save keys with `stint keys set` ([Keys](#keys)); in the container they go in the `.env` beside `compose.yaml` ([`docker.md`](docker.md#stint-on-your-repository)).
+
+Muse Code needs more: its CLI, 1.4 or later, installed with `curl -fsSL https://dev.meta.ai/install.sh | sh` and signed in with `muse login` (on a Muse subscription it needs no Meta API key, [ADR-0010](adr/0010-muse-login-is-availability.md)), and on Linux `bubblewrap` for its sandbox. For its hooks, install and approve the Stint plugin once, as `stint init` prints: `muse plugins install /path/to/stint/packages/adapters/muse-code/plugin --scope user`, then `muse plugins approve stint`. The container image has no Muse Code.
+
+What a task took, measured on Meta's models:
+
+| What ran | What it took | Record |
+|---|---|---|
+| A continuation, live on 26 October: Muse Code killed on T-0042, and the Stint agent on Muse Spark 1.3 continued from the packet to 29 of 29 tests | $0.10 | Gate 2 in `PROGRESS.md`; [`proofs.md`](proofs.md#what-is-real) |
+| The first live take of the demo, 26 October: plan, build, kill, continue, review (online) and merge | 4 min 36 s from the plan's start; the continuation took 22 s, then 1 s of verification | `demo/recordings/2026-10-26-1`; [`demo.md`](demo.md#the-beats) |
+| A rehearsal of every beat, 27 October, with the offline review on Muse Glimmer | 9 min 14 s; $0.26 for T-0042 and $0.19 for T-0043 | [`demo.md`](demo.md#the-beats) |
+| A relay, 29 October: Muse Code, Claude Code, then Codex on one task in a repository Stint had never seen | 15.7 to 27.4 min of wall time; $0.1949 to $0.3874, which prices Codex's hop alone | `bench/relay/`; [`proofs.md`](proofs.md#the-relay-one-task-three-agents) |
+| A scorecard attempt, 29 October: the Stint agent on Muse Spark Open on Baseten, with no hand-off | All in, $1.6311 and 18.4 min of run time per green attempt: 3 of 9 attempts went green, for $4.8932 in all | `bench/scorecard.json`; [`proofs.md`](proofs.md#the-scorecard) |
+
+Review on Muse Glimmer through Ollama costs $0.00. To cap what a task may spend, give it a limit: `stint new "<title>" --max-usd 3` ([Limits](#your-first-task)).
+
 ## Your first task
 
 The README's [Use it on your repository](../README.md#use-it-on-your-repository) walks through a first task with the expected output: `stint init`, keys, `stint up`, `stint new`, `stint run`, the gate and `stint approve`. Other commands you will use early:

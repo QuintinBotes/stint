@@ -2,7 +2,7 @@
 
 This page describes Stint's demo film for judges and for anyone recording a new take: how it was made, the cut with its voiceover, and the checklist before recording.
 
-The film is [on YouTube](https://youtu.be/ejYyHgkVOWg). It runs 2:57.9, inside the hackathon's 3 minute limit, at 1080p with captions burned in and "Forward Clarity" under it. Every picture of Stint at work is a live take, and every model in it is Meta's. The proof acts at the end show the repository's own evidence, each naming its source.
+The film is [on YouTube](https://youtu.be/ejYyHgkVOWg). It runs 2:57.9 (the site rounds it to 2:58), inside the hackathon's 3 minute limit, at 1080p with captions burned in and "Forward Clarity" under it. Every picture of Stint at work is a live take, and every model in it is Meta's. The replay that `stint demo` plays is not the film: it is the hand-written story, 2:35 long ([`demo.md`](demo.md#the-beats)). The proof acts at the end show the repository's own evidence, each naming its source.
 
 ## How it was made
 
