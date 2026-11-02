@@ -91,6 +91,18 @@ docker compose up -d
 
 Every push to `main` that passes the smoke test publishes the image for amd64 and arm64, tagged `latest` and `sha-` with the commit. To run what you changed in this checkout, use `docker compose build` in place of `docker compose pull`. The image starts from a Bun image pinned by digest in `Dockerfile`, so a rebuild changes only what changed in Stint.
 
+## Checking what you run
+
+Each image the workflow publishes is signed with Sigstore's keyless signing, so you can check that it was built by this repository's workflow and not changed since. With [cosign](https://docs.sigstore.dev/cosign/system_config/installation/):
+
+```bash
+cosign verify ghcr.io/quintinbotes/stint:latest \
+  --certificate-identity-regexp '^https://github.com/QuintinBotes/stint/\.github/workflows/docker\.yml@' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Each image also carries an SBOM, the list of every package inside it, and the provenance of its build. `docker buildx imagetools inspect ghcr.io/quintinbotes/stint:latest --format '{{json .SBOM}}'` prints the SBOM. Releases are also published under their version, such as `ghcr.io/quintinbotes/stint:0.1.0`, which never moves.
+
 ## Moving between the container and your machine
 
 Git records each run's worktree by its path, which is under `/repo` in the container. Stop runs before you move a repository from the container to Stint on your machine, or back, and then run `git worktree prune` in the repository to forget worktrees at paths that no longer exist.

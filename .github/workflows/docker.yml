@@ -2,6 +2,7 @@ name: docker
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     paths:
       - Dockerfile
@@ -32,14 +33,16 @@ jobs:
         run: bash scripts/docker-smoke.sh stint:local
 
   publish:
-    # on main only, once the smoke test passed: the same Dockerfile, for amd64 and arm64, to the GitHub container registry
+    # on main and on a v* tag, once the smoke test passed: the same Dockerfile, for amd64 and arm64, to the GitHub
+    # container registry, with an SBOM and build provenance, signed with Sigstore's keyless signing
     needs: image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v5
       - name: The image name, in the lower case the registry needs
@@ -56,14 +59,22 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable={{is_default_branch}}
             type=sha
-      - uses: docker/build-push-action@v6
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign the image by its digest, which covers every tag it was pushed under
+        run: cosign sign --yes "${IMAGE}@${{ steps.build.outputs.digest }}"

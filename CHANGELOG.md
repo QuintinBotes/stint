@@ -1,14 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (2 November 2026)
 
 ### Added (2 November)
 - Stint runs in a container. `docker build -t stint .` and `docker run --rm -p 127.0.0.1:4319:4319 stint` replay the demo with no keys, and `compose.yaml` runs `stint up` on a repository you mount, published on this machine's 127.0.0.1 only, as a user who is not root, read-only and with no capabilities ([`docs/docker.md`](docs/docker.md)).
 - `stint up --bind` and `stint demo --bind`, or `STINT_BIND`, choose the address the daemon listens on. They take 127.0.0.1 or 0.0.0.0 only, the default stays 127.0.0.1, and every start beyond loopback prints a warning. `stint demo --port`, or `STINT_PORT`, fixes the replay's port.
 - The image is published to `ghcr.io/quintinbotes/stint` for amd64 and arm64 on every push to `main` that passes the smoke test, tagged `latest` and `sha-` with the commit. `compose.yaml` runs it, and `docker compose build` still makes it from the checkout. The image holds only what the `stint` command runs on: 360 MB.
 - `scripts/docker-smoke.sh` checks the image: the replay, the refusal of another Host and of a change without the token, `stint up` on a mounted repository, and a clean stop. A CI job builds the image and runs it.
-
-## 0.1.0 (31 October 2026)
+- Every published image carries an SBOM and build provenance, and is signed with Sigstore's keyless signing from this repository's workflow; `cosign verify` checks it ([`docs/docker.md`](docs/docker.md#checking-what-you-run)). A `v*` tag also publishes the image under its version, such as `0.1.0` and `0.1`.
 
 ### Added (31 October)
 - `stint limits <task> --implementer-tokens N` raises a task's token budget, as do `--planner-tokens`, `--reviewer-tokens`, `--tester-tokens` and `--learn-tokens` for their roles, through `PATCH /api/tasks/:id/limits`; the meters end with the implementer's tokens against its budget.
