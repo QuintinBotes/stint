@@ -2,7 +2,7 @@
 
 This page explains what the daemon checks before a change can merge, and how to add checks of your own.
 
-Verification runs in the daemon, in the run's worktree, after every run. An agent saying "tests pass" is a claim; `verification/<run>.json` is the record. Review is offered only after a green verification, and approve merges only the commit the daemon verified. When you run the tests again by hand ("Re-run the tests", or `POST /api/tasks/:id/verify`), the daemon first commits anything changed in the worktree outside a run, so the recorded commit is the tree the tests ran on. A green verification that recorded no commit cannot be approved. The Tests tab in the task view shows every part below on one card.
+Verification runs in the daemon, in the run's worktree, after every run. An agent saying "tests pass" is a claim; `verification/<run>.json` is the record. Review is offered only after a green verification, and it is advice: the gate is this verification and the person who approves. Approve merges only the commit the daemon verified. When you run the tests again by hand ("Re-run the tests", or `POST /api/tasks/:id/verify`), the daemon first commits anything changed in the worktree outside a run, so the recorded commit is the tree the tests ran on. A green verification that recorded no commit cannot be approved. The Tests tab in the task view shows every part below on one card.
 
 ## The verify suite
 
@@ -33,7 +33,9 @@ The escape hatch is a decision, recorded after the lock, whose text starts with 
 decision: tests: test/backoff.test.ts changed because the cap is read from the environment now
 ```
 
-With it, the verification stays as the tests decide, the record's `tamper` gains `allowedBy`, and the card shows the decision.
+With it, the verification stays as the tests decide, the record's `tamper` gains `allowedBy`, and the card shows the decision. The change's risk tier is high ("an agent changed the locked tests"), so the auto-approve lane never takes it. The agent can write that decision itself, so the lock stops a silent edit to a named test, not one the agent declares; the person at the gate decides whether the reason holds.
+
+The lock covers test files only. The test command runs from the worktree, so the runner's own config, such as the `test` script in `package.json`, is not locked, and no check flags a change to it; it shows in the diff at the gate.
 
 ## Held-out scenarios
 
@@ -44,7 +46,7 @@ stint scenario add T-0042 holdout.test.ts
 stint scenario list T-0042
 ```
 
-After the verify suite, the daemon copies the scenario files into a temporary checkout of the task branch (never the agent's worktree) and runs `config.scenarios.command` there. The default command is the task's test command filtered to those files; `{files}` in the command is replaced by the file list. The daemon records `scenario.ran { passed, failed, names }`. A failing scenario turns the verification red with reason `scenarios`, and so do scenarios that cannot run at all, with the error in the record's output. The next agent's packet says that scenarios failed and names them. The scenario source and output are never copied into a worktree, a prompt or a packet.
+After the verify suite, the daemon copies the scenario files into a temporary checkout of the task branch (never the agent's worktree) and runs `config.scenarios.command` there. The default command is the task's test command filtered to those files; `{files}` in the command is replaced by the file list. The daemon records `scenario.ran { passed, failed, names }`. A failing scenario turns the verification red with reason `scenarios`, and so do scenarios that cannot run at all, with the error in the record's output. The next agent's packet says that scenarios failed and names them. The scenario source and output are never copied into a worktree, a prompt or a packet. Under the `sandbox-exec` or `docker` sandbox the agent cannot read the scenario folder; with the default, `none`, it is a folder on the same disk, and only the agent's own limits, such as the Stint agent's path checks, keep it from being read ([`sandbox.md`](sandbox.md#a-sandbox-per-run)). The scenarios run on the agent's branch, so they share the runner config the lock does not cover.
 
 ## Coverage
 
@@ -76,7 +78,7 @@ Each proof records `visual.checked { criterion, ref, holds, seen, problem?, elem
 
 Stint marks a page it could not look at as "not checked", with the reason in the event and on stderr, and the verification stays as the tests left it. The causes are: no `visual` config, no `META_API_KEY`, no browser ("run bunx playwright install chromium"; the daemon uses the Playwright that `apps/web` installs for its tests), an app that never answered at `url`, or a Muse Spark call that failed. Each check's calls are priced and counted in the task's spend: Muse Spark by its tokens, SAM 3.1 at $2.50 per 1,000 images. Stint draws only SAM's box, not its outline: decoding the mask would need Meta's `@meta-sam/parser` under the separate SAM License, and Stint does not add it.
 
-`bench/visual/` holds one live check of a seeded defect (a banner that says NaN s), made with `bun bench/visual/run.ts`, with its screenshot, the marked copy, the clip and what it cost.
+`bench/visual/` holds one live check of a seeded defect (a banner that says NaN s), made with `bun bench/visual/run.ts`, with its screenshot, the marked copy, the clip and what it cost. Its test command is a stand-in that always passes, so only the visual check could turn it red. It is one run (n = 1) on a page with a defect: it shows the check working end to end, not how often Muse Spark judges a page right or wrongly flags a good one.
 
 ## Proven or passing
 

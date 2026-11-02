@@ -26,12 +26,12 @@ This folder holds every guide to Stint, one line each, grouped by what you came 
 
 ## Evidence and the hackathon
 
-- [`proofs.md`](proofs.md): every number Stint claims, the live relays, control, learning sequence and scorecard of 29 October on repositories Stint had never seen, the visual gate's live run, the live packet, the benchmark, where each Meta model works, and what was built during the hackathon.
+- [`proofs.md`](proofs.md): every number Stint claims, a table of each headline claim with its evidence and what it does not show, the live relays, control, learning sequence and scorecard of 29 October on repositories Stint had never seen, the visual gate's live run, the live packet, the benchmark, where each Meta model works, and what was built during the hackathon.
 - [`writeup.md`](writeup.md): the submission write-up.
 - [`timeline.md`](timeline.md): when Stint was built, which commits came before the hackathon kickoff, when each spec was written, and what was built each day through 2 November.
 - [`build-kit.md`](build-kit.md): the spec-driven build loop Stint was built with (`AGENTS.md`, `GOAL.md`, `LOOP.md`, `specs/`).
 - [`demo.md`](demo.md): the demo runbook: the commands, the GitHub Pages site (the landing page and the read-only Board), the beats, rehearsal timings, and what to do when a beat goes wrong.
-- [`finals.md`](finals.md): the kit for the live judging: the 60-second version, likely questions and fallbacks.
+- [`finals.md`](finals.md): the kit for the live judging: the 60-second version, likely questions, a five-minute check a judge can run, and fallbacks.
 - [`video.md`](video.md): the demo film: how it was made, the cut with its voiceover, and the checklist before recording.
 - [`launch.md`](launch.md): the launch post and thread for X.
 

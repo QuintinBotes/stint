@@ -61,7 +61,7 @@ What the agents load before a run, learned or written by hand, each with its evi
 
 Each part has its own page:
 
-- **Verification an agent cannot fake.** The daemon runs the tests and the configured checks. The test files a task names are locked at plan time, so an agent that weakens them fails. Held-out scenarios run in a checkout the agent never sees ([`verify.md`](verify.md)).
+- **Verification the daemon runs.** The daemon runs the tests and the configured checks itself. The test files a task names are locked at plan time, so an agent that weakens one fails, unless it records a `tests:` decision naming the file, which the card shows and the risk tier marks high. Held-out scenarios run in a separate checkout and never reach the agent's worktree, prompt or packet ([`verify.md`](verify.md)).
 - **Hand-offs that get smarter.** A task escalates after repeated failures. Best of n builds candidates in parallel and keeps the best green one. No model reviews its own work. Reviews run per lens: general, security and spec fit ([`agents.md`](agents.md)).
 - **Plans that remember.** The planner reads similar tasks and the decisions on the files it will touch. It splits big tasks into subtasks that run in dependency order.
 - **A clear start, and limits you set.** Before work starts, Sharpen asks the few questions that change what gets built and records your answers as decisions ([`sharpen.md`](sharpen.md)). Autopilot stops and asks you before a task would pass one of its [limits](#limits-you-set), or its goal's.
