@@ -30,7 +30,7 @@ jobs:
       - run: cd apps/web && bunx playwright install --with-deps chromium
       # builds apps/web/dist-judge, then opens it in a browser: every read is in the snapshot and Approve is off
       - run: bun run test:judge
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: apps/web/dist-judge
 
