@@ -6,6 +6,13 @@
 - CI scans every commit for keys and tokens with gitleaks, with the values redacted; `.gitleaksignore` names the made-up keys the tests use.
 - The link test also checks every link in `docs/`, from the page's own folder, and every path the README names in backticks.
 
+### Fixed (2 November)
+- The Stint agent gives each call its host's `timeoutMs` when that is longer than 120 s, as planning and review already did, so a continuation on Muse Glimmer through Ollama gets its 10 minutes.
+- `stint doctor` fails when no implementer can build, and names the fix: a key, Ollama with Muse Glimmer, or Muse Code. In the container it says which of those steps run on your machine.
+- `stint run --wait` that stops on "Needs you" also prints why each implementer could not build, the hosts its last run skipped, and the fix. The daemon's own message is unchanged.
+- `bash scripts/bootstrap.sh` writes the web build's log to a file and prints it only when the build fails, so the address is the last thing it prints, and it reports the Stint agent available when Ollama answers.
+- The best-of-n tests wait up to 240 s and fail saying autopilot did not stop, instead of on a missing event, on a slow CI runner.
+
 ## 0.1.0 (2 November 2026)
 
 ### Added (2 November)

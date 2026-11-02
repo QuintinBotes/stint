@@ -1,9 +1,14 @@
 import { expect, test } from 'bun:test';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { type Adapter, DEFAULT_CONFIG } from '@stint-dev/core';
+import { runsFromEvents } from '@stint-dev/core/node';
 import { startDaemon } from '@stint-dev/daemon';
 import { flowConfig, startFakeModels } from '../../../apps/web/e2e/flows/fakes';
 import { tempDir, withFixtureRepo } from '../../core/test/fixture';
+import { fakeModels } from '../../daemon/test/autopilot.fixtures';
+import { fakeAdapter } from '../../daemon/test/helpers';
+import { buildFix } from '../src/doctor';
 import { fromBead } from '../src/tasks';
 
 const stint = async (repo: string, ...args: string[]) => {
@@ -64,3 +69,51 @@ test('stint new --from-bead copies the title and description from bd show --json
     tmp.cleanup();
   }
 });
+
+test('stint run --wait on a "Needs you" stop prints the daemon\'s reason as it is, then why each implementer could not build and the fix, and exits 3', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      const config = structuredClone(DEFAULT_CONFIG);
+      config.hosts.ollama = { ...(config.hosts.ollama as NonNullable<typeof config.hosts.ollama>), baseURL: models.url, models: { fake: 'fake' } };
+      config.routes.planner = ['ollama/fake'];
+      config.routes.reviewer = ['ollama/fake'];
+      config.prices['ollama/fake'] = { input: 0, cached: 0, output: 0 };
+      config.autopilot = { implementers: ['muse-code', 'stint-agent'], maxHops: 1, parallel: 1 };
+      mkdirSync(join(repo, '.stint'), { recursive: true });
+      writeFileSync(join(repo, '.stint', 'config.json'), JSON.stringify(config));
+      const missing: Adapter = { ...fakeAdapter('edit'), id: 'muse-code', available: async () => ({ ok: false, reason: 'the muse CLI is not installed' }) };
+      // the Stint agent as a laptop without keys saw it: every host skipped or silent
+      const silent: Adapter = {
+        ...fakeAdapter('edit'),
+        id: 'stint-agent',
+        run: async (ctx) => {
+          await ctx.emit({ type: 'provider.fallback', payload: { role: 'implementer', from: 'meta-api/muse-spark-1.3', to: 'ollama/muse-glimmer:30b-mlx', reason: 'META_API_KEY not set' } });
+          await ctx.emit({ type: 'agent.message', payload: { text: 'The Stint agent stopped: no host in the chain could answer', stderr: true } });
+          return { endedBy: 'failed', cost: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, usd: 0 } };
+        },
+      };
+      const d = await startDaemon({ root: repo, quiet: true, adapters: [missing, silent] });
+      try {
+        const t = await d.ws.createTask({ title: 'Add a health endpoint', goal: 'GET /health answers 200.', acceptance: ['GET /health answers 200'], testCommand: 'true' });
+        const r = await stint(repo, 'run', t.id, '--wait');
+        const events = await d.ws.events(t.id).read();
+        const stop = events.find((e) => e.type === 'autopilot.stopped')?.payload as { reason: string; needsYou: boolean };
+        const last = runsFromEvents(events).filter((x) => x.adapter === 'stint-agent').at(-1);
+        expect(stop.needsYou).toBe(true);
+        expect(r.code).toBe(3);
+        expect(r.stdout.split('\n').slice(1)).toEqual([
+          `${t.id}: ${stop.reason}`,
+          '  muse-code: the muse CLI is not installed',
+          `  stint-agent ${last?.run} failed: The Stint agent stopped: no host in the chain could answer; it skipped meta-api/muse-spark-1.3 (META_API_KEY not set)`,
+          `  fix: ${buildFix()}`,
+          '',
+        ]);
+      } finally {
+        await d.stop();
+      }
+    });
+  } finally {
+    models.stop();
+  }
+}, 120_000);

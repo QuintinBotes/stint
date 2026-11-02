@@ -22,7 +22,8 @@ test('bestOf 2 runs two fakes, verifies both, picks the green one', async () => 
       const { app, ws } = await setup(repo, [writes('muse-code', 0), writes('stint-agent', 60)], models, { implementers: ['muse-code', 'stint-agent'], maxHops: 0, parallel: 2, bestOf: 2 });
       const t = await ws.createTask(task("grep -q 'LIMIT = 60' src/lib/limiter.ts"));
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
-      const events = await until(ws, t.id, stopped, 120_000);
+      const events = await until(ws, t.id, stopped, 240_000);
+      expect(stopped(events), 'autopilot stopped within 240 s').toBe(true);
 
       const started = events.find((e) => e.type === 'bestofn.started')?.payload as { candidates: string[] };
       expect(started.candidates).toHaveLength(2);
@@ -50,7 +51,7 @@ test('bestOf 2 runs two fakes, verifies both, picks the green one', async () => 
   } finally {
     models.stop();
   }
-}, 180_000);
+}, 300_000);
 
 test('bestOf with no green candidate stops the parent with Needs you', async () => {
   const models = fakeModels();
@@ -59,14 +60,15 @@ test('bestOf with no green candidate stops the parent with Needs you', async () 
       const { app, ws } = await setup(repo, [writes('muse-code', 0), writes('stint-agent', 1)], models, { implementers: ['muse-code', 'stint-agent'], maxHops: 0, parallel: 1, bestOf: 2 });
       const t = await ws.createTask(task("grep -q 'LIMIT = 60' src/lib/limiter.ts"));
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
-      const events = await until(ws, t.id, stopped, 120_000);
+      const events = await until(ws, t.id, stopped, 240_000);
+      expect(stopped(events), 'autopilot stopped within 240 s').toBe(true);
       expect(events.find((e) => e.type === 'autopilot.stopped')?.payload).toMatchObject({ needsYou: true });
       expect(String(events.find((e) => e.type === 'autopilot.stopped')?.payload.reason)).toStartWith('Needs you: no candidate of ');
     });
   } finally {
     models.stop();
   }
-}, 180_000);
+}, 300_000);
 
 test('With two green candidates the reviewer picks, and its cost is on bestofn.picked and in the week', async () => {
   const models = fakeModels();
@@ -75,7 +77,8 @@ test('With two green candidates the reviewer picks, and its cost is on bestofn.p
       const { app, ws } = await setup(repo, [writes('muse-code', 60), writes('stint-agent', 60)], models, { implementers: ['muse-code', 'stint-agent'], maxHops: 0, parallel: 2, bestOf: 2 });
       const t = await ws.createTask(task("grep -q 'LIMIT = 60' src/lib/limiter.ts"));
       await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
-      const events = await until(ws, t.id, stopped, 120_000);
+      const events = await until(ws, t.id, stopped, 240_000);
+      expect(stopped(events), 'autopilot stopped within 240 s').toBe(true);
       const [first, second] = (events.find((e) => e.type === 'bestofn.started')?.payload as { candidates: string[] }).candidates;
       if (!models.asked.includes('pick')) {
         // say why when only one candidate reached the pick green, so a failure on a slow runner explains itself
@@ -93,4 +96,4 @@ test('With two green candidates the reviewer picks, and its cost is on bestofn.p
   } finally {
     models.stop();
   }
-}, 180_000);
+}, 300_000);

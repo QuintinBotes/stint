@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { type Review, type StintEvent, type Task, modelName } from '@stint-dev/core';
+import { runsFromEvents } from '@stint-dev/core/node';
 import { defineCommand } from 'citty';
 import { getDaemon, postDaemon } from './client';
+import { type HealthAdapter, buildFix, canBuild } from './doctor';
 import { limitArgs, limitsFromFlags } from './limits';
 import { repoRoot } from './repo';
 
@@ -208,6 +210,10 @@ export const runTask = defineCommand({
     if (!args.wait) return;
     const stop = await waitForStop(root, args.task);
     process.stdout.write(`${args.task}: ${stop.reason}\n`);
+    if (stop.needsYou) {
+      const [{ events }, { adapters }] = await Promise.all([getDaemon<{ events: StintEvent[] }>(root, `/api/tasks/${args.task}/events`), getDaemon<{ adapters: HealthAdapter[] }>(root, '/api/health')]);
+      for (const line of implementerLines(events, adapters)) process.stdout.write(`${line}\n`);
+    }
     // approval is the person's: waiting ends at the gate and never passes it
     process.exit(stop.needsYou ? 3 : 0);
   },
@@ -223,6 +229,29 @@ export const listTasks = defineCommand({
     else for (const { task: t } of tasks) process.stdout.write(`${t.id}  ${t.status.padEnd(17)}  ${t.title}\n`);
   },
 });
+
+/**
+ * Why each of autopilot's implementers could not build, after a "Needs you" stop, and the fix: the daemon's own
+ * availability reason, or how the implementer's last run here failed and the hosts it skipped. Empty when every one could.
+ */
+export function implementerLines(events: StintEvent[], agents: HealthAdapter[]): string[] {
+  const settings = events.filter((e) => e.type === 'autopilot.started').at(-1)?.payload.settings as { implementers?: string[] } | undefined;
+  const runs = runsFromEvents(events);
+  const lines: string[] = [];
+  for (const id of settings?.implementers ?? []) {
+    if (!canBuild(agents, id)) {
+      lines.push(`  ${id}: ${agents.find((a) => a.id === id)?.capability.reason ?? 'not an agent this daemon has'}`);
+      continue;
+    }
+    const last = runs.filter((r) => r.adapter === id && r.role === 'implementer').at(-1);
+    if (last?.endedBy !== 'failed') continue;
+    const of = events.filter((e) => e.run === last.run);
+    const said = of.filter((e) => e.type === 'agent.message' && e.payload.stderr).at(-1)?.payload.text;
+    const skipped = of.filter((e) => e.type === 'provider.fallback').map((e) => `${e.payload.from} (${e.payload.reason})`);
+    lines.push(`  ${id} ${last.run} failed${said ? `: ${said}` : ''}${skipped.length ? `; it skipped ${skipped.join(', ')}` : ''}`);
+  }
+  return lines.length ? [...lines, `  fix: ${buildFix()}`] : [];
+}
 
 /** Polls the task's log until autopilot has stopped, and returns why. */
 export async function waitForStop(root: string, task: string, everyMs = 2_000): Promise<{ reason: string; needsYou: boolean }> {
