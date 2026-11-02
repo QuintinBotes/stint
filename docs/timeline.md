@@ -105,3 +105,4 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-024 | The judges' line in the README and the finals kit point to the published image, and the kit answers how Stint differs from tools that run agents on a ticket queue | docs |
 | R-024 | The 46 live packets in `bench/` are published as the Hugging Face dataset `quintinbotes/stint-handoff-packets`, with the benchmark summaries and the packet schema, and the README links it | docs |
 | R-001 | Each published image carries an SBOM and build provenance and is signed with Sigstore's keyless signing; a `v*` tag publishes it under its version, and 0.1.0 is released | product code |
+| R-001, R-069 | CI scans every commit for keys and tokens with gitleaks (D-098), and the link test covers every page in `docs/` and the paths the README names | tests and CI |

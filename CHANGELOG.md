@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added (2 November)
+- CI scans every commit for keys and tokens with gitleaks, with the values redacted; `.gitleaksignore` names the made-up keys the tests use.
+- The link test also checks every link in `docs/`, from the page's own folder, and every path the README names in backticks.
+
 ## 0.1.0 (2 November 2026)
 
 ### Added (2 November)
