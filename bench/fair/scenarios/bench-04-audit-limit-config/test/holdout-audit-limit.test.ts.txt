@@ -1,0 +1,34 @@
+// Held out: no agent sees this file. The daemon copies it into a checkout of the task branch after the run.
+// Written from the task's goal and acceptance only: the environment variable may be any AUDIT_ name src/config.ts reads.
+import { readFileSync, readdirSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { createApp, createDeps } from '../src/app';
+import { loadConfig } from '../src/config';
+
+type WithLimit = { auditExportLimit?: unknown };
+
+describe('held out: the audit export limit from config', () => {
+  it('defaults to the value that was hard-coded', () => {
+    expect((loadConfig({}) as WithLimit).auditExportLimit).toBe(5000);
+  });
+
+  it('reads the limit from the environment', () => {
+    const name = /\b(AUDIT_[A-Z_]+)\b/.exec(readFileSync('src/config.ts', 'utf8'))?.[1];
+    expect(name).toBeDefined();
+    expect((loadConfig({ [name as string]: '3' }) as WithLimit).auditExportLimit).toBe(3);
+  });
+
+  it('keeps only that many rows in the CSV export when the configured limit is small', async () => {
+    const app = createApp(createDeps({ ...loadConfig({}), auditExportLimit: 2 } as ReturnType<typeof loadConfig>));
+    for (const type of ['one', 'two', 'three']) {
+      await app.request('/webhooks', { method: 'POST', headers: { 'X-Tenant': 'tenant-a', 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) });
+    }
+    const lines = (await (await app.request('/audit')).text()).trim().split('\n');
+    expect(lines).toHaveLength(3);
+  });
+
+  it('leaves no limit constant in a route or in the audit library', () => {
+    const files = ['src/lib/audit.ts', ...readdirSync('src/routes').map((f) => `src/routes/${f}`)];
+    for (const file of files) expect(readFileSync(file, 'utf8'), file).not.toMatch(/\b5_?000\b/);
+  });
+});

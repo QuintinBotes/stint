@@ -1,0 +1,29 @@
+{
+  "source": "scorecard-1",
+  "attempt": "ms-unit-option-a1",
+  "hidden": "red",
+  "recorded": {
+    "verdict": "approve",
+    "findings": 0,
+    "model": "muse-glimmer:30b-mlx"
+  },
+  "diffBytes": 0,
+  "promptTokens": 442,
+  "reviews": [
+    {
+      "reviewer": "meta-api/muse-spark-1.3",
+      "verdict": "block",
+      "summary": "Diff missing; review blocked until change is provided.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "text": "Diff body is empty, so the f28c64a..ce5f44b change cannot be verified against plan, decisions, or AGENTS.md."
+        }
+      ],
+      "inputTokens": 832,
+      "outputTokens": 1920,
+      "usd": 0.0106,
+      "wallMs": 10022
+    }
+  ]
+}

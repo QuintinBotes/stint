@@ -1,0 +1,27 @@
+{
+  "source": "scorecard",
+  "attempt": "ms-unit-option-a3",
+  "hidden": "red",
+  "recorded": null,
+  "diffBytes": 12902,
+  "promptTokens": 3580,
+  "reviews": [
+    {
+      "reviewer": "meta-api/muse-spark-1.3",
+      "verdict": "block",
+      "summary": "Unit long-format pluralization does not match its test for negative half values.",
+      "findings": [
+        {
+          "severity": "blocker",
+          "text": "Long format with unit pluralizes from rounded value, so format(-1500,{unit:'s',long:true}) yields singular not expected '-1 seconds'.",
+          "file": "src/index.ts",
+          "line": 248
+        }
+      ],
+      "inputTokens": 4547,
+      "outputTokens": 3058,
+      "usd": 0.016,
+      "wallMs": 14788
+    }
+  ]
+}

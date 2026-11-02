@@ -1,0 +1,66 @@
+diff --git a/src/lib/audit.ts b/src/lib/audit.ts
+index 5bce0a3..fb06d0d 100644
+--- a/src/lib/audit.ts
++++ b/src/lib/audit.ts
+@@ -29,4 +29,8 @@ export class AuditLog {
+     const lines = rows.map((e) => [e.at, e.tenant, e.action, e.target].map(csvCell).join(','));
+     return ['at,tenant,action,target', ...lines].join('\n') + '\n';
+   }
++
++  toJson(tenant?: string): AuditEntry[] {
++    return this.list(tenant).slice(-EXPORT_LIMIT);
++  }
+ }
+diff --git a/src/routes/audit.ts b/src/routes/audit.ts
+index 752c669..b840c0e 100644
+--- a/src/routes/audit.ts
++++ b/src/routes/audit.ts
+@@ -6,6 +6,9 @@ export function auditRoutes(deps: Deps): Hono {
+ 
+   r.get('/', (c) => {
+     const tenant = c.req.header('X-Tenant') || undefined;
++    if (c.req.query('format') === 'json') {
++      return c.json(deps.audit.toJson(tenant));
++    }
+     c.header('Content-Type', 'text/csv; charset=utf-8');
+     return c.body(deps.audit.toCsv(tenant));
+   });
+diff --git a/test/audit.test.ts b/test/audit.test.ts
+index f6d795c..421aad4 100644
+--- a/test/audit.test.ts
++++ b/test/audit.test.ts
+@@ -32,4 +32,34 @@ describe('GET /audit', () => {
+     expect(lines.slice(1).every((l) => l.includes(',tenant-a,'))).toBe(true);
+     expect(lines).toHaveLength(2);
+   });
++
++  it('still returns CSV without the format query', async () => {
++    const { send, postWebhook } = setup();
++    await postWebhook('tenant-a', { type: 'one' });
++    const res = await send('/audit');
++    expect(res.headers.get('Content-Type')).toContain('text/csv');
++    expect((await res.text()).split('\n')[0]).toBe('at,tenant,action,target');
++  });
++
++  it('returns the entries as JSON when format=json', async () => {
++    const { send, postWebhook } = setup();
++    await postWebhook('tenant-a', { type: 'one' });
++    await postWebhook('tenant-b', { type: 'two' });
++    const res = await send('/audit?format=json');
++    expect(res.headers.get('Content-Type')).toContain('application/json');
++    const body = (await res.json()) as Array<{ tenant: string; action: string; target: string }>;
++    expect(body).toHaveLength(2);
++    expect(body[0]).toMatchObject({ tenant: 'tenant-a', action: 'webhook.received', target: 'evt_000001' });
++    expect(body[1]).toMatchObject({ tenant: 'tenant-b', action: 'webhook.received', target: 'evt_000002' });
++  });
++
++  it('filters the JSON export by the X-Tenant header', async () => {
++    const { send, postWebhook } = setup();
++    await postWebhook('tenant-a', { type: 'one' });
++    await postWebhook('tenant-b', { type: 'two' });
++    const res = await send('/audit?format=json', { tenant: 'tenant-a' });
++    const body = (await res.json()) as Array<{ tenant: string }>;
++    expect(body).toHaveLength(1);
++    expect(body[0]?.tenant).toBe('tenant-a');
++  });
+ });

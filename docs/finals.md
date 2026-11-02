@@ -36,7 +36,7 @@ The hand-off is vendor-neutral by design: the packet is plain JSON with a publis
 
 ### Why not just resume the session, or hand over the diff?
 
-Resume brings back the same agent, with the same usage limit and often a full context; `muse resume` does that well. A packet lets a different agent continue: in the relays, Claude Code and then Codex continued tasks Muse Code started. What is not measured yet: the benchmark compares the packet only with the full transcript. No run compares it with Muse Code resuming its own session, or with handing over the task and the diff alone. The next agent's prompt already carries the diff, so the claim is that the packet adds the daemon's verification, the decisions, the refused actions and one ask of the next agent, in about 925 tokens by Stint's estimate, not that it beats the diff alone ([`proofs.md`](proofs.md#benchmark)).
+Resume brings back the same agent, with the same usage limit and often a full context; `muse resume` does that well. A packet lets a different agent continue: in the relays, Claude Code and then Codex continued tasks Muse Code started. On 2 November the bench was rerun from one shared start per task, with a third mode for the task and the diff alone. Every mode's code passed the held-out tests, 10 of 10. The daemon's verdict was green 10 of 10 from the packet, 7 of 10 from the transcript and 4 of 10 from the diff: on three tasks the first run had changed a locked test file without a decision, and only the packet told the next agent, in 864 tokens against 5,124 and 1,375 by Stint's estimate. So the claim is that the packet carries what the daemon found, not that the next agent writes better code: four of the five checkpoints already passed. Nothing yet compares it with Muse Code resuming its own session ([`proofs.md`](proofs.md#the-fair-rerun-2-november)).
 
 ### Did the relay show that hand-offs help, or just that Codex is good?
 
@@ -44,7 +44,7 @@ It cannot tell them apart. In all five relays Muse Code and Claude Code left no 
 
 ### Does the offline review protect me?
 
-It keeps your code on your machine; it does not catch bugs. In the live scorecard Glimmer approved all 5 patches the hidden tests failed, in the first scorecard it approved all 9 empty diffs, and in one relay it asked for changes on a patch the hidden tests passed (`bench/scorecard.json`, `bench/relay/negotiator-2/tasks/T-0001/review.json`). What protects you is the daemon's verification, which review waits for; the queue that stops a finding from reversing a recorded decision; and your approval at the gate. Present review as advice.
+It keeps your code on your machine; Glimmer does not catch bugs. Rechecked on 2 November, Muse Spark 1.3 on the Meta Model API, the last host in the reviewer chain, flagged 5 of the 15 failing scorecard patches and none of the 3 passing ones ([`proofs.md`](proofs.md#live-evidence-29-october)). In the live scorecard Glimmer approved all 5 patches the hidden tests failed, in the first scorecard it approved all 9 empty diffs, and in one relay it asked for changes on a patch the hidden tests passed (`bench/scorecard.json`, `bench/relay/negotiator-2/tasks/T-0001/review.json`). What protects you is the daemon's verification, which review waits for; the queue that stops a finding from reversing a recorded decision; and your approval at the gate. Present review as advice.
 
 ### What happens when the packet is wrong?
 

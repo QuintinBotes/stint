@@ -1,0 +1,55 @@
+// Held out: no agent sees this file. The daemon copies it into a checkout of the task branch after the run.
+// Written from the task's goal and acceptance only, so any reasonable limiter passes.
+import { describe, expect, it } from 'vitest';
+import { createApp, createDeps } from '../src/app';
+import { loadConfig } from '../src/config';
+
+const MAX_REQUESTS = 20_000;
+// a limiter may be slow per request; the limit, not the speed, is what is held out
+const LOOP_MS = 60_000;
+
+function setup() {
+  const app = createApp(createDeps(loadConfig({})));
+  const post = (tenant: string) =>
+    app.request('/webhooks', { method: 'POST', headers: { 'X-Tenant': tenant, 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'held.out' }) });
+  return { post };
+}
+
+async function firstLimited(post: (tenant: string) => Response | Promise<Response>, tenant: string): Promise<Response | null> {
+  for (let i = 1; i <= MAX_REQUESTS; i++) {
+    const res = await post(tenant);
+    if (res.status === 429) return res;
+    if (res.status !== 202) throw new Error(`request ${i} answered ${res.status}`);
+  }
+  return null;
+}
+
+function flatKeys(value: unknown, prefix = ''): string[] {
+  if (!value || typeof value !== 'object') return [prefix];
+  return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) => flatKeys(v, prefix ? `${prefix}.${k}` : k));
+}
+
+describe('held out: webhook rate limit', () => {
+  it('answers 429 with a Retry-After header once a tenant passes the default limit', async () => {
+    const { post } = setup();
+    const limited = await firstLimited(post, 'tenant-a');
+    expect(limited).not.toBeNull();
+    const retry = limited?.headers.get('Retry-After') ?? '';
+    expect(retry).not.toBe('');
+    // delay-seconds or an HTTP date
+    expect(/^\d+$/.test(retry) || !Number.isNaN(Date.parse(retry))).toBe(true);
+  }, LOOP_MS);
+
+  it('keeps another tenant working while one is limited', async () => {
+    const { post } = setup();
+    expect(await firstLimited(post, 'tenant-a')).not.toBeNull();
+    expect((await post('tenant-b')).status).toBe(202);
+  }, LOOP_MS);
+
+  it('reads the limit and the window through loadConfig', () => {
+    const before = ['port', 'maxBodyBytes', 'replayMaxAttempts', 'replayBaseDelayMs'];
+    const added = flatKeys(loadConfig({})).filter((k) => !before.includes(k));
+    expect(added.some((k) => /window/i.test(k))).toBe(true);
+    expect(added.some((k) => /limit|max|requests|rate/i.test(k) && !/window/i.test(k))).toBe(true);
+  });
+});

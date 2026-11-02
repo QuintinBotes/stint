@@ -1,0 +1,61 @@
+{
+  "askOfNext": "Next: Locked test files changed without a tests: decision: test/audit.test.ts. Restore them, or say on a decision: line why they had to change..",
+  "changedFiles": [
+    {
+      "added": 3,
+      "path": "src/routes/audit.ts",
+      "removed": 0,
+      "run": "r1"
+    },
+    {
+      "added": 30,
+      "path": "test/audit.test.ts",
+      "removed": 0,
+      "run": "r1"
+    }
+  ],
+  "cost": {
+    "cachedTokens": 193830,
+    "inputTokens": 231929,
+    "outputTokens": 4042,
+    "usd": 0.0969
+  },
+  "createdAt": "2026-11-02T19:18:03.799Z",
+  "decisions": [],
+  "diffRef": {
+    "base": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+    "head": "c4af9843aecb557382d974d1143fce3f60fce6b1"
+  },
+  "done": [
+    "Verification by the daemon: 30 passed, 0 failed"
+  ],
+  "from": {
+    "adapter": "muse-code",
+    "endedBy": "capped",
+    "host": "local-cli",
+    "model": "muse-spark-1.3",
+    "role": "implementer",
+    "run": "r1",
+    "sessionId": "01a19db1-885b-7e80-9c3e-c3cbf56cd7df",
+    "vendor": "meta"
+  },
+  "hash": "sha256:8ec8c987986353e751d5174ecc6cdd80c44b485d903d31f9826d41df93c47bcd",
+  "leftOut": [],
+  "open": [
+    "Locked test files changed without a tests: decision: test/audit.test.ts. Restore them, or say on a decision: line why they had to change."
+  ],
+  "refusals": [],
+  "risks": [],
+  "summary": "muse-code capped after 14 tool calls.",
+  "task": "T-0001",
+  "verification": {
+    "command": "bun run test",
+    "durationMs": 2136,
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 30,
+    "runBy": "daemon",
+    "status": "red"
+  },
+  "version": "stint.handoff/1"
+}

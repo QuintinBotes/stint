@@ -1,0 +1,5 @@
+scorecard ms-unit-option-a1 hidden green: meta-api/muse-spark-1.3 approve, 0 findings, $0.0143
+scorecard ms-unit-option-a1 hidden green: ollama/muse-glimmer:30b-mlx no verdict (chain for role reviewer is exhausted: ollama/muse-glimmer:30b-mlx (timeout)), 0 findings, $0.0000
+scorecard ms-unit-option-a2 hidden red: meta-api/muse-spark-1.3 approve, 0 findings, $0.0118
+scorecard ms-unit-option-a2 hidden red: ollama/muse-glimmer:30b-mlx no verdict (chain for role reviewer is exhausted: ollama/muse-glimmer:30b-mlx (timeout)), 0 findings, $0.0000
+scorecard ms-unit-option-a3 hidden red: meta-api/muse-spark-1.3 block, 1 findings, $0.0240

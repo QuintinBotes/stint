@@ -1,0 +1,43 @@
+{
+  "budgetUsd": 8,
+  "priorUsd": 1.5,
+  "totalUsd": 1.8373,
+  "tasks": [
+    {
+      "task": "bench-01-rate-limit",
+      "firstRunUsd": 0.087,
+      "continuedUsd": 0.5993,
+      "unpriced": [],
+      "totalUsd": 0.6863
+    },
+    {
+      "task": "bench-02-get-event",
+      "firstRunUsd": 0.086,
+      "continuedUsd": 0.1247,
+      "unpriced": [],
+      "totalUsd": 0.2107
+    },
+    {
+      "task": "bench-03-delete-tenant",
+      "firstRunUsd": 0.0918,
+      "continuedUsd": 0.1477,
+      "unpriced": [],
+      "totalUsd": 0.2395
+    },
+    {
+      "task": "bench-04-audit-limit-config",
+      "firstRunUsd": 0.0999,
+      "continuedUsd": 0.2843,
+      "unpriced": [],
+      "totalUsd": 0.3842
+    },
+    {
+      "task": "bench-05-audit-json",
+      "firstRunUsd": 0.0969,
+      "continuedUsd": 0.2197,
+      "unpriced": [],
+      "totalUsd": 0.3166
+    }
+  ],
+  "stopped": null
+}

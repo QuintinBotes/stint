@@ -106,3 +106,4 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-024 | The 46 live packets in `bench/` are published as the Hugging Face dataset `quintinbotes/stint-handoff-packets`, with the benchmark summaries and the packet schema, and the README links it | docs |
 | R-001 | Each published image carries an SBOM and build provenance and is signed with Sigstore's keyless signing; a `v*` tag publishes it under its version, and 0.1.0 is released | product code |
 | R-001, R-069 | CI scans every commit for keys and tokens with gitleaks (D-098), and the link test covers every page in `docs/` and the paths the README names | tests and CI |
+| R-021, R-010 | The fair bench from one shared checkpoint with a `diff` mode (D-099) and the review recheck on Muse Spark 1.3, both live on Meta's models, results in `bench/fair/` and `bench/review-recheck/` | product code and live runs |

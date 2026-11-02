@@ -1,0 +1,58 @@
+// Held out: no agent sees this file. The daemon copies it into a checkout of the task branch after the run.
+// Written from the task's goal and acceptance only: the entries may come back as a bare array or under one key.
+import { describe, expect, it } from 'vitest';
+import { createApp, createDeps } from '../src/app';
+import { loadConfig } from '../src/config';
+
+function setup() {
+  const app = createApp(createDeps(loadConfig({})));
+  const get = (path: string, tenant?: string) => app.request(path, tenant ? { headers: { 'X-Tenant': tenant } } : {});
+  const postWebhook = (tenant: string, type: string) =>
+    app.request('/webhooks', { method: 'POST', headers: { 'X-Tenant': tenant, 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) });
+  return { get, postWebhook };
+}
+
+function entriesOf(body: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(body)) return body;
+  const list = Object.values((body ?? {}) as Record<string, unknown>).find(Array.isArray);
+  if (!list) throw new Error(`no list of entries in ${JSON.stringify(body).slice(0, 200)}`);
+  return list as Array<Record<string, unknown>>;
+}
+
+describe('held out: GET /audit?format=json', () => {
+  it('returns the audit entries as JSON', async () => {
+    const { get, postWebhook } = setup();
+    await postWebhook('tenant-a', 'one');
+    const res = await get('/audit?format=json');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type') ?? '').toContain('application/json');
+    const entries = entriesOf(await res.json());
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ tenant: 'tenant-a', action: 'webhook.received', target: 'evt_000001' });
+    expect(typeof entries[0]?.at).toBe('string');
+  });
+
+  it('still returns CSV without the query', async () => {
+    const { get } = setup();
+    const res = await get('/audit');
+    expect(res.headers.get('Content-Type') ?? '').toContain('text/csv');
+    expect((await res.text()).split('\n')[0]).toBe('at,tenant,action,target');
+  });
+
+  it('filters the JSON by the X-Tenant header', async () => {
+    const { get, postWebhook } = setup();
+    await postWebhook('tenant-a', 'one');
+    await postWebhook('tenant-b', 'two');
+    const entries = entriesOf(await (await get('/audit?format=json', 'tenant-a')).json());
+    expect(entries.map((e) => e.tenant)).toEqual(['tenant-a']);
+  });
+
+  it('still filters the CSV by the X-Tenant header', async () => {
+    const { get, postWebhook } = setup();
+    await postWebhook('tenant-a', 'one');
+    await postWebhook('tenant-b', 'two');
+    const lines = (await (await get('/audit', 'tenant-b')).text()).trim().split('\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toContain(',tenant-b,');
+  });
+});

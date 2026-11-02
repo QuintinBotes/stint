@@ -1,0 +1,37 @@
+{
+  "source": "scorecard",
+  "attempt": "negotiator-preferred-a1",
+  "hidden": "red",
+  "recorded": {
+    "verdict": "approve",
+    "findings": 0,
+    "model": "muse-glimmer:30b-mlx"
+  },
+  "diffBytes": 14795,
+  "promptTokens": 3515,
+  "reviews": [
+    {
+      "reviewer": "meta-api/muse-spark-1.3",
+      "verdict": "request_changes",
+      "summary": "Remove scratch check.js and resolve encodings preferred inconsistency.",
+      "findings": [
+        {
+          "severity": "major",
+          "text": "Scratch file check.js committed at repo root; remove it and move coverage to proper tests.",
+          "file": "check.js",
+          "line": 1
+        },
+        {
+          "severity": "major",
+          "text": "preferred option added for mediaTypes/languages/charsets but not encodings, yet check.js expects encodings reordering.",
+          "file": "lib/encoding.js",
+          "line": 1
+        }
+      ],
+      "inputTokens": 4061,
+      "outputTokens": 2062,
+      "usd": 0.0154,
+      "wallMs": 13157
+    }
+  ]
+}

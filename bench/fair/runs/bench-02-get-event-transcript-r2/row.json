@@ -1,0 +1,27 @@
+{
+  "task": "bench-02-get-event",
+  "commit": "be1bee8d153659647701b8f5886f0a5c73cf276a",
+  "implementer": "muse-code",
+  "continuer": "stint-agent",
+  "mode": "transcript",
+  "repeat": 2,
+  "leg": "build",
+  "result": "verified by the daemon; with the held-out tests green",
+  "host": "meta-api",
+  "model": "muse-spark-1.3",
+  "inputTokens": 22907,
+  "cachedTokens": 6385,
+  "outputTokens": 880,
+  "usd": 0.026,
+  "wallMs": 11758,
+  "verified": true,
+  "promptTokens": 5096,
+  "implementerModel": "muse-spark-1.3",
+  "startedAt": "2026-11-02T19:03:28.840Z",
+  "finishedAt": "2026-11-02T19:03:40.598Z",
+  "hidden": "green",
+  "scenarios": {
+    "passed": 4,
+    "failed": 0
+  }
+}

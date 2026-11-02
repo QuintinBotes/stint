@@ -9,6 +9,8 @@ export type PromptInput = {
   handoff?: Handoff | null;
   /** The previous run rendered as text, for the bench transcript mode; replaces the packet section. */
   transcript?: string;
+  /** The previous run's unified diff, for the bench diff mode: the task and the change so far, no packet and no transcript. */
+  priorDiff?: string;
   /** Lines carried from earlier hops under "Where it got to" (the multi-hop rule, R-012). */
   before?: string[];
   skills: MountedSkill[];
@@ -57,7 +59,9 @@ export function renderPrompt(i: PromptInput): string {
   const changing = [
     ...(i.transcript
       ? ['## Transcript of the previous run', i.transcript.trimEnd(), '']
-      : i.handoff
+      : i.priorDiff !== undefined
+        ? ['## Diff of the previous run', i.priorDiff.trim() ? ['```diff', i.priorDiff.trimEnd(), '```'].join('\n') : 'The previous run changed nothing.', '']
+        : i.handoff
         ? ['## Packet from the previous run', renderHandoff(i.handoff, { before: i.before ?? [] }).trimEnd(), '']
         : []),
     '## Changes on the task branch so far',
@@ -67,7 +71,9 @@ export function renderPrompt(i: PromptInput): string {
     i.ask?.trim() ||
       (i.transcript
         ? 'Continue from the transcript: finish what it started.'
-        : i.handoff
+        : i.priorDiff !== undefined
+          ? 'Continue from the diff: finish the task the previous run started.'
+          : i.handoff
           ? 'Continue from the packet: start with its ask of next.'
           : 'Implement the goal. Follow the plan where there is one.'),
     '',
@@ -80,6 +86,7 @@ export function renderPrompt(i: PromptInput): string {
 export function stablePrefixLength(prompt: string): number {
   const packet = prompt.indexOf('\n## Packet from the previous run');
   const transcript = prompt.indexOf('\n## Transcript of the previous run');
-  const at = [packet, transcript].filter((n) => n >= 0).sort((a, b) => a - b)[0];
+  const diff = prompt.indexOf('\n## Diff of the previous run');
+  const at = [packet, transcript, diff].filter((n) => n >= 0).sort((a, b) => a - b)[0];
   return at ?? prompt.indexOf('\n## Changes on the task branch so far');
 }
