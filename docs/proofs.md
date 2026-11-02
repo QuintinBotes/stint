@@ -16,7 +16,7 @@ Each headline claim, the record behind it and what that record does not show. Th
 | Hidden tests the agent never saw | The daemon ran them in a checkout outside every worktree (`bench/relay/README.md`) | That an agent could not read them: with the default sandbox, `none`, they are on the same disk ([`verify.md`](verify.md#held-out-scenarios)) |
 | Review runs offline at $0.00 | Glimmer on Ollama in every relay and scorecard review (`bench/scorecard.json`) | That review catches defects: Glimmer approved all 5 failing patches it saw, and all 9 in the first scorecard. Rechecked on 2 November, Muse Spark 1.3 flagged 5 of the 15 failing patches and none of the 3 passing ones |
 | Single runs are scored on the same hidden tests | 3 of 9 passed; $0.4895 per green attempt's own run, $1.6311 per green attempt counting all nine (`bench/scorecard.json`) | A controlled comparison with the relays, which used other agents and models; 3 attempts per task |
-| A page is checked by eye | Muse Spark 1.3 judged a seeded page wrong and SAM 3.1 boxed the fault, for $0.0063 (`bench/visual/result.json`) | How often it is right: n = 1, a seeded defect, a stand-in test command, and no page without a defect |
+| A page is checked by eye | On ten pages, Muse Spark 1.3 failed 4 of 5 seeded defects and none of 5 clean pages; SAM 3.1 boxed 2 of the 4 it caught, both on the seeded element, for $0.0489 (`bench/visual-set/results.json`) | A rate: n = 10, one page, one criterion, one run each. It passed a banner at 1.11 to 1 contrast because it could still read the words, and twice a red check came without a box |
 | It learns | `packages/daemon/test/learn.test.ts` and the hand-written replay | A skill learned live: none was (`bench/relay/ms-learning/`), and the one live skill eval found no findings either way |
 
 ## Live evidence, 29 October
@@ -110,9 +110,23 @@ The fix, D-086 in `PROGRESS.md`, asks again with more room (4,096, then 16,384, 
 
 Tests miss a page that renders the wrong words. On 29 October, `bun bench/visual/run.ts` put one visual check of a seeded defect through the daemon's own verifier, against the Meta Model API. The task's test command was a stand-in that prints one pass (`bench/visual/run.ts`), so only the visual check could turn it red. The fixture's admin page should tell an over-limit tenant to try again in 60 s; the seeded banner says "Try again in NaN s." instead.
 
-Muse Spark 1.3 got the screenshot and the criterion "The admin page tells an over-limit tenant when to try again", and answered that it does not hold: "The banner displays NaN s instead of the expected 60 s retry time." SAM 3.1 found the element it named, the yellow banner, and Stint drew its box on a copy of the screenshot. The verification went red with that reason. The check cost $0.0063: $0.0038 for Muse Spark (1,439 input tokens and 391 output) and $0.0025 for SAM 3.1's image. It is one check (n = 1) of one seeded defect: it shows the path working end to end, not how often Muse Spark judges a page right, and no page without a defect was checked, so there is no false-alarm rate.
+Muse Spark 1.3 got the screenshot and the criterion "The admin page tells an over-limit tenant when to try again", and answered that it does not hold: "The banner displays NaN s instead of the expected 60 s retry time." SAM 3.1 found the element it named, the yellow banner, and Stint drew its box on a copy of the screenshot. The verification went red with that reason. The check cost $0.0063: $0.0038 for Muse Spark (1,439 input tokens and 391 output) and $0.0025 for SAM 3.1's image. It is one check (n = 1) of one seeded defect: it shows the path working end to end, not how often Muse Spark judges a page right, and the set below adds pages without a defect.
 
 <p align="center"><img alt="The webhooks admin page with a yellow banner that says Too many requests (429). Try again in NaN s., boxed in red by SAM 3.1, above the Deliveries table" src="../bench/visual/visual-1-marked.png" width="640"></p>
+
+**A set with clean pages, 2 November.** `scripts/visual-set.ts` put ten pages through the same verifier, with the same criterion and proof: five copies of the fixture's admin page with one seeded defect each, and five clean copies that meet the criterion in different ways (`bench/visual-set/README.md`). Each page was served as `/admin` from its own repository, so the prompt was the same for all ten, and each ran once. Muse Spark 1.3 failed 4 of the 5 defects, each with a sentence that names the fault, and passed all 5 clean pages. It missed the banner whose text was 1.11 to 1 against its background: unreadable to a person, but Muse Spark read "60 s" off the screenshot and said the criterion holds. SAM 3.1 boxed 2 of the 4 caught defects, both on the seeded banner, and found no match for the other two, whose verifications went red with Muse Spark's sentence and no box. The ten checks cost $0.0489: $0.0389 for Muse Spark and $0.0100 for SAM's four images.
+
+| Page | Seeded | Muse Spark 1.3 | SAM 3.1's box | Cost |
+|---|---|---|---|---|
+| `defect-overflow` | the banner cut off before the retry time | does not hold | on the banner | $0.0070 |
+| `defect-contrast` | text at 1.11 to 1 contrast | holds, a miss | not asked | $0.0058 |
+| `defect-template` | "Try again in {{retryAfter}} s." | does not hold | no match | $0.0064 |
+| `defect-overlap` | a popover over the banner's text | does not hold | no match | $0.0074 |
+| `defect-label` | "Please try again later." | does not hold | on the banner | $0.0062 |
+| five clean pages | none | holds, 5 of 5 | not asked | $0.0161 |
+
+
+It is ten checks of one page against one criterion, one run each. The exact 95% intervals are wide: 4 of 5 caught fits a true catch rate from 28% to 99%, and 0 of 5 wrongly failed fits a false-alarm rate up to 52%. Every defect sits on the banner the criterion names, and the pages were written for the set, so a defect elsewhere on a page or in a real app is not measured.
 
 The screenshot, the marked copy, the clip of the page loading and the full record are in `bench/visual/`. [`verify.md`](verify.md#what-stint-saw-visual-checks) explains how the gate works.
 
@@ -127,6 +141,7 @@ The screenshot, the marked copy, the clip of the page loading and the full recor
 | The skill eval: no findings either way, 32 against 31 tests passed, $0.1365 against $0.1724 | Live, 27 October, Muse Code with the learned skill and without | the T-0042 timeline's `skill.evaluated` |
 | The packet quiz: 4 of 8, two blocking misses, $0.08 | Live, 26 October, on the killed T-0042 packet | `PROGRESS.md` D-037 |
 | The visual gate: a seeded defect judged wrong by Muse Spark 1.3 and boxed by SAM 3.1, $0.0063 | Live, 29 October, one check (n = 1) through the daemon's own verifier | `bench/visual/result.json` |
+| The visual gate on ten pages: 4 of 5 seeded defects caught, 0 of 5 clean pages failed, 2 boxes drawn, both on target, $0.0489 | Live, 2 November, one check per page (n = 10) through the daemon's own verifier | `bench/visual-set/results.json` |
 
 Test counts on the demo fixture differ by run because each is the fixture's 27 tests plus the tests that run added. The 29 of 29 is the Gate 2 run above. The live take on 26 October continued T-0042 to 30 passed and 0 failed (`demo/recordings/2026-10-26-1/recording.jsonl`). The replay's 33 passed is hand-written, and so is its killed packet: `handoff-killed.json`, which renders to 412 tokens ([`packet.md`](packet.md)). The 404-token packet below is a live one.
 
