@@ -118,16 +118,22 @@ function parseJsonText(text: string): unknown {
   }
 }
 
-/** Fill the daemon fields a kit schema expects, and normalise an empty review before validation. */
+/**
+ * Fill the daemon fields a kit schema expects before validation. Blockers with no findings become its findings, and an
+ * approve that lists blockers becomes a block; an empty approve gets the no-findings summary, and a block or a request
+ * for changes that names nothing fails the schema, so the host asks again and then the chain moves on.
+ */
 export function normalizeReview(raw: unknown, fill: { model: string; offline: boolean; cost: Cost }): unknown {
   if (!isRecord(raw)) return raw;
   const out: Record<string, unknown> = { ...raw, model: fill.model, offline: fill.offline, cost: fill.cost };
   if (out.createdAt === undefined) out.createdAt = new Date().toISOString();
-  if (Array.isArray(out.findings) && out.findings.length === 0) {
-    out.summary = NO_FINDINGS;
-    out.verdict = 'approve';
-    if (!Array.isArray(out.blockers)) out.blockers = [];
-  }
+  if (!Array.isArray(out.findings) || out.findings.length > 0) return out;
+  const blockers = Array.isArray(out.blockers) ? out.blockers : [];
+  if (blockers.length > 0) {
+    out.findings = blockers.slice(0, 20).map((text, i) => ({ id: `F${i + 1}`, severity: 'blocker', text }));
+    // an approve that lists blockers contradicts itself; the gate opens only when nothing blocks
+    if (out.verdict === 'approve') out.verdict = 'block';
+  } else if (out.verdict === 'approve') Object.assign(out, { summary: NO_FINDINGS, blockers: [] });
   return out;
 }
 

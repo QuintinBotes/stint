@@ -88,6 +88,26 @@ test('Three lenses produce three reviews and one combined verdict; a security bl
   }
 }, 60_000);
 
+test('A lens that blocks with blockers and no findings blocks the combined verdict and the gate', async () => {
+  const models = lensModels({ general: review('approve'), security: review('block', [], ['The signing secret is logged']) });
+  try {
+    await withFixtureRepo(async (repo) => {
+      writeConfig(repo, models.url, { lenses: ['general', 'security'], bestOf: 1, crossVendor: true });
+      const { app, ws, t } = await builtTask(repo);
+      expect((await post(app, `/api/tasks/${t.id}/review`, {})).status).toBe(200);
+      const combined = await ws.readReview(t.id);
+      expect(combined).toMatchObject({ lens: 'combined', verdict: 'block', blockers: ['The signing secret is logged'] });
+      expect(combined?.findings.map((f) => [f.lens, f.severity, f.text])).toEqual([['security', 'blocker', 'The signing secret is logged']]);
+      expect((await ws.readTask(t.id)).status).toBe('building');
+      const refused = await post(app, `/api/tasks/${t.id}/approve`, {});
+      expect(refused.status).toBe(409);
+      expect(((await refused.json()) as { error: { code: string } }).error.code).toBe('review_blocked');
+    });
+  } finally {
+    models.stop();
+  }
+}, 60_000);
+
 test('With review.bestOf 2, two hosts review the general lens; their findings merge with agreement and a split verdict is flagged', async () => {
   const shared = finding('F1', 'major', 'A tenant over the limit still gets 200', 'src/routes/webhooks.ts', 30);
   const models = lensModels({ general: review('approve', [shared]) });

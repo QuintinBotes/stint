@@ -335,8 +335,8 @@ const logError = (message: string) => process.stderr.write(`${JSON.stringify({ t
 
 /**
  * On start nothing is live, so a run the log leaves open was cut off by a crash or a stop: it is closed as killed
- * through the same path as any killed run. A task left verifying is verified again. Autopilot resumes after this,
- * so it never waits on a run that will not end (R-025).
+ * through the same path as any killed run. A task left verifying is verified again and gets the packet its run's
+ * ending never built. Autopilot resumes after this, so it never waits on a run that will not end (R-025).
  */
 export async function recoverRuns(ctx: DaemonContext): Promise<void> {
   for (const t of await ctx.ws.listTasks()) {
@@ -359,6 +359,11 @@ export async function recoverRuns(ctx: DaemonContext): Promise<void> {
       const last = runsFromEvents(await ctx.ws.events(t.id).read()).filter((r) => r.role === 'implementer').at(-1);
       const v = wt ? await ctx.verifier.verify(task, wt.run, wt.path) : last ? await verifyBranch(ctx, task, last.run) : null;
       await ctx.ws.writeTask(t.id, { status: v?.status === 'green' ? 'reviewing' : 'building' });
+      // closeRun stopped before the packet; a packet built after run.finished means a restart already made it
+      const run = wt?.run ?? last?.run;
+      const after = await ctx.ws.events(t.id).read();
+      const finished = after.filter((e) => e.type === 'run.finished' && e.run === run).at(-1);
+      if (run && finished && !after.some((e) => e.type === 'handoff.created' && e.run === run && e.seq > finished.seq)) await ctx.afterRun?.(t.id, run, finished.payload as RunResult);
     } catch (err) {
       logError(`a run of ${t.id} that a restart cut off could NOT be closed: ${err instanceof Error ? err.message : String(err)}`);
     }
