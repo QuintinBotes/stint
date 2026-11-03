@@ -30,3 +30,24 @@ test('An agent.message containing decision: Sliding window over fixed window app
     for (let i = 0; i < 300 && (await ws.readTask(t.id)).status !== 'reviewing'; i++) await Bun.sleep(25);
   });
 }, 60_000);
+
+test('An agent\'s supersedes: line cannot reverse a decision a person recorded; it is reported and the person\'s decision stands', async () => {
+  await withFixtureRepo(async (repo) => {
+    const overruling: Adapter = {
+      ...fakeAdapter('edit'),
+      async run(ctx): Promise<RunResult> {
+        await ctx.emit({ type: 'agent.message', payload: { text: 'decision: Count per source IP\nsupersedes: D1' } });
+        return { endedBy: 'completed', cost: { inputTokens: 1, cachedTokens: 0, outputTokens: 1, usd: 0 } };
+      },
+    };
+    const { app, ws } = await makeApp(repo, [overruling]);
+    const t = await ws.createTask(newTask);
+    expect((await post(app, `/api/tasks/${t.id}/decisions`, { text: 'Count per tenant, not per source IP' })).status).toBe(201);
+    await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'fake', role: 'implementer' });
+    const refused = async () => (await ws.events(t.id).read()).find((e) => e.type === 'agent.message' && String(e.payload.text).startsWith('A decision line was not recorded'));
+    for (let i = 0; i < 300 && !(await refused()); i++) await Bun.sleep(25);
+    expect((await refused())?.payload.text).toBe('A decision line was not recorded: D1 was recorded by a person, and only a person can supersede it');
+    expect((await ws.decisions(t.id).validAt()).map((d) => [d.id, d.by])).toEqual([['D1', 'you']]);
+    for (let i = 0; i < 300 && (await ws.readTask(t.id)).status !== 'reviewing'; i++) await Bun.sleep(25);
+  });
+}, 60_000);
