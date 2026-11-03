@@ -41,7 +41,7 @@ By task, green verdicts out of 2, with each shared first run graded alone (its d
 
 All nine red verdicts have no failing test. Each is the locked-test rule: the first run had changed a test file the task names without the `decision: tests:` line the daemon asks for, and the continued run did not add one. Every arm's prompt states that rule; only the packet says this change breaks it, through the daemon's red verification and its ask of next.
 
-The rerun cost $1.8373 by Stint's own records (`spend.json`): $0.4616 for the five first runs and $1.3757 for the 30 continued runs. The daemon's question to Muse Code for its own account of each first run failed with an API 400, so no packet carried that account: each first run's `handoff.created` has an empty `enriched` list, and the log meters the question at 0 tokens, so it adds nothing to the cost.
+The rerun cost $1.8373 by Stint's own records (`spend.json`): $0.4616 for the five first runs and $1.3757 for the 30 continued runs. `priorUsd` in `spend.json`, 1.5, is the `--prior-usd` the script was started with: spend from before this run that counted against the $8 budget, not part of the $1.8373. The daemon's question to Muse Code for its own account of each first run failed with an API 400, so no packet carried that account: each first run's `handoff.created` has an empty `enriched` list, and the log meters the question at 0 tokens, so it adds nothing to the cost.
 
 ## What it shows
 

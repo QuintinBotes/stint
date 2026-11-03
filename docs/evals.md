@@ -1,8 +1,8 @@
 # Evals: skills on probation, and the golden tasks
 
-This page explains how to measure a skill before you trust it, and how a fixed set of golden tasks keeps the factory honest.
+This page explains how to measure a skill before you trust it, and how a fixed set of golden tasks keeps the factory honest. Every other measurement in the repository, with its results and how to run it again, is listed in [`evals/README.md`](../evals/README.md).
 
-Learning that is not measured can make agents worse. So a learned skill earns its place twice: once in an eval before it is trusted, and again on real tasks after it mounts. The golden tasks do the same for the factory as a whole: a small set of real failures that must keep passing, every time.
+Learning that is not measured can make agents worse. So a learned skill earns its place twice: once in an eval before it is trusted, and again on real tasks after it mounts. The golden tasks do the same for the factory as a whole: a small set of tasks that must keep passing, every time, to which each real failure can be added.
 
 ## Skill eval
 
@@ -12,12 +12,12 @@ stint eval --skill limiter-config-via-env --tasks T-0042,T-0043
 stint eval --skill limiter-config-via-env --replay
 ```
 
-The eval runs the implementer on the skill's evidence tasks plus one held-out task (the most recent other task with the same tags). It runs each task twice, on fresh copies of the repository: once with the skill mounted, once with the skill folder removed. Each run records the review findings, the daemon's verification result, the tokens and the cost.
+The eval runs the implementer on the skill's evidence tasks plus one held-out task (the most recent other task with the same tags). A skill with no evidence, such as one written or imported by hand, runs on the three most similar tasks with its tags, or on the golden tasks when there are none. It runs each task twice, on fresh copies of the repository: once with the skill mounted, once with the skill folder removed. Each run records the review findings, the daemon's verification result, the tokens and the cost.
 
 The summary lands in `.stint/evals/<skill>.json`, and a `skill.evaluated` event carries both sides on the first evidence task's timeline. The run artefacts stay in `.stint/evals/<skill>/runs/`, so `--replay` can rebuild the same numbers with no model call. The proposal card and the Skills page (`/skills`) print one line from the summary:
 
 ```text
-with skill: 1 findings, 99 passed, cost $0.0385; without: 5 findings, 97 passed, cost $0.0355
+with skill: 0 findings, 32 passed, cost $0.1365; without: 0 findings, 31 passed, cost $0.1724
 ```
 
 You can evaluate a proposed skill before you approve it: the "with" side writes the proposal into the copy, and the "without" side leaves it out.

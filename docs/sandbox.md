@@ -6,7 +6,7 @@ A worktree stops agents from writing over each other. It does not stop an agent 
 
 ## Keys stay in the daemon
 
-This layer is always on. Nothing an agent or a test run starts gets a variable whose name ends in `_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`. The model hosts' keys stay in the daemon, which makes the model calls itself. An agent that needs its own key names it in its entry under `agents`:
+This layer is always on. Nothing an agent or a test run starts inherits a variable whose name ends in `_KEY`, `_TOKEN`, `_SECRET` or `_PASSWORD`. The one token an agent is given is its run's own `STINT_RUN_TOKEN` ([whatever the sandbox](#whatever-the-sandbox)). The model hosts' keys stay in the daemon, which makes the model calls itself. An agent that needs its own key names it in its entry under `agents`:
 
 ```json
 "agents": { "my-agent": { "command": ["my-agent", "--json"], "prompt": "stdin", "roles": ["implementer"], "vendor": "other", "env": ["MY_AGENT_API_KEY"], "enabled": true } }
@@ -24,7 +24,7 @@ What you type in that terminal, and what an agent's tools print, can still hold 
 
 With `mode: "proxy"`, the daemon runs a proxy on 127.0.0.1 and sets `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY` for every agent and test run. The proxy lets a connection through only to:
 
-- the hosts of the models in `hosts`;
+- the hosts of the models in `hosts` that set `baseURL` (Modal and LiteLLM read their address from a variable, so add theirs to `allow`);
 - `registry.npmjs.org`;
 - what `allow` adds. `*.example.com` covers the domain and every name under it.
 
@@ -74,7 +74,7 @@ The Stint agent's file tools run inside the daemon and are held to the worktree 
 
 ### Whatever the sandbox
 
-- The daemon listens on 127.0.0.1 only, so another machine on the network cannot reach it.
+- The daemon listens on 127.0.0.1, so another machine on the network cannot reach it. In a container it listens on the container's network instead (`--bind 0.0.0.0`), and `compose.yaml` publishes its port on the host's 127.0.0.1 only ([ADR-0012](adr/0012-daemon-in-a-container.md)).
 - Each run gets its own token, `STINT_RUN_TOKEN`, with the daemon's port in `STINT_DAEMON_PORT`. The token reaches only the routes the agent's hooks and `stint mcp` call for that task and run, answers 403 anywhere else, and stops working when the run ends. Approving, merging and managing skills need the daemon token.
 - The daemon runs git with hooks turned off, so a hook an agent wrote never runs outside its sandbox.
 - The daemon's own test runs on the agent's code use the same sandbox as the agent.
@@ -84,7 +84,7 @@ The Stint agent's file tools run inside the daemon and are held to the worktree 
 
 Every reviewed change gets a risk tier, shown on the approval gate with its reasons:
 
-- **High:** it touches sensitive paths (access, payments, migrations, CI, the lockfile; `risk.highPaths` replaces the list), deletes or shrinks tests, changes over 400 lines, has security findings, or touched the locked tests.
+- **High:** it touches sensitive paths (access, payments, migrations, CI, the lockfile; a non-empty `risk.highPaths` replaces the list, and `[]` keeps it), deletes or shrinks tests, changes over 400 lines, has security findings, or touched the locked tests.
 - **Medium:** it touches more than 5 files, or an entry point, typings or schemas.
 - **Low:** everything else.
 

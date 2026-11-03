@@ -9,7 +9,7 @@ The lifecycle does not stop at merge. The daemon keeps watching a merged change 
 The daemon scans on start, every 10 minutes, and when a person calls `POST /api/outcomes/scan`. Each outcome is recorded once, however many times the scan runs.
 
 - **Reverted:** a commit on the base branch whose message says `This reverts commit <sha>`, where the sha is a recorded merge commit. It records `outcome.reverted` with the revert commit, the merge commit and who made the revert.
-- **Followed up:** a task created within the outcome window after another task merged (`config.metrics.outcomeWindowDays`, 7 days by default), whose changed files overlap the merged task's files. It records `outcome.followup` with the follow-up task and the shared files.
+- **Followed up:** a task created within the outcome window after another task merged (`metrics.outcomeWindowDays` in `.stint/config.json`, 7 days by default), whose changed files overlap the merged task's files. It records `outcome.followup` with the follow-up task and the shared files.
 - **Failing CI:** a failed workflow run on the base branch, on a commit that carries a `Stint-Task:` trailer. It records `outcome.ci` with the run id, once per run. CI is read with `gh run list`; if `gh` cannot answer, the daemon says on stderr that CI was not checked.
 - **Incident:** a production system can report one with `POST /api/outcomes` and a body of `{ commit, kind: 'incident', summary, url }` (or a task id instead of a commit). Like every call that changes state, it needs the daemon token. The incident lands on the task the commit came from.
 

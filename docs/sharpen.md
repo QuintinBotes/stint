@@ -95,7 +95,7 @@ Each criterion gets one proof, numbered from 1 like the acceptance lines:
 | `visual` | a page and what should be seen there, as `<path> :: <what should be seen>`; Muse Spark 1.3 judges a screenshot of it ([`verify.md`](verify.md#what-stint-saw-visual-checks)) |
 | `human` | what a person looks at before approving |
 
-A round suggests one proof per criterion. Accepted proofs live in `task.json` as `proofs`, and the outcome record reads them. "Use these proofs" in the task view, or `stint proofs --set`, accepts them and records `proofs.set`. In the task view the kinds read A test, A scenario, A check, It looks right and You check it. `stint proofs --set` takes `test`, `scenario`, `check` or `human`; set a `visual` proof in the task view.
+A round suggests one proof per criterion. Accepted proofs live in `task.json` as `proofs`, and the outcome record reads them. "Use these proofs" in the task view, or `stint proofs --set`, accepts them and records `proofs.set`. In the task view the kinds read A test, A scenario, A check, It looks right and You check it. `stint proofs --set` takes `test`, `scenario`, `check`, `human` or `visual`, such as `2=visual:"/admin :: the table lists 3 tenants"`.
 
 A task is **ready** when no material question is open and every criterion has an accepted proof.
 

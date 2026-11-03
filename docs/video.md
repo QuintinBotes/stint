@@ -8,11 +8,13 @@ The film is [on YouTube](https://youtu.be/ejYyHgkVOWg). It runs 2:57.9 (the site
 
 The film cuts live takes from 30 and 31 October and two proof acts together, so a task id on screen does not always mean the same run. In order:
 
+- **0:00 and 2:09, "nothing merges without you".** That is the default. A lane that approves low-risk changes by policy exists, and it stays off until you turn it on ([`sandbox.md`](sandbox.md#risk-and-the-auto-approve-lane)).
 - **0:19 to 1:10 and 1:16 to 1:32, the Muse Code take of 30 October.** One goal, "Reliable webhook delivery" (G-0001), and its four tasks, T-0001 to T-0004.
 - **0:44, the stop.** T-0001 is stopped mid-run and handed to the Stint agent with packet h1. The film does not follow that continuation to green. At 0:58 it moves on to T-0002, and T-0001 comes back at 1:24, where the Stint agent's run (r3) is red with "0 failed": its tests passed, but it changed a locked test file, so Stint turned the verification red and autopilot stopped for you ("Needs you: stint-agent r3 changed the acceptance tests"). That is the catch the voiceover names. The green hand-off is T-0009 at 1:58, where the Stint agent continues from packet h7 and Stint's tests report 67 passed, 0 failed.
 - **0:58, "Muse Wonder 1.0 ✗ Failed" on T-0002.** The planner's call timed out on the Meta Model API and no fallback host answered, so T-0002 went on without a plan. Muse Code's build passed 34 tests, and Glimmer approved it.
 - **1:10 to 1:16, the network-off take of 30 October.** A separate take of the same rate-limit task: its T-0001, handed on with packet h2, is reviewed by Glimmer with the network off. It is not the T-0001 stopped at 0:44.
 - **1:33 to 2:13, takes 8 and 9 of 31 October.** A second goal, "Signed webhook deliveries" (G-0003), made in Stint's UI, with T-0008 to T-0011.
+- **1:50 and 2:00, the two refusals.** The budget refusal quotes 150,000, the default before D-094, and the merge refusal prints the conflicting files as JSON. Both are fixed now; the list under the cut says how.
 - **2:09, "All four merged" over "0 of 4 criteria met".** Every task merged and every criterion's tests pass, but Stint calls a criterion met only when a test showed it failing first, and this take set no such proofs. So `stint goal show G-0003` reads "Passes, not proven" for each criterion, and the goal stays in progress.
 - **2:14, the memory graph,** is from the Muse Code take of 30 October.
 - **2:21, the runs chart,** is a live relay on jeffbski/wait-on on 29 October, so its T-0001 is that repository's task. Claude Code and Codex are other vendors' agents, and here they run Meta's models, as the labels under their names say: Claude Code runs Muse Glimmer 30B through Ollama, and Codex runs Muse Spark 1.3 through the Meta Model API (`bench/relay/wait-on/relay.json`). Codex, the last of the three, wrote every green change.
@@ -55,11 +57,11 @@ Each take ran on a stage page: a real terminal on the left and Stint's UI on the
 
 **What the 0:44 and 2:46 lines cover.** At 0:44, "starts from that alone" means no transcript: the next agent's prompt holds the packet together with Stint's rules for the run, the task's goal and acceptance, the plan, the mounted skills and the changed files' line counts ([`packet.md`](packet.md#what-the-next-agent-reads)). At 2:46, "every model Stint calls is Meta's" holds for every default route and every recorded run, the film's takes included; the agent presets that could reach another vendor's model ship disabled ([`agents.md`](agents.md)).
 
-Takes 7 to 9 found three defects that would have stopped a real user, and each was fixed before the take that shows it:
+Takes 7 to 9 found three defects that would have stopped a real user. All three are fixed in the code, and the film shows two of them as they were in the take:
 
 - One Glimmer review of a 27 KB diff took 185 s on a 32 GB Mac, over the 120 s review limit. A host now sets its own `timeoutMs`, and Ollama's is 10 minutes (D-093).
-- The implementer token budget of 150,000 refused every task's second build or hand-off, and nothing let a person raise it. The default is now 1,200,000, and `stint limits <task> --implementer-tokens N` raises it, as the refusal says (D-094).
-- The gate printed a merge conflict's files as JSON. It now names them and says to ask for changes so an agent merges main.
+- The implementer token budget of 150,000 refused every task's second build or hand-off, and nothing let a person raise it. The default is now 1,200,000, and `stint limits <task> --implementer-tokens N` raises it, as the refusal says (D-094). At 1:50 the refusal still quotes T-0009's budget of 150,000, and at 1:54 the take raises it with `stint limits`.
+- The gate printed a merge conflict's files as JSON. It now names them and says to ask for changes so an agent merges main. The take predates that fix: at 2:00 to 2:04 the refusal reads `conflicts with main: {"files": [...]}`.
 
 ## Captions
 

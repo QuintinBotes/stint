@@ -52,7 +52,7 @@ This adds a `Signed-off-by:` line with your name and email; a GitHub noreply add
 - Fill in the template: what changed and why, the spec it belongs to, and how you tested it.
 - Keep it in draft until the checks are green.
 - A maintainer reviews every pull request, and changes to `.github/` (the CI workflows), `scripts/` (including the identity guard) or the run sandbox get particular attention. Pull requests from forks run CI after a maintainer approves the run.
-- Pull requests are squash-merged, so the title becomes the commit subject on `main`.
+- Pull requests are merged with a merge commit, so every commit in the pull request reaches `main` as written.
 
 ## Reporting a security problem
 

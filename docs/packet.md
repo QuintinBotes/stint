@@ -2,7 +2,7 @@
 
 This page is the reference for the `stint.handoff/1` packet, for anyone who writes an adapter or reads a packet by hand.
 
-A packet is how a task moves from one agent to the next. When a run ends, however it ends (`completed`, `capped`, `killed`, `failed` or `handed`), the daemon derives a packet from the task's event log and the git diff. The next agent reads the packet, never the transcript. The JSON Schema is `packages/core/schemas/handoff.schema.json`, and three examples that validate are in `packages/core/schemas/examples/`.
+A packet is how a task moves from one agent to the next. When a run ends, however it ends (`completed`, `capped`, `killed`, `failed` or `handed`), the daemon derives a packet from the task's event log and the git diff. The next agent reads the packet, never the transcript. The JSON Schema is `packages/core/schemas/handoff.schema.json`, and three example packets that validate, `handoff-completed.json`, `handoff-capped.json` and `handoff-killed.json`, are in `packages/core/schemas/examples/`.
 
 ## Fields
 
@@ -27,7 +27,7 @@ A packet is how a task moves from one agent to the next. When a run ends, howeve
 
 - **Size.** The whole packet renders under 600 tokens (`countTokens` is characters / 3.6, rounded up). A packet that does not fit says too much: lists are trimmed to 12 items, then shortened step by step, and one that still does not fit becomes a minimal valid packet whose `leftOut` names what was cut, so a run never ends without one.
 - **No secrets.** The packet reads command excerpts, never tool-output bodies, so a credential printed by a tool cannot reach it. Every field it does carry, refusals and decisions included, goes through the same scrubber as the event log before the packet is sized and hashed ([`sandbox.md`](sandbox.md#keys-stay-in-the-daemon)).
-- **Killed runs.** A killed run still gets a packet, built from the log alone. The last tool call with no result is named in `leftOut` as an unknown in-flight step, and `askOfNext` starts with "Check the unknown step first." Stopping a run (`POST /api/tasks/:id/runs/:run/stop`) answers `{ run, stopped }` once `run.finished` is recorded, within 5 seconds. The verification and then the packet follow on the task's stream as `verification.ran` and `handoff.created`, since asking a model for a digest can take up to 75 seconds.
+- **Killed runs.** A killed run still gets a packet, built from the log alone. The last tool call with no result is named in `leftOut` as an unknown in-flight step, and `askOfNext` starts with "Check the unknown step first." Stopping a run (`POST /api/tasks/:id/runs/:run/stop`) answers `{ run, stopped }` within 5 seconds, and `stopped` is true once `run.finished` is recorded. The verification and then the packet follow on the task's stream as `verification.ran` and `handoff.created`, since asking a model for a digest can take up to 75 seconds.
 - **Restarts.** When the daemon starts again, it closes as killed any run it was not there to close because it crashed or was stopped mid-run. A build closed this way goes through the same path as any killed run: its commit, the daemon's verification, then its packet. A task left verifying is verified again, and autopilot resumes only after that.
 - **Rendering.** `renderHandoff()` prints fixed headings, and `parseHandoffPrompt()` reads the task, where it got to, the refusals and the not-included list back by exact heading. Across more than one hop, only the task, the refusals and the origin are carried forward.
 

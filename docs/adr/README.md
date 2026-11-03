@@ -14,5 +14,5 @@ This folder is for anyone who wants the reasoning behind Stint's design. It hold
 | [0008](0008-live-runs-and-sleep.md) | Live runs hold off idle sleep; caps count awake time | Accepted |
 | [0009](0009-status-menu.md) | One status button holds the daemon, agents and models | Accepted |
 | [0010](0010-muse-login-is-availability.md) | Muse Code is available when its CLI runs, and Muse's own login does the rest | Accepted |
-| [0011](0011-default-replay-until-live-take.md) | The default replay stays hand-written until a network-off live take exists | Accepted, owner to close |
+| [0011](0011-default-replay-until-live-take.md) | The default replay stays hand-written until a network-off live take exists | Accepted; closed by the owner on 31 October 2026, decision kept |
 | [0012](0012-daemon-in-a-container.md) | In a container the daemon listens on the container's network, published on the host's 127.0.0.1 only | Accepted |

@@ -1,6 +1,6 @@
 # When Stint was built
 
-This page shows judges what was built during the hackathon, day by day, so they need not work it out from the commit times. The building period starts after the kickoff session on 26 October 2026; part of this repository was written earlier that day, and the first section lists that part: 9,743 lines of `packages/` and `apps/`, of the 86,595 there on 2 November (`git diff --shortstat` from the empty tree to commit `9565344` and to `main`). Times are CET, from each commit's author date.
+This page shows judges what was built during the hackathon, day by day, so they need not work it out from the commit times. The building period starts after the kickoff session on 26 October 2026; part of this repository was written earlier that day, and the first section lists that part: 9,743 lines of `packages/` and `apps/`, of the 86,595 there at commit `f5678b3` on 2 November (`git diff --shortstat` over `packages apps`, from the empty tree to commit `9565344` and to commit `f5678b3`). Times are CET, from each commit's author date.
 
 ## Before the kickoff (26 October, 15:15 to 17:00 CET)
 
@@ -12,7 +12,7 @@ This page shows judges what was built during the hackathon, day by day, so they 
 | R-003 to R-007 | Event log and store, daemon and SSE, worktrees and verifier, replay, web UI shell | product code |
 | R-008, R-009, R-011 | Terminal backend, Muse Code adapter, cost meter | product code |
 | R-012 (first draft) | The packet builder, written before the kickoff and committed after it | product code |
-| R-010 | The OpenAI-compatible host client and the fallback chain, written by Muse Code from 16:35 to 18:05 CET, so partly during the kickoff session; committed after it | product code |
+| R-010 | The OpenAI-compatible host client and the fallback chain, written by Muse Code partly during the kickoff session and committed after it, at 17:29 CET | product code |
 
 `git log --until="2026-10-26 17:00 +0100"` lists every commit made before the kickoff. Commit messages were later edited to drop tool attribution lines. On 27 October the history was rewritten once more to replace a sample email address in one test title and one spec line with plain words, so a publishing check would pass; nothing else in the contents changed. Every author and commit date is unchanged, so the times shown are the real ones.
 
@@ -103,10 +103,28 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-001 | The guide to running Stint in a container (`docs/docker.md`), ADR-0012, D-097 and the R-004 deviation, and the pages that point to the guide | docs |
 | R-001 | The image holds only what the `stint` command runs on, 360 MB instead of 511, and is published to the GitHub container registry for amd64 and arm64 | product code |
 | R-024 | The judges' line in the README and the finals kit point to the published image, and the kit answers how Stint differs from tools that run agents on a ticket queue | docs |
-| R-024 | The 46 live packets in `bench/` are published as the Hugging Face dataset `quintinbotes/stint-handoff-packets`, with the benchmark summaries and the packet schema, and the README links it | docs |
+| R-024 | The 46 live packets then in `bench/` are published as the Hugging Face dataset `quintinbotes/stint-handoff-packets`, with the benchmark summaries and the packet schema, and the README links it | docs |
 | R-001 | Each published image carries an SBOM and build provenance and is signed with Sigstore's keyless signing; a `v*` tag publishes it under its version, and 0.1.0 is released | product code |
 | R-001, R-069 | CI scans every commit for keys and tokens with gitleaks (D-098), and the link test covers every page in `docs/` and the paths the README names | tests and CI |
 | R-021, R-010 | The fair bench from one shared checkpoint with a `diff` mode (D-099) and the review recheck on Muse Spark 1.3, both live on Meta's models, results in `bench/fair/` and `bench/review-recheck/` | product code and live runs |
 | R-068 | The visual check on ten pages, five seeded defects and five clean, live on Muse Spark 1.3 and SAM 3.1 (`bench/visual-set/`) | live runs |
 | R-021 | The unfinished rerun with a `resume` mode, from checkpoints that fail their held-out tests, live on Muse Spark 1.3 (`bench/fair-unfinished/`) | product code and live runs |
 | R-024 | The README and proofs lead with the controlled numbers and their limits, the Claude Code relay hop is described from its events, and a claims test locks the 2 November figures | docs and tests |
+| R-024 | `docs/architecture.md`: Stint in two diagrams and a table (19:59) | docs |
+| R-009, R-010, R-012, R-013, R-025, R-059 | Smaller fixes: the question to a leaving Muse Code session goes out with the run's environment, a review with empty findings keeps the model's verdict, a restart after a crash during verification builds the missing packet, `stint doctor` and `stint run --wait` say why no implementer can build, and the Stint agent takes its host's `timeoutMs` (20:25 to 22:39) | product code |
+
+## 3 November
+
+| Commit | What | Kind |
+|---|---|---|
+| R-012 | Every ending gets its packet: a restart builds the missing packet for a task's last agent run, once, through the same path a run's end uses, and a packet that cannot fit after the last trim becomes a minimal valid one that names what was cut (00:00) | product code |
+| R-017 | The gate tests the tree it merges: when main moved since the verified commit, the daemon runs the task's tests, checks and held-out scenarios on the merged tree in a temporary worktree and refuses a red one as `merge_red` | product code |
+| R-021, R-037 | The bench grades a continued run's held-out tests from their counts alone and labels the daemon's verdict separately, and `bench/fair/` and `bench/fair-unfinished/` are rebuilt from their records with no model call; a held-out run that prints a passing summary and then exits non-zero or times out counts as failed | product code |
+| R-024, R-069 | The README's judges' section leads each criterion with what it gives the user, the evidence that holds and its limit, and the open-weight line says what each open model does by default | docs |
+| R-010 | A reviewer on Ollama reads up to 12,000 tokens of the diff, and Glimmer, rerun on all 18 graded patches with the whole diff, flagged 1 of the 15 failing ones and none of the 3 passing ones (`bench/review-recheck/glimmer-local/`, 09:18) | product code and live runs |
+| R-040 | Every field of a packet is scrubbed before it is sized and hashed, and the scrubber redacts credentials by their shape as well as by name (10:40) | product code |
+| R-005 | The verifier reads Jest and Mocha summaries as well as bun test and Vitest, and adds up a command that runs more than one (13:47) | product code |
+| R-021, R-058 | `evals/README.md` lists every measurement, what it measures, where its results are and the command that runs it again (16:56) | docs |
+| R-024 | `docs/video.md` opens with a key to reading the film (19:27) | docs |
+| R-040 | A decision sent with a run's token is recorded as that run, only a person supersedes a person's decision, and no field of `decisions.md` can forge an entry (19:47) | product code |
+| R-024 | The docs sweep for judges: every page checked against the code and the result files | docs |

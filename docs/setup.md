@@ -9,7 +9,7 @@ The examples use two folders: the Stint checkout (`/path/to/stint`) and your rep
 | Platform | Status | Notes |
 |---|---|---|
 | macOS 14 or later, Apple silicon | supported | CI runs every commit on `macos-latest` |
-| Linux x86_64 and arm64 | supported | CI runs every commit on `ubuntu-latest`; Muse Code's sandbox needs `bubblewrap` |
+| Linux x86_64 and arm64 | supported | CI runs every commit on `ubuntu-latest`, which is x86_64; the container image is also built for arm64; Muse Code's sandbox needs `bubblewrap` |
 | Windows | untested | WSL 2 with Ubuntu should behave like Linux; nothing is tested there |
 
 ## What each part needs
@@ -26,12 +26,13 @@ The examples use two folders: the Stint checkout (`/path/to/stint`) and your rep
 
 ## Install
 
-Clone the repository and install its dependencies:
+Clone the repository, install its dependencies and build the web UI, which `stint up` serves from `apps/web/dist`:
 
 <!-- needs: network (the clone and bun install download packages) -->
 ```bash
 git clone https://github.com/QuintinBotes/stint && cd stint
 bun install
+bun run build:web
 ```
 
 Put `stint` on your PATH. The installer writes a small shim that runs this checkout's CLI. It writes the shim to `$STINT_BIN_DIR` when that is set, else to `--dir <folder>`, else to `~/.local/bin`. Running it again changes nothing. When the folder is not on your PATH, it prints the line to add:
@@ -86,7 +87,7 @@ What a task took, measured on Meta's models:
 |---|---|---|
 | A continuation, live on 26 October: Muse Code killed on T-0042, and the Stint agent on Muse Spark 1.3 continued from the packet to 29 of 29 tests | $0.10 | Gate 2 in `PROGRESS.md`; [`proofs.md`](proofs.md#what-is-real) |
 | The first live take of the demo, 26 October: plan, build, kill, continue, review (online) and merge | 4 min 36 s from the plan's start; the continuation took 22 s, then 1 s of verification | `demo/recordings/2026-10-26-1`; [`demo.md`](demo.md#the-beats) |
-| A rehearsal of every beat, 27 October, with the offline review on Muse Glimmer | 9 min 14 s; $0.26 for T-0042 and $0.19 for T-0043 | [`demo.md`](demo.md#the-beats) |
+| A rehearsal of every beat, 27 October, with the offline review on Muse Glimmer | 9 min 14 s; $0.26 for T-0042 and $0.19 for T-0043 | [`demo.md`](demo.md#the-beats); its event log is not in the repository |
 | A relay, 29 October: Muse Code, Claude Code, then Codex on one task in a repository Stint had never seen | 15.7 to 27.4 min of wall time; $0.1949 to $0.3874, which prices Codex's hop alone | `bench/relay/`; [`proofs.md`](proofs.md#the-relay-one-task-three-agents) |
 | A scorecard attempt, 29 October: the Stint agent on Muse Spark Open on Baseten, with no hand-off | All in, $1.6311 and 18.4 min of run time per green attempt: 3 of 9 attempts went green, for $4.8932 in all | `bench/scorecard.json`; [`proofs.md`](proofs.md#the-scorecard) |
 
@@ -106,7 +107,7 @@ Four things to know before you start:
 
 - **A clean tree.** A run starts from your last commit in its own worktree under `.stint/worktrees/`, on the branch `stint/<task>`. Uncommitted changes to tracked files stop it with `dirty_tree`, so commit or stash them first.
 - **The test command.** The daemon runs the task's test command itself after every run. It is `testCommand` in `.stint/config.json` (`bun test` until you change it), or `stint new --test "<command>"` for one task.
-- **Limits.** Autopilot stops and asks you once a task reaches one of its limits: by default 8 builds, 3 hand-offs and 1 review round, and no limit on spend or agent time until you set one. `stint new "<title>" --max-usd 3` sets limits for one task, `stint limits <task>` shows and changes them, and `limits` in `.stint/config.json` sets the defaults ([`factory.md`](factory.md#limits-you-set)).
+- **Limits.** Autopilot stops and asks you once a task reaches one of its limits: by default 8 builds, 3 hand-offs and 1 review round, and no limit on spend or agent time until you set one. Each role also has a token budget per task (`budgets` in `.stint/config.json`; 1,200,000 tokens for the implementer), and a run that would pass it is refused with `budget_exceeded` and the `stint limits <task> --implementer-tokens <N>` command that raises it. `stint new "<title>" --max-usd 3` sets limits for one task, `stint limits <task>` shows and changes them, and `limits` in `.stint/config.json` sets the defaults ([`factory.md`](factory.md#limits-you-set)).
 - **The gate.** Nothing merges until you approve. Approval is a real merge of the commit the daemon verified, with `Stint-Task` trailers that name the runs and the packet it came from. To send work back, run `stint changes <task> --reason "<what should change>"` or `stint reject <task> --reason "<why>"`; your words become the next run's ask.
 
 ## Other agents
@@ -146,12 +147,12 @@ To run Stint without installing Bun, use the container: the replay with no keys,
 
 ## Updating
 
-Pull the checkout and install again. The shim points at the checkout, so it needs no change:
+Pull the checkout, install again and rebuild the web UI. The shim points at the checkout, so it needs no change:
 
 <!-- needs: network -->
 ```bash
 cd /path/to/stint
-git pull && bun install
+git pull && bun install && bun run build:web
 ```
 
 ## Uninstalling
