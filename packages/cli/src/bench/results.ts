@@ -83,7 +83,7 @@ export type BenchRow = {
   promptTokens: number;
   repeat: number;
   synthetic?: true;
-  /** With held-out tests: the daemon's verification once they were added (green or red), or null when they could not run. */
+  /** With held-out tests: green when none failed, red when one did, or null when they could not run. The daemon's verdict is `verified`. */
   hidden?: 'green' | 'red' | null;
   scenarios?: { passed: number; failed: number } | null;
   /** Whether the continued run itself wrote a `decision: tests:` line, the locked-test rule's way out. */
@@ -134,6 +134,18 @@ export type BenchResults = {
 
 const round = (n: number, digits: number) => Math.round(n * 10 ** digits) / 10 ** digits;
 const mean = (ns: number[]) => (ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : 0);
+
+/**
+ * A continued run graded by held-out tests: the grade comes from their counts alone, and the result names the
+ * daemon's verdict and the held-out count apart, because either can be red while the other is green.
+ */
+export function heldOut(verified: boolean, scenarios: { passed: number; failed: number } | null): Pick<BenchRow, 'hidden' | 'scenarios' | 'result'> {
+  return {
+    hidden: scenarios ? (scenarios.failed === 0 ? 'green' : 'red') : null,
+    scenarios: scenarios ? { passed: scenarios.passed, failed: scenarios.failed } : null,
+    result: `the daemon's verdict ${verified ? 'green' : 'red'}; ${scenarios ? `held-out tests passed ${scenarios.passed} of ${scenarios.passed + scenarios.failed}` : 'held-out tests not run'}`,
+  };
+}
 
 function stripRow(r: BenchRowFile): BenchRow {
   const leg = r.leg ?? 'build';
@@ -325,7 +337,7 @@ export function formatSummary(results: BenchResults): string[] {
     const m = results.byMode[mode];
     if (!m) continue;
     lines.push(
-      `${mode.padEnd(10)} ${m.runs} runs, mean input ${Math.round(m.meanInputTokens)} tokens, mean prompt ${Math.round(m.meanPromptTokens)} tokens, mean ${money(m.meanUsd)}, pass rate ${pct(m.passRate)} (verified by the daemon)${m.hiddenPassRate !== undefined ? `, held-out tests passed ${pct(m.hiddenPassRate)} of ${m.hiddenGraded} graded` : ''}`,
+      `${mode.padEnd(10)} ${m.runs} runs, mean input ${Math.round(m.meanInputTokens)} tokens, mean prompt ${Math.round(m.meanPromptTokens)} tokens, mean ${money(m.meanUsd)}, the daemon's verdict green ${pct(m.passRate)}${m.hiddenPassRate !== undefined ? `, held-out tests passed ${pct(m.hiddenPassRate)} of ${m.hiddenGraded} graded` : ''}`,
     );
   }
   for (const leg of BENCH_LEGS) {
@@ -394,7 +406,7 @@ export function renderBenchSvg(results: BenchResults, theme: 'dark' | 'light'): 
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Continued run input tokens by task and mode">`,
     `<rect width="${width}" height="${height}" fill="${c.surface}"/>`,
     `<text x="24" y="32" font-family="Geist, Inter, system-ui, sans-serif" font-size="16" font-weight="600" fill="${c.ink}">Continued run input tokens by mode</text>`,
-    `<text x="24" y="52" font-family="Geist, Inter, system-ui, sans-serif" font-size="12" fill="${c.muted}">${xml(results.replay ? 'Replay of recorded runs' : 'Live runs')}${results.synthetic ? ', synthetic' : ''}; ${results.rows.some((r) => r.hidden !== undefined) ? 'green means the daemon verification passed with the held-out tests added' : 'pass means the daemon verification was green'}</text>`,
+    `<text x="24" y="52" font-family="Geist, Inter, system-ui, sans-serif" font-size="12" fill="${c.muted}">${xml(results.replay ? 'Replay of recorded runs' : 'Live runs')}${results.synthetic ? ', synthetic' : ''}; ${results.rows.some((r) => r.hidden !== undefined) ? 'green means every held-out test passed' : 'pass means the daemon verification was green'}</text>`,
   ];
   let legendX = 24;
   for (const [i, mode] of modes.entries()) {

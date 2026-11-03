@@ -27,7 +27,7 @@ Ten continued runs per arm: five tasks, two runs each.
 | transcript | 10 of 10 | 7 of 10 | 5,124 | 492,433 | $0.5216 |
 | diff | 10 of 10 | 4 of 10 | 1,375 | 368,625 | $0.4102 |
 
-The daemon's verdict is its verification once the held-out tests were added: the repository's tests, the rule on locked test files and the held-out tests must all pass. It is `hidden` on each row of `results.json`, and `hiddenPassRate` per arm.
+The daemon's verdict is its verification of the continued run: the repository's tests and the rule on locked test files must both pass. It is `verified` on each row of `results.json` and `passRate` per arm. Verifying again with the held-out tests added gave the same verdict on every row. The held-out tests are graded apart: `scenarios` on each row counts them, `hidden` is green when none failed, and `hiddenPassRate` per arm is the share of runs where none failed.
 
 By task, green verdicts out of 2, with each shared first run graded alone (its diff applied to a fresh clone, no model call):
 
@@ -41,7 +41,7 @@ By task, green verdicts out of 2, with each shared first run graded alone (its d
 
 All nine red verdicts have no failing test. Each is the locked-test rule: the first run had changed a test file the task names without the `decision: tests:` line the daemon asks for, and the continued run did not add one. Every arm's prompt states that rule; only the packet says this change breaks it, through the daemon's red verification and its ask of next.
 
-The rerun cost $1.8373 by Stint's own records (`spend.json`): $0.4616 for the five first runs and $1.3757 for the 30 continued runs. Muse Code's own account of each first run, which the packet carries, reported no usage, so Stint priced it at $0.
+The rerun cost $1.8373 by Stint's own records (`spend.json`): $0.4616 for the five first runs and $1.3757 for the 30 continued runs. The daemon's question to Muse Code for its own account of each first run failed with an API 400, so no packet carried that account: each first run's `handoff.created` has an empty `enriched` list, and the log meters the question at 0 tokens, so it adds nothing to the cost.
 
 ## What it shows
 
@@ -56,7 +56,7 @@ It does not reproduce the 27 October behaviour gap either, and the diff arm, not
 ## Files
 
 - `results.json`: the `stint.bench/1` results, read the same way as `bench/results.json` (see `bench/README.md`), with `hidden` and `scenarios` on every row.
-- `results.svg` and `results-light.svg`: input tokens per continued run by task and arm, each arm labelled with its share of green verdicts.
+- `results.svg` and `results-light.svg`: input tokens per continued run by task and arm, each arm labelled with the share of its runs that passed every held-out test.
 - `spend.json`: the spend by task, from every `run.finished` and `cost.recorded` in the run logs, the shared first run counted once.
 - `runs/<task>-<arm>-r<n>/`: `handoff.json` and `transcript.jsonl` (the shared first run's packet and transcript), `prompt.md` (what the continuer was handed), `row.json`, `events.jsonl` (the task's whole timeline in that copy), `handoff-continued.json` (the packet the continued run built) and `diff.patch` (the change after it).
 - `scenarios/<task>/test/*.test.ts.txt`: the held-out tests. The `.txt` keeps them out of this repository's own test run.

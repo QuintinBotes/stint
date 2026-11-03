@@ -68,7 +68,7 @@ It also does not test a packet at its best. In every live first run, here and in
 - `results.json`: the `stint.bench/1` results, read as `bench/fair/results.json` is, with `mode: "resume"` for the fourth arm, and `hidden`, `scenarios` and `testsDecision` on every row.
 - `checkpoints.json`: every first run tried, with its cap, cost, changed files, its own test line, the held-out line and whether it was continued.
 - `spend.json`: the spend by Stint's records, the probe as `priorUsd`, and where the budget stopped the run.
-- `results.svg` and `results-light.svg`: input tokens per continued run by task and arm, each arm labelled with its share of green verdicts.
+- `results.svg` and `results-light.svg`: input tokens per continued run by task and arm, each arm labelled with the share of its runs that passed every held-out test.
 - `runs/<task>-<arm>-r<n>/`: the files below. The resume arm's continued transcript lives in Muse Code's own session store and is not published.
   - `handoff.json` and `transcript.jsonl`: the shared first run's packet and transcript.
   - `prompt.md`: what the continuer was handed; for resume, the instruction alone.

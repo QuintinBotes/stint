@@ -6,7 +6,7 @@
   "mode": "transcript",
   "repeat": 2,
   "leg": "build",
-  "result": "not verified by the daemon; with the held-out tests red",
+  "result": "the daemon's verdict red; held-out tests passed 4 of 4",
   "host": "meta-api",
   "model": "muse-spark-1.3",
   "inputTokens": 49824,
@@ -19,7 +19,7 @@
   "implementerModel": "muse-spark-1.3",
   "startedAt": "2026-11-02T19:21:08.527Z",
   "finishedAt": "2026-11-02T19:21:34.924Z",
-  "hidden": "red",
+  "hidden": "green",
   "scenarios": {
     "passed": 4,
     "failed": 0

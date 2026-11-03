@@ -6,7 +6,7 @@
   "mode": "resume",
   "repeat": 2,
   "leg": "build",
-  "result": "verified by the daemon; with the held-out tests green",
+  "result": "the daemon's verdict green; held-out tests passed 5 of 5",
   "host": "local-cli",
   "model": "muse-spark-1.3",
   "inputTokens": 265954,

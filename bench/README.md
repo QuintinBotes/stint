@@ -80,12 +80,12 @@ A build row is the continued run, not the capped first run; a plan, review or le
 - `inputTokens`, `cachedTokens`, `outputTokens`, `usd`: the continued run's usage and cost, as the daemon metered and priced them.
 - `wallMs`: the continued run's wall time in milliseconds.
 - `verified`: true when the daemon's own run of the task's test command was green after the continued run.
-- `hidden` and `scenarios`: present when the bench was given held-out tests for the task (`bench/fair/` is). They are stored after the continued run and its review, so no agent sees them, and the daemon verifies the run again with them: `hidden` is that verification's status, or null when the held-out tests could not run, and `scenarios` their pass and fail counts. `byMode` then also carries `hiddenPassRate` and `hiddenGraded`.
+- `hidden` and `scenarios`: present when the bench was given held-out tests for the task (`bench/fair/` is). They are stored after the continued run and its review, so no agent sees them, and the daemon verifies the run again with them: `scenarios` is their pass and fail counts, and `hidden` is green when none failed, red when one did, or null when they could not run. The daemon's verdict stays `verified`. `byMode` then also carries `hiddenPassRate`, the share of graded runs with none failed, and `hiddenGraded`.
 - `promptTokens`: the size of the prompt the continuer started from, counted with Stint's token counter. This is the direct size comparison between the transcript and the packet.
-- `result`: what the leg did, in a few words: the plan's step count, the review verdict, the proposed skill, or whether the daemon verified the build.
+- `result`: what the leg did, in a few words: the plan's step count, the review verdict, the proposed skill, or whether the daemon verified the build and, with held-out tests, how many of them passed.
 - `repeat`: which repeat this row is, starting at 1.
 
-The one-screen summary prints, per mode, the mean input tokens, mean prompt tokens, mean USD and pass rate, then the ratio. When packet mode passes less often than transcript mode, the summary says so and names `leftOut` and `askOfNext` as the fields to improve: they carry what the first agent skipped and what it asks the next agent to do.
+The one-screen summary prints, per mode, the mean input tokens, mean prompt tokens, mean USD and the share the daemon verified green (with held-out tests, also the share that passed them), then the ratio. When packet mode passes less often than transcript mode, the summary says so and names `leftOut` and `askOfNext` as the fields to improve: they carry what the first agent skipped and what it asks the next agent to do.
 
 ## Golden tasks
 

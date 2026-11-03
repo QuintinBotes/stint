@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed (3 November)
+- The bench grades a continued run's held-out tests from their counts alone, so a run whose held-out tests all passed reads as passed even when the daemon's verdict was red, and each row and the summary name the two apart. `bench/fair/` and `bench/fair-unfinished/` were rebuilt from their recorded runs with no model call: only the row labels, `hidden`, `hiddenPassRate` and the charts changed.
+- Approve also runs the task's held-out scenarios on the merged tree when main moved, and refuses a red one with `merge_red`.
+
 ### Added (2 November)
 - CI scans every commit for keys and tokens with gitleaks, with the values redacted; `.gitleaksignore` names the made-up keys the tests use.
 - The link test also checks every link in `docs/`, from the page's own folder, and every path the README names in backticks.

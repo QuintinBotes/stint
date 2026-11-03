@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tempDir } from '../../packages/core/test/fixture';
-import { loadScenarios, taskSpend } from '../fair-bench';
+import { loadScenarios, publishRuns, taskSpend } from '../fair-bench';
 import { table } from '../review-recheck';
 
 const row = (id: string, type: string, usd: number | null, run?: string) => JSON.stringify({ id, type, ...(run ? { run } : {}), payload: { cost: { usd } } });
@@ -47,4 +47,17 @@ test('the recheck table counts a flag on a red patch as caught and on a green on
       { hidden: 'red', verdict: null },
     ]),
   ).toEqual({ caught: 1, red: 2, wronglyBlocked: 1, green: 2, unanswered: 1 });
+});
+
+test('publishing grades a recorded row on its held-out tests alone: a red verdict with none of them failing reads as held-out passed', () => {
+  const tmp = tempDir('stint-fair-');
+  try {
+    const recorded = { task: 't', mode: 'diff', repeat: 1, leg: 'build', result: 'not verified by the daemon; with the held-out tests red', verified: false, hidden: 'red', scenarios: { passed: 5, failed: 0 } };
+    mkdirSync(join(tmp.dir, 't-diff-r1'));
+    writeFileSync(join(tmp.dir, 't-diff-r1', 'row.json'), `${JSON.stringify(recorded, null, 2)}\n`);
+    publishRuns(tmp.dir);
+    expect(JSON.parse(readFileSync(join(tmp.dir, 't-diff-r1', 'row.json'), 'utf8'))).toEqual({ ...recorded, result: "the daemon's verdict red; held-out tests passed 5 of 5", hidden: 'green' });
+  } finally {
+    tmp.cleanup();
+  }
 });

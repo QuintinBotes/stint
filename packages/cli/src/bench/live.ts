@@ -8,7 +8,7 @@ import { Workspace, runsFromEvents } from '@stint-dev/core/node';
 import { type Adapter, type RunContext, assign, createApp, daemonContext, defaultAdapters } from '@stint-dev/daemon';
 import { freshFixture } from '../demo';
 import { type BenchClock, type HostBuckets, hostBuckets } from './limits';
-import { BENCH_LEGS, type BenchLeg, type BenchMode, type BenchResults, type BenchRowFile, type BenchTaskDef, buildResults, taskKey } from './results';
+import { BENCH_LEGS, type BenchLeg, type BenchMode, type BenchResults, type BenchRowFile, type BenchTaskDef, buildResults, heldOut, taskKey } from './results';
 import { renderTranscript } from './transcript';
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -428,11 +428,9 @@ async function continueRun(opts: LiveBenchOptions, cp: Checkpoint, unit: Unit, b
       let stored = true;
       for (const s of held) stored &&= (await d.post(`/api/tasks/${cp.id}/scenarios`, s)).ok;
       const res = stored ? await d.post(`/api/tasks/${cp.id}/verify`, { run: second.run }) : null;
-      const v = res?.ok ? ((await res.json()) as { status?: string; scenarios?: { passed: number; failed: number } | null }) : null;
+      const v = res?.ok ? ((await res.json()) as { scenarios?: { passed: number; failed: number } | null }) : null;
       // held-out tests that could not run grade nothing
-      buildRow.hidden = v?.scenarios ? (v.status === 'green' ? 'green' : 'red') : null;
-      buildRow.scenarios = v?.scenarios ? { passed: v.scenarios.passed, failed: v.scenarios.failed } : null;
-      buildRow.result = `${buildRow.result}; with the held-out tests ${buildRow.hidden ?? 'not run'}`;
+      Object.assign(buildRow, heldOut(buildRow.verified, v?.scenarios ?? null));
     }
     if (legs.includes('build')) await recordLeg(buildRow);
     // the run's own record: the task's events, the packet it built and the change on the branch

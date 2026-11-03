@@ -10,7 +10,7 @@ import { parseArgs } from 'node:util';
 import { keepAwake } from '../packages/cli/src/awake';
 import { hashHandoff } from '../packages/core/src/node';
 import { runBenchLive } from '../packages/cli/src/bench/live';
-import { type BenchMode, type BenchRowFile, buildResults, loadBenchTasks, taskKey, writeBenchOutputs } from '../packages/cli/src/bench/results';
+import { type BenchMode, type BenchRowFile, buildResults, heldOut, loadBenchTasks, taskKey, writeBenchOutputs } from '../packages/cli/src/bench/results';
 import { rechain, scrubber } from './seeded-run';
 
 // the published-record scrub the scorecard uses: local paths, the user name, keys, emails and dashes
@@ -65,7 +65,8 @@ export function taskSpend(runsDir: string, task: string): { firstRunUsd: number;
 
 /**
  * The bench already took local paths out as it wrote; this takes out emails and dashes too, as the scorecard's
- * publishing does, then hashes each event log's chain and each packet again over the scrubbed text.
+ * publishing does, then hashes each event log's chain and each packet again over the scrubbed text, and grades
+ * each row's held-out tests from their counts.
  */
 export function publishRuns(runsDir: string): void {
   if (!existsSync(runsDir)) return;
@@ -74,7 +75,11 @@ export function publishRuns(runsDir: string): void {
       const file = join(runsDir, d, f);
       let text = scrub(readFileSync(file, 'utf8'));
       if (f === 'events.jsonl') text = rechain(text);
-      else if (f.startsWith('handoff') && f.endsWith('.json')) {
+      else if (f === 'row.json') {
+        // a row recorded before the held-out grade came from the held-out counts alone is graded again from them
+        const row = JSON.parse(text) as BenchRowFile;
+        if (row.hidden !== undefined) text = `${JSON.stringify({ ...row, ...heldOut(row.verified, row.scenarios ?? null) }, null, 2)}\n`;
+      } else if (f.startsWith('handoff') && f.endsWith('.json')) {
         const packet = JSON.parse(text) as Record<string, unknown>;
         if (packet.version === 'stint.handoff/1') text = `${JSON.stringify({ ...packet, hash: hashHandoff(packet as never) }, null, 2)}\n`;
       }
