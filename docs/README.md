@@ -1,6 +1,6 @@
 # Docs
 
-This folder holds every guide to Stint, one line each, grouped by what you came to do. If you are new to Stint, start with [`setup.md`](setup.md). To check a claim, go to [`proofs.md`](proofs.md).
+This folder holds every guide to Stint, one line each, grouped by what you came to do. If you are new to Stint, start with [`setup.md`](setup.md). To check a claim, go to [`proofs.md`](proofs.md). Every measurement behind those claims, with the command that runs it again, is listed in [`evals/README.md`](../evals/README.md).
 
 ## Use Stint
 
