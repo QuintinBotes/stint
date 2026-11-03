@@ -17,6 +17,8 @@ In a relay one task goes through three agents. Muse Code on Muse Spark 1.3 start
 
 Published text is scrubbed of machine paths, the user name, emails and key values, and long dashes are written as plain ones. Because scrubbing changes the bytes, the `events.jsonl` hash chains and packet hashes are computed again over the scrubbed text. `relay.json` records whether every original chain verified before scrubbing (`chainVerifiedBeforeScrub`).
 
+These relays ran on 29 October, when the daemon read only bun test and Vitest summaries. Mocha (negotiator, wait-on) and Jest (ms) print their own, so each verification record here counts the suite as one test, `passed: 1` or `failed: 1`, from its exit code, and the held-out record does the same; green and red are the exit code's. The suite's real counts are in the output kept beside each record (`verification/r<n>.out.txt`); the held-out output is never kept. Since 3 November the daemon reads Mocha and Jest summaries too.
+
 ## The seeded tasks
 
 | Task | Repository | Hidden tests | On the clean clone | With the reference fix |

@@ -20,18 +20,18 @@ export interface Verifier {
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g');
 
-/** Vitest (`Tests  1 failed | 26 passed (27)`) and bun test (` 26 pass`, ` 1 fail`) summaries; null when neither is there. */
+/**
+ * Vitest (`Tests  1 failed | 26 passed (27)`), Jest (`Tests:       1 failed, 26 passed, 27 total`), bun test (` 26 pass`,
+ * ` 1 fail`) and Mocha (`  26 passing (1s)`, `  1 failing`) summaries, added up when one command runs several; null when there is none.
+ */
 export function parseTestSummary(output: string): { passed: number; failed: number } | null {
   const text = output.replace(ANSI, '');
-  const vitest = /^\s*Tests\s+(.*)$/m.exec(text);
-  if (vitest?.[1] && /\d+ (passed|failed)/.test(vitest[1])) {
-    const passed = Number(/(\d+) passed/.exec(vitest[1])?.[1] ?? 0);
-    const failed = Number(/(\d+) failed/.exec(vitest[1])?.[1] ?? 0);
-    return { passed, failed };
-  }
-  const pass = /^\s*(\d+) pass\s*$/m.exec(text);
-  const fail = /^\s*(\d+) fail\s*$/m.exec(text);
-  if (pass || fail) return { passed: Number(pass?.[1] ?? 0), failed: Number(fail?.[1] ?? 0) };
+  const sum = (lines: string[], re: RegExp) => lines.reduce((n, line) => n + Number(re.exec(line)?.[1] ?? 0), 0);
+  const tests = text.match(/^\s*Tests:?\s+.*\d+ (?:passed|failed).*$/gm) ?? [];
+  if (tests.length) return { passed: sum(tests, /(\d+) passed/), failed: sum(tests, /(\d+) failed/) };
+  const pass = text.match(/^\s*\d+ pass(?:ing \(.+\))?\s*$/gm) ?? [];
+  const fail = text.match(/^\s*\d+ fail(?:ing)?\s*$/gm) ?? [];
+  if (pass.length || fail.length) return { passed: sum(pass, /(\d+)/), failed: sum(fail, /(\d+)/) };
   return null;
 }
 
