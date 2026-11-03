@@ -79,6 +79,8 @@ export function buildReviewPrompt(input: {
   /** One job for this review (R-038); the general review has none. */
   lens?: 'general' | 'security' | 'spec-fit';
   acceptance?: string[];
+  /** The reviewer runs on this machine, so its tokens cost nothing. */
+  offline?: boolean;
 }): string {
   const skills = [...(input.skills ?? [])].sort((a, b) => {
     const aVoice = a.name === 'review-voice-policy' ? 0 : 1;
@@ -92,7 +94,8 @@ export function buildReviewPrompt(input: {
     skills: renderSkills(skills, true),
     decisions,
     packet: input.packetPrompt,
-    diff: capDiff(input.diff, 3000).text,
+    // a local reviewer pays nothing per token, so it reads four times the hosted cap; Ollama gave Glimmer a 32,768 token window on a 32 GB Mac
+    diff: capDiff(input.diff, input.offline ? 12_000 : 3000).text,
   }) + lensAsk(input.lens, input.acceptance ?? []);
 }
 

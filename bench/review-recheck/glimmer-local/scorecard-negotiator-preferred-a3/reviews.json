@@ -1,0 +1,25 @@
+{
+  "source": "scorecard",
+  "attempt": "negotiator-preferred-a3",
+  "hidden": "green",
+  "recorded": {
+    "verdict": "approve",
+    "findings": 0,
+    "model": "muse-glimmer:30b-mlx"
+  },
+  "diffBytes": 12412,
+  "promptTokens": 3527,
+  "localPromptTokens": 3981,
+  "reviews": [
+    {
+      "reviewer": "ollama/muse-glimmer:30b-mlx",
+      "verdict": "approve",
+      "summary": "No actionable findings.",
+      "findings": [],
+      "inputTokens": 4239,
+      "outputTokens": 110,
+      "usd": 0,
+      "wallMs": 60296
+    }
+  ]
+}

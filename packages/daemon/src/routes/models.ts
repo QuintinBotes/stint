@@ -52,7 +52,7 @@ async function modelRun<T>(
   host: string | undefined,
   schemaFile: string,
   zodSchema: z.ZodType<T>,
-  prompt: string,
+  prompt: string | ((offline: boolean) => string),
   skip: string[] = [],
 ): Promise<{ value: T; run: string; host: string; model: string }> {
   const task = await ctx.ws.readTask(taskId);
@@ -73,7 +73,7 @@ async function modelRun<T>(
       chain,
       hosts: hosts(ctx),
       emit: (e) => events.append({ ...base, type: e.type, payload: e.payload }).then(() => undefined),
-      call: (h, model, c) => h.complete(zodSchema as never, jsonSchema, prompt, { model, timeoutMs: c.timeoutMs, maxTokens, emit: c.emit }),
+      call: (h, model, c) => h.complete(zodSchema as never, jsonSchema, typeof prompt === 'string' ? prompt : prompt(h.offline), { model, timeoutMs: c.timeoutMs, maxTokens, emit: c.emit }),
     });
     const value = ((r.value as { value?: T }).value ?? r.value) as T;
     await ctx.ws.runs(taskId).updateMeta(run, { endedAt: new Date().toISOString(), endedBy: 'completed', cost: r.cost, host: r.host, model: r.model });
@@ -233,7 +233,8 @@ export function mergeFindings(lists: Review['findings'][]): Review['findings'] {
 
 /** One review by one lens on the chain (or one host of it); its contradictions go to the queue. */
 async function lensReview(ctx: DaemonContext, id: string, lens: Lens, host: string | undefined, skip: string[], base: { packetPrompt: string; diff: string; decisions: Array<{ id: string; text: string }>; acceptance: string[] }): Promise<Review> {
-  const prompt = buildReviewPrompt({ ...base, skills: skillsFor(ctx.ws.root, 'reviewer'), ...(lens === 'general' ? {} : { lens }) });
+  const skills = skillsFor(ctx.ws.root, 'reviewer');
+  const prompt = (offline: boolean) => buildReviewPrompt({ ...base, skills, offline, ...(lens === 'general' ? {} : { lens }) });
   const r = await modelRun<Review>(ctx, id, 'reviewer', host, 'review.schema.json', ReviewSchema, prompt, skip);
   const value = { ...r.value, findings: r.value.findings.map((f) => ({ ...f, lens })) };
   const review = await ctx.ws.writeReview(id, { ...value, run: r.run, model: `${r.host}/${r.model}`, offline: r.host === 'ollama', createdAt: new Date().toISOString(), ...(lens === 'general' ? {} : { lens }) });

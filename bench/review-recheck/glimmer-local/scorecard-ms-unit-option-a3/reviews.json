@@ -1,0 +1,34 @@
+{
+  "source": "scorecard",
+  "attempt": "ms-unit-option-a3",
+  "hidden": "red",
+  "recorded": null,
+  "diffBytes": 12902,
+  "promptTokens": 3580,
+  "localPromptTokens": 4194,
+  "reviews": [
+    {
+      "reviewer": "ollama/muse-glimmer:30b-mlx",
+      "verdict": "request_changes",
+      "summary": "Findings identify incorrect plural handling for unit formatting and related edge cases.",
+      "findings": [
+        {
+          "severity": "major",
+          "text": "format with unit long uses rounded*divisor for plural decision, causing wrong plural for negative and near-threshold values, e.g., -1500ms with unit s yields '-1 seconds' instead of '-1 second'.",
+          "file": "src/index.ts",
+          "line": 247
+        },
+        {
+          "severity": "major",
+          "text": "Long formatting for non-ms units builds the plural string from rounded*divisor rather than original ms, so pluralisation can be off by one unit boundary.",
+          "file": "src/index.ts",
+          "line": 244
+        }
+      ],
+      "inputTokens": 5183,
+      "outputTokens": 1084,
+      "usd": 0,
+      "wallMs": 163263
+    }
+  ]
+}

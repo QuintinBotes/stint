@@ -114,4 +114,9 @@ test('the review diff is capped at 3000 tokens, largest hunks first, with a left
   expect(prompt.indexOf('review-voice-policy')).toBeLessThan(prompt.indexOf('other-skill'));
   expect(prompt).toContain('- D3: Use a sliding window counter per tenant');
   expect(prompt.trimEnd().endsWith('list any blocker texts in blockers.')).toBe(true);
+
+  const review = (offline: boolean) => buildReviewPrompt({ packetPrompt: 'packet text', diff, decisions: [], offline });
+  expect(review(false)).toContain('hunks left out to fit the 3000 token review cap.');
+  expect(review(true)).not.toContain('hunks left out');
+  expect(review(true).split('big line of code here').length - 1).toBe(800);
 });

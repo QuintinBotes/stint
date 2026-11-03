@@ -118,7 +118,7 @@ export function tally(path: string): Record<string, Tally> {
 const every = (t: Record<string, Tally>, f: (m: Tally) => boolean) => Object.values(t).every(f);
 const fair = () => tally('bench/fair/results.json');
 const unfinished = () => tally('bench/fair-unfinished/results.json');
-const recheck = () => json<{ spendUsd: number; tables: Record<string, { caught: number; red: number; wronglyBlocked: number; green: number }> }>('bench/review-recheck/verdicts.json');
+const recheck = (file = 'bench/review-recheck/verdicts.json') => json<{ spendUsd: number; tables: Record<string, { caught: number; red: number; wronglyBlocked: number; green: number }> }>(file);
 const visualSet = () =>
   json<{ totalUsd: number; table: Record<string, number>; pages: Array<{ id: string; kind: string; cost: { usd: number }; judge: { cost: { usd: number } } | null; mark: { cost: { usd: number } } | null }> }>('bench/visual-set/results.json');
 
@@ -138,7 +138,8 @@ function claimProblems(text: string, claims: Claim[]): string[] {
 /** The README's 2 November claims: the fair rerun, the unfinished rerun, the review recheck and the visual set. */
 export function readmeNovemberProblems(text: string): string[] {
   const [f, u, spark, v] = [fair(), unfinished(), recheck().tables['meta-api/muse-spark-1.3'], visualSet().table];
-  if (!f.packet || !f.transcript || !f.diff || !u.packet || !u.resume || !spark) return ['a 2 November results file has lost a mode or a reviewer'];
+  const local = recheck('bench/review-recheck/glimmer-local/verdicts.json').tables['ollama/muse-glimmer:30b-mlx'];
+  if (!f.packet || !f.transcript || !f.diff || !u.packet || !u.resume || !spark || !local) return ['a 2 November results file has lost a mode or a reviewer'];
   const packetUsd = u.packet.usd;
   return claimProblems(text, [
     ['the hand-over sizes', /\(([\d,]+) tokens against ([\d,]+) for the transcript, by Stint's estimate\)/, [f.packet.prompt, f.transcript.prompt]],
@@ -146,7 +147,7 @@ export function readmeNovemberProblems(text: string): string[] {
     ['the held-out tests from one shared start', /every mode's code passed the held-out tests/, every(f, (m) => m.heldOut === m.runs)],
     ['the held-out tests from unfinished checkpoints', /Not better code or/, every(u, (m) => m.heldOut === m.runs)],
     ['the dearest mode', /or cheaper runs/, every(u, (m) => m.usd <= packetUsd)],
-    ['the review recheck', /a recheck on Muse Spark 1\.3 flagged (\d+) of (\d+)/, [spark.caught, spark.red]],
+    ['the review recheck', /rechecks flagged (\d+) of (\d+) on Muse Spark 1\.3 and, with the whole diff, (\d+) of (\d+) on Glimmer/, [spark.caught, spark.red, local.caught, local.red]],
     ['the visual set', /Muse Spark caught (\d+) of (\d+) seeded defects and failed none of (\d+) clean ones/, v.cleanWronglyFailed === 0 && [v.defectsCaught ?? 0, v.defects ?? 0, v.clean ?? 0]],
   ]);
 }
@@ -199,10 +200,12 @@ export function novemberProblems(text: string): string[] {
 
   const [f, u, rc, vs] = [fair(), unfinished(), recheck(), visualSet()];
   const [spark, glimmer] = [rc.tables['meta-api/muse-spark-1.3'], rc.tables['recorded glimmer']];
-  if (!f.packet || !f.transcript || !f.diff || !u.resume || !spark || !glimmer) return [...problems, 'a 2 November results file has lost a mode or a reviewer'];
+  const local = recheck('bench/review-recheck/glimmer-local/verdicts.json').tables['ollama/muse-glimmer:30b-mlx'];
+  if (!f.packet || !f.transcript || !f.diff || !u.resume || !spark || !glimmer || !local) return [...problems, 'a 2 November results file has lost a mode or a reviewer'];
   for (const [label, t, cost] of [
     ['Muse Glimmer 30B, offline, 29 October', glimmer, 0],
     ['Muse Spark 1.3, Meta Model API, 2 November', spark, rc.spendUsd],
+    ['Muse Glimmer 30B, offline, whole diff, 3 November', local, 0],
   ] as const) {
     const row = new RegExp(`^\\| ${escape(label)} \\| (\\d+) of (\\d+) \\| (\\d+) of (\\d+) \\| \\$([\\d.]+) \\|$`, 'm').exec(text);
     const want = [t.caught, t.red, t.wronglyBlocked, t.green, cost].join();
@@ -274,9 +277,11 @@ test('the 2 November check fails when a number in docs/proofs.md or the README i
   expect(novemberProblems(proofs.replace('88% cached', '90% cached'))).toEqual([expect.stringContaining('90% cached, results say 88%')]);
   expect(novemberProblems(proofs.replace('The rerun cost $2.4059', 'The rerun cost $2.0000'))).toEqual([expect.stringContaining('says the rerun cost $2.0000')]);
   expect(novemberProblems(proofs.replace('| 5 of 15 | 0 of 3 |', '| 6 of 15 | 0 of 3 |'))).toEqual([expect.stringContaining('the review recheck, Muse Spark 1.3')]);
+  expect(novemberProblems(proofs.replace('| 1 of 15 | 0 of 3 |', '| 2 of 15 | 0 of 3 |'))).toEqual([expect.stringContaining('the review recheck, Muse Glimmer 30B, offline, whole diff')]);
   expect(novemberProblems(proofs.replace('$0.0389 for Muse Spark', '$0.0400 for Muse Spark'))).toEqual([expect.stringContaining('the visual set, its cost')]);
   expect(readmeProblems(readme.replace('(864 tokens against', '(800 tokens against'))).toEqual(['the hand-over sizes: says 800, 5,124; the results give 864, 5124']);
   expect(readmeProblems(readme.replace('against 7 from the transcript', 'against 8 from the transcript'))).toEqual([expect.stringContaining("the daemon's verdicts: says 10, 10, 8, 4")]);
   expect(readmeProblems(readme.replace('caught 4 of 5 seeded', 'caught 5 of 5 seeded'))).toEqual([expect.stringContaining('the visual set: says 5, 5, 5')]);
+  expect(readmeProblems(readme.replace('1 of 15 on Glimmer', '2 of 15 on Glimmer'))).toEqual([expect.stringContaining('the review recheck: says 5, 15, 2, 15')]);
   expect(readmeProblems(readme.replace('or cheaper runs', 'or dearer runs'))).toEqual(['the dearest mode: the sentence is missing']);
 });
