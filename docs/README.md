@@ -1,6 +1,6 @@
 # Docs
 
-This folder holds every guide to Stint, one line each, grouped by what you came to do. If you are new to Stint, start with [`setup.md`](setup.md). To check a claim, go to [`proofs.md`](proofs.md).
+This folder holds every guide to Stint, one line each, grouped by what you came to do. If you are new to Stint, start with [`setup.md`](setup.md). To check a claim, go to [`proofs.md`](proofs.md). Every measurement behind those claims, with the command that runs it again, is listed in [`evals/README.md`](../evals/README.md).
 
 ## Use Stint
 
@@ -22,7 +22,6 @@ This folder holds every guide to Stint, one line each, grouped by what you came 
 - [`verify.md`](verify.md): the verify suite, the tamper guard, held-out scenarios, coverage, visual checks judged by Muse Spark 1.3 and marked by SAM 3.1, and the difference between a proven criterion and one that only passes.
 - [`sandbox.md`](sandbox.md): keys and secrets kept out of the logs, the run sandbox and network rules around each worktree, the Stint agent's refusals, each run's own token, risk tiers and the auto-approve lane.
 - [`evals.md`](evals.md): skill evals, probation and retirement, the golden tasks and the phase gates.
-- [`../evals/README.md`](../evals/README.md): every measurement in the repository, what it measures, where its results are and how to run it again.
 - [`metrics.md`](metrics.md): verification and outcome metrics, each defined once (first pass, escaped defects, cost per good merge, human load and learning), what each model call costs, and how one task went.
 - [`release.md`](release.md): what the daemon records after merge (reverts, follow-ups, CI, incidents) and the pull request release mode.
 
