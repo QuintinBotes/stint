@@ -17,7 +17,7 @@ import {
   visualChecks,
   visualRef,
 } from '@stint-dev/core';
-import { constrains, hashHandoff, scrubSecrets } from '@stint-dev/core/node';
+import { constrains, hashHandoff, scrubDeep, scrubSecrets } from '@stint-dev/core/node';
 import type { Enrichment } from './adapter';
 import type { DaemonContext } from './app';
 import { DaemonError } from './errors';
@@ -288,6 +288,9 @@ export async function deriveHandoff(ctx: DaemonContext, taskId: string, run: str
     if (e.risks?.length) tryField('risks', { ...draft, risks: [...new Set([...draft.risks, ...e.risks.map(scrub)])] });
     if (e.askOfNext) tryField('askOfNext', { ...draft, askOfNext: inFlight && !e.askOfNext.startsWith('Check the unknown step first.') ? `Check the unknown step first. ${scrub(e.askOfNext)}` : scrub(e.askOfNext) });
   }
+
+  // a packet goes to other vendors' agents and into published records, so no field of it carries a credential (R-040)
+  draft = scrubDeep(draft);
 
   // a packet always fits: trim in steps (fewer items, shorter items, fewer files) and say so
   let handoff = HandoffSchema.parse({ ...draft, hash: hashHandoff(draft) });
