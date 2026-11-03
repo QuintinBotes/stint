@@ -1,8 +1,23 @@
 # The video
 
-This page describes Stint's demo film for judges and for anyone recording a new take: how it was made, the cut with its voiceover, and the checklist before recording.
+This page describes Stint's demo film for judges and for anyone recording a new take: how to read it, how it was made, the cut with its voiceover, and the checklist before recording.
 
-The film is [on YouTube](https://youtu.be/ejYyHgkVOWg). It runs 2:57.9 (the site rounds it to 2:58), inside the hackathon's 3 minute limit, at 1080p with captions burned in and "Forward Clarity" under it. Every picture of Stint at work is a live take, and every model in it is Meta's. The replay that `stint demo` plays is not the film: it is the hand-written story, 2:35 long ([`demo.md`](demo.md#the-beats)). The proof acts at the end show the repository's own evidence, each naming its source.
+The film is [on YouTube](https://youtu.be/ejYyHgkVOWg). It runs 2:57.9 (the site rounds it to 2:58), inside the hackathon's 3 minute limit, at 1080p with captions burned in and "Forward Clarity" under it. Every picture of Stint at work is a live take, and every model in it is Meta's. The proof acts at the end show the repository's own evidence, each naming its source.
+
+## Reading the film
+
+The film cuts live takes from 30 and 31 October and two proof acts together, so a task id on screen does not always mean the same run. In order:
+
+- **0:19 to 1:10 and 1:16 to 1:32, the Muse Code take of 30 October.** One goal, "Reliable webhook delivery" (G-0001), and its four tasks, T-0001 to T-0004.
+- **0:44, the stop.** T-0001 is stopped mid-run and handed to the Stint agent with packet h1. The film does not follow that continuation to green. At 0:58 it moves on to T-0002, and T-0001 comes back at 1:24, where the Stint agent's run (r3) is red with "0 failed": its tests passed, but it changed a locked test file, so Stint turned the verification red and autopilot stopped for you ("Needs you: stint-agent r3 changed the acceptance tests"). That is the catch the voiceover names. The green hand-off is T-0009 at 1:58, where the Stint agent continues from packet h7 and Stint's tests report 67 passed, 0 failed.
+- **0:58, "Muse Wonder 1.0 ✗ Failed" on T-0002.** The planner's call timed out on the Meta Model API and no fallback host answered, so T-0002 went on without a plan. Muse Code's build passed 34 tests, and Glimmer approved it.
+- **1:10 to 1:16, the network-off take of 30 October.** A separate take of the same rate-limit task: its T-0001, handed on with packet h2, is reviewed by Glimmer with the network off. It is not the T-0001 stopped at 0:44.
+- **1:33 to 2:13, takes 8 and 9 of 31 October.** A second goal, "Signed webhook deliveries" (G-0003), made in Stint's UI, with T-0008 to T-0011.
+- **2:09, "All four merged" over "0 of 4 criteria met".** Every task merged and every criterion's tests pass, but Stint calls a criterion met only when a test showed it failing first, and this take set no such proofs. So `stint goal show G-0003` reads "Passes, not proven" for each criterion, and the goal stays in progress.
+- **2:14, the memory graph,** is from the Muse Code take of 30 October.
+- **2:21, the runs chart,** is a live relay on jeffbski/wait-on on 29 October, so its T-0001 is that repository's task. Claude Code and Codex are other vendors' agents, and here they run Meta's models, as the labels under their names say: Claude Code runs Muse Glimmer 30B through Ollama, and Codex runs Muse Spark 1.3 through the Meta Model API (`bench/relay/wait-on/relay.json`). Codex, the last of the three, wrote every green change.
+- **2:34, the packet measured.** The 7x, the 9 of 10 against 3 of 5, and the 31% fewer input tokens that shows at 2:44 with no voiceover line are all from the bench of 27 October, in which each mode had its own first run. The controlled reruns of 2 November supersede them ([`proofs.md`](proofs.md#the-fair-rerun-2-november)), and the note under the cut gives their results.
+- **The replay** that `stint demo` plays without keys is not the film. It tells a different, hand-written story, 2:35 long ([`demo.md`](demo.md#the-beats)).
 
 ## How it was made
 
@@ -40,8 +55,6 @@ Each take ran on a stage page: a real terminal on the left and Stint's UI on the
 
 **What the 0:44 and 2:46 lines cover.** At 0:44, "starts from that alone" means no transcript: the next agent's prompt holds the packet together with Stint's rules for the run, the task's goal and acceptance, the plan, the mounted skills and the changed files' line counts ([`packet.md`](packet.md#what-the-next-agent-reads)). At 2:46, "every model Stint calls is Meta's" holds for every default route and every recorded run, the film's takes included; the agent presets that could reach another vendor's model ship disabled ([`agents.md`](agents.md)).
 
-At the end of chapter 11 the goal reads "in progress": every task merged and every criterion's tests pass, but Stint calls a criterion met only when a test showed it failing first, and this take set no such proofs. That is why the chapter says "All four merged".
-
 Takes 7 to 9 found three defects that would have stopped a real user, and each was fixed before the take that shows it:
 
 - One Glimmer review of a 27 KB diff took 185 s on a 32 GB Mac, over the 120 s review limit. A host now sets its own `timeoutMs`, and Ollama's is 10 minutes (D-093).
@@ -50,7 +63,7 @@ Takes 7 to 9 found three defects that would have stopped a real user, and each w
 
 ## Captions
 
-Captions are the voiceover lines, at most two lines on screen at a time, in the band under the picture. Every number on screen is the take's own. The proof acts name the file each number comes from, and the voiceover says no number the picture does not show.
+Captions are the voiceover lines, at most two lines on screen at a time, in the band under the picture. Every number in a take is that take's own, read off its live run; the takes' event logs are not in this repository. The proof acts name the file in this repository that each of their numbers comes from, and the voiceover says no number the picture does not show.
 
 ## Checklist before recording
 
