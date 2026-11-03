@@ -2,7 +2,7 @@
 
 This page explains how to run another coding agent or model in Stint, and how autopilot picks, escalates, reviews and plans. Every setting below lives in `.stint/config.json`.
 
-By default Stint runs only Meta's models: Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder 1.0 plans, and Muse Glimmer 30B reviews on your machine. The packet is plain JSON and markdown, so any other agent or model can take a task. The demo replay also turns on Claude Code (on Muse Glimmer through Ollama) and Codex (on Muse Spark 1.3 through the Meta Model API), so its status menu lists four agents, all on Meta's models. A new repository keeps those two off. Every agent preset ships disabled, and the Claude Code, Codex and ACP sections below show how to run each one on a Meta model, as the demo replay and the relays did.
+By default Stint runs only Meta's models: Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder 1.0 plans, and Muse Glimmer 30B reviews on your machine. The packet is plain JSON and markdown, so any other agent or model can take a task. The demo replay also turns on Claude Code (on Muse Glimmer through Ollama) and Codex (on Muse Spark 1.3 through the Meta Model API), so its status menu lists four agents, all on Meta's models. A new repository keeps those two off. Every agent preset ships disabled. The Claude Code, Codex and ACP sections below show how to run Claude Code, Codex, goose and opencode on a Meta model; the demo replay and the relays ran Claude Code and Codex that way.
 
 ## Another coding agent
 
@@ -29,7 +29,7 @@ Every host named in `routes` must also be in `hosts`. When one is missing, the d
 
 Seven presets ship turned off: `claude-code`, `codex`, `goose`, `opencode`, `gemini-acp`, `gemini-cli` and `aider`. To use one, set `enabled` to `true`, restart `stint up`, and hand a task over, for example with `stint hand T-0042 claude-code`. `/api/health` lists every configured agent and marks turned-off ones as disabled, and so does the Hand to picker. Handing a task to an id that is not registered is refused, and the message lists the configured adapters.
 
-No preset carries a flag that bypasses approvals or turns off a sandbox. Some agents ask before they act unless given such a flag, so the presets use the safest flags that still run unattended. Add any further permission flags for your own machine in `command` or `permissions.flags`.
+No preset carries a flag that bypasses approvals or turns off a sandbox. Some agents ask before they act unless given such a flag, so the presets use the safest flags that still run unattended. Add any further permission flags for your own machine in `command` or `permissions.flags`. The `claude-code` and `codex` harnesses build their own command line and take only the program name from `command`, so neither reads extra flags.
 
 ### Seeing what a generic agent did
 
@@ -77,7 +77,7 @@ With a `host` set, the run also passes `--bare --strict-mcp-config --disallowedT
 
 A value you set yourself wins: list `ANTHROPIC_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` in the preset's `env` and export it, and the run uses yours. A host that needs a key, such as a LiteLLM gateway, gets the address from Stint but never a token; pass the token through `env` the same way. These values stay in your environment and never enter the repository or a packet.
 
-Without a `host`, Claude Code runs on Anthropic's own models, which Stint never turns on by itself: the preset ships disabled, and every run in this repository's evidence used a Meta model. If you choose that, put your Anthropic key in the key file (`stint keys set ANTHROPIC_API_KEY`), runs bill your API account rather than a Claude subscription. An organisation key that is not scoped to a workspace is refused with "must include the anthropic-workspace-id header". Either create the key inside a workspace in the Anthropic Console, or add `ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: <workspace id>` to the key file; the preset passes it through.
+Without a `host`, Claude Code runs on Anthropic's own models, which Stint never turns on by itself: the preset ships disabled, and every run in this repository's evidence used a Meta model. If you choose that, put your Anthropic key in the key file (`stint keys set ANTHROPIC_API_KEY`). Runs then bill your API account, not a Claude subscription. An organisation key that is not scoped to a workspace is refused with "must include the anthropic-workspace-id header". Either create the key inside a workspace in the Anthropic Console, or add `ANTHROPIC_CUSTOM_HEADERS=anthropic-workspace-id: <workspace id>` to the key file; the preset passes it through.
 
 ### Other places a model can run
 
@@ -107,9 +107,9 @@ env_key = "META_API_KEY"
 wire_api = "responses"
 ```
 
-Then turn the preset on, set its `model` to `muse-spark-1.3`, and add `META_API_KEY` to its `env`; Stint passes through only the variables named there. Codex warns that it has no metadata for the model and carries on, and Stint keeps the warning on the timeline as unclassified.
+Either way, turn the preset on, set its `model` to `muse-spark-1.3`, and add `META_API_KEY` to its `env`; Stint passes through only the variables named there, so a run on the `meta-api` host has no key without it. Codex warns that it has no metadata for the model and carries on, and Stint keeps the warning on the timeline as unclassified.
 
-A host that serves Muse Spark Open, such as Fireworks or Baseten, works the same way if it serves `/v1/responses`; neither is verified yet. Ollama serves it, which is what `codex exec --oss` uses for Muse Glimmer. Codex keeps its own provider and key settings; Stint only starts it in the worktree, watches it, and verifies afterwards.
+A host that serves Muse Spark Open, such as Fireworks or Baseten, works the same way if it serves `/v1/responses`; neither is verified yet. Ollama serves the Responses API too, and `codex exec --oss` uses it for Muse Glimmer. Codex keeps its own provider and key settings; Stint only starts it in the worktree, watches it, and verifies afterwards.
 
 ### Agent Client Protocol (ACP)
 
@@ -144,7 +144,7 @@ Autopilot hands a red or killed run to the next implementer in `autopilot.implem
 
 ## Nobody reviews their own work
 
-Stint's reviewer skips any entry in `routes.reviewer` that runs the model the Stint agent built the change with, tries the next one, and records what it skipped. When every entry is that model, the review is refused with `review_blocked` and the reason, so you can add a reviewer on another model. Another coding agent on the same model has its own harness and may be reviewed by it. Set `review.crossVendor` to `false` to turn this off.
+Stint's reviewer skips any entry in `routes.reviewer` that runs the model the Stint agent built the change with, tries the next one, and records what it skipped. When every entry is that model, the review is refused with `review_blocked` and the reason, so you can add a reviewer on another model. Another coding agent on the same model has its own harness and may be reviewed by it. To turn this off, set `"review": { "lenses": ["general"], "bestOf": 1, "crossVendor": false }`: `review` needs all three keys.
 
 ## Which agent gets the task
 
@@ -167,7 +167,7 @@ By default autopilot picks agents in the order of `autopilot.implementers`. With
 
 ## One set of instructions for every agent
 
-`AGENTS.md` and `.agents/skills` are the only source. When you enable an agent that reads its own file, `stint init` links that file to `AGENTS.md`: `CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI. Where symlinks do not work it copies the file instead, and it never overwrites a file you already have. With Claude Code enabled, an approved skill is also written to `.claude/skills/<id>/SKILL.md` in the same commit, and removed when the skill is retired. With only Meta's agents enabled, none of these files appear.
+`AGENTS.md` and `.agents/skills` are the only source. When you enable an agent that reads its own file and run `stint init` again, it links that file to `AGENTS.md`: `CLAUDE.md` for Claude Code, `GEMINI.md` for the `gemini-cli` preset. Where symlinks do not work it copies the file instead, and it never overwrites a file you already have. With Claude Code enabled, an approved skill is also written to `.claude/skills/<id>/SKILL.md` in the same commit, and removed when the skill is retired. With only Meta's agents enabled, none of these files appear.
 
 ## Big tasks split into parts
 

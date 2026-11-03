@@ -15,7 +15,7 @@ stint bench --tasks 5 --modes transcript,packet
 By default the implementer is `muse-code`, the continuer `stint-agent`, with one repeat, two bench runs at a time, the build leg, and packets with the diff digest. The flags:
 
 - `--implementer` and `--continuer`: the adapters for the capped first run and the continued run.
-- `--modes <list>`: from `transcript`, `packet` and `diff` (default `transcript,packet`).
+- `--modes <list>`: from `transcript`, `packet`, `diff` and `resume` (default `transcript,packet`). In `resume` Muse Code continues its own capped session from a copy kept when the first run ended (`bench/fair-unfinished/`).
 - `--repeat N` and `--concurrency N`: continued runs per task and mode, all from the task's one first run, and bench runs at once.
 - `--legs <list>`: the legs to measure.
 - `--host <id>`: run the continuing, plan and review calls on that host's model from the agent chain.
@@ -34,11 +34,11 @@ stint bench --replay --from packages/cli/test/fixtures/bench-runs --tasks 2 --mo
 
 `--from <dir>` names the runs directory (default `bench/runs`), and `--host` and `--legs` filter the recorded rows the same way. Replay recounts the prompt tokens from each recorded `prompt.md`, so the numbers come from the artefacts, and its results carry `replay: true`. The recorded set under `packages/cli/test/fixtures/bench-runs/` was made with fake adapters so CI can run the command without keys; its rows carry `synthetic: true`, and so do results rebuilt from it. The artefacts under `bench/runs/` come from a live run.
 
-The tasks are in `bench/tasks.json`: five small tasks on the demo webhook service. Each names a title, a goal, acceptance criteria, the test command, and `killAfterSteps`, the step cap for the first run. The cap sits at about half the steps the task needs, so the continuer always has real work left.
+The tasks are in `bench/tasks.json`: five small tasks on the demo webhook service. Each names a title, a goal, acceptance criteria, the test command, and `killAfterSteps`, the step cap for the first run. Each cap was set at about half the steps the task needed. On 2 November Muse Code got nearly all of the way in that many steps (`bench/fair/README.md`), so `bench/fair-unfinished/` lowered the caps until each checkpoint failed its held-out tests.
 
 ## What a run writes
 
-Each task's first run works in a fresh copy of the fixture repository, and each continued run in a copy of that folder taken after the first run ended. A continued run keeps its artefacts in `bench/runs/<task>-<mode>/` (with `-r<n>` when there are repeats):
+Each task's first run works in a fresh copy of the fixture repository, and each continued run in a copy of that folder taken after the first run ended. A continued run keeps its artefacts in `bench/runs/<task>-<mode>/` (with `-r<n>` when there are repeats). The 27 October folders in `bench/runs/` and `bench/digest/runs/` predate `events.jsonl`, `handoff-continued.json` and `diff.patch`; `bench/fair/runs/` has every file:
 
 - `transcript.jsonl`: the first run's recorded transcript lines, as the daemon kept them.
 - `handoff.json`: the packet the capped first run built. Packet mode continues from this.
@@ -75,12 +75,12 @@ A build row is the continued run, not the capped first run; a plan, review or le
 
 - `task`: the bench task id from `bench/tasks.json`.
 - `leg`: `plan`, `build`, `review` or `learn`; rows recorded before legs existed read as `build`.
-- `mode`: `transcript`, `packet` or `diff`.
+- `mode`: `transcript`, `packet`, `diff` or `resume`.
 - `host` and `model`: who answered the continued run.
 - `inputTokens`, `cachedTokens`, `outputTokens`, `usd`: the continued run's usage and cost, as the daemon metered and priced them.
 - `wallMs`: the continued run's wall time in milliseconds.
 - `verified`: true when the daemon's own run of the task's test command was green after the continued run.
-- `hidden` and `scenarios`: present when the bench was given held-out tests for the task (`bench/fair/` is). They are stored after the continued run and its review, so no agent sees them, and the daemon verifies the run again with them: `scenarios` is their pass and fail counts, and `hidden` is green when none failed, red when one did, or null when they could not run. The daemon's verdict stays `verified`. `byMode` then also carries `hiddenPassRate`, the share of graded runs with none failed, and `hiddenGraded`.
+- `hidden` and `scenarios`: present when the bench was given held-out tests for the task (`bench/fair/` and `bench/fair-unfinished/` are). `testsDecision`, when present, is true when the continued run wrote a `decision: tests:` line. They are stored after the continued run and its review, so no agent sees them, and the daemon verifies the run again with them: `scenarios` is their pass and fail counts, and `hidden` is green when none failed, red when one did, or null when they could not run. The daemon's verdict stays `verified`. `byMode` then also carries `hiddenPassRate`, the share of graded runs with none failed, and `hiddenGraded`.
 - `promptTokens`: the size of the prompt the continuer started from, counted with Stint's token counter. This is the direct size comparison between the transcript and the packet.
 - `result`: what the leg did, in a few words: the plan's step count, the review verdict, the proposed skill, or whether the daemon verified the build and, with held-out tests, how many of them passed.
 - `repeat`: which repeat this row is, starting at 1.

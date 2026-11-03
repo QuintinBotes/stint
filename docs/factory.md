@@ -83,7 +83,7 @@ Each task has limits on what autopilot may use before it stops and asks you:
 | Builds | 8 | Agent runs that build the change. Work taken over from a best-of-n candidate counts on the candidate. |
 | Hand-offs | 3 | Times another agent starts from a run's packet, whether autopilot, an escalation or a person handed it on. |
 | Review rounds | 1 | Builds started because a review asked for changes. |
-| Spend | no limit | Dollars spent on the task's runs and its other model calls: Sharpen, the packet digest, the pick, the learn step and the quiz. A model answer Stint had to throw away still counts, because it was paid for. |
+| Spend | no limit | Dollars spent on the task's runs and its other model calls: Sharpen, the question to the leaving agent, the packet digest, the pick, the learn step, the quiz and visual checks. A model answer Stint had to throw away still counts, because it was paid for. |
 | Agent time | no limit | Minutes from the start to the end of each run, including a run still going. |
 
 The counts cover the task's whole life, so switching autopilot off and on does not reset them. Autopilot checks before each step:

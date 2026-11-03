@@ -1,6 +1,6 @@
 # Visual set
 
-This folder asks how often Stint's visual check is right, on ten pages: five with one seeded defect each and five clean. It is for anyone checking the visual claim in `docs/proofs.md`, which until now rested on one seeded page (`bench/visual/`).
+This folder asks how often Stint's visual check is right, on ten pages: five with one seeded defect each and five clean. It is for anyone checking the visual claim in `docs/proofs.md`, which before 2 November rested on one seeded page (`bench/visual/`).
 
 ## What was run
 

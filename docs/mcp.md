@@ -15,7 +15,7 @@ This page explains how to connect a coding agent or another MCP client to Stint.
 | `stint_similar` | Earlier tasks like this one, with the evidence (shared files, the same findings, tags) |
 | `stint_constraints` | The decisions and open review findings on the files the task touches, across every task |
 | `stint_files_together` | Files that changed alongside a file in earlier runs |
-| `stint_decide` | Records a decision, or one that supersedes an earlier one; it cannot supersede a decision you made, and inside a run it is recorded as that run |
+| `stint_decide` | Records a decision, or one that supersedes an earlier one; it cannot supersede a decision you made or one a goal passed down, and inside a run it is recorded as that run |
 | `stint_hand` | Hands a task to another agent, from a packet addressed to it |
 | `stint_autopilot` | Puts a task on autopilot, or takes it off |
 | `stint_verify` | Has the daemon run the tests and report the result |
@@ -28,7 +28,7 @@ Approving, rejecting and merging are not tools. A person does those.
 
 ### Inside a Stint run
 
-Inside a run, `task` defaults to the run's task, so an agent can call `stint_constraints` or `stint_decide` with no arguments. The server calls the daemon with the run's own token, which can change only that task: it can record a decision and work autopilot, and changing another task is refused ([`sandbox.md`](sandbox.md#a-sandbox-per-run)).
+Inside a run, `task` defaults to the run's task, so an agent can call `stint_constraints` with no arguments, and `stint_decide` with only its text. The server calls the daemon with the run's own token, which can change only that task: it can record a decision and work autopilot, and changing another task is refused ([`sandbox.md`](sandbox.md#a-sandbox-per-run)).
 
 The server lists 8 of its 15 tools there. It leaves out `stint_new_task` and the three goal tools, because a run token cannot create a task or a goal. It also leaves out `stint_hand`, `stint_verify` and `stint_stop`, because each acts on the task's live run, which is the caller's own run.
 

@@ -60,7 +60,7 @@ flowchart LR
   gate -->|merges the task branch| repo
 ```
 
-Everything inside "Your machine" runs locally. The default review runs on Ollama and calls nothing outside it. While it runs, the daemon is the only writer of `.stint/`: the CLI and the web UI send every change to it over HTTP with a token. That is the daemon's token, or for an agent's hooks, a token that opens only its own run's routes and stops working when the run ends. Adapters report through one contract and never touch the store, so every agent's work lands in the same hash-chained log, where each row carries the hash of the one before. The exceptions are setup: `stint init` writes the first `.stint/config.json`, `stint demo seed` writes the demo tasks, and `stint eval` records a result itself when no daemon is running.
+Everything inside "Your machine" runs locally. The default review runs on Ollama first and leaves your machine only when Ollama cannot answer: the reviewer chain below then moves to a hosted model. `stint review --host ollama` keeps a review on Ollama. While it runs, the daemon is the only writer of `.stint/`: the CLI and the web UI send every change to it over HTTP with a token. That is the daemon's token, or for an agent's hooks, a token that opens only its own run's routes and stops working when the run ends. Adapters report through one contract and never touch the store, so every agent's work lands in the same hash-chained log, where each row carries the hash of the one before. The exceptions are setup: `stint init` writes the first `.stint/config.json`, `stint demo seed` writes the demo tasks, and `stint eval` records a result itself when no daemon is running.
 
 Where this lives:
 
@@ -130,6 +130,8 @@ Each role walks its chain in order. The defaults are `routes` in `DEFAULT_CONFIG
 | Learn | `routes.learn` | `baseten/muse-spark-open`, `meta-api/muse-spark-1.3`, `modal/muse-spark-open`, `ollama/muse-glimmer:30b-mlx` |
 | Spec drafts | `routes.draft` | `meta-api/muse-spark-1.3`, `fireworks/muse-spark-open`, `baseten/muse-spark-open`, `meta-api/muse-wonder-1.0`, `ollama/muse-glimmer:30b-mlx` |
 | Summaries | `routes.summary` | `ollama/muse-glimmer:30b-mlx`, `meta-api/muse-spark-1.3`, `baseten/muse-spark-open` |
+| Packet quiz | `routes.quiz` writes the facts, `routes.recall` answers them from the packet | `meta-api/muse-wonder-1.0`, `meta-api/muse-spark-1.3`, `fireworks/muse-spark-open`, `baseten/muse-spark-open`; then `ollama/muse-glimmer:30b-mlx`, `meta-api/muse-spark-1.3`, `baseten/muse-spark-open` |
+| Sharpen | `routes.sharpen` | Unset by default, so the planner chain |
 
 A host with no key set or not running, a 429, a 5xx or a timeout moves the call to the next entry and records `provider.fallback` with the reason. For the daemon's own calls, two answers that do not fit the schema the call asked for move it on too, and their cost is still counted. When every entry fails, the call fails, and the daemon's error names each host and its reason. Every run records which host answered, and the cost meter prices it by host.
 

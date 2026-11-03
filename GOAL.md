@@ -2,6 +2,8 @@
 
 This file defines "done" for Stint's build loop (`scripts/loop.sh`) and the agents it runs. The loop stops when every line under **Definition of done** is true and checked by a command, not by a claim. Until then, `LOOP.md` picks the next spec in `PROGRESS.md`.
 
+It is the build kit's plan from before the event ([`docs/timeline.md`](docs/timeline.md#which-specs-came-before-the-event)), lightly edited since (`git log -- GOAL.md`). Where the outcome differs, such as the film's length or the replay that stays hand-written, `PROGRESS.md` and [`docs/proofs.md`](docs/proofs.md) record what happened.
+
 ## The goal, in one paragraph
 
 By **3 November 2026, 23:00 CET**, the `stint` repo is public-ready and `stint demo` replays the full 2:35 beat sheet in the UI with no API keys, while `stint demo --live` runs the same script for real on the demo laptop: a task spoken into Stint is planned by Muse Wonder, built by Muse Code in a worktree, killed on camera, continued by the Stint agent on Muse Spark from a sub-600-token packet to a green daemon-run verification, reviewed offline by Muse Glimmer at $0.00 with a contradiction routed to the queue, approved and merged with `Stint-Task` trailers, and followed by a learned skill that the next task runs with. The whole task costs under one dollar at list prices, and the repo's own `.stint/` history shows Stint built itself.

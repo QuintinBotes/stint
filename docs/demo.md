@@ -2,7 +2,7 @@
 
 This page is the runbook for whoever presents the demo: the commands, the checks before the show, the beats, and what to do when one goes wrong.
 
-The story is one task, four agents, one model family and three survivals; the beat sheet is in `AGENTS.md` section 2. `stint demo --live` drives the beats through the real daemon with real models, and `stint demo record` turns a finished live run into a recording. The replay that judges click, `demo/recording.jsonl`, is hand-written and says so on screen until a live take with the network off replaces it ([ADR-0011](adr/0011-default-replay-until-live-take.md)).
+The story is one task, four agents, one model family and three survivals; the beat sheet is in `AGENTS.md` section 2. `stint demo --live` drives the beats through the real daemon with real models, and `stint demo record` turns a finished live run into a recording. The replay that judges click, `demo/recording.jsonl`, is hand-written and says so on screen. It stays the default although the network-off take of 30 October exists, because no live take has proposed a skill ([ADR-0011](adr/0011-default-replay-until-live-take.md)).
 
 ## What to click
 
@@ -23,20 +23,20 @@ The film's times are from [the cut](video.md#the-cut). The replay and the live d
 
 | Capability | In the film | In the replay or the live demo | The record |
 |---|---|---|---|
-| Kill and hand-off | 0:44 | T-0042: r2 killed, packet h1, r3 continues (steps 1 to 3) | Live, 26 October: 29 of 29 tests after the hand-off, $0.10 (Gate 2 in `PROGRESS.md`, [`proofs.md`](proofs.md#what-is-real)) |
+| Kill and hand-off | 0:44, the stop; 1:58, a hand-off to green on T-0009 ([`video.md`](video.md#reading-the-film)) | T-0042: r2 killed, packet h1, r3 continues (steps 1 to 3) | Live, 26 October: 30 of 30 tests after the hand-off, for $0.05 (`demo/recordings/2026-10-26-1/recording.jsonl`), and 29 of 29 for $0.10 in a second run (Gate 2 in `PROGRESS.md`, [`proofs.md`](proofs.md#what-is-real)) |
 | Tests the daemon runs | 0:57 | The Tests tab, "33 passed, tests unchanged, run by Stint", a hand-written count | Each relay's `tasks/T-0001/verification/r3.json` in `bench/relay/`, `runBy: "daemon"` ([`proofs.md`](proofs.md#the-relay-one-task-three-agents)) |
 | The tamper guard and locked tests | 1:17 | The Tests tab names the locked file, `test/webhooks.test.ts` | `bench/relay/negotiator-control/`, red with no locked file edited ([`proofs.md`](proofs.md#the-control), [`verify.md`](verify.md#the-tamper-guard)) |
 | Offline review | 0:57; 1:11, with the network off | T-0042's r4, Muse Glimmer 30B, local, at $0.00 | `bench/scorecard.json`; review is advice, since Glimmer approved all 5 failing patches it saw ([`proofs.md`](proofs.md#the-scorecard)) |
 | The human gate and merge | 0:57; 2:09 | T-0043 waits at Approve and merge, which merges locally and is off in the live demo (step 6) | The relays stop at the gate and approve nothing ([`proofs.md`](proofs.md#the-relay-one-task-three-agents)) |
 | The learned skill | Not in the film | The Skills page and T-0043 (steps 5 and 6), hand-written | No skill learned live yet; the skill's eval is live, 27 October ([`proofs.md`](proofs.md#the-learning-sequence)) |
 | Goals and the spec builder | 0:19, a goal from Muse Code; 1:33, one sentence in the spec builder | Not in the replay | [`sharpen.md`](sharpen.md) |
-| The visual check | Not in the film | Not in the replay | `bench/visual/result.json`, one live check of a seeded defect ([`proofs.md`](proofs.md#the-visual-gate)) |
+| The visual check | Not in the film | Not in the replay | `bench/visual/result.json`, one live check of a seeded defect, and `bench/visual-set/`, ten pages on which Muse Spark 1.3 failed 4 of 5 seeded defects and none of 5 clean pages ([`proofs.md`](proofs.md#the-visual-gate)) |
 | The cross-vendor relay | 2:21 | The Factory's "One packet, any agent" panel lists every agent and host configured | `bench/relay/`: Muse Code, Claude Code, then Codex, all on Meta models ([`proofs.md`](proofs.md#the-relay-one-task-three-agents)) |
 | MCP | 0:19, Muse Code calls Stint's tools | Not in the replay | [`mcp.md`](mcp.md) |
 | Parallel builds | 1:41, two tasks building at once | Not in the replay | `autopilot.parallel`, 2 by default ([`agents.md`](agents.md#big-tasks-split-into-parts)) |
 | Limits and costs | 1:49, a hand-off refused over the task's token budget, then `stint limits T-0009 --implementer-tokens 600000` | T-0042's limit meters, in its title block | What each task took ([`setup.md`](setup.md#trying-it-with-your-own-key)); [`factory.md`](factory.md#limits-you-set) |
 | Memory and the clock | 2:14 | Rewind, and Memory (press m), on T-0042 (step 2) | [`factory.md`](factory.md) |
-| The packet against the transcript | 2:34 | The Factory's "Packet against full log" panel | `bench/results.json` ([`proofs.md`](proofs.md#benchmark)) |
+| The packet against the transcript | 2:34 | The Factory's "Packet against full log" panel | `bench/results.json`, the bench of 27 October that the film and the panel show; the rerun from one shared start on 2 November supersedes it (`bench/fair/`, [`proofs.md`](proofs.md#the-fair-rerun-2-november)) |
 
 ## The commands
 
@@ -53,11 +53,11 @@ The film's times are from [the cut](video.md#the-cut). The replay and the live d
 
 `bun run serve:judge` serves the site as Pages would, the landing page at `http://127.0.0.1:4321/stint/` and the Board at `http://127.0.0.1:4321/stint/demo/` (`STINT_JUDGE_PORT` picks another port). A deep link into the Board is answered by the root `404.html`, which boots it. `bun run test:judge` builds the site and checks both in a browser. The live site is https://quintinbotes.github.io/stint/.
 
-The workflow `.github/workflows/judge.yml` builds, checks and deploys the copy on a push to main, but only when the repository variable `JUDGE_PAGES` is `on` (and Pages takes its source from GitHub Actions). Otherwise every run is skipped. This repository's site is served from the `gh-pages` branch instead, built on 31 October, so later changes to the replay are not on it until it is rebuilt.
+The workflow `.github/workflows/judge.yml` builds, checks and deploys the copy on a push to main, but only when the repository variable `JUDGE_PAGES` is `on` (and Pages takes its source from GitHub Actions). Otherwise every run is skipped. This repository's site is served from the `gh-pages` branch instead, built on 31 October from commit 4e206ac. No commit since has changed `apps/web` or `demo/recording.jsonl`; a change to either is not on the site until it is rebuilt.
 
 ## Before the show
 
-1. `scripts/bootstrap.sh --check-only` lists every adapter and host as available or not, with the reason.
+1. `bash scripts/bootstrap.sh --check-only` lists Muse Code, the Stint agent, Ollama and the four hosted model hosts as available or not, with the reason, then runs `stint doctor` when the command is installed.
 2. `ollama list` shows `muse-glimmer:30b-mlx`. Run one review the day before so the model is warm.
 3. `stint demo --live` checks what it needs before it starts: `META_API_KEY`, Ollama with `muse-glimmer:30b-mlx` pulled (unless `--allow-online`), and `muse` on the PATH. It refuses to start and names the first one missing.
 4. The browser is on the Board (`/`) at the URL the runner prints, at 1080p.

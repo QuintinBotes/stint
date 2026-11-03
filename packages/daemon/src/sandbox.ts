@@ -243,7 +243,7 @@ export async function prepareRun(ctx: DaemonContext, task: string, run: string, 
   } else if (egressOn) {
     proxy = (await egressProxy(ctx)).url(task, run);
   }
-  const env = { ...runEnv(task, run, worktree, { keep: adapter.needsEnv ?? [], proxy, hosts: ctx.ws.config.hosts }), ...extra };
+  const env = { ...runEnv(task, run, worktree, { keep: adapter.needsEnv ?? [], proxy, hosts: ctx.ws.config.hosts, otel: ctx.ws.config.otel }), ...extra };
   if (kind === 'none') return { env };
   const ports = [egressOn && kind !== 'docker' ? (await egressProxy(ctx)).port : 0, daemonPort(ctx)].filter((p) => p > 0);
   const envNames = kind === 'docker' ? Object.keys(env).filter((k) => k.startsWith('STINT_') || /proxy$/i.test(k) || k === 'NODE_USE_ENV_PROXY' || k === 'TERM' || (adapter.needsEnv ?? []).includes(k) || k in extra) : undefined;

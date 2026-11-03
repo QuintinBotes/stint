@@ -12,10 +12,11 @@ The contract is in `packages/core/src/adapter.ts`:
 |---|---|
 | `id`, `vendor`, `roles` | Names the agent, whose model it is, and which roles it can take (`planner`, `implementer`, `reviewer`, `tester`, `learn`) |
 | `capabilities` | What it can do: edit files, run commands, resume a session, return structured output, work offline |
-| `available()` | Whether it can run now and, when it cannot, the reason in plain words (for example, "muse is not on PATH") |
+| `available()` | Whether it can run now and, when it cannot, the reason in plain words (for example, "codex is not on PATH") |
 | `gate()` | How strongly Stint controls its tool calls: `enforced`, `observed` or `none` (see below) |
 | `run(ctx)` | Runs one leg in the worktree, with the prompt, budget and abort signal the daemon gives it. It reports events through `ctx.emit` and returns how it ended, its cost, and the step in flight if it was killed. |
 | `resume?`, `enrich?` | Optional: continue a live session, or ask the leaving agent to improve its packet before the session closes |
+| `needsEnv?` | Optional: the credential variables the agent needs; every other key stays in the daemon |
 
 The daemon does the rest:
 
@@ -23,7 +24,7 @@ The daemon does the rest:
 - snapshots of changed files, and the work-in-progress commit;
 - the test run, the packet and the price.
 
-So an adapter is small: about 100 lines for a command line agent.
+So an adapter is small: Codex's is 129 lines, plus 145 for the mapper that reads its stream (`packages/adapters/codex/src/`).
 
 ## Honest gates
 

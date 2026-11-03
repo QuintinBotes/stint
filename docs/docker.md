@@ -125,7 +125,7 @@ Git records each run's worktree by its path, which is under `/repo` in the conta
 | What you see | Why | What to do |
 |---|---|---|
 | `required variable STINT_REPO is missing a value` | Compose needs the repository for every command | Set `STINT_REPO` in `.env` beside `compose.yaml` |
-| `git status` in your repository lists `.stint/cache/daemon.json` | `stint init` never ran there | Run `docker compose run --rm stint init` and commit what it wrote ([step 2](#stint-on-your-repository)) |
+| `git status` in your repository lists `.stint/` | `stint init` never ran there | Run `docker compose run --rm stint init` and commit what it wrote ([step 2](#stint-on-your-repository)) |
 | The daemon stops with a permission error on `.stint/` | On Linux, the container runs as a user who does not own the repository | Set `STINT_UID` and `STINT_GID` to what `id -u` and `id -g` print |
 | `docker compose up` says the port is in use | Another program has 4319 | Set `STINT_HOST_PORT` in `.env` |
 | The review host is unreachable | The container's `localhost` is the container, not your machine | Set `hosts.ollama.baseURL` as [above](#what-runs-in-the-container) |

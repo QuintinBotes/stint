@@ -2,7 +2,7 @@
 
 This page explains how to write, import and share a skill, and how Stint decides whether a skill may mount.
 
-A skill is a folder of instructions that every agent on a task follows. It lives at `.agents/skills/<id>/` and holds one `SKILL.md`, plus optional `scripts/`, `references/`, `assets/` and `examples.md`. The `SKILL.md` frontmatter carries `name` and `description` (the line agents read to decide whether the skill applies), plus Stint's own fields: `roles`, `tags`, `origin`, `status`, `evidence` and `source`. Agents that do not know those fields ignore them.
+A skill is a folder of instructions that every agent on a task follows. It lives at `.agents/skills/<id>/` and holds one `SKILL.md`, plus optional `scripts/`, `references/`, `assets/` and `examples.md`. The `SKILL.md` frontmatter carries `name` and `description` (the line agents read to decide whether the skill applies), plus Stint's own fields: `roles`, `tags`, `version`, `origin`, `status`, `evidence` and `source`. Agents that do not know those fields ignore them.
 
 Because a skill is instructions, it is also an injection path, and a way to make agents confidently worse. So every skill that mounts in Stint takes the same road: a proposal in the review queue, a pattern scan, a person's approval, probation, and an eval. It does not matter whether the learn step proposed it, a person wrote it, or it arrived from a zip or a git repository.
 

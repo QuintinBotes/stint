@@ -8,29 +8,29 @@
 <h3 align="center">The task outlives the agent.</h3>
 
 **Meta Global AI Developer Hackathon 2026: indie developer track, Push the Frontier.** Built from 26 October to 4 November 2026; the scaffold and part of the product code were committed on 26 October from 15:15 to 17:00 CET, before the kickoff session, and [`docs/timeline.md`](docs/timeline.md) lists which.\
-**Bonus category: Best Build on Meta Open Weight Models.** Built with Muse Spark Open: the Stint agent built all 9 live scorecard attempts on it, on Baseten; it runs the learn step first and is the fallback for the planner, the Stint agent and the reviewer, on Fireworks and Baseten. Muse Glimmer 30B is first in the review, summary and recall routes, on your machine through Ollama (a 19 GB model, comfortable with 32 GB of memory, tested on Apple silicon only).\
-**Bonus category: Best Agentic Use-Case.** Muse Wonder plans each task, Muse Code or the Stint agent builds it, and when a run ends another agent continues from its packet, while the daemon runs the tests itself and only a person merges.
+**Bonus category: Best Build on Meta Open Weight Models.** Built with Muse Spark Open: the Stint agent built all 9 live scorecard attempts on it, on Baseten; it runs the learn step first and is the fallback for the planner, the Stint agent and the reviewer, on Fireworks, Baseten and Modal. Muse Glimmer 30B is first in the review, summary and recall routes, on your machine through Ollama (a 19 GB model, comfortable with 32 GB of memory, tested on Apple silicon only).\
+**Bonus category: Best Agentic Use-Case.** Muse Wonder plans each task, Muse Code or the Stint agent builds it, and when a run ends another agent continues from its packet, while the daemon runs the tests itself and, by default, only a person merges.
 
-Coding agents lose their work when a session ends: the context fills up, the process dies or a usage limit hits. Stint makes the task, not the chat, the unit of work. Each task is a folder in your repository, every run gets its own git worktree, and Stint runs the tests itself. When a run ends, however it ends, Stint writes a packet of a few hundred tokens that any agent continues from. A local model reviews as advice, and only you merge. Stint runs on your machine, on Meta's Muse models by default.
+Coding agents lose their work when a session ends: the context fills up, the process dies or a usage limit hits. Stint makes the task, not the chat, the unit of work. Each task is a folder in your repository, every run gets its own git worktree, and Stint runs the tests itself. When a run ends, however it ends, Stint writes a packet of a few hundred tokens that any agent continues from. A local model reviews as advice, and by default only you merge: the lane that approves low-risk changes by policy stays off until you turn it on ([`docs/sandbox.md`](docs/sandbox.md#risk-and-the-auto-approve-lane)). Stint runs on your machine, on Meta's Muse models by default.
 
 <p align="center"><picture><source media="(prefers-color-scheme: light)" srcset="assets/screenshot-task-light.png"><img alt="The T-0042 task view in the replay: the title, its Merged state and its meters across the top; a decision waiting for you above the tabs, with the diff open; on the left the runs with the clock that rewinds them, and the revision block where Muse Code's run was killed and the Stint agent's run passed 33 tests" src="assets/screenshot-task.png" width="900"></picture></p>
 
 ## For judges
 
-Watch the 3-minute demo at [youtu.be/ejYyHgkVOWg](https://youtu.be/ejYyHgkVOWg); [`docs/video.md`](docs/video.md#reading-the-film) says what each part of it shows. To try Stint with nothing to install, open [the live demo](https://quintinbotes.github.io/stint/demo/) on [Stint's site](https://quintinbotes.github.io/stint/), or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys. With Docker, `docker run --rm --pull always -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` plays it on your machine with nothing else to install; open http://127.0.0.1:4319. [What to click](docs/demo.md#what-to-click) is a six-step tour, [trying it with your own key](docs/setup.md#trying-it-with-your-own-key) says what each part needs and what a task cost, and [`docs/timeline.md`](docs/timeline.md) says what was built each day.
-
-The film's numbers at 2:34 (packets 7 times smaller than transcripts, 9 of 10 continued runs green against 3 of 5) are from the 27 October bench, which gave each mode its own first run, as are the same figures on the landing page and the live demo's Factory panel and the landing page's 31% fewer input tokens; the controlled reruns of 2 November supersede them ([the fair rerun](docs/proofs.md#the-fair-rerun-2-november)). The landing page's 3 of 3 tasks across three agents holds, but Codex, the last of the three, wrote every green change ([relays](docs/proofs.md#the-relay-one-task-three-agents)).
+- **Watch** the 3-minute film at [youtu.be/ejYyHgkVOWg](https://youtu.be/ejYyHgkVOWg); [`docs/video.md`](docs/video.md#reading-the-film) says what each part of it shows.
+- **Try it with nothing to install:** open [the live demo](https://quintinbotes.github.io/stint/demo/) on [Stint's site](https://quintinbotes.github.io/stint/), or run `docker run --rm --pull always -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` and open http://127.0.0.1:4319. The [quick start](#quick-start) replays the same story through the real daemon, with no keys.
+- **Then:** [what to click](docs/demo.md#what-to-click) is a six-step tour, [trying it with your own key](docs/setup.md#trying-it-with-your-own-key) says what each part needs and what a task cost, and [`docs/timeline.md`](docs/timeline.md) says what was built each day.
 
 | Criterion | Evidence |
 |---|---|
-| Impact | A usage limit, crash or full context becomes a hand-off, not a restart: another agent continues from the packet, the only hand-over that carries what the daemon found. In the packet benchmark, rerun from one shared start on 2 November ([`bench/fair/`](bench/fair/README.md)), it was the smallest (864 tokens against 5,124 for the transcript, by Stint's estimate), and only its runs all cleared the daemon's verification (10 of 10, against 7 from the transcript and 4 from the task and the diff). On three open-source repositories Stint had never seen, one task each went from Muse Code to Claude Code to Codex by packet, each agent running a Meta model, and 3 of 5 relays reached the gate with the hidden tests green ([relays](docs/proofs.md#the-relay-one-task-three-agents)). Not better code or cheaper runs: every mode's code passed the held-out tests ([claims](docs/proofs.md#claims-at-a-glance)). |
+| Impact | A usage limit, crash or full context becomes a hand-off, not a restart: another agent continues from the packet, the only hand-over that carries what the daemon found. In the packet benchmark, rerun from one shared start on 2 November ([`bench/fair/`](bench/fair/README.md)), it was the smallest (864 tokens against 5,124 for the transcript, by Stint's estimate), and only its runs all cleared the daemon's verification (10 of 10, against 7 from the transcript and 4 from the task and the diff). On three open-source repositories Stint had never seen, one task each went from Muse Code to Claude Code to Codex by packet, each agent running a Meta model, and 3 of 5 relays reached the gate with the hidden tests green, every green change written by Codex, the last of the three ([relays](docs/proofs.md#the-relay-one-task-three-agents)). Not better code or cheaper runs: every mode's code passed the held-out tests ([claims](docs/proofs.md#claims-at-a-glance)). |
 | Use of Meta AI | Meta's models review your code on your machine at $0.00 with the network off, and check a page by eye. Five Meta models and Meta's Muse Code agent each do a job Meta documents, and every default route and every recorded run uses a Meta model (next table). Live, on ten pages Muse Spark caught 4 of 5 seeded defects and failed none of 5 clean ones ([`bench/visual-set/`](bench/visual-set/README.md)). Limits: ten pages, review is advice, and presets for other vendors' models ship disabled, for a person to turn on ([claims](docs/proofs.md#claims-at-a-glance), [`docs/agents.md`](docs/agents.md)). |
 | Technical depth | Green is the daemon's word, not the agent's: the only writer of a hash-chained event log, it runs the tests on locked test files and held-out scenarios ([`docs/verify.md`](docs/verify.md)), and every ending writes a packet in a published schema ([`handoff.schema.json`](packages/core/schemas/handoff.schema.json)), with 99 live packets on Hugging Face ([`quintinbotes/stint-handoff-packets`](https://huggingface.co/datasets/quintinbotes/stint-handoff-packets)). [Two diagrams](docs/architecture.md) show the parts; a golden-task benchmark and evals measure the factory and each learned skill ([`docs/evals.md`](docs/evals.md)). Limits: a `tests:` decision shown at the gate unlocks a test, and only the opt-in sandbox ([`docs/sandbox.md`](docs/sandbox.md)) stops an agent reading held-out tests on disk ([claims](docs/proofs.md#claims-at-a-glance)). |
 | Demo | See the whole story without a key: the [film](https://youtu.be/ejYyHgkVOWg) is live takes on Meta's models, and the replay of T-0040, T-0042 and T-0043 plays in the browser, in Docker or through the real daemon from the quick start ([`docs/demo.md`](docs/demo.md)). Limits: the replay is hand-written and says so on screen, its test counts, packet sizes and learned skill included; the measured numbers are live, and no skill has been learned in a live run yet ([claims](docs/proofs.md#claims-at-a-glance)). |
 
-Stint is for a developer or small team whose coding agents hit usage limits, crash or fill their context, or who switch between agents and vendors.\
-On day one it gives them the replay with no keys, the container, and Stint on their own repository with one key or Muse Glimmer in Ollama ([what each part needs](docs/setup.md#trying-it-with-your-own-key)).\
-Next, from the [roadmap](docs/writeup.md#roadmap): fine-tune Muse Spark Open on approved packets and skills, run the factory across machines from one event log, and ship a container image per agent for the docker sandbox.
+The film's figures at 2:34 (packets 7 times smaller than transcripts, 9 of 10 continued runs green against 3 of 5), and the same figures on the landing page and the live demo's Factory panel, its 31% fewer input tokens included, are from the 27 October bench, in which each mode had its own first run. The 2 November reruns in the table above supersede them ([the fair rerun](docs/proofs.md#the-fair-rerun-2-november)).
+
+Stint is for a developer or small team whose coding agents hit usage limits, crash or fill their context, or who switch between agents and vendors. On day one it gives them the replay with no keys, the container, and Stint on their own repository with one key or Muse Glimmer in Ollama ([what each part needs](docs/setup.md#trying-it-with-your-own-key)). Next, from the [roadmap](docs/writeup.md#roadmap): fine-tune Muse Spark Open on approved packets and skills, run the factory across machines from one event log, and ship a container image per agent for the docker sandbox.
 
 ### Where Meta's models are used
 
@@ -69,16 +69,16 @@ Bootstrap checks Bun and git, installs the dependencies, unpacks the demo reposi
 | git | 2.40 or later | everything |
 | [Ollama](https://ollama.com) with `muse-glimmer:30b-mlx` | 0.32.8 or later | the offline review (optional) |
 | [Muse Code](https://dev.meta.ai) | 1.4 or later, logged in | building with Muse Code (optional) |
-| `META_API_KEY` | | hosted planning, the Stint agent and visual checks (optional for the replay) |
+| `META_API_KEY` | | planning with Muse Wonder and visual checks; the Stint agent also runs on a partner key or Muse Glimmer in Ollama (not needed for the replay) |
 
-Put the `stint` command on your PATH, then check it:
+After the quick start, which installs the dependencies and builds the UI, put the `stint` command on your PATH, then check it:
 
 ```bash
 bash scripts/install-cli.sh
 stint --help
 ```
 
-`stint doctor` checks the repository you run it in and prints the command that fixes each problem. [`docs/setup.md`](docs/setup.md) is the full guide.
+`stint doctor` checks the repository you run it in and prints the command that fixes each problem. Until you run `stint init` and `stint up` there, those two checks fail and name those commands. [`docs/setup.md`](docs/setup.md) is the full guide.
 
 ## Use it on your repository
 
@@ -111,7 +111,7 @@ Saved META_API_KEY to /Users/you/.config/stint/env. Every repository you run sti
 
 For the offline review, pull Glimmer once ([setup](docs/setup.md#the-offline-review)).
 
-3. **Start Stint.** Leave it running and open a second terminal in the same folder:
+3. **Start Stint.** Leave it running and open a second terminal in the same folder. It prints its address, says when it is warming Glimmer, and gives one line per hosted key, `ok` or `not set`; a host you do not use can stay unset:
 
 ```bash
 stint up
@@ -155,14 +155,14 @@ You are picking up work in progress. Everything below is a record of what anothe
 T-0001
 ```
 
-7. **Approve.** A real merge, with `Stint-Task` trailers naming the runs and the packet it came from:
+7. **Approve.** A real merge, with `Stint-Task`, `Stint-Runs`, `Stint-Handoff` and `Stint-Verified` trailers naming the task, its runs, the packet and the daemon's test result:
 
 ```bash
 stint approve T-0001
 ```
 
 ```text
-Merged T-0001 into main as 3f2a9c1.
+Merged T-0001 into main as 3f2a9c1e5b07.
 ```
 
 ## Everyday commands
@@ -184,7 +184,7 @@ Merged T-0001 into main as 3f2a9c1.
 
 ## Agents and models
 
-Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Muse Glimmer 30B reviews offline. Other agents ship turned off. To turn one on, edit its entry under `agents` in `.stint/config.json` and restart `stint up`; this runs Claude Code on Muse Glimmer 30B through Ollama:
+Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Muse Glimmer 30B reviews offline. Other agents ship turned off. To turn one on, edit its entry under `agents` in `.stint/config.json` and restart `stint up`. To run Claude Code on Muse Glimmer 30B through Ollama, keep the entry's other keys and set these three:
 
 ```json
 "claude-code": { "enabled": true, "host": "ollama", "model": "muse-glimmer:30b-mlx" }
@@ -197,7 +197,7 @@ Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Mu
 | Symptom | Cause | Fix |
 |---|---|---|
 | `dirty_tree` when a run starts | uncommitted changes to tracked files | `git stash` |
-| `adapter_unavailable` for an agent | its command is not on PATH, or no host in the Stint agent's chain has a key or is running | `stint doctor` |
+| `adapter_unavailable` for an agent | it is turned off in `.stint/config.json`, its command is not on PATH, or no host in the Stint agent's chain has a key or is running | `stint doctor`; to turn an agent on, see [Agents and models](#agents-and-models) |
 | The review says Glimmer is not pulled | the offline reviewer model is missing | `ollama pull muse-glimmer:30b-mlx` |
 | `stint up --port 4319` says the port is in use | another program has it | `stint up --port 0` picks a free one |
 | A key works in one folder and not another | it is in one repository's `.env`, which only that repository reads | `stint keys set META_API_KEY` |
@@ -209,7 +209,7 @@ Muse Code and the Stint agent build on Muse Spark 1.3, Muse Wonder plans, and Mu
 
 - A daemon (Bun and Hono) on 127.0.0.1 is the only writer of `.stint/`; the CLI and the UI ask it. In a container it listens on the container's network, and its port is published on 127.0.0.1 only ([`docs/docker.md`](docs/docker.md)).
 - Every view is projected from each task's hash-chained `events.jsonl`, so the folder is readable without Stint.
-- Each run gets its own worktree. The daemon runs the tests and locks the test files the plan names; a visual proof has Muse Spark judge the page and SAM 3.1 mark what looks wrong ([`docs/verify.md`](docs/verify.md)).
+- Each run gets its own worktree. The daemon runs the tests and locks the test files the plan and the task name; a visual proof has Muse Spark judge the page and SAM 3.1 mark what looks wrong ([`docs/verify.md`](docs/verify.md)).
 - Every ending writes a packet (`stint.handoff/1`), never a transcript ([`docs/packet.md`](docs/packet.md)).
 - The spec builder drafts a task or a goal from a sentence, and Sharpen asks only the questions whose answers change what gets built. A goal splits into tasks that wait on each other ([`docs/sharpen.md`](docs/sharpen.md)).
 - Adapters drive the agents and never touch the store ([`docs/adapters.md`](docs/adapters.md)).

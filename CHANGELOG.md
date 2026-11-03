@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed (3 November, judge-ready docs)
+- Every page was checked against the code and the result files, and what was wrong, stale or unclear is fixed. Among them: the control relay's one change was Muse Code's, not Codex's; `docs/setup.md` now builds the web UI, which `stint up` serves; the README's snippet for turning on Claude Code keeps the entry's other keys; `docs/video.md` says the film shows two defects as they were in the take; and the README's judges' section is a short list, with the 27 October figures noted below the evidence table.
+- A run's environment no longer carries the OpenTelemetry headers variable (`otel.headersEnv`), whatever it is called, as it already did not carry the hosts' keys.
+- The coverage note and the cross-vendor review hint name what the code accepts, and `stint bench --help` lists the `resume` mode.
+
 ### Fixed (3 November, decisions)
 - A decision sent with a run's token is recorded as that run, whatever `by` it names, so an agent can no longer record a decision as yours. Only a person supersedes a decision a person recorded, or one a goal passed to its task: the route answers 403, and a `supersedes:` line in an agent's message is reported in the timeline and not recorded. Every field of a decision is written on one line, and the line after an entry's header is always read as its text, so no decision's text can add a `supersedes:` line or forge an entry in `decisions.md`.
 

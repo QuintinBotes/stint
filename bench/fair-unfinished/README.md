@@ -51,7 +51,7 @@ By task, green verdicts out of 2:
 
 The two red verdicts have no failing test. On `bench-03-delete-tenant` all eight continued runs changed the locked `test/admin.test.ts`, as the task asks. Six wrote the `decision: tests:` line and went green. Two did not, the first packet run and the first transcript run, and went red. The checkpoint had not touched that file, so no hand-over could warn about it. Every arm's prompt, the resumed session's first prompt included, states the rule.
 
-The experiment cost $2.4059 (`spend.json`). By Stint's own records, $0.4151 went to the six first runs and $1.9471 to the 16 continued runs: $1.2916 on `bench-01-rate-limit`, $0.6555 on `bench-03-delete-tenant`. The other $0.0437 is one one-step probe of a fair-rerun session, run before the bench to check that `muse exec --session-id` resumes a capped session. It was priced from Muse Code's own usage at Stint's Muse Spark 1.3 rate.
+The experiment cost $2.4059 (`spend.json`). By Stint's own records, $0.4151 went to the six first runs and $1.9471 to the 16 continued runs: $1.2916 on `bench-01-rate-limit`, $0.6555 on `bench-03-delete-tenant`. The other $0.0437 is a single one-step probe of a fair-rerun session, run before the bench to check that `muse exec --session-id` resumes a capped session. It was priced from Muse Code's own usage at Stint's Muse Spark 1.3 rate.
 
 ## What it shows
 
