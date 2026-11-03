@@ -66,8 +66,11 @@ export function workRoutes(app: Hono, ctx: DaemonContext): void {
     const body = z
       .strictObject({ text: z.string().min(1).max(200), supersedes: z.string().regex(/^D[0-9]+$/).optional(), by: z.string().min(1).max(80).optional() })
       .parse(await c.req.json());
-    const d = await ctx.ws.decisions(id).append({ text: body.text, by: body.by ?? 'you', ...(body.supersedes ? { supersedes: body.supersedes } : {}) });
-    await ctx.ws.events(id).append({ task: id, vendor: body.by && body.by !== 'you' ? 'daemon' : 'human', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by, ...(d.supersedes ? { supersedes: d.supersedes } : {}) }, links: [{ kind: 'decision', ref: d.id }] });
+    // a call with a run's token is that run's, whatever by it names, even if the run ends while it is answered (R-040)
+    const live = c.get('run');
+    const by = live ? `${live.adapter} ${live.run}` : (body.by ?? 'you');
+    const d = await ctx.ws.decisions(id).append({ text: body.text, by, ...(body.supersedes ? { supersedes: body.supersedes } : {}) });
+    await ctx.ws.events(id).append({ task: id, ...(live ? { run: live.run, adapter: live.adapter } : {}), vendor: d.by === 'you' ? 'human' : 'daemon', type: 'decision.recorded', payload: { id: d.id, text: d.text, by: d.by, ...(d.supersedes ? { supersedes: d.supersedes } : {}) }, links: [{ kind: 'decision', ref: d.id }] });
     return c.json(d, 201);
   });
 

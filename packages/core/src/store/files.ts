@@ -1,6 +1,17 @@
 import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+export type StoreErrorCode = 'not_found' | 'exists' | 'no_commits' | 'invalid' | 'forbidden';
+
+export class StoreError extends Error {
+  constructor(
+    readonly code: StoreErrorCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /** Pretty JSON with keys sorted recursively, so `.stint/` diffs stay stable and readable without Stint. */
 export function stableJSON(value: unknown): string {
   return `${JSON.stringify(sortKeys(value), null, 2)}\n`;

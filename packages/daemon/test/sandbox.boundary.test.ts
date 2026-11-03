@@ -216,6 +216,45 @@ test('a run token reaches only its own run\'s agent routes, answers 403 elsewher
   });
 }, 60_000);
 
+test('a decision sent with a run token is recorded as that run whatever by it names, and cannot supersede one a person recorded', async () => {
+  await withFixtureRepo(async (repo) => {
+    const agent = holder();
+    const { app, ws } = await makeApp(repo, [agent]);
+    const t = await ws.createTask(newTask);
+    const decide = async (body: Record<string, unknown>, headers?: Record<string, string>) => {
+      const res = await post(app, `/api/tasks/${t.id}/decisions`, body, headers);
+      const json = (await res.json()) as { by?: string; error?: { code: string } };
+      return [res.status, json.by ?? json.error?.code];
+    };
+    expect(await decide({ text: 'Count per tenant, not per source IP' })).toEqual([201, 'you']);
+    expect((await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'fake', role: 'implementer' })).status).toBe(202);
+    for (let i = 0; i < 200 && !agent.ctx(); i++) await Bun.sleep(25);
+    const as = { Authorization: `Bearer ${agent.ctx()?.env.STINT_RUN_TOKEN as string}` };
+
+    expect(await decide({ text: 'Keep hits in memory', by: 'you' }, as)).toEqual([201, 'fake r1']);
+    expect(await decide({ text: 'Count per source IP', supersedes: 'D1', by: 'you' }, as)).toEqual([403, 'forbidden']);
+    expect(await decide({ text: 'Keep hits in Redis', supersedes: 'D2' }, as)).toEqual([201, 'fake r1']);
+    expect(await decide({ text: 'Count per source IP', supersedes: 'D1' })).toEqual([201, 'you']);
+    expect((await ws.decisions(t.id).validAt()).map((d) => [d.id, d.by])).toEqual([['D3', 'fake r1'], ['D4', 'you']]);
+    const recorded = (await ws.events(t.id).read()).filter((e) => e.type === 'decision.recorded');
+    expect(recorded.map((e) => [e.payload.id, e.vendor, e.run ?? null])).toEqual([['D1', 'human', null], ['D2', 'daemon', 'r1'], ['D3', 'daemon', 'r1'], ['D4', 'human', null]]);
+
+    // the run ends while its call is being answered: the call is still the run's, not yours
+    const ctx = daemonContext(app);
+    const live = ctx.runs.get(t.id);
+    const read = ctx.ws.readTask.bind(ctx.ws);
+    ctx.ws.readTask = async (id) => {
+      const task = await read(id);
+      if (live) live.token = undefined;
+      return task;
+    };
+    expect(await decide({ text: 'Count per region', supersedes: 'D4', by: 'you' }, as)).toEqual([403, 'forbidden']);
+    ctx.ws.readTask = read;
+
+    expect((await post(app, `/api/tasks/${t.id}/runs/r1/stop`, {})).status).toBe(202);
+  });
+}, 60_000);
+
 test('the hook uses the run token and port from its environment when daemon.json cannot be read', async () => {
   await withFixtureRepo(async (repo) => {
     const agent = holder();

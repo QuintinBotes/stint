@@ -7,19 +7,10 @@ import { type Review, ReviewSchema } from '../schemas/review';
 import { type Budgets, type Check, GOAL_ID, type Task, type TaskLimits, TaskSchema } from '../schemas/task';
 import { DecisionLedger } from './decisions';
 import { EventLog } from './eventlog';
-import { KeyedQueue, readJsonIfExists, writeJsonAtomic, type AtomicHooks } from './files';
+import { KeyedQueue, StoreError, readJsonIfExists, writeJsonAtomic, type AtomicHooks } from './files';
 import { HandoffStore, RunStore, VerificationStore } from './runs';
 
-export type StoreErrorCode = 'not_found' | 'exists' | 'no_commits' | 'invalid';
-
-export class StoreError extends Error {
-  constructor(
-    readonly code: StoreErrorCode,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+export { StoreError, type StoreErrorCode } from './files';
 
 export type NewTask = {
   id?: string;

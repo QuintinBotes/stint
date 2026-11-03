@@ -123,6 +123,13 @@ function tokenMatches(header: string | undefined, token: string): boolean {
 // Not hand or verify: both refuse while the task has a live run, and the caller's own run is that live run.
 const AGENT_ROUTE = /^\/api\/tasks\/([^/]+)\/(?:runs\/([^/]+)\/inflight|handoff|decisions|autopilot)$/;
 
+declare module 'hono' {
+  interface ContextVariableMap {
+    /** The live run whose token made this call, fixed when the call is let in; unset for the daemon token. */
+    run: ActiveRun | undefined;
+  }
+}
+
 /** A run token is good only on its own task's agent routes and for its own run; anything else is forbidden (R-040). */
 async function agentMayCall(c: Context, live: ActiveRun): Promise<void> {
   const m = c.req.method === 'POST' ? AGENT_ROUTE.exec(c.req.path) : null;
@@ -222,6 +229,7 @@ export function createApp(ws: Workspace, adapters: Adapter[], options: AppOption
       const live = header?.startsWith('Bearer ') ? runs.byToken(header.slice(7)) : undefined;
       if (!live) throw new DaemonError('unauthorized', 'this call changes state and needs the daemon token', 'send Authorization: Bearer <token from .stint/cache/daemon.json>');
       await agentMayCall(c, live);
+      c.set('run', live);
     }
     await next();
   });

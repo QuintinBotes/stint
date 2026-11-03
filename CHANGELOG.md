@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed (3 November, decisions)
+- A decision sent with a run's token is recorded as that run, whatever `by` it names, so an agent can no longer record a decision as yours. Only a person supersedes a decision a person recorded, or one a goal passed to its task: the route answers 403, and a `supersedes:` line in an agent's message is reported in the timeline and not recorded. Every field of a decision is written on one line, and the line after an entry's header is always read as its text, so no decision's text can add a `supersedes:` line or forge an entry in `decisions.md`.
+
 ### Added (3 November, film)
 - `docs/video.md` opens with a key to the film: which take each part is from, what happens to the T-0001 hand-off and where the green one is, why the goal reads 0 of 4 criteria met, which models Claude Code and Codex run in the relay chart, that the 2:34 figures and the 31% at 2:44 are from the 27 October bench, and that the replay tells a different story. It also says the takes' event logs are not in the repository. The README links it.
 

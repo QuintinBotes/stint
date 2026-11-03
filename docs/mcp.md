@@ -15,7 +15,7 @@ This page explains how to connect a coding agent or another MCP client to Stint.
 | `stint_similar` | Earlier tasks like this one, with the evidence (shared files, the same findings, tags) |
 | `stint_constraints` | The decisions and open review findings on the files the task touches, across every task |
 | `stint_files_together` | Files that changed alongside a file in earlier runs |
-| `stint_decide` | Records a decision, or one that supersedes an earlier one |
+| `stint_decide` | Records a decision, or one that supersedes an earlier one; it cannot supersede a decision you made, and inside a run it is recorded as that run |
 | `stint_hand` | Hands a task to another agent, from a packet addressed to it |
 | `stint_autopilot` | Puts a task on autopilot, or takes it off |
 | `stint_verify` | Has the daemon run the tests and report the result |
