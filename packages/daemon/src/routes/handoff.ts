@@ -21,7 +21,7 @@ async function enrichFrom(ctx: DaemonContext, taskId: string, run: string, adapt
   if (!adapter?.enrich || !adapter.capabilities.resumable || !sessionId) return null;
   const task = await ctx.ws.readTask(taskId);
   const worktree = worktreePath(ctx.ws, taskId, run);
-  const env = runEnv(taskId, run, worktree, { keep: adapter.needsEnv ?? [], hosts: ctx.ws.config.hosts });
+  const env = runEnv(taskId, run, worktree, { keep: adapter.needsEnv ?? [], hosts: ctx.ws.config.hosts, otel: ctx.ws.config.otel });
   const ask = adapter
     .enrich({ task, run, sessionId, worktree, env, ...(model ? { model } : {}) })
     .then(async ({ cost, ...fields }) => {

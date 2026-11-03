@@ -14,6 +14,8 @@ export type RunEnvOpts = {
   proxy?: string | null;
   /** The configured hosts: their key variables are credentials whatever they are called. */
   hosts?: Config['hosts'];
+  /** The OpenTelemetry export: its headers variable is a credential whatever it is called. */
+  otel?: Config['otel'];
   base?: NodeJS.ProcessEnv;
 };
 
@@ -35,6 +37,7 @@ export function runEnv(task: string, run: string, worktree: string, opts: RunEnv
   const env: Record<string, string> = {};
   const base = opts.base ?? process.env;
   const held = hostCredentials(opts.hosts, base);
+  if (opts.otel?.headersEnv) held.add(opts.otel.headersEnv);
   for (const [k, v] of Object.entries(base)) {
     if (v === undefined || SESSION_MARKERS.some((m) => m.test(k))) continue;
     if (!opts.credentials && (CREDENTIAL.test(k) || held.has(k)) && !opts.keep?.includes(k)) continue;

@@ -59,7 +59,7 @@ async function modelRun<T>(
   const chain = chainFor(ctx, role, host, task).filter((e) => !skip.includes(e));
   // the call is capped at the role token budget for this task (R-054)
   const maxTokens = task.budgets[role] ?? ctx.ws.config.budgets[role];
-  if (chain.length === 0) throw new DaemonError('review_blocked', `every ${role} entry is the model that built this change (${skip.join(', ')})`, 'add a reviewer on another model to routes.reviewer, or set review.crossVendor to false');
+  if (chain.length === 0) throw new DaemonError('review_blocked', `every ${role} entry is the model that built this change (${skip.join(', ')})`, 'add a reviewer on another model to routes.reviewer, or set "review": { "lenses": ["general"], "bestOf": 1, "crossVendor": false } in .stint/config.json');
   const run = await nextRun(ctx, taskId);
   const events = ctx.ws.events(taskId);
   const first = chain[0] as string;

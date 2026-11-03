@@ -168,6 +168,10 @@ test('a run strips every configured host key, and a base URL that carries a cred
   expect(runEnv('T-0001', 'r1', '/wt', { base: { MY_HOST_URL: 'https://host.example/v1?api_key=abc' }, hosts }).MY_HOST_URL).toBeUndefined();
   expect(env.OPEN_URL).toBe('http://localhost:11434/v1');
   expect(runEnv('T-0001', 'r1', '/wt', { base, hosts, keep: ['MY_HOST_CRED'] }).MY_HOST_CRED).toBe('c');
+  // the OpenTelemetry headers hold a collector's credential whatever the variable is called
+  const otel = { endpoint: 'http://localhost:4318', headersEnv: 'STINT_OTEL_HEADERS', serviceName: 'stint' };
+  expect(runEnv('T-0001', 'r1', '/wt', { base: { STINT_OTEL_HEADERS: 'Authorization=Bearer c' }, otel }).STINT_OTEL_HEADERS).toBeUndefined();
+  expect(runEnv('T-0001', 'r1', '/wt', { base: { STINT_OTEL_HEADERS: 'Authorization=Bearer c' } }).STINT_OTEL_HEADERS).toBe('Authorization=Bearer c');
 });
 
 /** An agent that waits until stopped and keeps its context, so a test can call the daemon as it would. */

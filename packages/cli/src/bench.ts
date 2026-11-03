@@ -42,7 +42,7 @@ export const bench = defineCommand({
   meta: { name: 'bench', description: 'Measure the packet: continue one capped run per task from the transcript, the packet, or the task and the diff' },
   args: {
     tasks: { type: 'string', description: 'How many bench tasks to run (default: all)' },
-    modes: { type: 'string', description: 'Comma list: transcript,packet,diff (diff is the task and the first run\'s diff only)', default: 'transcript,packet' },
+    modes: { type: 'string', description: 'Comma list: transcript,packet,diff,resume (diff is the task and the first run\'s diff only; resume is Muse Code continuing its own session)', default: 'transcript,packet' },
     legs: { type: 'string', description: 'Comma list: plan,build,review,learn', default: 'build' },
     host: { type: 'string', description: 'Run the continuing leg on this host (a host id from config)' },
     implementer: { type: 'string', description: 'Adapter for the capped first run', default: 'muse-code' },

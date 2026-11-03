@@ -170,7 +170,7 @@ export class DaemonVerifier implements Verifier {
   /** What a command run on the task's code gets: the run's sandbox when one is configured. */
   private async prepared(task: Task, run: string, dir: string): Promise<Prepared> {
     const extra = { CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
-    return this.prepare ? this.prepare(task.id, run, dir, extra) : { env: { ...runEnv(task.id, run, dir, { hosts: this.ws.config.hosts }), ...extra } };
+    return this.prepare ? this.prepare(task.id, run, dir, extra) : { env: { ...runEnv(task.id, run, dir, { hosts: this.ws.config.hosts, otel: this.ws.config.otel }), ...extra } };
   }
 
   /** Runs one command of the suite on the task's code. */
@@ -370,7 +370,7 @@ export class DaemonVerifier implements Verifier {
   private async coverage(task: Task, run: string, worktree: string): Promise<CoverageOutcome> {
     if (!this.ws.config.verify?.coverage) return { coverage: null };
     const command = coverageCommand(task.testCommand);
-    if (!command) return { coverage: null, reason: 'the test command is not a bun or Vitest run, so no coverage was run' };
+    if (!command) return { coverage: null, reason: 'the test command is not a single bun, Vitest, npm, yarn or pnpm test command, so no coverage was run' };
     try {
       const inWorktree = async (dir: string) => parseCoverage((await this.exec(task, run, command, dir)).output);
       const branch = await inWorktree(worktree);
