@@ -14,7 +14,7 @@ This layer is always on. Nothing an agent or a test run starts gets a variable w
 
 Muse Code keeps its login in `~/.config/muse`, so it needs no variable. The terminal in the UI is your own shell and keeps your variables.
 
-What you type in that terminal, and what an agent's tools print, can still hold a secret. Both are scrubbed before they reach the event log, by the same scrubber the packet uses. The value after a name like `API_KEY=` or `API_KEY:` (any name containing `KEY`, `TOKEN`, `SECRET` or `PASSWORD`) becomes `[redacted]`, and so does the value of every key Stint loaded, wherever it appears.
+What you type in that terminal, and what an agent's tools print, can still hold a secret. Both are scrubbed before they reach the event log, by the same scrubber the packet uses. The value after a name like `API_KEY=` or `API_KEY:` (any name containing `KEY`, `TOKEN`, `SECRET` or `PASSWORD`) becomes `[redacted]`, and so does the value of every key Stint loaded, wherever it appears. So do credentials known by their shape whatever they are called: a private key block, an `Authorization` header's value, a bearer token, and OpenAI or Anthropic `sk-`, GitHub, AWS access key, Hugging Face `hf_` and Slack tokens.
 
 ## Egress: allowed hosts only
 

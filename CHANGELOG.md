@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+### Fixed (3 November, packets)
+- Every field of a packet is scrubbed before it is sized and hashed, so a credential in a refused command, a decision or a plan risk no longer reaches the next agent. The scrubber also redacts credentials by their shape: private keys, `Authorization` headers, bearer tokens, and `sk-`, GitHub, AWS, Hugging Face and Slack tokens.
+
 ### Changed (3 November)
+- The Hugging Face dataset `quintinbotes/stint-handoff-packets` holds 99 packets, every one in `bench/`, and the summaries of the controlled reruns, the review rechecks and the visual set; it said 46 packets and carried only the 27 October bench.
 - A reviewer on Ollama reads up to 12,000 tokens of the diff, four times a hosted reviewer's 3,000. Rerun with every hunk in view, Muse Glimmer 30B flagged 1 of the 15 failing scorecard patches and none of the 3 passing ones (`bench/review-recheck/glimmer-local/`).
 
 ### Fixed (3 November)

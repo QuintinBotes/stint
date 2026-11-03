@@ -2,7 +2,7 @@ import { appendFile, copyFile, mkdir, readFile, stat, truncate } from 'node:fs/p
 import { dirname } from 'node:path';
 import { monotonicFactory } from 'ulid';
 import { canonicalJSON, sha256Hex } from '../canonical';
-import { scrubSecrets } from '../keys';
+import { scrubDeep } from '../keys';
 import { type NewEvent, type StintEvent, StintEventSchema, classifyEvent } from '../schemas/event';
 import { KeyedQueue } from './files';
 
@@ -13,8 +13,6 @@ const instances = new Map<string, EventLog>();
 const anyListeners = new Set<(e: StintEvent) => void>();
 /** What a person typed and what a tool printed can hold a credential; it is redacted before it is stored (R-040). */
 const SCRUBBED = new Set(['human.command', 'agent.tool_result']);
-const scrubDeep = (v: unknown): unknown =>
-  typeof v === 'string' ? scrubSecrets(v) : Array.isArray(v) ? v.map(scrubDeep) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrubDeep(x)])) : v;
 
 /** The hash chain: NUL-separated canonical fields plus the previous hash. */
 export function eventHash(e: Pick<StintEvent, 'seq' | 'ts' | 'task' | 'run' | 'adapter' | 'type' | 'payload'>, prev: string): string {

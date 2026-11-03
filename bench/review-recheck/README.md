@@ -47,7 +47,7 @@ The stopped pass is reported too (`stopped-pass.log`): its Spark verdicts on the
 
 ## What it shows
 
-On the inputs Stint's reviewer gets, Muse Spark 1.3 flagged 2 of the 4 failing patches that changed code, with findings that name the bug, and flagged none of the 3 passing patches. Glimmer approved every one of them.
+On the inputs Stint's reviewer gets, Muse Spark 1.3 flagged 2 of the 4 failing patches that changed code, with findings that name the bug, and flagged none of the 3 passing patches. Glimmer's recorded verdicts approved every one of them; given the whole diff on 3 November, it flagged 1 of the 4, `ms-unit-option-a3`.
 
 ## What it does not show
 

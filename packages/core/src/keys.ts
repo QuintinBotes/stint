@@ -129,9 +129,19 @@ const applied = new Set<string>(namesFrom(DEFAULT_CONFIG));
 // NAME=value or NAME: value, where the name says it holds a credential
 const NAMED_SECRET = /\b([A-Z][A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)([ \t]*[=:][ \t]*)\S+/g;
 
-/** Text with credentials redacted: a credential-like name's value, and the value of any key Stint loaded wherever it appears (R-040). */
+// credentials known by their shape, whatever they are called: a private key, an Authorization header, a bearer token,
+// and the OpenAI or Anthropic, GitHub, AWS, Hugging Face and Slack token formats
+const SHAPED_SECRETS: Array<[RegExp, string]> = [
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '[redacted private key]'],
+  [/\b(Authorization["']?\s*[:=]\s*["']?)(?:(?:Bearer|Basic|Token)\s+)?[A-Za-z0-9._~+/=-]{8,}/gi, '$1[redacted]'],
+  [/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/g, 'Bearer [redacted]'],
+  [/\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16}|hf_[A-Za-z0-9]{30,}|xox[abprs]-[A-Za-z0-9-]{10,})/g, '[redacted]'],
+];
+
+/** Text with credentials redacted: a credential-like name's value, a credential's known shape, and the value of any key Stint loaded wherever it appears (R-040). */
 export function scrubSecrets(text: string): string {
   let out = text.replace(NAMED_SECRET, '$1$2[redacted]');
+  for (const [shape, replacement] of SHAPED_SECRETS) out = out.replace(shape, replacement);
   for (const name of applied) {
     const value = process.env[name];
     // short values (a port, a flag) would redact ordinary words
@@ -139,3 +149,7 @@ export function scrubSecrets(text: string): string {
   }
   return out;
 }
+
+/** Every string in a value scrubbed, its shape kept. */
+export const scrubDeep = <T>(v: T): T =>
+  (typeof v === 'string' ? scrubSecrets(v) : Array.isArray(v) ? v.map(scrubDeep) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrubDeep(x)])) : v) as T;
