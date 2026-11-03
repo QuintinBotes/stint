@@ -22,7 +22,7 @@ const SOURCES = [
   { id: 'scorecard-1', dir: join(ROOT, 'bench', 'scorecard-1', 'attempts') },
 ];
 
-type Patch = { source: string; attempt: string; hidden: 'green' | 'red'; recorded: { verdict: string; findings: number; model: string | null } | null; prompt: string; diffBytes: number };
+type Patch = { source: string; attempt: string; hidden: 'green' | 'red'; recorded: { verdict: string; findings: number; model: string | null } | null; prompt: string; localPrompt: string; diffBytes: number };
 type Verdict = {
   reviewer: string;
   verdict: Review['verdict'] | null;
@@ -38,7 +38,7 @@ type Verdict = {
 type Event = { type: string; run?: string; ts: string; payload: Record<string, unknown> };
 
 /** One attempt's review inputs as the daemon would have built them when its review ran. */
-export async function reviewInputs(taskDir: string): Promise<{ prompt: string; at: string; diff: string }> {
+export async function reviewInputs(taskDir: string, offline = false): Promise<{ prompt: string; at: string; diff: string }> {
   const events = readFileSync(join(taskDir, 'events.jsonl'), 'utf8')
     .split('\n')
     .filter((l) => l.trim())
@@ -58,6 +58,7 @@ export async function reviewInputs(taskDir: string): Promise<{ prompt: string; a
     decisions: decisions.map((d) => ({ id: d.id, text: d.text })),
     skills: [],
     acceptance: task.acceptance,
+    offline,
   });
   return { prompt, at, diff };
 }
@@ -73,12 +74,14 @@ async function collect(): Promise<Patch[]> {
       // an attempt the hidden tests could not grade says nothing about a reviewer
       if (a.hidden !== 'green' && a.hidden !== 'red') continue;
       const inputs = await reviewInputs(join(s.dir, name, 'tasks', 'T-0001'));
+      const local = await reviewInputs(join(s.dir, name, 'tasks', 'T-0001'), true);
       out.push({
         source: s.id,
         attempt: name,
         hidden: a.hidden,
         recorded: a.review ? { verdict: a.review.verdict, findings: a.review.findings.length, model: a.review.model } : null,
         prompt: inputs.prompt,
+        localPrompt: local.prompt,
         diffBytes: Buffer.byteLength(inputs.diff),
       });
     }
@@ -134,7 +137,7 @@ if (import.meta.main) {
   }
   const patches = await collect();
   mkdirSync(out, { recursive: true });
-  const results: Array<Omit<Patch, 'prompt'> & { promptTokens: number; reviews: Verdict[] }> = [];
+  const results: Array<Omit<Patch, 'prompt' | 'localPrompt'> & { promptTokens: number; localPromptTokens: number; reviews: Verdict[] }> = [];
   let spent = 0;
   // before the first hosted review, the most one can cost: the reviewer budget all spent on output at $5 per million
   let largest = (DEFAULT_CONFIG.budgets.reviewer * 5) / 1_000_000;
@@ -143,13 +146,15 @@ if (import.meta.main) {
     const dir = join(out, `${p.source}-${p.attempt}`);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'prompt.md'), scrub(p.prompt));
+    // a local reviewer reads more of the diff than a hosted one, as the daemon's does
+    if (reviewers.some((e) => e.startsWith('ollama/'))) writeFileSync(join(dir, 'prompt-local.md'), scrub(p.localPrompt));
     const reviews: Verdict[] = [];
     for (const entry of reviewers) {
       if (budget !== null && !entry.startsWith('ollama/') && spent + largest > budget) {
         reviews.push({ reviewer: entry, verdict: null, summary: null, findings: [], inputTokens: 0, outputTokens: 0, usd: null, wallMs: 0, error: `not run: $${spent.toFixed(4)} spent plus the next review at up to $${largest.toFixed(4)} would pass the $${budget} budget` });
         continue;
       }
-      const v = await review(entry, p.prompt);
+      const v = await review(entry, entry.startsWith('ollama/') ? p.localPrompt : p.prompt);
       spent += v.usd ?? 0;
       // after that, half again the largest hosted review so far
       if (!entry.startsWith('ollama/') && v.usd !== null) observed = Math.max(observed, v.usd);
@@ -157,8 +162,8 @@ if (import.meta.main) {
       reviews.push(v);
       process.stdout.write(`${p.source} ${p.attempt} hidden ${p.hidden}: ${entry} ${v.verdict ?? `no verdict (${v.error})`}, ${v.findings.length} findings, $${(v.usd ?? 0).toFixed(4)}\n`);
     }
-    const { prompt: _p, ...rest } = p;
-    results.push({ ...rest, promptTokens: countTokens(p.prompt), reviews });
+    const { prompt: _p, localPrompt: _l, ...rest } = p;
+    results.push({ ...rest, promptTokens: countTokens(p.prompt), localPromptTokens: countTokens(p.localPrompt), reviews });
     // each patch's verdicts land as they come, so a stopped run keeps what it paid for
     writeFileSync(join(dir, 'reviews.json'), scrub(`${JSON.stringify(results.at(-1), null, 2)}\n`));
   }

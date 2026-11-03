@@ -1,0 +1,485 @@
+{
+  "version": "stint.review-recheck/1",
+  "generatedAt": "2026-11-03T08:05:48.036Z",
+  "reviewers": [
+    "ollama/muse-glimmer:30b-mlx"
+  ],
+  "spendUsd": 0,
+  "tables": {
+    "recorded glimmer": {
+      "caught": 0,
+      "red": 14,
+      "wronglyBlocked": 0,
+      "green": 3,
+      "unanswered": 0
+    },
+    "ollama/muse-glimmer:30b-mlx": {
+      "caught": 1,
+      "red": 15,
+      "wronglyBlocked": 0,
+      "green": 3,
+      "unanswered": 0
+    }
+  },
+  "patches": [
+    {
+      "source": "scorecard",
+      "attempt": "ms-unit-option-a1",
+      "hidden": "green",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 16327,
+      "promptTokens": 3683,
+      "localPromptTokens": 5263,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 6421,
+          "outputTokens": 755,
+          "usd": 0,
+          "wallMs": 150312
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "ms-unit-option-a2",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 16252,
+      "promptTokens": 3453,
+      "localPromptTokens": 4970,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 6321,
+          "outputTokens": 325,
+          "usd": 0,
+          "wallMs": 110873
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "ms-unit-option-a3",
+      "hidden": "red",
+      "recorded": null,
+      "diffBytes": 12902,
+      "promptTokens": 3580,
+      "localPromptTokens": 4194,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "request_changes",
+          "summary": "Findings identify incorrect plural handling for unit formatting and related edge cases.",
+          "findings": [
+            {
+              "severity": "major",
+              "text": "format with unit long uses rounded*divisor for plural decision, causing wrong plural for negative and near-threshold values, e.g., -1500ms with unit s yields '-1 seconds' instead of '-1 second'.",
+              "file": "src/index.ts",
+              "line": 247
+            },
+            {
+              "severity": "major",
+              "text": "Long formatting for non-ms units builds the plural string from rounded*divisor rather than original ms, so pluralisation can be off by one unit boundary.",
+              "file": "src/index.ts",
+              "line": 244
+            }
+          ],
+          "inputTokens": 5183,
+          "outputTokens": 1084,
+          "usd": 0,
+          "wallMs": 163263
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "negotiator-preferred-a1",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 14795,
+      "promptTokens": 3515,
+      "localPromptTokens": 4668,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 5155,
+          "outputTokens": 220,
+          "usd": 0,
+          "wallMs": 82257
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "negotiator-preferred-a2",
+      "hidden": "green",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 11657,
+      "promptTokens": 3768,
+      "localPromptTokens": 4013,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 4235,
+          "outputTokens": 584,
+          "usd": 0,
+          "wallMs": 94691
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "negotiator-preferred-a3",
+      "hidden": "green",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 12412,
+      "promptTokens": 3527,
+      "localPromptTokens": 3981,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 4239,
+          "outputTokens": 110,
+          "usd": 0,
+          "wallMs": 60296
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "wait-on-expect-body-a1",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 561,
+      "promptTokens": 665,
+      "localPromptTokens": 665,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 1120,
+          "outputTokens": 104,
+          "usd": 0,
+          "wallMs": 18664
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "wait-on-expect-body-a2",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 500,
+      "localPromptTokens": 500,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 940,
+          "outputTokens": 74,
+          "usd": 0,
+          "wallMs": 14157
+        }
+      ]
+    },
+    {
+      "source": "scorecard",
+      "attempt": "wait-on-expect-body-a3",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 569,
+      "localPromptTokens": 569,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 1036,
+          "outputTokens": 101,
+          "usd": 0,
+          "wallMs": 17567
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "ms-unit-option-a1",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 442,
+      "localPromptTokens": 442,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 880,
+          "outputTokens": 114,
+          "usd": 0,
+          "wallMs": 15411
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "ms-unit-option-a2",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 442,
+      "localPromptTokens": 442,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 880,
+          "outputTokens": 77,
+          "usd": 0,
+          "wallMs": 13677
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "ms-unit-option-a3",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 442,
+      "localPromptTokens": 442,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 879,
+          "outputTokens": 78,
+          "usd": 0,
+          "wallMs": 13561
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "negotiator-preferred-a1",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 433,
+      "localPromptTokens": 433,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 871,
+          "outputTokens": 110,
+          "usd": 0,
+          "wallMs": 16646
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "negotiator-preferred-a2",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 433,
+      "localPromptTokens": 433,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 869,
+          "outputTokens": 101,
+          "usd": 0,
+          "wallMs": 14325
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "negotiator-preferred-a3",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 433,
+      "localPromptTokens": 433,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 869,
+          "outputTokens": 79,
+          "usd": 0,
+          "wallMs": 13699
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "wait-on-expect-body-a1",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 433,
+      "localPromptTokens": 433,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 870,
+          "outputTokens": 75,
+          "usd": 0,
+          "wallMs": 13335
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "wait-on-expect-body-a2",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 433,
+      "localPromptTokens": 433,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 870,
+          "outputTokens": 87,
+          "usd": 0,
+          "wallMs": 13491
+        }
+      ]
+    },
+    {
+      "source": "scorecard-1",
+      "attempt": "wait-on-expect-body-a3",
+      "hidden": "red",
+      "recorded": {
+        "verdict": "approve",
+        "findings": 0,
+        "model": "muse-glimmer:30b-mlx"
+      },
+      "diffBytes": 0,
+      "promptTokens": 475,
+      "localPromptTokens": 475,
+      "reviews": [
+        {
+          "reviewer": "ollama/muse-glimmer:30b-mlx",
+          "verdict": "approve",
+          "summary": "No actionable findings.",
+          "findings": [],
+          "inputTokens": 920,
+          "outputTokens": 92,
+          "usd": 0,
+          "wallMs": 14856
+        }
+      ]
+    }
+  ]
+}

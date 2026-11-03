@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed (3 November)
+- A reviewer on Ollama reads up to 12,000 tokens of the diff, four times a hosted reviewer's 3,000. Rerun with every hunk in view, Muse Glimmer 30B flagged 1 of the 15 failing scorecard patches and none of the 3 passing ones (`bench/review-recheck/glimmer-local/`).
+
 ### Fixed (3 November)
 - A held-out run that prints a passing summary and then exits non-zero or times out counts as failed, so it can no longer leave a change green.
 - The bench grades a continued run's held-out tests from their counts alone, so a run whose held-out tests all passed reads as passed even when the daemon's verdict was red, and each row and the summary name the two apart. `bench/fair/` and `bench/fair-unfinished/` were rebuilt from their recorded runs with no model call: only the row labels, `hidden`, `hiddenPassRate` and the charts changed.

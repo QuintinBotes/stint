@@ -1,0 +1,25 @@
+{
+  "source": "scorecard",
+  "attempt": "ms-unit-option-a1",
+  "hidden": "green",
+  "recorded": {
+    "verdict": "approve",
+    "findings": 0,
+    "model": "muse-glimmer:30b-mlx"
+  },
+  "diffBytes": 16327,
+  "promptTokens": 3683,
+  "localPromptTokens": 5263,
+  "reviews": [
+    {
+      "reviewer": "ollama/muse-glimmer:30b-mlx",
+      "verdict": "approve",
+      "summary": "No actionable findings.",
+      "findings": [],
+      "inputTokens": 6421,
+      "outputTokens": 755,
+      "usd": 0,
+      "wallMs": 150312
+    }
+  ]
+}
