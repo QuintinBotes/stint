@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added (3 November, evals)
+- `evals/README.md` lists every measurement in the repository, from the packet benchmark to the visual set and the golden tasks: what each measures, where its results are, and the offline or live command that runs it again.
+
 ### Fixed (3 November, test counts)
 - The verifier reads Jest and Mocha summaries as well as bun test and Vitest, and adds up a command that runs more than one, so a check on a repository that uses them records its real counts. A command whose output has none of these still counts as one test, passed or failed by its exit code, and `docs/verify.md` now says so; the relays of 29 October (`bench/relay/`) were recorded that way.
 
