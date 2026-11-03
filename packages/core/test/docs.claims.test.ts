@@ -144,8 +144,8 @@ export function readmeNovemberProblems(text: string): string[] {
     ['the hand-over sizes', /\(([\d,]+) tokens against ([\d,]+) for the transcript, by Stint's estimate\)/, [f.packet.prompt, f.transcript.prompt]],
     ["the daemon's verdicts", /cleared the daemon's verification \((\d+) of (\d+), against (\d+) from the transcript and (\d+) from the task and the diff\)/, [f.packet.green, f.packet.runs, f.transcript.green, f.diff.green]],
     ['the held-out tests from one shared start', /every mode's code passed the held-out tests/, every(f, (m) => m.heldOut === m.runs)],
-    ['the held-out tests from unfinished checkpoints', /from genuinely unfinished checkpoints every mode finished the code, Muse Code resuming its own session included/, every(u, (m) => m.heldOut === m.runs)],
-    ['the dearest mode', /and the packet was the dearest/, every(u, (m) => m.usd <= packetUsd)],
+    ['the held-out tests from unfinished checkpoints', /Not better code or/, every(u, (m) => m.heldOut === m.runs)],
+    ['the dearest mode', /or cheaper runs/, every(u, (m) => m.usd <= packetUsd)],
     ['the review recheck', /a recheck on Muse Spark 1\.3 flagged (\d+) of (\d+)/, [spark.caught, spark.red]],
     ['the visual set', /Muse Spark caught (\d+) of (\d+) seeded defects and failed none of (\d+) clean ones/, v.cleanWronglyFailed === 0 && [v.defectsCaught ?? 0, v.defects ?? 0, v.clean ?? 0]],
   ]);
@@ -278,5 +278,5 @@ test('the 2 November check fails when a number in docs/proofs.md or the README i
   expect(readmeProblems(readme.replace('(864 tokens against', '(800 tokens against'))).toEqual(['the hand-over sizes: says 800, 5,124; the results give 864, 5124']);
   expect(readmeProblems(readme.replace('against 7 from the transcript', 'against 8 from the transcript'))).toEqual([expect.stringContaining("the daemon's verdicts: says 10, 10, 8, 4")]);
   expect(readmeProblems(readme.replace('caught 4 of 5 seeded', 'caught 5 of 5 seeded'))).toEqual([expect.stringContaining('the visual set: says 5, 5, 5')]);
-  expect(readmeProblems(readme.replace('the packet was the dearest', 'the packet was the cheapest'))).toEqual(['the dearest mode: the sentence is missing']);
+  expect(readmeProblems(readme.replace('or cheaper runs', 'or dearer runs'))).toEqual(['the dearest mode: the sentence is missing']);
 });
