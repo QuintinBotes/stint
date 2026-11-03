@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed (3 November, test counts)
+- The verifier reads Jest and Mocha summaries as well as bun test and Vitest, and adds up a command that runs more than one, so a check on a repository that uses them records its real counts. A command whose output has none of these still counts as one test, passed or failed by its exit code, and `docs/verify.md` now says so; the relays of 29 October (`bench/relay/`) were recorded that way.
+
 ### Fixed (3 November, packets)
 - Every field of a packet is scrubbed before it is sized and hashed, so a credential in a refused command, a decision or a plan risk no longer reaches the next agent. The scrubber also redacts credentials by their shape: private keys, `Authorization` headers, bearer tokens, and `sk-`, GitHub, AWS, Hugging Face and Slack tokens.
 
