@@ -330,7 +330,8 @@ export class DaemonVerifier implements Verifier {
     const ok = r.exitCode === 0 && !r.timedOut;
     const counts = parseTestSummary(r.output) ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 };
     const failing = failingTests(r.output);
-    return { passed: counts.passed, failed: counts.failed, names: [...new Set([...files, ...failing])], failing };
+    // a runner that printed a passing summary and then exited non-zero or timed out has not passed
+    return { passed: counts.passed, failed: ok ? counts.failed : Math.max(counts.failed, 1), names: [...new Set([...files, ...failing])], failing };
   }
 
   /**
