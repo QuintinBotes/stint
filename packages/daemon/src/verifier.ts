@@ -14,6 +14,8 @@ export interface Verifier {
   verify(task: Task, run: string, worktree: string): Promise<VerificationRecord>;
   /** The tests and the checks alone, on a checkout that is no run's worktree; nothing is recorded. */
   suite(task: Task, run: string, dir: string): Promise<{ checks: VerificationCheck[]; outputs: string[] }>;
+  /** The task's held-out scenarios copied into a checkout that is no run's worktree and run there; null when it has none; nothing is recorded. */
+  scenarios(task: Task, run: string, dir: string): Promise<{ passed: number; failed: number } | null>;
 }
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g');
@@ -303,6 +305,34 @@ export class DaemonVerifier implements Verifier {
     return null;
   }
 
+  async scenarios(task: Task, run: string, checkout: string) {
+    const dir = scenariosDir(this.ws, task.id);
+    const files = await listScenarioFiles(dir);
+    return files.length ? this.heldOut(task, run, checkout, dir, files) : null;
+  }
+
+  /** Copies the scenario files into the checkout and runs them there; only counts and names come back. */
+  private async heldOut(task: Task, run: string, checkout: string, dir: string, files: string[]) {
+    for (const file of files) {
+      const target = join(checkout, file);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, await readFile(join(dir, file)));
+    }
+    const configured = this.ws.config.scenarios?.command;
+    const command = configured
+      ? configured.includes('{files}')
+        ? configured.replaceAll('{files}', files.map(quote).join(' '))
+        : configured
+      : RUNNER.test(task.testCommand) && !SHELL_OPS.test(task.testCommand)
+        ? `${task.testCommand} ${files.map(quote).join(' ')}`
+        : task.testCommand;
+    const r = await this.exec(task, run, command, checkout);
+    const ok = r.exitCode === 0 && !r.timedOut;
+    const counts = parseTestSummary(r.output) ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 };
+    const failing = failingTests(r.output);
+    return { passed: counts.passed, failed: counts.failed, names: [...new Set([...files, ...failing])], failing };
+  }
+
   /**
    * Held-out scenarios (R-037): copied into a temporary checkout of the task branch, never the agent's
    * worktree. Only counts and names come back; the scenario output and source are never written anywhere.
@@ -321,24 +351,7 @@ export class DaemonVerifier implements Verifier {
       await gitOk(this.ws.root, ['worktree', 'add', '-q', '--detach', path, head]);
       try {
         await installDependencies(path);
-        for (const file of files) {
-          const target = join(path, file);
-          await mkdir(dirname(target), { recursive: true });
-          await writeFile(target, await readFile(join(dir, file)));
-        }
-        const configured = this.ws.config.scenarios?.command;
-        const command = configured
-          ? configured.includes('{files}')
-            ? configured.replaceAll('{files}', files.map(quote).join(' '))
-            : configured
-          : RUNNER.test(task.testCommand) && !SHELL_OPS.test(task.testCommand)
-            ? `${task.testCommand} ${files.map(quote).join(' ')}`
-            : task.testCommand;
-        const r = await this.exec(task, run, command, path);
-        const ok = r.exitCode === 0 && !r.timedOut;
-        const counts = parseTestSummary(r.output) ?? { passed: ok ? 1 : 0, failed: ok ? 0 : 1 };
-        const failing = failingTests(r.output);
-        const record = { passed: counts.passed, failed: counts.failed, names: [...new Set([...files, ...failing])] };
+        const { failing, ...record } = await this.heldOut(task, run, path, dir, files);
         await this.ws.events(task.id).append({ task: task.id, run, vendor: 'daemon', type: 'scenario.ran', payload: { run, ...record, failing } });
         return { record, failing };
       } finally {

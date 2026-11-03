@@ -6,7 +6,7 @@
   "mode": "packet",
   "repeat": 1,
   "leg": "build",
-  "result": "verified by the daemon; with the held-out tests green",
+  "result": "the daemon's verdict green; held-out tests passed 5 of 5",
   "host": "meta-api",
   "model": "muse-spark-1.3",
   "inputTokens": 22743,

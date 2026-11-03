@@ -77,8 +77,9 @@ async function withLatestTask(ctx: DaemonContext, tree: string, id: string, titl
 }
 
 /**
- * The tests and checks on the merge commit, in a checkout of its own that is removed after: two changes that each
- * passed can merge into code that fails. Nothing is recorded; a red merge is refused.
+ * The tests, the checks and the held-out scenarios on the merge commit, in a checkout of its own that is removed
+ * after: two changes that each passed can merge into code that fails. Nothing is recorded; a red merge is refused.
+ * The visual checks are left out, since each one is a paid model call.
  */
 async function verifyMerge(ctx: DaemonContext, task: Task, run: string, base: string, commit: string): Promise<void> {
   const root = ctx.ws.root;
@@ -89,6 +90,9 @@ async function verifyMerge(ctx: DaemonContext, task: Task, run: string, base: st
     await installDependencies(path);
     const { checks, outputs } = await ctx.verifier.suite(task, run, path);
     const red = checks.filter((c) => c.status === 'red').map((c) => c.name);
+    // after the suite, so the scenario files copied in cannot change what the tests saw
+    const held = await ctx.verifier.scenarios(task, run, path);
+    if (held && held.failed > 0) red.push('scenarios');
     if (red.length) throw new DaemonError('merge_red', `${task.branch} passes on its own but fails merged with ${base}; ask for changes so an agent merges ${base} into it`, { checks: red, failing: failingTests(outputs[0] ?? '') });
   } finally {
     await git(root, ['worktree', 'remove', '--force', path]);

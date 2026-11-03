@@ -98,6 +98,12 @@ test('the bench runs one capped first run per task and continues every mode from
     const hidden = Object.fromEntries(results.rows.map((r) => [r.mode, r.hidden]));
     expect(hidden).toEqual({ transcript: 'red', packet: 'red', diff: 'green' });
     expect(results.rows.find((r) => r.mode === 'diff')?.scenarios).toEqual({ passed: 1, failed: 0 });
+    // the daemon's verdict and the held-out tests are named apart
+    expect(Object.fromEntries(results.rows.map((r) => [r.mode, r.result]))).toEqual({
+      transcript: "the daemon's verdict green; held-out tests passed 0 of 1",
+      packet: "the daemon's verdict green; held-out tests passed 0 of 1",
+      diff: "the daemon's verdict green; held-out tests passed 1 of 1",
+    });
     expect(results.byMode.diff).toMatchObject({ runs: 1, hiddenPassRate: 1, hiddenGraded: 1 });
     expect(results.byMode.packet).toMatchObject({ runs: 1, passRate: 1, hiddenPassRate: 0, hiddenGraded: 1 });
   } finally {
