@@ -8,7 +8,7 @@
 <h3 align="center">The task outlives the agent.</h3>
 
 **Meta Global AI Developer Hackathon 2026: indie developer track, Push the Frontier.** Built from 26 October to 4 November 2026; the scaffold and part of the product code were committed on 26 October from 15:15 to 17:00 CET, before the kickoff session, and [`docs/timeline.md`](docs/timeline.md) lists which.\
-**Bonus category: Best Build on Meta Open Weight Models.** Built with Muse Spark Open: it backs the planner, the Stint agent and the reviewer on Fireworks and Baseten and runs the learn step first, on Baseten, and the Stint agent built all 9 live scorecard attempts on it. Muse Glimmer 30B is the first reviewer, on your machine through Ollama.\
+**Bonus category: Best Build on Meta Open Weight Models.** Built with Muse Spark Open: the Stint agent built all 9 live scorecard attempts on it, on Baseten; it runs the learn step first and is the fallback for the planner, the Stint agent and the reviewer, on Fireworks and Baseten. Muse Glimmer 30B is first in the review, summary and recall routes, on your machine through Ollama.\
 **Bonus category: Best Agentic Use-Case.** Muse Wonder plans each task, Muse Code or the Stint agent builds it, and when a run ends another agent continues from its packet, while the daemon runs the tests itself and only a person merges.
 
 Coding agents lose their work when a session ends: the context fills up, the process dies or a usage limit hits. Stint makes the task, not the chat, the unit of work. Each task is a folder in your repository, every run gets its own git worktree, and Stint runs the tests itself. When a run ends, however it ends, Stint writes a packet of a few hundred tokens that any agent continues from. A local model reviews as advice, and only you merge. Stint runs on your machine, on Meta's Muse models by default.
@@ -19,7 +19,7 @@ Coding agents lose their work when a session ends: the context fills up, the pro
 
 Watch the 3-minute demo at [youtu.be/ejYyHgkVOWg](https://youtu.be/ejYyHgkVOWg). To try Stint with nothing to install, open [the live demo](https://quintinbotes.github.io/stint/demo/) on [Stint's site](https://quintinbotes.github.io/stint/), or run the [quick start](#quick-start), which replays the same story through the real daemon with no keys. With Docker, `docker run --rm --pull always -p 127.0.0.1:4319:4319 ghcr.io/quintinbotes/stint` plays it on your machine with nothing else to install; open http://127.0.0.1:4319. [What to click](docs/demo.md#what-to-click) is a six-step tour, [trying it with your own key](docs/setup.md#trying-it-with-your-own-key) says what each part needs and what a task cost, and [`docs/timeline.md`](docs/timeline.md) says what was built each day.
 
-The film's numbers at 2:34 (packets 7 times smaller than transcripts, 9 of 10 continued runs green against 3 of 5) are from the 27 October bench, which gave each mode its own first run; the controlled reruns of 2 November supersede them ([the fair rerun](docs/proofs.md#the-fair-rerun-2-november)).
+The film's numbers at 2:34 (packets 7 times smaller than transcripts, 9 of 10 continued runs green against 3 of 5) are from the 27 October bench, which gave each mode its own first run, as are the same figures on the landing page and the live demo's Factory panel; the controlled reruns of 2 November supersede them ([the fair rerun](docs/proofs.md#the-fair-rerun-2-november)).
 
 | Criterion | Evidence |
 |---|---|

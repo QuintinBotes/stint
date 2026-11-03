@@ -53,7 +53,7 @@ The film's times are from [the cut](video.md#the-cut). The replay and the live d
 
 `bun run serve:judge` serves the site as Pages would, the landing page at `http://127.0.0.1:4321/stint/` and the Board at `http://127.0.0.1:4321/stint/demo/` (`STINT_JUDGE_PORT` picks another port). A deep link into the Board is answered by the root `404.html`, which boots it. `bun run test:judge` builds the site and checks both in a browser. The live site is https://quintinbotes.github.io/stint/.
 
-The workflow `.github/workflows/judge.yml` builds, checks and deploys the copy on a push to main, but only when the repository variable `JUDGE_PAGES` is `on` (and Pages takes its source from GitHub Actions). Otherwise every run is skipped.
+The workflow `.github/workflows/judge.yml` builds, checks and deploys the copy on a push to main, but only when the repository variable `JUDGE_PAGES` is `on` (and Pages takes its source from GitHub Actions). Otherwise every run is skipped. This repository's site is served from the `gh-pages` branch instead, built on 31 October, so later changes to the replay are not on it until it is rebuilt.
 
 ## Before the show
 
