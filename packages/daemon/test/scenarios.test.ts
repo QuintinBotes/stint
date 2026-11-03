@@ -24,6 +24,22 @@ async function untilHandoff(ws: Awaited<ReturnType<typeof makeApp>>['ws'], id: s
   return ws.events(id).read();
 }
 
+test('A held-out run that prints a passing summary and then exits non-zero turns the verification red', async () => {
+  await withFixtureRepo(async (repo) => {
+    writeConfig(repo, (c) => {
+      c.scenarios = { dir: '.stint/scenarios', command: "printf ' 1 pass\\n 0 fail\\n'; exit 1" };
+    });
+    const { app, ws } = await makeApp(repo, [fakeAdapter('edit')]);
+    const t = await ws.createTask({ title: 'Rate-limit incoming webhooks', goal: 'Answer 429 when a tenant is over the limit.', acceptance: ['429 with Retry-After'], testCommand: GREEN });
+    expect((await post(app, `/api/tasks/${t.id}/scenarios`, { name: 'holdout.test.ts', content: HOLDOUT_SOURCE })).status).toBe(201);
+    await post(app, `/api/tasks/${t.id}/assign`, { adapter: 'fake', role: 'implementer' });
+    await untilHandoff(ws, t.id);
+    const v = await ws.verification(t.id).latest();
+    expect(v?.status).toBe('red');
+    expect(v?.scenarios).toMatchObject({ passed: 1, failed: 1 });
+  });
+}, 60_000);
+
 test('A scenario that fails on the branch turns the verification red without the scenario file ever appearing in the worktree or prompt.md', async () => {
   await withFixtureRepo(async (repo) => {
     writeConfig(repo, (c) => {
