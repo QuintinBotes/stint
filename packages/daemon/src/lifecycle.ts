@@ -322,9 +322,10 @@ async function closeRun(ctx: DaemonContext, task: Task, base: RunBase, worktree:
     type: 'run.finished',
     payload: { endedBy: result.endedBy, cost, host: result.host ?? 'local-cli', model: result.model ?? model ?? null, inFlight, commit, ...(result.sessionId ? { sessionId: result.sessionId } : {}) },
   });
+  // verifying before the run leaves the registry: autopilot waits on either, so it never reads this build as unverified
+  await ws.writeTask(taskId, { status: 'verifying', assignee: null });
   ctx.runs.remove(taskId, run);
   await clearActive(ctx, taskId, run);
-  await ws.writeTask(taskId, { status: 'verifying', assignee: null });
   ended?.();
   const v = existsSync(worktree) ? await ctx.verifier.verify(await ws.readTask(taskId), run, worktree) : null;
   await ws.writeTask(taskId, { status: v?.status === 'green' ? 'reviewing' : 'building' });

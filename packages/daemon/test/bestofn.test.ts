@@ -70,6 +70,31 @@ test('bestOf with no green candidate stops the parent with Needs you', async () 
   }
 }, 300_000);
 
+test('A candidate still being verified when the other stops is waited for, so both reach the pick green', async () => {
+  const models = fakeModels();
+  try {
+    await withFixtureRepo(async (repo) => {
+      // the second candidate's tests take 3 s, so the first stops, and wakes it, while they run
+      const slow = writes('stint-agent', 60);
+      const marked: Adapter = {
+        ...slow,
+        async run(ctx) {
+          await Bun.write(`${ctx.worktree}/slow-tests`, '');
+          return slow.run(ctx);
+        },
+      };
+      const { app, ws } = await setup(repo, [writes('muse-code', 60), marked], models, { implementers: ['muse-code', 'stint-agent'], maxHops: 0, parallel: 2, bestOf: 2 });
+      const t = await ws.createTask(task("if [ -f slow-tests ]; then sleep 3; fi; grep -q 'LIMIT = 60' src/lib/limiter.ts"));
+      await post(app, `/api/tasks/${t.id}/autopilot`, { on: true });
+      const events = await until(ws, t.id, stopped, 240_000);
+      expect(stopped(events), 'autopilot stopped within 240 s').toBe(true);
+      expect(events.find((e) => e.type === 'bestofn.picked')?.payload).toMatchObject({ candidates: [{ green: true }, { green: true }] });
+    });
+  } finally {
+    models.stop();
+  }
+}, 300_000);
+
 test('With two green candidates the reviewer picks, and its cost is on bestofn.picked and in the week', async () => {
   const models = fakeModels();
   try {
