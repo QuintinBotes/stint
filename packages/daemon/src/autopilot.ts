@@ -249,6 +249,8 @@ export function nextStep(events: StintEvent[], task: Task, s: AutopilotSettings,
   const tail = autopilotTail(events);
   if (!tail) return { kind: 'idle' };
   if (live) return { kind: 'wait', reason: 'a run is live' };
+  // closeRun wakes autopilot once the verification is recorded; another task's stop can wake it sooner
+  if (task.status === 'verifying') return { kind: 'wait', reason: 'its build is being verified' };
   if (task.status === 'done') return { kind: 'stop', reason: 'The task is merged.', needsYou: false };
   const capped = (next: Parameters<typeof limitStop>[2], step: Step, handReason?: string): Step => limitStop(events, limits, next, handReason, o.goal) ?? step;
   // switched on for work built before it (R-072): a task at the gate stays there, and a green build nobody sent back
@@ -529,10 +531,12 @@ export class Autopilot {
   private async tick(id: string): Promise<void> {
     const ws = this.ctx.ws;
     for (let guard = 0; guard < 8; guard++) {
+      // the reverse of closeRun's writes: a run gone from the registry is already verifying, and a task past verifying has its verification in the log
+      const live = !!this.ctx.runs.get(id);
+      const task = await ws.readTask(id);
       const events = await ws.events(id).read();
       const tail = autopilotTail(events);
-      const task = await ws.readTask(id);
-      const s = nextStep(events, task, this.settings, !!this.ctx.runs.get(id), effectiveLimits(task, ws.config), await this.stepOptions(task));
+      const s = nextStep(events, task, this.settings, live, effectiveLimits(task, ws.config), await this.stepOptions(task));
       if (s.kind === 'idle' || s.kind === 'wait' || !tail) return;
       if (s.kind === 'stop') {
         // a limit is recorded as its own event before the stop; the task's status stays as it is

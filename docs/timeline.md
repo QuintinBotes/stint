@@ -128,3 +128,9 @@ The build kit (`AGENTS.md`, `GOAL.md`, `LOOP.md`) and the specs committed before
 | R-024 | `docs/video.md` opens with a key to reading the film (19:27) | docs |
 | R-040 | A decision sent with a run's token is recorded as that run, only a person supersedes a person's decision, and no field of `decisions.md` can forge an entry (19:47) | product code |
 | R-024 | The docs sweep for judges: every page checked against the code and the result files | docs |
+
+## 4 November
+
+| Commit | What | Kind |
+|---|---|---|
+| R-035 | Autopilot waits for a finished build's verification, so another task stopping can no longer stop that build as unverified or hand it to a second agent while its tests run | product code |
