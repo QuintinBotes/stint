@@ -21,7 +21,7 @@
     "@stint-dev/core": "workspace:*",
     "bun-pty": "0.5.1",
     "fflate": "0.8.3",
-    "hono": "4.13.14",
+    "hono": "4.13.16",
     "ulid": "3.0.2",
     "zod": "4.6.7"
   }
